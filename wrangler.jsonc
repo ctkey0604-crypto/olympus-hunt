@@ -9,7 +9,7 @@
       "binding": "DB",
       "database_name": "olympus-hunt",
       // Paste the Database ID from Cloudflare (Storage & databases > D1 > olympus-hunt) between the quotes:
-      "database_id": "PASTE-DATABASE-ID-HERE"
+      "database_id": "a2c40b7d-dcc7-4896-82f3-9e7ceb4f8bd6"
     }
   ]
 }
