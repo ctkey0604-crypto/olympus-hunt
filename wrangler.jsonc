@@ -1,0 +1,15 @@
+{
+  // Olympus Hunt: the game files are in public/, the server is src/index.js.
+  "name": "olympus-hunt",
+  "main": "src/index.js",
+  "compatibility_date": "2025-10-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "olympus-hunt",
+      // Paste the Database ID from Cloudflare (Storage & databases > D1 > olympus-hunt) between the quotes:
+      "database_id": "PASTE-DATABASE-ID-HERE"
+    }
+  ]
+}
