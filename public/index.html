@@ -4247,7 +4247,7 @@ function npcLines(n) {
   const s = G.save, c = s.cleared;
   switch (n.id) {
     case 'herald': return c.road_bandits ? [c.zeus_hunt ? 'You’ve hunted all twelve gods. The board still has work if you want parts.' : 'Work’s on the board. Pick a hunt and I’ll send you out.']
-      : ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out. You can also leave through the south gate.'];
+      : ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
     case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
@@ -4264,7 +4264,6 @@ function godName(id) { return (BOSSES[id] || {}).name || id; }
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const gate = mkObstacle('gatedoors', 19.5, 23); gate.y = IPX.maxY + 17; props.push(gate);         // drawn in the wall line
   const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 } });
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
