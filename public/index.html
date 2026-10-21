@@ -294,6 +294,16 @@ textarea:focus{outline:2px solid var(--gold)}
 .acct-form input:focus{outline:2px solid var(--gold);outline-offset:0}
 .acct-note,.acct-msg{margin:0;font-size:.9rem;color:var(--bone-dim)}
 .acct-msg{color:var(--bone)}
+.hud-mid{display:grid;justify-items:center;gap:calc(var(--px)*2)}
+#potionBar{display:flex;gap:calc(var(--px)*2.5);pointer-events:auto}
+.pot{position:relative;display:flex;align-items:center;gap:calc(var(--px)*1.5);background:#000b;border:0;padding:calc(var(--px)*1) calc(var(--px)*2.5) calc(var(--px)*1.5);color:var(--bone);font:inherit;font-size:.9em;cursor:pointer;text-shadow:inherit;
+  box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) #000,inset 0 0 0 max(1px,calc(var(--px)*.75)) #ffffff1a}
+.pot kbd{font-family:var(--font-ui);color:var(--gold);background:#000;padding:0 .3em;box-shadow:inset 0 -2px 0 #3e2c24;text-shadow:none;font-size:.9em}
+.pot img{width:calc(var(--px)*8);height:calc(var(--px)*8);image-rendering:pixelated}
+.pot b{font-variant-numeric:tabular-nums}
+.pot.empty{opacity:.4}
+.stats b.gold{color:var(--gold)}
+.pot i{position:absolute;left:0;bottom:0;height:max(2px,calc(var(--px)*1));background:var(--gold)}
 @media (prefers-reduced-motion:reduce){
   #banner{animation:none}
   .feed{animation:none}
@@ -318,7 +328,7 @@ textarea:focus{outline:2px solid var(--gold)}
             <div class="bar" id="guardBar" hidden><i id="guardFill"></i></div>
             <div class="status-row" id="statusRow"></div>
           </div>
-          <div class="hud-wave" id="hudWave">Wave 1</div>
+          <div class="hud-mid"><div class="hud-wave" id="hudWave">Wave 1</div><div id="potionBar"></div></div>
           <div class="hud-loot"><span>Parts</span><b id="hudLoot">0</b></div>
         </div>
         <div id="lootFeed"></div>
@@ -576,7 +586,7 @@ const KINDS = {
   spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.2,  reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .44, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
   hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.6,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .55,  reach: 17, arc: 1.8, windup: .02, active: .09, cooldown: .15, knock: 45,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs with short reach. No shield.' },
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .8,   windup: .07, active: .12, cooldown: .4, projSpeed: 250, knock: 70, moveMul: .6, hitstop: .02, shake: 0, sfx: 'arrow', blurb: 'Ranged shots that auto-aim. No shield.' },
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', blurb: 'Ranged shots that auto-aim. No shield.' },
 };
 
 const ABILITIES = {
@@ -880,6 +890,13 @@ const BOSSES = {
                 phase2: { title: 'Hypnos yawns', sub: 'More fog. Don’t stand still.' },
                 colors: ['#2c3a6a', '#c8b8ff', '#f3e9d4'], loot: [['poppy_dream', 1, 1, 2], ['shade_essence', 1, 2, 4]] },
 };
+// Potions from the market. share = price as a share of one hunt's pay at the highest god you've unlocked, so they always cost something.
+const POTIONS = {
+  health:   { name: 'Health Potion',   key: 'potion1', share: .3,  col: ['#d9493b', '#7f2618', '#ffd0c0'], short: 'Health',   desc: 'Heals 40% of your health right away.' },
+  strength: { name: 'Strength Potion', key: 'potion2', share: .4,  col: ['#e9a030', '#8f5a1c', '#fff0b0'], short: 'Strength', desc: '+25% damage for 60 seconds.' },
+  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: '+20% move speed for 60 seconds.' },
+};
+const POTION_MAX = 3;
 // Plurals that don't just add an s.
 const PLURALS = { wolf: 'Wolves', spartoi: 'Spartoi', skeleton: 'Restless Dead', fury: 'Furies', gigas: 'Gigantes', cyclops: 'Cyclopes', storm_cyclops: 'Storm Cyclopes',
                   eros: 'Erotes', priestess: 'Priestesses of Hera', aphro_clone: 'Mirror Images', calydon: 'Calydonian Boars', centaur: 'Drunken Centaurs' };
@@ -1382,6 +1399,7 @@ const NPC_LOOKS = {
   suitor:    { base: 'man',      pal: { a: '#3a2416', c: '#e88aa8', C: '#b85a78', d: '#f3e9d4' } },
   maenad:    { base: 'woman',    pal: { a: '#4a2f63', c: '#7a4f9c', C: '#4a2f63', d: '#4e8a3a' } },
   priestess: { base: 'woman',    pal: { a: '#2e211b', c: '#f3e9d4', C: '#c2b293', d: '#5b9bd5' } },
+  merchant:  { base: 'woman',    pal: { a: '#2e211b', c: '#c0412e', C: '#7f2618', d: '#e9c04f' } },
 };
 
 /* ---- icons ---- */
@@ -1549,6 +1567,7 @@ function iconCanvas(id) {
     c = makeSprite(PIECE_ICON_T[P.slot], OUTLINE, { a: col[0], b: col[1], c: (P.slot === 'chest' ? col[2] : null) || (P.slot === 'legs' ? ARMOR_SETS[P.set].colors.chest[0] : col[1]) });
   }
   else if (SHIELDS[id]) { const [a, b, cc] = SHIELDS[id].colors; c = makeSprite(PIECE_ICON_T.shield, OUTLINE, { a, b, c: cc }); }
+  else if (id.startsWith('potion:')) { const [a, b, cc] = POTIONS[id.slice(7)].col; c = makeSprite(['...cc...', '...ww...', '..waaw..', '.waaaab.', '.wacaab.', '.aaaabb.', '..abbb..', '........'], OUTLINE, { a, b, c: cc, w: '#e6e1d6' }); }
   else if (ITEMS[id]) c = makeSprite(ICON_TEMPLATES.shard, OUTLINE, { a: '#d8ccb4', b: '#85735d', c: '#ffffff' });
   return (ICON_CANVAS[id] = c);
 }
@@ -1692,9 +1711,11 @@ const Sound = {
 // J/K/L/I comes first so laptop and Chromebook players never need the touchpad.
 const DEFAULT_BINDS = {
   up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-  attack: ['KeyJ', 'Space', 'KeyZ'], dodge: ['KeyK', 'ShiftLeft', 'KeyX'], ability: ['KeyL', 'KeyE', 'KeyC'], guard: ['KeyI', 'KeyQ', 'KeyV'],
+  attack: ['KeyJ', 'Space', 'KeyZ'], dodge: ['KeyK', 'ShiftLeft', 'KeyX'], ability: ['KeyL', 'KeyR', 'KeyC'], guard: ['KeyE', 'KeyI', 'KeyQ'],
+  potion1: ['Digit1'], potion2: ['Digit2'], potion3: ['Digit3'],
 };
-const ACTION_LABELS = { up: 'Move up', left: 'Move left', down: 'Move down', right: 'Move right', attack: 'Attack / talk', dodge: 'Dodge roll', ability: 'Weapon skill', guard: 'Guard (hold)' };
+const ACTION_LABELS = { up: 'Move up', left: 'Move left', down: 'Move down', right: 'Move right', attack: 'Attack', dodge: 'Dodge roll', ability: 'Weapon skill', guard: 'Guard / use in town',
+  potion1: 'Health potion', potion2: 'Strength potion', potion3: 'Speed potion' };
 // Keys that can't be bound: game shortcuts plus Chromebook/OS keys (Search, Ctrl, Alt) that trigger system shortcuts.
 const RESERVED = new Set(['Escape', 'KeyP', 'KeyM', 'KeyF', 'Enter', 'NumpadEnter', 'Tab', 'CapsLock', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ContextMenu']);
 const Input = {
@@ -1732,10 +1753,11 @@ function controlsItems() {
   const m = Settings.data.mouse, keys = a => Input.bind[a].map(kbd).join(' ');
   return [
     ['Move', moveKeysHTML()],
-    ['Attack and talk', keys('attack') + (m ? ' or click' : '') + '<br>Hold to keep swinging'],
+    ['Attack', keys('attack') + (m ? ' or click' : '') + '<br>Hold to keep swinging'],
     ['Dodge roll', keys('dodge') + (m ? ' or right click' : '')],
     ['Weapon skill', keys('ability')],
-    ['Guard with a shield', keys('guard') + '<br>Hold it. Tap it just before a hit for a perfect block'],
+    ['Guard / use in town', keys('guard') + '<br>Hold to block with a shield. Talk and open doors in town'],
+    ['Potions', ['potion1', 'potion2', 'potion3'].map(a => keys(a)).join(' ') + '<br>Health, strength, speed'],
     ['Pause', `${kbd('Escape')} ${kbd('KeyP')} · ${kbd('KeyF')} fullscreen · ${kbd('KeyM')} mute`],
   ];
 }
@@ -1761,7 +1783,7 @@ const Store = {
           const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
           if (db && user) { const id = await user.id(); if (id) { this.cloud = db; this.uid = id; } }
         } catch (e) { this.cloud = null; }
-      } else if (/^https?:$/.test(location.protocol)) await this.probeApi();
+      } else if (/^https?:$/.test(location.protocol) && !/crazygames|itch\.io|itch\.zone|github\.io/.test(location.hostname)) await this.probeApi();   // only your own site has the account server
     })();
     return this.ready;
   },
@@ -1886,7 +1908,7 @@ function newSave() {
   return { v: 3, createdAt: Date.now(), savedAt: Date.now(), playtime: 0, money: START_MONEY, inv: {},
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
-           shields: [], shield: null, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false };
+           shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false };
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -1921,6 +1943,7 @@ function sanitize(s) {
   }
   out.seenIntro = s.seenIntro === true;
   out.blessing = s.blessing === true;
+  for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);
   return out;
 }
 
@@ -1935,11 +1958,11 @@ const Settings = {
           const b = {}; let ok = true;
           for (const a of Object.keys(DEFAULT_BINDS)) {
             const v = s.binds[a];
-            if (v === undefined && a === 'guard') continue;           // older settings had no guard key
+            if (v === undefined) continue;                               // older settings: filled in below
             if (!Array.isArray(v) || !v.length || !v.every(x => typeof x === 'string' && !RESERVED.has(x))) { ok = false; break; }
             b[a] = v.slice(0, 3);
           }
-          if (ok && !b.guard) { const used = new Set(Object.values(b).flat()); b.guard = DEFAULT_BINDS.guard.filter(k => !used.has(k)); if (!b.guard.length) b.guard = ['Semicolon']; }
+          if (ok) for (const a of Object.keys(DEFAULT_BINDS)) if (!b[a]) { const used = new Set(Object.values(b).flat()); b[a] = DEFAULT_BINDS[a].filter(k => !used.has(k)); if (!b[a].length) b[a] = [{ guard: 'Semicolon', potion1: 'Digit7', potion2: 'Digit8', potion3: 'Digit9' }[a] || 'Digit0']; }
           if (ok) this.data.binds = b;
         }
       }
@@ -1972,7 +1995,7 @@ const OBST = {
   slab: { w: 20, h: 10 }, pylon: { w: 10, h: 8 }, anvil: { w: 12, h: 6 }, fountain: { w: 30, h: 16 }, stall: { w: 28, h: 8 },
   crate: { w: 12, h: 8 }, amphora: { w: 8, h: 6 }, board: { w: 18, h: 4 },
   pine: { w: 8, h: 6 }, vine: { w: 26, h: 4 }, rosebush: { w: 12, h: 6 }, coral: { w: 10, h: 6 }, grave: { w: 10, h: 5 },
-  crystal: { w: 10, h: 6 }, stump: { w: 10, h: 6 }, shell: { w: 14, h: 8 }, rack: { w: 18, h: 4 }, hearth: { w: 22, h: 10 },
+  crystal: { w: 10, h: 6 }, stump: { w: 10, h: 6 }, shell: { w: 14, h: 8 }, rack: { w: 18, h: 4 }, hearth: { w: 22, h: 10 }, gatedoors: { w: 48, h: 6 },
 };
 const SPAWN_TILES = [[5, 5], [20, 4], [34, 5], [4, 13], [35, 13], [5, 21], [20, 21], [34, 21], [12, 4], [28, 4], [12, 21], [28, 21]];
 const PLAYER_START = [20, 14];
@@ -2532,6 +2555,19 @@ function drawObstacle(o, sx, sy) {
       pxEllipse(sx, sy - 6, 5, 6, '#1a1210'); pxEllipse(sx, sy - 6, 4, 5, '#c35f2a'); ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 4, sy - 7, 8, 2); ctx.fillRect(sx - 2, sy - 15, 4, 4);
       ctx.fillStyle = '#c35f2a'; ctx.fillRect(sx - 1, sy - 14, 2, 3);
       break;
+    case 'gatedoors': {                                // the village gate, shut
+      ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 24, sy - 26, 48, 27);
+      for (const d of [-1, 1]) {
+        const x0 = d < 0 ? sx - 23 : sx + 1;
+        ctx.fillStyle = '#6b4528'; ctx.fillRect(x0, sy - 25, 22, 25);
+        ctx.fillStyle = '#5a3a22'; for (let i = 3; i < 22; i += 5) ctx.fillRect(x0 + i, sy - 25, 1, 25);
+        ctx.fillStyle = '#3a2416'; ctx.fillRect(x0, sy - 19, 22, 2); ctx.fillRect(x0, sy - 7, 22, 2);
+        ctx.fillStyle = '#9aa0a6'; for (const yy of [sy - 18, sy - 6]) for (let i = 2; i < 22; i += 6) ctx.fillRect(x0 + i, yy, 1, 1);
+      }
+      ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 25, 2, 25);
+      ctx.fillStyle = '#4b4f57'; ctx.fillRect(sx - 14, sy - 14, 28, 3); ctx.fillStyle = '#8a909a'; ctx.fillRect(sx - 14, sy - 14, 28, 1);
+      break;
+    }
     case 'board':
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 10, sy - 18, 20, 13); ctx.fillRect(sx - 9, sy - 6, 2, 7); ctx.fillRect(sx + 7, sy - 6, 2, 7);
       ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 9, sy - 17, 18, 11);
@@ -2577,8 +2613,9 @@ function makePlayer() {
            invuln: 0, flash: 0, atkCd: 0, dodgeCd: 0, abilCd: 0, dodgeT: 0, dashT: 0, aegisT: 0, dvx: 0, dvy: 0, swing: null, swingSide: 1,
            bufAtk: 0, bufDodge: 0, bufAbil: 0, bufMouse: false, walkT: 0, moving: false, dead: false, dashHit: new Set(),
            guarding: false, guard: st.guardMax, guardDelay: 0, guardBreak: 0, guardPress: 0, guardTapCd: 0, guardFlash: 0,
-           fx: { slow: 0, confuse: 0, charm: 0, sleep: 0, drowsy: 0, poison: 0, burn: 0, frenzy: 0, heart: 0, spin: 0, killRush: 0, strike: 0 },
-           charmFrom: null, spinTicks: 0, hits: 0, regenAcc: 0, revived: false, look: { ...G.save.equip } };
+           fx: { slow: 0, confuse: 0, charm: 0, sleep: 0, drowsy: 0, poison: 0, burn: 0, frenzy: 0, heart: 0, spin: 0, killRush: 0, strike: 0, riposte: 0, str: 0, spd: 0 },
+           charmFrom: null, spinTicks: 0, hits: 0, regenAcc: 0, revived: false, look: { ...G.save.equip },
+           shieldT: 0, blockKick: 0, bashT: 0, bashCd: 0, comboT: 0, potionCd: 0 };
 }
 function moveVector() {
   let x = 0, y = 0;
@@ -2622,6 +2659,8 @@ function updatePlayer(dt) {
   p.invuln = Math.max(0, p.invuln - dt); p.flash = Math.max(0, p.flash - dt); p.aegisT = Math.max(0, p.aegisT - dt);
   p.atkCd = Math.max(0, p.atkCd - dt); p.dodgeCd = Math.max(0, p.dodgeCd - dt); p.abilCd = Math.max(0, p.abilCd - dt);
   p.guardPress = Math.max(0, p.guardPress - dt); p.guardTapCd = Math.max(0, p.guardTapCd - dt); p.guardFlash = Math.max(0, p.guardFlash - dt);
+  p.blockKick = Math.max(0, p.blockKick - dt); p.bashT = Math.max(0, p.bashT - dt); p.bashCd = Math.max(0, p.bashCd - dt); p.comboT = Math.max(0, p.comboT - dt); p.potionCd = Math.max(0, p.potionCd - dt);
+  p.shieldT = clamp(p.shieldT + (p.guarding ? dt / .08 : -dt / .12), 0, 1);
   for (const k in F) F[k] = Math.max(0, F[k] - dt);
   const decay = Math.pow(.0006, dt); p.kbx *= decay; p.kby *= decay;
   if (p.dead) return;
@@ -2638,6 +2677,7 @@ function updatePlayer(dt) {
   if (Input.hit('ability')) p.bufAbil = .16;
   if (p.bufAtk <= 0 && (Input.is('attack') || Input.mouse.held)) { p.bufAtk = .02; p.bufMouse = Input.mouse.held; }
   p.bufAtk -= dt; p.bufDodge -= dt; p.bufAbil -= dt;
+  for (const [id, P] of Object.entries(POTIONS)) if (Input.hit(P.key)) drinkPotion(id);
   let mv = moveVector();
   if (F.confuse > 0) mv = { x: -mv.x, y: -mv.y };
   // asleep or guard broken: you can't do anything until it passes
@@ -2679,8 +2719,9 @@ function updatePlayer(dt) {
     if (p.bufAbil > 0 && p.abilCd <= 0 && st.weapon.ability) { useAbility(p, mv); p.bufAbil = 0; return; }
     if (p.bufAtk > 0 && p.atkCd <= 0) { startAttack(p); p.bufAtk = 0; }
   } else if (p.guarding && p.bufDodge > 0 && p.dodgeCd <= 0) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
+  else if (p.guarding && p.bufAtk > 0 && p.bashCd <= 0) { shieldBash(p); p.bufAtk = 0; }
   else if (p.swing && p.bufDodge > 0 && p.dodgeCd <= 0 && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
-  let spd = st.speed * (p.swing ? K.moveMul : 1) * (p.guarding ? .45 : 1) * (F.slow > 0 ? .6 : 1);
+  let spd = st.speed * (p.swing ? K.moveMul : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? .6 : 1) * (F.spd > 0 ? 1.2 : 1);
   p.vx = mv.x * spd; p.vy = mv.y * spd;
   p.moving = !!(mv.x || mv.y);
   if (p.moving) { if (!p.swing && !p.guarding) p.face = Math.atan2(mv.y, mv.x); p.walkT += dt; }
@@ -2701,8 +2742,34 @@ function dashCuts(p, mult) {
     if (dist(p, e) < e.r + p.r + 9) { p.dashHit.add(e.id); damageEnemy(e, p.st.weapon.dmg * mult * dmgMul(p), Math.atan2(p.dvy, p.dvx), 160); G.hitstop = Math.max(G.hitstop, .03); }
   }
 }
+// Shield bash: attack while guarding to shove whatever is in front of you.
+function shieldBash(p) {
+  p.bashT = .2; p.bashCd = .6; p.guard = Math.max(0, p.guard - p.st.guardMax * .06);
+  Sound.play('guard'); const W = p.st.weapon.dmg * dmgMul(p);
+  let hit = 0;
+  for (const e of q.enemies) {
+    if (!targetable(e)) continue;
+    const d = dist(p, e), a = Math.atan2(e.y - p.y, e.x - p.x);
+    if (d - e.r > 20 || Math.abs(angDiff(p.face, a)) > .9) continue;
+    damageEnemy(e, W * .4, a, 230, true); if (!e.boss && !e.dead) e.stun = Math.max(e.stun, .5); hit++;
+  }
+  if (hit) { G.hitstop = Math.max(G.hitstop, .05); addShake(2); burst(p.x + Math.cos(p.face) * 9, p.y - 7, 6, ['#ebc152', '#fff6d8'], 70); }
+}
+// Potions bought at the market. Keys 1, 2 and 3 by default, or tap them at the top of the screen.
+function drinkPotion(id) {
+  const p = q.player, s = G.save, P = POTIONS[id];
+  if (!p || p.dead || q.phase === 'victory' || p.potionCd > 0) return;
+  if (!(s.potions[id] > 0)) { Sound.play('clink'); return; }
+  if (id === 'health' && p.hp >= p.st.maxHp) { addText(p.x, p.y - 20, '+0', '#9bbb55'); return; }
+  s.potions[id]--; p.potionCd = .4; Sound.play(id === 'health' ? 'heal' : 'ability');
+  if (id === 'health') healPlayer(Math.round(p.st.maxHp * .4));
+  else if (id === 'strength') p.fx.str = 60;
+  else p.fx.spd = 60;
+  burst(p.x, p.y - 8, 12, [P.col[0], P.col[2]], 60);
+  q.stats.potions = (q.stats.potions || 0) + 1;
+}
 function dmgMul(p) {
-  let m = p.st.mul;
+  let m = p.st.mul * (p.fx.str > 0 ? 1.25 : 1);
   if (p.st.perks.berserk && p.hp < p.st.maxHp * .4) m *= 1 + p.st.perks.berserk;
   return m;
 }
@@ -2710,7 +2777,7 @@ function startAttack(p) {
   const K = p.st.kind;
   let aim;
   if (p.bufMouse) aim = aimAssist(p, mouseAim(p), K);
-  else if (Settings.data.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 240); aim = t === null ? aimAssist(p, p.face, K) : t; }
+  else if (Settings.data.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 215); aim = t === null ? aimAssist(p, p.face, K) : t; }
   else aim = aimAssist(p, p.face, K);
   p.face = aim; p.swingSide = -p.swingSide;
   const fast = (p.fx.frenzy > 0 ? .625 : 1) * (p.fx.killRush > 0 ? .77 : 1);
@@ -2721,8 +2788,10 @@ function releaseAttack(p, s) {
   const K = p.st.kind, w = p.st.weapon;
   let dmg = w.dmg * dmgMul(p);
   if (p.fx.strike > 0) { dmg *= 1 + p.st.perks.dodgeStrike; p.fx.strike = 0; }
+  const riposte = p.fx.riposte > 0; if (riposte) { dmg *= 2; p.fx.riposte = 0; }
+  if (K.melee && p.comboT > 0) dmg *= 1.12;                 // melee follow-up: chained hits land harder
   Sound.play(K.sfx);
-  if (!K.melee) { spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed, dmg, 'arrow', 'player', { r: 2.5, life: 1.1, pierce: w.pierce || 0 }); return; }
+  if (!K.melee) { spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed, dmg, 'arrow', 'player', { r: 2.5, life: .95, pierce: w.pierce || 0 }); return; }
   let hits = 0;
   for (const e of q.enemies) {
     if (!targetable(e)) continue;
@@ -2730,8 +2799,10 @@ function releaseAttack(p, s) {
     if (d - e.r > K.reach) continue;
     const a = Math.atan2(dy, dx);
     if (d > e.r + 5 && Math.abs(angDiff(s.aim, a)) > K.arc / 2) continue;
-    if (damageEnemy(e, dmg, a, K.knock * (1 + (p.st.perks.knock || 0)))) hits++;
+    if (damageEnemy(e, dmg, a, K.knock * (1 + (p.st.perks.knock || 0)))) { hits++; if (riposte && !e.boss && !e.dead) e.stun = Math.max(e.stun, .7); }
   }
+  if (hits) p.comboT = .8;
+  if (riposte && hits) { burst(p.x + Math.cos(s.aim) * 12, p.y - 6 + Math.sin(s.aim) * 8, 10, ['#ffffff', '#ebc152'], 90); addShake(2); }
   if (hits) { G.hitstop = Math.max(G.hitstop, K.hitstop); addShake(K.shake + (hits > 2 ? 1 : 0)); Sound.play('hit'); }
   if (w.kind === 'hammer') { q.fx.push({ t: 'ring', x: p.x + Math.cos(s.aim) * 15, y: p.y + Math.sin(s.aim) * 15, r0: 2, r1: 14, life: .22, max: .22, c: '#d8ccb4' }); dust(p.x + Math.cos(s.aim) * 15, p.y + Math.sin(s.aim) * 15, 6); addShake(2); }
 }
@@ -2825,9 +2896,10 @@ function hurtPlayer(dmg, ang, knock = 140, o = {}) {
     const from = ang + Math.PI;
     if (Math.abs(angDiff(p.face, from)) < 1.3) {
       if (p.guardPress > 0) { perfectBlock(p, o, ang); return 2; }
-      const cost = dmg / rawDmg(1, tierNow()) * 100;
-      p.guard -= cost; p.guardDelay = .8; p.guardFlash = .15;
-      const taken = Math.round(dmg * (1 - st.shield.block) * 20 / (20 + st.def) * (o.proj ? 1 - st.projRes : 1));
+      const small = o.src && o.src.def && o.src.def.cls === 'fodder';
+      const cost = dmg / rawDmg(1, tierNow()) * 100 * (small ? .5 : .75);
+      p.guard -= cost; p.guardDelay = .8; p.guardFlash = .12; p.blockKick = .15;
+      const taken = small ? 0 : Math.round(dmg * (1 - st.shield.block) * 20 / (20 + st.def) * (o.proj ? 1 - st.projRes : 1));
       p.kbx += Math.cos(ang) * knock * .35; p.kby += Math.sin(ang) * knock * .35;
       Sound.play('guard'); burst(p.x + Math.cos(p.face) * 6, p.y - 7, 4, ['#ebc152', '#fff6d8'], 60);
       p.invuln = .2;
@@ -2859,7 +2931,8 @@ function tickDamage(n) {
 }
 function perfectBlock(p, o, ang) {
   const sh = p.st.shield, W = p.st.weapon.dmg * dmgMul(p);
-  p.guard = Math.min(p.st.guardMax, p.guard + p.st.guardMax * .1); p.invuln = .3; p.guardFlash = .3;
+  p.guard = Math.min(p.st.guardMax, p.guard + p.st.guardMax * .1); p.invuln = .3; p.guardFlash = .3; p.blockKick = .1; p.fx.riposte = 1;
+  q.fx.push({ t: 'ring', x: p.x + Math.cos(p.face) * 7, y: p.y - 4 + Math.sin(p.face) * 4, r0: 3, r1: 16, life: .25, max: .25, c: '#ffffff' });
   Sound.play('perfect'); G.hitstop = Math.max(G.hitstop, .08); G.flash = Math.max(G.flash, .04);
   burst(p.x + Math.cos(p.face) * 7, p.y - 7, 12, ['#ffffff', '#ebc152', '#5b9bd5'], 90);
   addText(p.x, p.y - 20, '!', '#ffffff');
@@ -4160,9 +4233,11 @@ const NPCS = [
   { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 28, ty: 13, opens: 'quests' },
   { id: 'keeper', name: 'Phaedra',          sprite: 'keeper', tx: 11, ty: 19, opens: 'stash' },
   { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 22, ty: 10 },
+  { id: 'merchant', name: 'Melita the Trader', sprite: 'merchant', tx: 14, ty: 19.4, opens: 'market' },
 ];
 const PANEL_INFO = {
-  quests:  { title: 'Herald’s Hall' },
+  quests:  { title: 'Quests' },
+  market:  { title: 'Market' },
   armory:  { title: 'The Forge' },
   stash:   { title: 'Storehouse' },
   options: { title: 'Your Home' },
@@ -4175,6 +4250,7 @@ function npcLines(n) {
       : ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out. You can also leave through the south gate.'];
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
+    case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
     case 'oracle': {
       const unfound = QUESTS.filter(qd => isUnlocked(qd) && !s.chests[qd.id]);
       if (!unfound.length) return [QUESTS.every(qd => s.chests[qd.id]) ? 'Every hidden cache I can see has been opened. You have sharp eyes.' : 'I see no unopened caches on the paths you can walk. Unlock new hunts and ask me again.'];
@@ -4188,6 +4264,7 @@ function godName(id) { return (BOSSES[id] || {}).name || id; }
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
+  const gate = mkObstacle('gatedoors', 19.5, 23); gate.y = IPX.maxY + 17; props.push(gate);         // drawn in the wall line
   const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 } });
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
@@ -4197,7 +4274,7 @@ function buildVillage() {
     spots.push(door);
   }
   for (const o of props) if (o.kind === 'board') spots.push({ id: 'board', name: 'the notice board', kind: 'board', opens: 'quests', x: o.x, y: o.y + 8 });
-  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.map(o => o.box)], [{ x: 19, y: 23, w: 3, h: 2 }]),
+  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 // Inside the temple: the twelve gods along the back wall, the side-hunt gods along the walls, Hestia's hearth in the middle.
@@ -4242,7 +4319,7 @@ function resumeVillage() {
   Input.down.clear(); Input.endFrame();
   hudMode('village');
 }
-function interactPressed() { return Input.hit('attack') || Input.hit('ability') || Input.enter; }
+function interactPressed() { return Input.hit('guard') || Input.hit('attack') || Input.enter; }
 function nearestInteract(p) {
   let best = null, bd = 22;
   for (const n of V.npcs) { const d = dist(p, n); if (d < bd) { bd = d; best = { kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y }; } }
@@ -4268,7 +4345,7 @@ function renderDialog() {
   const line = d.lines[d.i], shown = line.slice(0, Math.floor(d.chars));
   $('dlgLine').textContent = shown;
   const last = d.i >= d.lines.length - 1, done = d.chars >= line.length;
-  $('dlgMore').innerHTML = done ? `${kbd(Input.bind.attack[0])} ${last ? (d.after ? 'Go in' : 'Close') : 'Next'}` : '';
+  $('dlgMore').innerHTML = done ? `${kbd(Input.bind.guard[0])} ${last ? (d.after ? 'Go in' : 'Close') : 'Next'}` : '';
 }
 function advanceDialog() {
   const d = G.dialog; if (!d) return;
@@ -4302,10 +4379,7 @@ function tickVillage(dt) {
     villageMove(p, dt);
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
-    else if (p.y > IPX.maxY + 6) {
-      if (V.id === 'temple') { Sound.play('door'); enterPlace('village', 'temple'); Input.endFrame(); return; }
-      p.y = IPX.maxY - 10; openPanel('quests', 'Quests');
-    }
+    else if (p.y > IPX.maxY + 6 && V.id === 'temple') { Sound.play('door'); enterPlace('village', 'temple'); Input.endFrame(); return; }
   }
   updateNpcs(dt);
   if (V.id === 'village') {
@@ -4496,13 +4570,22 @@ function drawPlayer(p, S) {
   const bob = p.moving && !p.swing ? (Math.floor(p.walkT * 8) % 2) : 0;
   const behind = Math.sin(p.swing ? p.swing.aim : p.face) < -.3;
   const hx = sx + (flip ? -2 : 2), hy = sy - 8 - bob;
-  const sh = p.st && p.st.shield;
-  if (sh && !p.guarding && p.dodgeT <= 0) drawShield(sh, sx - dir * 4, sy - 9 - bob, 3, 4, false);
+  const sh = p.st && p.st.shield, k = easeOut(p.shieldT || 0);
+  // The shield swings from your back arm to the front when you guard, gets knocked back when it takes a hit, and lunges on a bash.
+  let shDraw = null;
+  if (sh && p.dodgeT <= 0) {
+    const kick = (p.blockKick > 0 ? -3 * p.blockKick / .15 : 0) + (p.bashT > 0 ? 5 * Math.sin((1 - p.bashT / .2) * Math.PI) : 0);
+    const bx = sx - dir * 4, by = sy - 9 - bob, fx = sx + Math.cos(p.face) * (7 + kick), fy = sy - 9 + Math.sin(p.face) * (4 + kick * .5);
+    const cx = lerp(bx, fx, k), cy = lerp(by, fy, k) - Math.sin(k * Math.PI) * 2;
+    shDraw = { cx, cy, rx: Math.round(lerp(3, 5, k)), ry: Math.round(lerp(4, 7, k)), front: k > .5 && Math.sin(p.face) > -.3, flash: p.guardFlash > 0, glow: p.fx && p.fx.riposte > 0 };
+  }
+  if (shDraw && !shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
   if (behind) drawWeapon(p, hx, hy);
   if (p.dodgeT > 0) drawSpr(frames, 1, sx, sy + 1, flip, null, .65);
   else drawSpr(frames, fi, sx, sy - bob, flip, p.flash > 0 ? 'white' : null);
   if (!behind) drawWeapon(p, hx, hy);
-  if (sh && p.guarding) drawShield(sh, sx + Math.cos(p.face) * 6, sy - 9 + Math.sin(p.face) * 3, 4, 6, p.guardFlash > 0);
+  if (shDraw && shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
+  if (p.fx && (p.fx.str > 0 || p.fx.spd > 0) && Math.random() < .2) sc.parts.push({ x: p.x + rand(-5, 5), y: p.y - rand(2, 14), vx: 0, vy: -16, g: 0, life: .35, max: .35, c: p.fx.str > 0 ? '#e9a030' : '#57c2b0', s: 1 });
   if (p.aegisT > 0) { pxRing(sx, sy - 9, 12, blink(16) ? '#ebc152' : '#5b9bd5'); pxRing(sx, sy - 9, 13, '#fff6d8', 3); }
   const top = sy - 26 - bob, F = p.fx || {};
   if (F.charm > 0) for (let i = 0; i < 2; i++) { const a = G.time * 4 + i * 3.1, x = Math.round(sx + Math.cos(a) * 6), y = Math.round(top + Math.sin(a) * 2); ctx.fillStyle = '#f2a7c0'; ctx.fillRect(x - 1, y, 1, 1); ctx.fillRect(x + 1, y, 1, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1); }
@@ -4512,11 +4595,13 @@ function drawPlayer(p, S) {
   if (F.frenzy > 0 && Math.random() < .25) sc.parts.push({ x: p.x + rand(-5, 5), y: p.y - rand(4, 16), vx: 0, vy: -20, g: 0, life: .3, max: .3, c: '#9a6bc0', s: 1 });
   if (F.heart > 0 && Math.random() < .25) sc.parts.push({ x: p.x + rand(-5, 5), y: p.y - rand(4, 16), vx: 0, vy: -20, g: 0, life: .3, max: .3, c: '#f2a7c0', s: 1 });
 }
-function drawShield(sh, cx, cy, rx, ry, flash) {
+function drawShield(sh, cx, cy, rx, ry, flash, glow) {
   const [a, b, c] = sh.colors;
   pxEllipse(cx, cy, rx + 1, ry + 1, '#140d0b'); pxEllipse(cx, cy, rx, ry, flash ? '#ffffff' : b);
   pxEllipse(cx - (rx > 3 ? 1 : 0), cy - 1, Math.max(1, rx - 1), Math.max(1, ry - 1), flash ? '#ffffff' : a);
+  if (rx > 3 && !flash) { ctx.fillStyle = '#ffffff55'; ctx.fillRect(Math.round(cx) - rx + 2, Math.round(cy) - ry + 2, 1, Math.max(1, ry - 2)); }
   ctx.fillStyle = c; ctx.fillRect(Math.round(cx), Math.round(cy) - 1, 1, 2); if (rx > 3) ctx.fillRect(Math.round(cx) - 1, Math.round(cy), 3, 1);
+  if (glow && blink(10)) pxRing(cx, cy, Math.max(rx, ry) + 2, '#ebc152', 2);
 }
 const WEAPON_TINT = { keraunos: '#ffd463', storm_fangs: '#57c2b0', athena_spear: '#f3e9d4', hoplite_dory: '#e9c04f', cyclops_club: '#8a5a34', owl_bow: '#a7adb3' };
 function weaponTint(id) { return WEAPON_TINT[id] || (WEAPON_COLORS[id] && WEAPON_COLORS[id][0]); }
@@ -4842,9 +4927,11 @@ function updateHud() {
   else if (F.drowsy > .4) tags.push(['bad', 'Drowsy']);
   if (F.slow > 0) tags.push(['bad', 'Slowed']); if (F.poison > 0) tags.push(['bad', 'Poisoned']); if (F.burn > 0) tags.push(['bad', 'Burning']);
   if (p.guardBreak > 0) tags.push(['bad', 'Guard broken']);
+  if (F.riposte > 0) tags.push(['good', 'Riposte']); if (F.str > 0) tags.push(['good', `Strength ${Math.ceil(F.str)}s`]); if (F.spd > 0) tags.push(['good', `Speed ${Math.ceil(F.spd)}s`]);
   if (F.frenzy > 0) tags.push(['good', 'Frenzy']); if (F.heart > 0) tags.push(['good', 'Heartsteal']); if (F.killRush > 0) tags.push(['good', 'Revel']);
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
+  updatePotionBar(p);
   let wave = '';
   if (q.phase === 'boss') wave = '';
   else if (q.phase === 'victory') wave = 'Victory';
@@ -4859,7 +4946,7 @@ function updateVillageHud() {
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog) {
     const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : 'Enter';
-    const html = `${kbd(Input.bind.attack[0])} ${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
+    const html = `${kbd(Input.bind.guard[0])} ${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
     pr.hidden = false;
   } else pr.hidden = true;
@@ -5022,6 +5109,7 @@ function renderHub() {
   else if (G.panel === 'stash') body.innerHTML = renderStash();
   else if (G.panel === 'options') body.innerHTML = renderOptions();
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
+  else if (G.panel === 'market') body.innerHTML = renderMarket();
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -5080,7 +5168,7 @@ function renderArmory() {
   let cards = '', hidden = 0;
   if (tab === 'weapons') {
     const cur = WEAPONS[s.weapon];
-    for (const [id, w] of Object.entries(WEAPONS)) {
+    for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
       const owned = s.weapons.includes(id);
       if (!gearVisible(w.wt, owned)) { hidden++; continue; }
       const eq = s.weapon === id, K = KINDS[w.kind];
@@ -5095,7 +5183,7 @@ function renderArmory() {
     }
   } else if (tab === 'armor') {
     const counts = setCounts(s.equip);
-    for (const [sid, set] of Object.entries(ARMOR_SETS)) {
+    for (const [sid, set] of Object.entries(ARMOR_SETS).sort((a, b) => b[1].ch - a[1].ch || !!b[1].god - !!a[1].god)) {
       const ownedAny = SLOTS.some(sl => s.pieces.includes(sid + ':' + sl));
       if (!gearVisible(set.ch, ownedAny)) { hidden++; continue; }
       const rows = SLOTS.map(sl => {
@@ -5120,7 +5208,7 @@ function renderArmory() {
   } else {
     const oneHand = KINDS[WEAPONS[s.weapon].kind].oneHand;
     if (!oneHand) cards += `<div class="empty-note" style="grid-column:1/-1">Your ${esc(WEAPONS[s.weapon].name)} needs both hands. Shields work with swords and spears.</div>`;
-    for (const [id, sh] of Object.entries(SHIELDS)) {
+    for (const [id, sh] of Object.entries(SHIELDS).sort((a, b) => b[1].ch - a[1].ch)) {
       const owned = s.shields.includes(id);
       if (!gearVisible(sh.ch, owned)) { hidden++; continue; }
       const eq = s.shield === id;
@@ -5149,6 +5237,31 @@ function renderStash() {
   };
   return `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || 'nothing yet')}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
 }
+// Market: potions, priced from the highest god you've unlocked so they stay worth thinking about.
+function potionCost(id) { return Math.max(20, Math.round(huntPay(highestTier()) * POTIONS[id].share / 10) * 10); }
+function renderMarket() {
+  const s = G.save;
+  const cards = Object.entries(POTIONS).map(([id, P]) => {
+    const have = s.potions[id] || 0, cost = potionCost(id), full = have >= POTION_MAX;
+    return `<article class="gear">
+      <div class="gear-head"><img class="px-icon" alt="" src="${icon('potion:' + id)}"><div><b>${esc(P.name)}</b><span>Key ${esc(codeLabel(Input.bind[P.key][0]))} in a hunt</span></div></div>
+      <p class="desc">${esc(P.desc)}</p>
+      <div class="stats"><span>You have <b>${have} / ${POTION_MAX}</b></span><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
+      <div class="actions"><button class="btn small" type="button" data-buy="${id}" ${full || s.money < cost ? 'disabled' : ''}>${full ? 'Bag full' : 'Buy'}</button></div></article>`;
+  }).join('');
+  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. Drink them during a hunt with the keys shown, or tap them at the top of the screen.</p><div class="grid">${cards}</div>`;
+}
+// The potions you're carrying, shown at the top of the screen during a hunt.
+function updatePotionBar(p) {
+  const s = G.save, F = p.fx;
+  const any = Object.keys(POTIONS).some(id => s.potions[id] > 0) || F.str > 0 || F.spd > 0;
+  const html = any ? Object.entries(POTIONS).map(([id, P]) => {
+    const n = s.potions[id] || 0, t = id === 'strength' ? F.str : id === 'speed' ? F.spd : 0;
+    return `<button type="button" class="pot ${n ? '' : 'empty'}" data-pot="${id}" aria-label="Drink ${esc(P.name)}"><kbd>${esc(codeLabel(Input.bind[P.key][0]))}</kbd><img alt="" src="${icon('potion:' + id)}"><b>${n}</b>${t > 0 ? `<i style="width:${(t / 60 * 100).toFixed(0)}%"></i>` : ''}</button>`;
+  }).join('') : '';
+  setHTML('potionBar', html);
+}
+$('potionBar').addEventListener('pointerdown', ev => { const b = ev.target.closest('[data-pot]'); if (!b || !q || G.paused) return; ev.preventDefault(); drinkPotion(b.dataset.pot); });
 function renderShrine() {
   const s = G.save, cost = offeringCost();
   return `<div class="opts"><div class="opt wide">
@@ -5215,6 +5328,11 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.quest) { G.selQuest = t.dataset.quest; Sound.play('click'); renderHub(); return; }
   if (t.dataset.depart) { Sound.play('click'); startQuest(t.dataset.depart); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.buy) {
+    const id = t.dataset.buy, cost = potionCost(id);
+    if ((s.potions[id] || 0) >= POTION_MAX || s.money < cost) return;
+    s.money -= cost; s.potions[id] = (s.potions[id] || 0) + 1; Sound.play('pickup'); persist(); renderHub(); toast(`Bought a ${POTIONS[id].name}`); return;
+  }
   if (t.dataset.offer) {
     const cost = offeringCost(); if (s.blessing || s.money < cost) return;
     s.money -= cost; s.blessing = true; Sound.play('blessing'); persist(); renderHub(); toast('Hestia will watch over you'); return;
@@ -5309,7 +5427,7 @@ function setPaused(v) {
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => codeLabel(Input.bind[a][0]);
-  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack/talk ${k('attack')} · Dodge ${k('dodge')} · Skill ${k('ability')} · Guard ${k('guard')}`;
+  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dodge ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
   Input.down.clear(); Input.virt = {}; Input.mouse.held = false;
   if (v) setTimeout(() => $('btnResume').focus(), 0); else if (document.activeElement) document.activeElement.blur();
 }
