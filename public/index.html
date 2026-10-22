@@ -68,6 +68,8 @@ button{font-family:inherit}
 #banner{position:absolute;left:0;right:0;top:30%;text-align:center;animation:bannerIn 2.2s ease-out forwards}
 #bannerMain{font-family:var(--font-display);font-size:3.2em;letter-spacing:.05em;color:var(--bone);line-height:1}
 #bannerSub{margin-top:calc(var(--px)*2);color:var(--gold);font-size:1em;padding:0 calc(var(--px)*10)}
+#banner::before{content:"";position:absolute;left:10%;right:10%;top:-18%;bottom:-30%;z-index:-1;background:radial-gradient(ellipse at center,#0009 0%,#0005 45%,transparent 72%)}
+#bannerSub:empty{display:none}
 #banner.boss #bannerMain{color:var(--gold);font-size:4em}
 @keyframes bannerIn{0%{opacity:0;transform:scale(1.15)}10%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
 /* village HUD, prompts and dialogue */
@@ -323,7 +325,9 @@ textarea:focus{outline:2px solid var(--gold)}
 .rank-tag{font-size:.7em;letter-spacing:.14em;text-transform:uppercase;padding:0 calc(var(--px)*2);background:#000b;color:var(--bone-dim);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}
 .rank-tag[data-rank="1"]{color:#ff8a6a}.rank-tag[data-rank="2"]{color:#c9a0ff}
 #vhud .vright{display:flex;gap:calc(var(--px)*4);align-items:baseline}
-#hint{position:absolute;left:50%;top:calc(var(--px)*22);transform:translateX(-50%);background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) var(--line);white-space:nowrap;font-size:.9em;animation:feedIn .25s ease-out}
+#hint{position:absolute;left:50%;top:calc(var(--px)*22);transform:translateX(-50%);background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) var(--line);white-space:nowrap;font-size:.9em;max-width:calc(100% - var(--px)*12);overflow:hidden;text-overflow:ellipsis;animation:hintIn .25s ease-out}
+@keyframes hintIn{from{transform:translate(-50%,-4px);opacity:0}}
+#stage.touch #hint{top:calc(var(--px)*36);white-space:normal;max-width:min(70%,460px);text-align:center;text-overflow:clip}
 #hint kbd{font-family:var(--font-ui);color:var(--gold);background:#000;padding:0 .35em;box-shadow:inset 0 -2px 0 #3e2c24;text-shadow:none}
 #dialog{grid-template-columns:auto 1fr;align-items:start;column-gap:calc(var(--px)*5)}
 #dlgFace{width:calc(var(--px)*22);height:calc(var(--px)*22);image-rendering:pixelated;background:#0b0706;box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) #000,inset 0 0 0 max(1px,calc(var(--px)*.75)) var(--line)}
@@ -359,6 +363,23 @@ textarea:focus{outline:2px solid var(--gold)}
   .title-wrap{gap:8px}
   .btn.big{padding:11px 30px}
 }
+/* first-steps tutorial: the goal line, prompts that wait for you, and a glow on the button to press */
+#goal{position:absolute;left:calc(var(--px)*6);top:calc(var(--px)*19);display:flex;align-items:center;gap:calc(var(--px)*3);background:#000c;padding:calc(var(--px)*1.5) calc(var(--px)*3);box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) var(--line),inset 3px 0 0 var(--gold);font-size:.88em;max-width:calc(100% - var(--px)*12)}
+#stage.touch #dialog{left:calc(var(--px)*6);right:calc(var(--px)*6 + 156px)}
+#vhud:not([hidden]) ~ #goal:not([hidden]) ~ #hint{top:calc(var(--px)*31)}
+#goal .goal-tag{color:var(--gold);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:.8em}
+#goal #goalText{color:var(--bone)}
+#goalHide{pointer-events:auto;background:none;border:0;color:var(--bone-mute);font:inherit;font-size:.8em;cursor:pointer;padding:0 0 0 calc(var(--px)*2);text-decoration:underline;text-shadow:none}
+#goalHide:hover{color:var(--bone)}
+#hint.tut{box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) var(--gold);font-size:1em}
+#hint.tut b{color:var(--gold);font-weight:600}
+.tutnote{margin:0;background:var(--glaze-2);padding:10px 14px;box-shadow:0 0 0 2px #000,inset 3px 0 0 var(--gold);color:var(--bone);max-width:70ch}
+.tutnote b{color:var(--gold)}
+.btn.pulse{animation:tutPulse 1.1s ease-in-out infinite}
+@keyframes tutPulse{50%{box-shadow:inset 0 -3px 0 var(--clay-lo),0 0 0 2px #000,0 0 0 6px #ebc15299}}
+#touchBtns button.pulse{animation:tutRing 1.1s ease-in-out infinite}
+@keyframes tutRing{50%{box-shadow:inset 0 0 0 2px #f0e4cc55,0 0 0 6px #ebc152bb}}
+@media (prefers-reduced-motion:reduce){.btn.pulse,#touchBtns button.pulse{animation:none;box-shadow:0 0 0 2px #000,0 0 0 5px #ebc152aa}}
 @media (prefers-reduced-motion:reduce){
   #fader{transition:none}
   #banner{animation:none}
@@ -395,6 +416,7 @@ textarea:focus{outline:2px solid var(--gold)}
         </div>
       </div>
       <div id="vhud" hidden><span class="place" id="vPlace">Akros</span><span class="vright"><span class="rank-tag" id="vRank" hidden></span><span class="money"><b id="vMoney">0</b> drachmae</span></span></div>
+      <div id="goal" hidden><span class="goal-tag">Goal</span><span id="goalText"></span><button type="button" id="goalHide">Hide tips</button></div>
       <div id="hint" hidden></div>
       <div id="prompt" hidden></div>
       <div id="banner" hidden><div id="bannerMain"></div><div id="bannerSub"></div></div>
@@ -424,7 +446,7 @@ textarea:focus{outline:2px solid var(--gold)}
           <p class="muted" id="pauseKeys" style="margin:0;font-size:.85rem"></p>
         </div>
         <div class="stack" id="pauseConfirm" hidden>
-          <p style="margin:0">Leave now? You keep the parts you picked up, but you get no reward.</p>
+          <p style="margin:0" id="abandonText">Leave now? You keep the parts you picked up, but you get no reward.</p>
           <button class="btn danger" id="btnAbandonYes" type="button">Leave the quest</button>
           <button class="btn ghost" id="btnAbandonNo" type="button">Keep fighting</button>
         </div>
@@ -448,7 +470,7 @@ textarea:focus{outline:2px solid var(--gold)}
     <p class="title-sub muted" id="titleSub"></p>
     <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
     <div class="controls" id="titleControls" aria-label="Controls"></div>
-    <p class="tip">On a Chromebook or laptop: left hand on <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, right hand on <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd>. No touchpad needed. You can change any key in Options.</p>
+    <p class="tip" id="titleTip"></p>
     <div class="meander" style="width:100%"></div>
   </div>
 </section>
@@ -843,15 +865,15 @@ const ENEMIES = {
 // Gods. The three originals have hand-written fights; the rest use the shared boss engine with these attack lists.
 // Attack damage is a share of an on-curve player's health (0.15 = 15%).
 const BOSSES = {
-  hermes:     { name: 'Hermes', title: 'Messenger of the Gods', tier: 1, hp: 700, r: 7, sprite: 'hermes', custom: true, arrivalHeals: 2, colors: ['#f3e9d4', '#ebc152', '#5b9bd5'], loot: [['winged_feather', 1, 2, 3], ['herald_token', 1]] },
-  artemis:    { name: 'Artemis', title: 'Lady of the Hunt', tier: 2, r: 6, sprite: 'artemis', keep: 125, speed: 64, contact: .07, arrivalHeals: 2,
+  hermes:     { name: 'Hermes', dmgScale: 1.08, title: 'Messenger of the Gods', tier: 1, hp: 700, r: 7, sprite: 'hermes', custom: true, arrivalHeals: 2, colors: ['#f3e9d4', '#ebc152', '#5b9bd5'], loot: [['winged_feather', 1, 2, 3], ['herald_token', 1]] },
+  artemis:    { name: 'Artemis', dmgScale: 0.85, title: 'Lady of the Hunt', tier: 2, r: 6, sprite: 'artemis', keep: 125, speed: 64, contact: .07, arrivalHeals: 3,
                 attacks: [{ id: 'fan', w: 3, p1: { n: 5, spread: .7, speed: 170, dmg: .09, kind: 'arrowE' }, p2: { n: 7, volleys: 2 } },
                           { id: 'rain', w: 2, p1: { n: 5, r: 12, delay: .95, dmg: .14, kind: 'arrow' }, p2: { n: 8 } },
                           { id: 'leap', w: 2, p1: { dmg: .16, r: 22 } }],
                 summons: [{ at: .66, types: ['wolf', 'wolf', 'wolf'] }, { at: .33, types: ['stag', 'wolf', 'wolf'] }],
                 phase2: { title: 'Artemis draws the silver bow', sub: 'Wider volleys and more arrow rain' },
                 colors: ['#d5dbe5', '#5e7d35', '#f3e9d4'], loot: [['moon_silver', 1, 2, 3], ['hunt_token', 1]] },
-  dionysus:   { name: 'Dionysus', title: 'God of Wine and Madness', tier: 3, r: 7, sprite: 'dionysus', keep: 85, speed: 52, contact: .08, arrivalHeals: 2,
+  dionysus:   { name: 'Dionysus', dmgScale: 1.4, title: 'God of Wine and Madness', tier: 3, r: 7, sprite: 'dionysus', keep: 85, speed: 52, contact: .08, arrivalHeals: 3,
                 attacks: [{ id: 'confuse', w: 2, p1: { dmg: .06, time: 2.5 }, p2: { time: 3.5 } },
                           { id: 'puddles', w: 2, p1: { n: 4, r: 16, life: 6, dmg: .025, kind: 'wine' }, p2: { n: 6 } },
                           { id: 'leap', w: 2, p1: { dmg: .15, r: 22 } },
@@ -859,7 +881,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['satyr', 'satyr', 'satyr'] }, { at: .33, types: ['panther', 'satyr', 'satyr'] }],
                 phase2: { title: 'Dionysus loses himself', sub: 'Longer madness, more spilled wine' },
                 colors: ['#9a6bc0', '#7fa548', '#f3e9d4'], loot: [['wine_of_ages', 1, 2, 3], ['revel_token', 1]] },
-  athena:     { name: 'Athena', title: 'Goddess of Wisdom and War', tier: 4, r: 7, sprite: 'athena', custom: true, arrivalHeals: 2, colors: ['#f3e9d4', '#a7adb3', '#4f8fc7'], loot: [['aegis_scale', 1, 2, 3], ['wisdom_token', 1]] },
+  athena:     { name: 'Athena', dmgScale: 0.79, title: 'Goddess of Wisdom and War', tier: 4, r: 7, sprite: 'athena', custom: true, arrivalHeals: 2, colors: ['#f3e9d4', '#a7adb3', '#4f8fc7'], loot: [['aegis_scale', 1, 2, 3], ['wisdom_token', 1]] },
   aphrodite:  { name: 'Aphrodite', title: 'Goddess of Love', tier: 5, r: 6, sprite: 'aphrodite', keep: 105, speed: 60, contact: .07, arrivalHeals: 2,
                 attacks: [{ id: 'charm', w: 2, p1: { range: 180, time: 1.1, dmg: .05 } },
                           { id: 'fan', w: 3, p1: { n: 7, spread: 1, speed: 115, dmg: .09, kind: 'heart' }, p2: { volleys: 2 } },
@@ -868,7 +890,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['aphro_clone', 'aphro_clone', 'aphro_clone'] }, { at: .33, types: ['aphro_clone', 'aphro_clone', 'aphro_clone', 'eros'] }],
                 phase2: { title: 'Aphrodite stops being nice', sub: 'Her mirror images explode' },
                 colors: ['#f2a7c0', '#e9c04f', '#ffffff'], loot: [['foam_pearl', 1, 2, 3], ['love_token', 1]] },
-  apollo:     { name: 'Apollo', title: 'The Far-Shooter', tier: 6, r: 7, sprite: 'apollo', keep: 130, speed: 56, contact: .08, arrivalHeals: 2,
+  apollo:     { name: 'Apollo', dmgScale: 0.89, title: 'The Far-Shooter', tier: 6, r: 7, sprite: 'apollo', keep: 130, speed: 56, contact: .08, arrivalHeals: 2,
                 attacks: [{ id: 'beam', w: 2, p1: { dmg: .14, len: 260, sweep: 1.2, time: 1.3 }, p2: { sweep: 1.8 } },
                           { id: 'fan', w: 2, p1: { n: 5, spread: .5, speed: 200, dmg: .1, kind: 'sunarrow' }, p2: { volleys: 3 } },
                           { id: 'puddles', w: 1, p1: { n: 4, r: 15, life: 6, dmg: .035, kind: 'poison' }, p2: { n: 6 } },
@@ -876,7 +898,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['plague', 'plague', 'sun_archer'] }, { at: .33, types: ['python'] }],
                 phase2: { title: 'Apollo burns at noon', sub: 'Wider sun beams and triple volleys' },
                 colors: ['#ffd463', '#f3e9d4', '#6f9a3e'], loot: [['sun_disk', 1, 2, 3], ['light_token', 1]] },
-  ares:       { name: 'Ares', title: 'God of War', tier: 7, r: 7, sprite: 'ares', keep: 45, speed: 70, contact: .1, rage: true, arrivalHeals: 2,
+  ares:       { name: 'Ares', dmgScale: 0.7, title: 'God of War', tier: 7, r: 7, sprite: 'ares', keep: 45, speed: 70, contact: .1, rage: true, arrivalHeals: 2,
                 attacks: [{ id: 'dash', w: 3, p1: { count: 2, speed: 330, dmg: .17 }, p2: { count: 3 } },
                           { id: 'quake', w: 2, p1: { dmg: .16 } },
                           { id: 'leap', w: 2, p1: { dmg: .18, r: 26 } },
@@ -884,7 +906,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['spartoi', 'spartoi', 'spartoi', 'spartoi'] }, { at: .33, types: ['berserker', 'berserker'] }],
                 phase2: { title: 'Ares sees red', sub: 'He gets faster the more you hurt him' },
                 colors: ['#c0412e', '#3a3a40', '#e9c04f'], loot: [['war_ember', 1, 2, 3], ['war_token', 1]] },
-  poseidon:   { name: 'Poseidon', title: 'The Earth-Shaker', tier: 8, r: 8, sprite: 'poseidon', keep: 110, speed: 52, contact: .09, arrivalHeals: 2,
+  poseidon:   { name: 'Poseidon', dmgScale: 1.1, title: 'The Earth-Shaker', tier: 8, r: 8, sprite: 'poseidon', keep: 110, speed: 52, contact: .09, arrivalHeals: 2,
                 attacks: [{ id: 'wave', w: 2, p1: { dmg: .15, speed: 150, max: 160, col: '#57c2b0' }, p2: { count: 2 } },
                           { id: 'puddles', w: 2, p1: { n: 5, r: 18, life: 7, dmg: .02, kind: 'water' }, p2: { n: 7 } },
                           { id: 'fan', w: 2, p1: { n: 6, spread: 1, speed: 145, dmg: .1, kind: 'water' }, p2: { volleys: 2 } },
@@ -892,7 +914,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['crab', 'crab', 'crab', 'crab'] }, { at: .33, types: ['hippocamp', 'hippocamp', 'giant_crab'] }],
                 phase2: { title: 'The sea rises', sub: 'Double waves and floods' },
                 colors: ['#57c2b0', '#2c7a70', '#ffffff'], loot: [['trident_pearl', 1, 2, 3], ['sea_token', 1]] },
-  hera:       { name: 'Hera', title: 'Queen of the Gods', tier: 9, r: 7, sprite: 'hera', keep: 120, speed: 50, contact: .09, arrivalHeals: 2,
+  hera:       { name: 'Hera', dmgScale: 1.2, title: 'Queen of the Gods', tier: 9, r: 7, sprite: 'hera', keep: 120, speed: 50, contact: .09, arrivalHeals: 2,
                 attacks: [{ id: 'beam', w: 2, p1: { dmg: .15, len: 240, sweep: 1.4, time: 1.4, col: '#3f9a8a' }, p2: { sweep: 2 } },
                           { id: 'fan', w: 2, p1: { n: 8, spread: 1.2, speed: 125, dmg: .1, kind: 'plume' }, p2: { volleys: 2 } },
                           { id: 'rain', w: 2, p1: { n: 7, r: 14, delay: .9, dmg: .16, kind: 'curse' }, p2: { n: 10 } },
@@ -900,7 +922,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['peacock', 'peacock', 'peacock', 'priestess'] }, { at: .33, types: ['argus'] }],
                 phase2: { title: 'Hera’s jealousy boils over', sub: 'Wider eye beams and heavier curses' },
                 colors: ['#5b9bd5', '#3f9a8a', '#e9c04f'], loot: [['regal_plume', 1, 2, 3], ['queen_token', 1]] },
-  hephaestus: { name: 'Hephaestus', title: 'Smith of the Gods', tier: 10, r: 8, sprite: 'hephaestus', keep: 70, speed: 40, contact: .1, arrivalHeals: 2,
+  hephaestus: { name: 'Hephaestus', dmgScale: 0.54, title: 'Smith of the Gods', tier: 10, r: 8, sprite: 'hephaestus', keep: 70, speed: 40, contact: .1, arrivalHeals: 2,
                 attacks: [{ id: 'quake', w: 2, p1: { dmg: .18 } },
                           { id: 'puddles', w: 2, p1: { n: 5, r: 16, life: 7, dmg: .045, kind: 'lava' }, p2: { n: 7 } },
                           { id: 'wave', w: 2, p1: { dmg: .16, speed: 140, max: 140, col: '#ff8a2b' }, p2: { count: 2 } },
@@ -908,7 +930,7 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['bronze_hound', 'bronze_hound', 'bronze_hound', 'automaton'] }, { at: .33, types: ['talos'] }],
                 phase2: { title: 'The forge roars', sub: 'Lava everywhere and double shockwaves' },
                 colors: ['#ff8a2b', '#4b4f57', '#e9c04f'], loot: [['divine_bronze', 1, 2, 3], ['forge_token', 1]] },
-  hades:      { name: 'Hades', title: 'Lord of the Dead', tier: 11, r: 7, sprite: 'hades', keep: 100, speed: 58, contact: .1, arrivalHeals: 2,
+  hades:      { name: 'Hades', dmgScale: 0.9, title: 'Lord of the Dead', tier: 11, r: 7, sprite: 'hades', keep: 100, speed: 58, contact: .1, arrivalHeals: 2,
                 attacks: [{ id: 'vanish', w: 2, p1: { time: 2.2, dmg: .18 } },
                           { id: 'ring', w: 2, p1: { n: 14, speed: 85, dmg: .1, kind: 'soul' }, p2: { rings: 2 } },
                           { id: 'puddles', w: 1, p1: { n: 4, r: 16, life: 6, dmg: .05, kind: 'void' }, p2: { n: 6 } },
@@ -916,31 +938,31 @@ const BOSSES = {
                 summons: [{ at: .66, types: ['shade', 'shade', 'shade', 'fury'] }, { at: .33, types: ['cerberus'] }],
                 phase2: { title: 'Hades opens the underworld', sub: 'Double soul rings and longer shadows' },
                 colors: ['#2a1f3a', '#7fe08a', '#c8b8ff'], loot: [['soul_gem', 1, 2, 3], ['death_token', 1]] },
-  zeus:       { name: 'Zeus', title: 'King of Olympus', tier: 12, r: 8, sprite: 'zeus', custom: true, arrivalHeals: 3, colors: ['#f3e9d4', '#e9c04f', '#57c2b0'], loot: [['thunder_core', 1, 2, 3], ['olympian_token', 1]] },
+  zeus:       { name: 'Zeus', dmgScale: 1.8, title: 'King of Olympus', tier: 12, r: 8, sprite: 'zeus', custom: true, arrivalHeals: 3, colors: ['#f3e9d4', '#e9c04f', '#57c2b0'], loot: [['thunder_core', 1, 2, 3], ['olympian_token', 1]] },
   // side-hunt gods
-  pan:        { name: 'Pan', title: 'God of the Wild', tier: 3.5, side: true, r: 6, sprite: 'pan', keep: 90, speed: 62, contact: .08, arrivalHeals: 2,
+  pan:        { name: 'Pan', dmgScale: 1.05, title: 'God of the Wild', tier: 3.5, side: true, r: 6, sprite: 'pan', keep: 90, speed: 62, contact: .08, arrivalHeals: 2,
                 attacks: [{ id: 'stampede', w: 2, p1: { n: 5 } }, { id: 'leap', w: 2, p1: { dmg: .15, r: 22 } },
                           { id: 'ring', w: 2, p1: { n: 10, speed: 100, dmg: .08, kind: 'note' }, p2: { rings: 2 } }],
                 summons: [{ at: .5, types: ['satyr', 'satyr', 'satyr', 'satyr'] }], phase2: { title: 'Pan panics everyone', sub: 'Bigger stampedes' },
                 colors: ['#8a5a34', '#7fa548', '#e8b796'], loot: [['wild_horn', 1, 1, 2], ['satyr_fur', 1, 2, 4]] },
-  hecate:     { name: 'Hecate', title: 'Goddess of the Crossroads', tier: 6.5, side: true, r: 6, sprite: 'hecate', keep: 120, speed: 50, contact: .08, arrivalHeals: 2,
+  hecate:     { name: 'Hecate', dmgScale: 1.7, title: 'Goddess of the Crossroads', tier: 6.5, side: true, r: 6, sprite: 'hecate', keep: 120, speed: 50, contact: .08, arrivalHeals: 2,
                 attacks: [{ id: 'blink', w: 2, p1: {} }, { id: 'ring', w: 2, p1: { n: 12, speed: 90, dmg: .1, kind: 'witchfire' }, p2: { rings: 2 } },
                           { id: 'puddles', w: 2, p1: { n: 4, r: 16, life: 6, dmg: .04, kind: 'witch' }, p2: { n: 6 } }, { id: 'rain', w: 1, p1: { n: 6, r: 14, delay: .9, dmg: .15, kind: 'witchfire' } }],
                 summons: [{ at: .66, types: ['shade', 'shade', 'shade'] }, { at: .33, types: ['shade', 'shade', 'plague', 'plague'] }],
                 phase2: { title: 'Hecate lights all three torches', sub: 'Double fire rings' },
                 colors: ['#2c5684', '#57c2b0', '#c8b8ff'], loot: [['witch_torch', 1, 1, 2], ['plague_ash', 1, 2, 4]] },
-  nemesis:    { name: 'Nemesis', title: 'Goddess of Retribution', tier: 7.5, side: true, r: 6, sprite: 'nemesis', keep: 70, speed: 62, contact: .09, arrivalHeals: 2,
+  nemesis:    { name: 'Nemesis', dmgScale: 0.68, title: 'Goddess of Retribution', tier: 7.5, side: true, r: 6, sprite: 'nemesis', keep: 70, speed: 62, contact: .09, arrivalHeals: 2,
                 attacks: [{ id: 'reflect', w: 2, p1: { time: 1.8 } }, { id: 'dash', w: 3, p1: { count: 2, speed: 360, dmg: .17 }, p2: { count: 3 } },
                           { id: 'wave', w: 2, p1: { dmg: .15, speed: 160, max: 130, col: '#c9bda4' } }, { id: 'fan', w: 1, p1: { n: 5, spread: .8, speed: 160, dmg: .1, kind: 'blade' } }],
                 summons: [{ at: .5, types: ['spartoi', 'spartoi', 'berserker'] }], phase2: { title: 'Nemesis keeps score', sub: 'Strike her while she glows and you pay for it' },
                 colors: ['#c9bda4', '#5a5245', '#e9c04f'], loot: [['nemesis_scale', 1, 1, 2], ['bloodied_bronze', 1, 2, 3]] },
-  eris:       { name: 'Eris', title: 'Goddess of Discord', tier: 9.5, side: true, r: 6, sprite: 'eris', keep: 110, speed: 60, contact: .09, arrivalHeals: 2,
+  eris:       { name: 'Eris', dmgScale: 1.4, title: 'Goddess of Discord', tier: 9.5, side: true, r: 6, sprite: 'eris', keep: 110, speed: 60, contact: .09, arrivalHeals: 2,
                 attacks: [{ id: 'rain', w: 3, p1: { n: 6, r: 15, delay: 1, dmg: .14, kind: 'apple' }, p2: { n: 9 } }, { id: 'fan', w: 2, p1: { n: 7, spread: 1.2, speed: 130, dmg: .1, kind: 'blade' } },
                           { id: 'blink', w: 1, p1: {} }],
                 summons: [{ at: .75, types: ['bandit', 'satyr', 'spartoi', 'crab'] }, { at: .5, types: ['war_boar', 'hoplite'] }, { at: .25, types: ['peacock', 'peacock', 'berserker', 'triton'] }],
                 phase2: { title: 'Eris laughs', sub: 'Golden apples drive the monsters wild' },
                 colors: ['#c0412e', '#1f1f24', '#e9c04f'], loot: [['golden_apple', 1, 1, 2], ['peacock_plume', 1, 2, 4]] },
-  hypnos:     { name: 'Hypnos', title: 'God of Sleep', tier: 11.5, side: true, r: 6, sprite: 'hypnos', keep: 120, speed: 50, contact: .08, arrivalHeals: 2,
+  hypnos:     { name: 'Hypnos', dmgScale: 2.3, title: 'God of Sleep', tier: 11.5, side: true, r: 6, sprite: 'hypnos', keep: 120, speed: 50, contact: .08, arrivalHeals: 2,
                 attacks: [{ id: 'puddles', w: 3, p1: { n: 5, r: 20, life: 8, dmg: .02, kind: 'sleep' }, p2: { n: 7 } }, { id: 'ring', w: 2, p1: { n: 6, speed: 60, dmg: .1, kind: 'dream', homing: 1.2 }, p2: { rings: 2 } },
                           { id: 'blink', w: 1, p1: {} }],
                 summons: [{ at: .66, types: ['shade', 'shade', 'shade', 'shade'] }, { at: .33, types: ['fury', 'fury'] }],
@@ -951,7 +973,7 @@ const BOSSES = {
 const POTIONS = {
   health:   { name: 'Health Potion',   key: 'potion1', share: .3,  col: ['#d9493b', '#7f2618', '#ffd0c0'], short: 'Health',   desc: 'Heals 40% of your health right away.' },
   strength: { name: 'Strength Potion', key: 'potion2', share: .4,  col: ['#e9a030', '#8f5a1c', '#fff0b0'], short: 'Strength', desc: '+25% damage for 60 seconds.' },
-  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: '+20% move speed for 60 seconds.' },
+  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: 'Double dash for 60 seconds: roll twice in a row, but each roll recharges a bit slower. Already wearing double-dash boots? Then your rolls recharge at full speed instead.' },
 };
 const POTION_MAX = 3;
 // Plurals that don't just add an s.
@@ -1092,7 +1114,7 @@ const QUESTS = [
     waves: [{ wolf: 4, stag: 1 }, { stag: 2, wolf: 5 }, { calydon: 1, wolf: 4 }] },
   { id: 'artemis_hunt', god: 'artemis', tier: 2, boss: 'artemis', name: 'Lady of the Hunt', arena: 'moontemple', requires: ['wolf_woods', 'golden_stag'],
     desc: 'Artemis keeps her distance and fills the air with arrows. When the ground lights up, arrows are about to land there. When she crouches, she’s about to leap onto you.',
-    waves: [{ wolf: 6, huntress: 2 }, { stag: 2, huntress: 2, wolf: 3 }] },
+    waves: [{ wolf: 5, huntress: 1 }, { stag: 1, huntress: 2, wolf: 3 }] },
 
   { id: 'vineyard_riot', god: 'dionysus', tier: 3, name: 'Riot in the Vineyard', arena: 'vineyard', requires: ['artemis_hunt'],
     desc: 'Satyrs have broken into the wine. Maenads throw jars that leave puddles of wine behind. Wine slows you down, so stay out of it.',
@@ -1102,7 +1124,7 @@ const QUESTS = [
     waves: [{ panther: 2, satyr: 4 }, { panther: 3, goat: 4 }, { centaur: 1, panther: 2, satyr: 4 }] },
   { id: 'dionysus_hunt', god: 'dionysus', tier: 3, boss: 'dionysus', name: 'The Wild Feast', arena: 'theater', requires: ['vineyard_riot', 'panther_path'],
     desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Roll through it, or keep calm and steer the other way.',
-    waves: [{ satyr: 7, maenad: 2 }, { panther: 2, centaur: 1, satyr: 3 }] },
+    waves: [{ satyr: 6, maenad: 2 }, { panther: 1, maenad: 1, satyr: 4 }] },
   { id: 'pan_hunt', god: 'pan', tier: 3.5, side: true, boss: 'pan', name: 'The Panic of Pan', arena: 'meadow', requires: ['dionysus_hunt'],
     desc: 'Side hunt. The wild god Pan sends stampedes of goats across the meadow. Watch the marked lanes and step out of them.',
     waves: [{ goat: 6, satyr: 4 }] },
@@ -1259,18 +1281,18 @@ Object.assign(PLURALS, { earthborn: 'Earthborn', colossus: 'Stone Colossi', lion
 // Titan fights are hand-made (see TITAN_AI). hp is worked out from the tier like the gods', only longer.
 const TITAN_LOOK = {
   atlas:     { title: 'Bearer of the Sky',    colors: ['#8a7a5a', '#3c4a78', '#e9c04f'], relic: 'sky_shard' },
-  hyperion:  { title: 'Lord of Light',        colors: ['#ffd463', '#ff8a2b', '#ffffff'], relic: 'dawn_ember' },
-  oceanus:   { title: 'The World-River',      colors: ['#57c2b0', '#2c7a70', '#e6f2ff'], relic: 'world_water' },
-  coeus:     { title: 'Axis of Heaven',       colors: ['#5b9bd5', '#1a2442', '#ffffff'], relic: 'axis_star' },
-  mnemosyne: { title: 'Titan of Memory',      colors: ['#c8b8ff', '#6b5a8a', '#ffffff'], relic: 'memory_glass' },
+  hyperion:  { dmgScale: 0.92, title: 'Lord of Light',        colors: ['#ffd463', '#ff8a2b', '#ffffff'], relic: 'dawn_ember' },
+  oceanus:   { dmgScale: 0.78, title: 'The World-River',      colors: ['#57c2b0', '#2c7a70', '#e6f2ff'], relic: 'world_water' },
+  coeus:     { dmgScale: 0.89, title: 'Axis of Heaven',       colors: ['#5b9bd5', '#1a2442', '#ffffff'], relic: 'axis_star' },
+  mnemosyne: { dmgScale: 1.9, title: 'Titan of Memory',      colors: ['#c8b8ff', '#6b5a8a', '#ffffff'], relic: 'memory_glass' },
   themis:    { title: 'Keeper of Divine Law', colors: ['#f3e9d4', '#c9a032', '#ffffff'], relic: 'oath_stone' },
-  rhea:      { title: 'Mother of the Gods',   colors: ['#7fa548', '#8a5a34', '#e9c04f'], relic: 'swaddled_stone' },
-  cronus:    { title: 'Devourer of Time',     colors: ['#a7adb3', '#e9c04f', '#1f1f24'], relic: 'hourglass_sand' },
+  rhea:      { dmgScale: 1.17, title: 'Mother of the Gods',   colors: ['#7fa548', '#8a5a34', '#e9c04f'], relic: 'swaddled_stone' },
+  cronus:    { dmgScale: 1.28, title: 'Devourer of Time',     colors: ['#a7adb3', '#e9c04f', '#1f1f24'], relic: 'hourglass_sand' },
 };
 for (const T of TITANS) {
   const L = TITAN_LOOK[T.id];
   BOSSES[T.id] = { name: T.name, title: L.title, tier: T.tier, titan: true, custom: true, r: 11, sprite: T.id, arrivalHeals: 3,
-                   colors: L.colors, loot: [[L.relic, 1, 2, 3], ['primordial_token', 1]] };
+                   colors: L.colors, loot: [[L.relic, 1, 2, 3], ['primordial_token', 1]], dmgScale: L.dmgScale || 1 };
 }
 
 Object.assign(ABILITIES, {
@@ -1412,6 +1434,9 @@ const PERK_SCALE = {
   dodgeStrike: [1.5, 2, 1.2], berserk: [1.5, 2, .6], stunHit: [1.5, 2, .3], thorns: [1.5, 2, 1.5], godBane: [1.5, 2, .35],
   hp: 'H', regen: 'H', def: 'D', lightning: 'N', ward: 'W',
 };
+// High and God Rank armor sits on that rank's expected defense, plus the set's Low Rank lead over the curve grown a little
+// (x1.5, x2). Multiplying the whole number instead let early sets run away: Hermes' set ended up the strongest in God Rank.
+function rankDef(def, ch, r) { return Math.max(1, Math.round(tierD(ch + RANKS[r].off) + (def - tierD(ch)) * (1 + .5 * r))); }
 function scalePerks(perks, r, ch) {
   if (!perks) return undefined;
   const out = {}, off = RANKS[r].off;
@@ -1448,7 +1473,7 @@ function scalePerks(perks, r, ch) {
       const four = scalePerks(set.four, r, set.ch) || {};
       if (r === 2) four.godBane = Math.round(((four.godBane || 0) + .1) * 100) / 100;
       ARMOR_SETS[rid(sid, r)] = { ...set, name: R.gear + set.name, ch: set.ch + R.off, rank: r, base: sid, colors,
-        def: Math.round(set.def * tierD(set.ch + R.off) / tierD(set.ch)), hp: Math.round(set.hp + tierH(set.ch + R.off) - tierH(set.ch)),
+        def: rankDef(set.def, set.ch, r), hp: Math.round(set.hp + tierH(set.ch + R.off) - tierH(set.ch)),
         recipe: rankRecipe(set.recipe, r), two: scalePerks(set.two, r, set.ch), four: Object.keys(four).length ? four : undefined };
     }
     for (const [id, sh] of baseShields) {
@@ -1474,6 +1499,9 @@ for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w
 
 // Build the 4 pieces of every set. Piece ids look like "winged:head".
 const PIECES = {};
+// Boots with a power of their own. Double dash: roll twice in a row, but rolls recharge slower, and these boots
+// give up the faster dodge recovery other boots have. Every rank's version of the set keeps it.
+const PIECE_PERKS = { 'winged:feet': 'doubleDash', 'timeless:feet': 'doubleDash' };
 for (const [sid, set] of Object.entries(ARMOR_SETS)) {
   let defLeft = set.def, hpLeft = set.hp;
   const lch = Math.min(17, set.ch - RANKS[set.rank || 0].off + 2 * (set.rank || 0));   // how good each slot's job is
@@ -1488,15 +1516,18 @@ for (const [sid, set] of Object.entries(ARMOR_SETS)) {
         if (ITEMS[id].rarity >= 3) { if (slot === 'head' || slot === 'chest') items[id] = Math.max(1, Math.ceil(n / 2)); }
         else items[id] = Math.max(1, Math.round(n * share * 1.25));
       }
+      // a set made only of rare parts still needs some of them for its legs and boots
+      if (!Object.keys(items).length) for (const [id, n] of Object.entries(set.recipe.items)) items[id] = Math.max(1, Math.floor(n / 2));
       recipe = { items, cost: Math.max(10, Math.round(set.recipe.cost * share / 10) * 10) };
     }
+    const perk = PIECE_PERKS[(set.base || sid) + ':' + slot] || null;
     const job = {
       head: { kbRes: Math.min(.5, .04 * lch) },
       chest: {},
       legs: { dodgeDist: .02 * lch },
-      feet: { speed: .006 * lch, dodgeCd: .012 * lch },
+      feet: perk === 'doubleDash' ? { speed: .006 * lch } : { speed: .006 * lch, dodgeCd: .012 * lch },
     }[slot];
-    PIECES[`${sid}:${slot}`] = { id: `${sid}:${slot}`, set: sid, slot, name: `${set.name} ${SLOT_LABEL[slot]}`, def, hp, job, recipe, rank: set.rank || 0 };
+    PIECES[`${sid}:${slot}`] = { id: `${sid}:${slot}`, set: sid, slot, name: `${set.name} ${SLOT_LABEL[slot]}`, def, hp, job, recipe, rank: set.rank || 0, perk };
   }
 }
 
@@ -2237,7 +2268,12 @@ function controlsItems() {
     ['Pause', `${kbd('Escape')} ${kbd('KeyP')} · ${kbd('KeyF')} fullscreen · ${kbd('KeyM')} mute`],
   ];
 }
-function renderTitleControls() { $('titleControls').innerHTML = controlsItems().map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join(''); }
+function renderTitleControls() {
+  $('titleControls').innerHTML = controlsItems().map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
+  // the hand-position tip follows whatever keys are set
+  const first = a => kbd(Input.bind[a][0]), move = ['up', 'left', 'down', 'right'].map(a => kbd(Input.bind[a][0])).join('');
+  $('titleTip').innerHTML = `On a Chromebook or laptop: one hand on ${move}, the other on ${first('attack')} ${first('dodge')} ${first('ability')}. No touchpad needed. You can change any key in Options.`;
+}
 
 /* ============================== SAVES ==================================== */
 // Where saves go:
@@ -2397,7 +2433,7 @@ function newSave() {
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
-           rank: 0, stairs: false, seenHall: false };
+           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false };
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -2433,13 +2469,17 @@ function sanitize(s) {
   out.seenIntro = s.seenIntro === true;
   out.rank = clamp(Math.floor(num(s.rank, 0)), 0, RANKS.length - 1);
   out.stairs = s.stairs === true; out.seenHall = s.seenHall === true;
+  // first-steps tutorial: saves from before it existed skip it once they have a hunt behind them
+  out.tut = typeof s.tut === 'number' ? clamp(Math.floor(s.tut), 0, 6) : Object.keys(out.cleared).length ? 6 : 0;
+  out.finale = s.finale === true;
+  out.hints = { skill: !!(s.hints && s.hints.skill), guard: !!(s.hints && s.hints.guard) };
   out.blessing = s.blessing === true;
   for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);
   return out;
 }
 
 const Settings = {
-  data: { sound: true, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0 },
+  data: { sound: true, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
@@ -2645,7 +2685,7 @@ Object.assign(THEMES, {
 function genLayers(themeKey, secret, opts = {}) {
   const T = THEMES[themeKey], R = mulberry(hashStr(themeKey + (opts.seed || '')));
   const inner = opts.inner || IPX;
-  const floor = mkCanvas(WORLD_W, WORLD_H); paintFloor(floor.getContext('2d'), T, R);
+  const floor = mkCanvas(WORLD_W, WORLD_H); paintFloor(floor.getContext('2d'), T, R, opts.axis);
   const border = mkCanvas(WORLD_W, WORLD_H), bx = border.getContext('2d'); paintBorder(bx, T, R, inner);
   const ground = mkCanvas(WORLD_W, WORLD_H), gx = ground.getContext('2d');
   gx.drawImage(floor, 0, 0);
@@ -2657,12 +2697,14 @@ function genLayers(themeKey, secret, opts = {}) {
     gx.fillStyle = 'rgba(0,0,0,.2)'; gx.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
   if (opts.gate) { bx.clearRect(opts.gate.x * TILE, opts.gate.y * TILE, opts.gate.w * TILE, WORLD_H); paintGate(bx, opts.gate, inner); }
+  if (opts.gate) paintGateway(gx, opts.gate, inner, R, !!opts.gateRoad);
   gx.drawImage(border, 0, 0);
   gx.fillStyle = 'rgba(0,0,0,.14)'; gx.fillRect(inner.minX, inner.minY, inner.maxX - inner.minX, 3); gx.fillRect(inner.minX, inner.minY, 3, inner.maxY - inner.minY);
   if (secret) paintHint(gx, T, secret, R);
   return { ground, cover, rect };
 }
-function paintFloor(x, T, R) {
+// ax: the x the carpet and the floor medallion are centred on (the room's middle unless a place says otherwise).
+function paintFloor(x, T, R, ax = WORLD_W / 2) {
   const W = WORLD_W, H = WORLD_H;
   const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
   const pick = a => a[(R() * a.length) | 0];
@@ -2711,9 +2753,9 @@ function paintFloor(x, T, R) {
       if (R() < (T.cracks || .1)) { let px = X + R() * TILE, py = Y + R() * TILE; for (let k = 0; k < 10; k++) { dot(px, py, T.crack); px += R() * 2 - .7; py += R() * 2 - 1; } }
       if (T.moss && R() < .1) for (let k = 0; k < 6; k++) dot(X + R() * 4, Y + R() * TILE, T.moss);
     }
-    if (T.runner) { x.fillStyle = '#1a1210'; x.fillRect(W / 2 - 25, 0, 50, H); x.fillStyle = T.runner; x.fillRect(W / 2 - 24, 0, 48, H); x.fillStyle = '#e9c04f'; x.fillRect(W / 2 - 21, 0, 1, H); x.fillRect(W / 2 + 20, 0, 1, H); }
+    if (T.runner) { x.fillStyle = '#1a1210'; x.fillRect(ax - 25, 0, 50, H); x.fillStyle = T.runner; x.fillRect(ax - 24, 0, 48, H); x.fillStyle = '#e9c04f'; x.fillRect(ax - 21, 0, 1, H); x.fillRect(ax + 20, 0, 1, H); }
     if (T.medallion) {
-      const cx = W / 2, cy = H / 2 + 8, [dk, ac] = T.medallion;
+      const cx = ax, cy = H / 2 + 8, [dk, ac] = T.medallion;
       const ring = (r0, r1, col) => { for (let py = -r1; py <= r1; py++) for (let px = -r1; px <= r1; px++) { const d = Math.hypot(px, py); if (d >= r0 && d <= r1) dot(cx + px, cy + py, col); } };
       ring(0, 46, dk); ring(36, 40, ac); ring(41, 46, dk); ring(0, 30, ac); ring(0, 22, dk);
       for (let a = 0; a < 24; a++) { const an = a / 24 * Math.PI * 2; dot(cx + Math.cos(an) * 26, cy + Math.sin(an) * 26, dk, 2, 2); }
@@ -2726,7 +2768,7 @@ function paintFloor(x, T, R) {
 function isPath(px, py) {
   const dx = (px - 328) / 112, dy = (py - 240) / 74;
   if (dx * dx + dy * dy < 1) return true;
-  if (px > 300 && px < 356 && py > 120) return true;
+  if (px >= 304 && px < 352 && py > 120) return true;          // the main street: exactly as wide as the gateway
   if (py > 200 && py < 238 && px > 100 && px < 560) return true;
   if (px > 102 && px < 138 && py > 200 && py < 336) return true;
   if (px > 518 && px < 554 && py > 200 && py < 336) return true;
@@ -2800,13 +2842,44 @@ function paintBorder(x, T, R, B = IPX) {
   x.fillRect(B.minX - 1, B.minY - 1, B.maxX - B.minX + 2, 1); x.fillRect(B.minX - 1, B.maxY, B.maxX - B.minX + 2, 1);
   x.fillRect(B.minX - 1, B.minY - 1, 1, B.maxY - B.minY + 2); x.fillRect(B.maxX, B.minY - 1, 1, B.maxY - B.minY + 2);
 }
+// The two gateposts stand on the threshold, the same size seen from inside as from the road outside.
 function paintGate(x, g, B = IPX) {
+  const top = B.maxY - 30;
   for (const px of [g.x * TILE - 10, (g.x + g.w) * TILE + 2]) {
-    x.fillStyle = '#140d0b'; x.fillRect(px - 1, B.maxY - 18, 10, 30);
-    x.fillStyle = '#d8ceb7'; x.fillRect(px, B.maxY - 17, 8, 28); x.fillStyle = '#b5a98f'; x.fillRect(px + 6, B.maxY - 17, 2, 28);
-    x.fillStyle = '#f3ecdb'; x.fillRect(px - 1, B.maxY - 20, 10, 3);
-    x.fillStyle = '#cf6a2f'; x.fillRect(px + 2, B.maxY - 12, 4, 10);
+    x.fillStyle = 'rgba(0,0,0,.22)'; x.fillRect(px - 2, B.maxY, 12, 3);          // a little shadow at the foot
+    x.fillStyle = '#140d0b'; x.fillRect(px - 1, top, 10, 33);
+    x.fillStyle = '#d8ceb7'; x.fillRect(px, top + 1, 8, 31); x.fillStyle = '#b5a98f'; x.fillRect(px + 6, top + 1, 2, 31);
+    x.fillStyle = '#f3ecdb'; x.fillRect(px - 1, top - 2, 10, 3);
+    x.fillStyle = '#cf6a2f'; x.fillRect(px + 2, top + 6, 4, 10);
   }
+}
+// The passage through the wall under a gate: the wall's inner faces in shadow, a stone sill on the threshold,
+// and (in the village) the street's cobbles giving way to the dirt road that leads out of town.
+function paintGateway(x, g, B, R, road) {
+  const x0 = g.x * TILE, x1 = (g.x + g.w) * TILE, y0 = B.maxY, H = WORLD_H;
+  const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
+  if (road) {
+    // cobbles thin out into packed earth with wheel ruts
+    for (let py = y0 + 10; py < H; py++) {
+      const t = (py - y0 - 10) / (H - y0 - 10);
+      for (let px = x0; px < x1; px++) {
+        const ragged = R() < .5 ? 1 : 0, edge = 6 + ((px * 7 + py * 3) % 5) + ragged * 2;
+        if (py - y0 < edge + 4 && R() > t * 1.6) continue;              // a ragged line where the paving stops
+        dot(px, py, R() < .12 ? '#93703f' : R() < .5 ? '#a8834f' : '#9e7a48');
+      }
+      for (const rx of [x0 + 13, x1 - 14]) { dot(rx, py, '#7f6239', 2, 1); if (R() < .3) dot(rx + 2, py, '#8a6a40'); }
+    }
+    for (let i = 0; i < 40; i++) dot(x0 + R() * (x1 - x0), y0 + 14 + R() * (H - y0 - 14), R() < .5 ? '#7c5f3a' : '#c09a63');
+  }
+  // the thick wall's inner faces, in shade
+  x.fillStyle = 'rgba(20,13,11,.35)'; x.fillRect(x0, y0, 4, H - y0); x.fillRect(x1 - 4, y0, 4, H - y0);
+  x.fillStyle = 'rgba(20,13,11,.16)'; x.fillRect(x0 + 4, y0, 3, H - y0); x.fillRect(x1 - 7, y0, 3, H - y0);
+  // the stone sill across the threshold
+  x.fillStyle = '#140d0b'; x.fillRect(x0, y0 - 2, x1 - x0, 7);
+  x.fillStyle = '#cfc4ab'; x.fillRect(x0, y0 - 1, x1 - x0, 5);
+  x.fillStyle = '#e8dfc9'; x.fillRect(x0, y0 - 1, x1 - x0, 1);
+  x.fillStyle = '#a99e86'; x.fillRect(x0, y0 + 3, x1 - x0, 1);
+  for (let px = x0 + 11; px < x1 - 4; px += 12) dot(px, y0 - 1, '#a99e86', 1, 4);
 }
 // A small visual clue where the hidden nook meets the arena.
 function paintHint(x, T, s, R) {
@@ -3165,7 +3238,7 @@ function playerStats(save = G.save) {
   def += perks.def || 0; hp += perks.hp || 0;
   const shield = save.shield && K.oneHand ? SHIELDS[save.shield] : null;
   return {
-    weapon: w, kind: K, shield, perks, bonuses, maxHp: 100 + hp, def,
+    weapon: w, kind: K, shield, perks, bonuses, maxHp: 100 + hp, def, doubleDash: PIECES[eq.feet + ':feet'].perk === 'doubleDash',
     mul: 1 + (perks.dmg || 0) + (w.kind === 'bow' ? perks.bowDmg || 0 : 0),
     projRes: Math.min(.6, perks.projRes || 0), kbRes: perks.unflinching ? 1 : Math.min(.6, perks.kbRes || 0),
     speed: 80 * (1 + (perks.speed || 0)),
@@ -3178,7 +3251,7 @@ function makePlayer() {
   const st = playerStats();
   const [sx, sy] = playerStart();
   return { x: tc(sx), y: tc(sy), r: 4, st, hp: st.maxHp, face: -Math.PI / 2, vx: 0, vy: 0, kbx: 0, kby: 0,
-           invuln: 0, flash: 0, atkCd: 0, dodgeCd: 0, abilCd: 0, dodgeT: 0, dashT: 0, aegisT: 0, dvx: 0, dvy: 0, swing: null, swingSide: 1,
+           invuln: 0, flash: 0, atkCd: 0, dodgeCd: 0, dashes: st.doubleDash ? 2 : 1, abilCd: 0, dodgeT: 0, dashT: 0, aegisT: 0, dvx: 0, dvy: 0, swing: null, swingSide: 1,
            bufAtk: 0, bufDodge: 0, bufAbil: 0, bufMouse: false, walkT: 0, moving: false, dead: false, dashHit: new Set(),
            guarding: false, guard: st.guardMax, guardDelay: 0, guardBreak: 0, guardPress: 0, guardTapCd: 0, guardFlash: 0,
            fx: { heavy: 0, echo: 0, foresight: 0, slow: 0, confuse: 0, charm: 0, sleep: 0, drowsy: 0, poison: 0, burn: 0, frenzy: 0, heart: 0, spin: 0, killRush: 0, strike: 0, riposte: 0, str: 0, spd: 0 },
@@ -3230,7 +3303,7 @@ function healPlayer(n, show = true) {
 function updatePlayer(dt) {
   const p = q.player, st = p.st, K = st.kind, F = p.fx;
   p.invuln = Math.max(0, p.invuln - dt); p.flash = Math.max(0, p.flash - dt); p.aegisT = Math.max(0, p.aegisT - dt);
-  p.atkCd = Math.max(0, p.atkCd - dt); p.dodgeCd = Math.max(0, p.dodgeCd - dt); p.abilCd = Math.max(0, p.abilCd - dt);
+  p.atkCd = Math.max(0, p.atkCd - dt); tickDashes(p, dt); p.abilCd = Math.max(0, p.abilCd - dt);
   p.guardPress = Math.max(0, p.guardPress - dt); p.guardTapCd = Math.max(0, p.guardTapCd - dt); p.guardFlash = Math.max(0, p.guardFlash - dt);
   p.blockKick = Math.max(0, p.blockKick - dt); p.bashT = Math.max(0, p.bashT - dt); p.bashCd = Math.max(0, p.bashCd - dt); p.comboT = Math.max(0, p.comboT - dt); p.potionCd = Math.max(0, p.potionCd - dt);
   p.shieldT = clamp(p.shieldT + (p.guarding ? dt / .08 : -dt / .12), 0, 1);
@@ -3281,7 +3354,7 @@ function updatePlayer(dt) {
   }
   // charmed: your feet carry you toward whoever charmed you. Rolling breaks it.
   if (F.charm > 0 && p.charmFrom) {
-    if (p.bufDodge > 0 && p.dodgeCd <= 0) { F.charm = 0; startDodge(p, mv); p.bufDodge = 0; return; }
+    if (p.bufDodge > 0 && canDash(p)) { F.charm = 0; startDodge(p, mv); p.bufDodge = 0; return; }
     const a = Math.atan2(p.charmFrom.y - p.y, p.charmFrom.x - p.x);
     p.face = a; p.moving = true; p.walkT += dt; p.guarding = false; p.swing = null;
     moveEntity(p, Math.cos(a) * 44 * dt + p.kbx * dt, Math.sin(a) * 44 * dt + p.kby * dt);
@@ -3297,13 +3370,13 @@ function updatePlayer(dt) {
     p.guardDelay = .8;
   }
   if (!p.swing && !p.guarding) {
-    if (p.bufDodge > 0 && p.dodgeCd <= 0) { startDodge(p, mv); p.bufDodge = 0; return; }
+    if (p.bufDodge > 0 && canDash(p)) { startDodge(p, mv); p.bufDodge = 0; return; }
     if (p.bufAbil > 0 && p.abilCd <= 0 && st.weapon.ability) { useAbility(p, mv); p.bufAbil = 0; return; }
     if (p.bufAtk > 0 && p.atkCd <= 0) { startAttack(p); p.bufAtk = 0; }
-  } else if (p.guarding && p.bufDodge > 0 && p.dodgeCd <= 0) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
+  } else if (p.guarding && p.bufDodge > 0 && canDash(p)) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
   else if (p.guarding && p.bufAtk > 0 && p.bashCd <= 0) { shieldBash(p); p.bufAtk = 0; }
-  else if (p.swing && p.bufDodge > 0 && p.dodgeCd <= 0 && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
-  let spd = st.speed * (p.swing ? K.moveMul : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? (F.heavy > 0 ? .45 : .6) : 1) * (F.spd > 0 ? 1.2 : 1);
+  else if (p.swing && p.bufDodge > 0 && canDash(p) && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
+  let spd = st.speed * (p.swing ? K.moveMul : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? (F.heavy > 0 ? .45 : .6) : 1);
   p.vx = mv.x * spd; p.vy = mv.y * spd;
   p.moving = !!(mv.x || mv.y);
   if (p.moving) { if (!p.swing && !p.guarding) p.face = Math.atan2(mv.y, mv.x); p.walkT += dt; }
@@ -3346,7 +3419,7 @@ function drinkPotion(id) {
   s.potions[id]--; p.potionCd = .4; Sound.play(id === 'health' ? 'heal' : 'ability');
   if (id === 'health') healPlayer(Math.round(p.st.maxHp * .4));
   else if (id === 'strength') p.fx.str = 60;
-  else p.fx.spd = 60;
+  else { const had = maxDashes(p); p.fx.spd = 60; if (maxDashes(p) > had) p.dashes = Math.min(2, p.dashes + 1); }   // the second dash is ready right away
   burst(p.x, p.y - 8, 12, [P.col[0], P.col[2]], 60);
   q.stats.potions = (q.stats.potions || 0) + 1;
 }
@@ -3397,10 +3470,30 @@ function meleeHit(p, aim, dmg, riposte = false, quiet = false, o = {}) {
   else if (hits) Sound.play('hit');
   return hits;
 }
+// Dodge charges. Normally one. Double dash (the speed potion, or boots that have it) gives a second one, so you can roll
+// twice back to back, but each charge comes back half again as slowly. That keeps rolls (you can't be hit mid-roll)
+// from chaining forever. Boots and potion don't stack: with both, you keep two charges and they recharge at the normal speed.
+const SWIFT_RECHARGE = 1.5;
+const potionDash = p => !!(p.fx && p.fx.spd > 0);
+const maxDashes = p => p.st.doubleDash || potionDash(p) ? 2 : 1;
+const dashRecharge = p => p.st.dodgeCd * (maxDashes(p) > 1 && !(p.st.doubleDash && potionDash(p)) ? SWIFT_RECHARGE : 1);
+const canDash = p => p.dashes > 0;
+function tickDashes(p, dt) {
+  const m = maxDashes(p);
+  if (p.dashes > m) p.dashes = m;
+  if (p.dashes >= m) { p.dodgeCd = 0; return; }
+  p.dodgeCd -= dt;
+  if (p.dodgeCd <= 0) { p.dashes++; p.dodgeCd = p.dashes < m ? dashRecharge(p) : 0; }
+}
+function useDash(p) {
+  p.dashes = Math.max(0, p.dashes - 1);
+  if (p.dodgeCd <= 0) p.dodgeCd = dashRecharge(p);
+  if (maxDashes(p) > 1) burst(p.x, p.y - 6, 5, ['#57c2b0', '#e6fffa'], 50);
+}
 function startDodge(p, mv) {
   const a = (mv.x || mv.y) ? Math.atan2(mv.y, mv.x) : p.face, d = p.st.dodgeDist, dash = !!p.st.perks.dashDodge;
   const sp = 235 * (dash ? 1.5 : 1) * Math.sqrt(d), time = .22 * Math.sqrt(d) * (p.st.perks.phase ? 1.15 : 1);
-  p.dvx = Math.cos(a) * sp; p.dvy = Math.sin(a) * sp; p.dodgeT = time; p.dodgeCd = p.st.dodgeCd; p.swing = null; p.guarding = false;
+  p.dvx = Math.cos(a) * sp; p.dvy = Math.sin(a) * sp; p.dodgeT = time; useDash(p); p.swing = null; p.guarding = false;
   p.fx.charm = 0; p.fx.drowsy = 0; p.dashHit = new Set();
   if (dash) burst(p.x, p.y - 6, 6, ['#f3e9d4', '#ebc152'], 60);
   Sound.play('dodge');
@@ -3576,6 +3669,7 @@ function hurtPlayer(dmg, ang, knock = 140, o = {}) {
 }
 // Titanmother armor: once per hunt, a hit that would drop you leaves you standing on 1 health.
 function checkDown(p) {
+  if (q && q.def.prologue) { proSave(p); return; }           // nobody falls on the road to Akros
   if (p.st.perks.lastStand && !p.lastStandUsed) {
     p.lastStandUsed = true; p.hp = 1; p.invuln = 1.4; Sound.play('blessing'); G.slowmo = .5;
     burst(p.x, p.y - 8, 18, ['#7fa548', '#e9c04f', '#ffffff'], 90); banner('Last stand', 'The Titanmother keeps you on your feet');
@@ -3891,7 +3985,7 @@ function updatePickups(dt) {
     const heal = k.item === '@heal';
     if (heal && q.phase === 'victory') { k.dead = true; continue; }
     const dx = p.x - k.x, dy = p.y - 3 - k.y, d = Math.hypot(dx, dy) || 1;
-    const range = (q.phase === 'victory' || q.phase === 'between') ? 9999 : heal ? 34 : 64;
+    const range = (q.phase === 'victory' || q.phase === 'between' || q.phase === 'walkout') ? 9999 : heal ? 34 : 64;
     const wants = !heal || p.hp < p.st.maxHp;
     if (k.t > .45 && !p.dead && wants && (k.home || d < range)) { if (!heal) k.home = true; const sp = Math.min(320, 70 + (k.t - .45) * 420); k.vx = dx / d * sp; k.vy = dy / d * sp; }
     const nx = k.x + k.vx * dt, ny = k.y + k.vy * dt;
@@ -4293,6 +4387,8 @@ const BOSS_REF = { hermes: 1, athena: 2.5, zeus: 5.5 };
 // Low Rank Titans hit a little softer than their tier says: their fights are long and their attacks cover a lot of ground.
 // In High and God Rank they hit at full strength, like the gods there.
 const TITAN_DMG = [.88, 1, 1];
+// dmgScale sets how hard each god and Titan hits so the climb is steady: every god a little harder than the last,
+// Zeus the hardest god, Cronus the hardest Titan (checked with the balance sim at every rank).
 // High Rank: one new move per god (God Rank: two), the harder phase-2 version of every move from the start,
 // and faster thinking. God Rank gods also go berserk below 30% health.
 const RANK_MOVES = {
@@ -4314,12 +4410,14 @@ const RANK_MOVES = {
 function makeBoss(type, x, y, rank = q ? q.def.rank : 0) {
   const d = BOSSES[type], fr = SPR[d.sprite][0], R = RANKS[rank] || RANKS[0], tier = d.tier + R.off, hp = Math.round(d.hits * tierW(tier) * R.hp);
   return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo, attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
-           dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg, dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1),
+           dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg * (d.dmgScale || 1), dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1) * (d.dmgScale || 1),
            x, y, r: d.titan ? 15 : d.r, h: d.titan ? fr.h * TITAN_SCALE : fr.h + 4, body: d.titan ? Math.round(fr.h * TITAN_SCALE * .74) : 0, hp, maxHp: hp, vx: 0, vy: 0, kbx: 0, kby: 0,
            state: 'intro', st: 1.6, phase: 1, flash: 0, stun: 0, flip: true, walkT: 0, invuln: 1.6, alpha: 0, orbit: 1, last: null, lastCount: 0,
            dashEnd: null, count: 0, lockAt: .2, summons: 0, kbRes: .06, dead: false, contactCd: 0, face: Math.PI / 2, guard: false, stormT: 3, aim: 0,
            reflectT: 0, hidden: false, air: false, z: 0, markT: 0, burnT: 0, burnAcc: 0 };
 }
+// The first gods are still teaching you: in Low Rank they call one fewer helper than they do in High and God Rank.
+function summonFor(b, types) { return b.rank === 0 && b.def.tier <= 3 && types.length > 2 ? types.slice(0, -1) : types; }
 function bossCommon(b, dt) {
   b.invuln = Math.max(0, b.invuln - dt); b.contactCd = Math.max(0, b.contactCd - dt); b.markT = Math.max(0, b.markT - dt);
   if (b.burnT > 0) { b.burnT -= dt; b.burnAcc += dt * q.player.st.weapon.dmg * .35; if (b.burnAcc >= 4) { const n = Math.floor(b.burnAcc); b.burnAcc -= n; b.hp -= n; q.stats.dealt += n; addText(b.x, b.y - b.h - 2, String(n), '#ff8a2b'); if (b.hp <= 0) { killEnemy(b); return true; } } }
@@ -4591,7 +4689,7 @@ const BOSS_AI = {
     if (bossCommon(b, dt)) return;
     if (bossEnrage(b, d.phase2.title, d.phase2.sub)) return;
     const S = d.summons || [];
-    if (b.summons < S.length && b.hp <= b.maxHp * S[b.summons].at && b.state === 'idle') { b.summonTypes = S[b.summons].types; b.summons++; b.state = 'summon'; b.st = .8; Sound.play('telegraph'); return; }
+    if (b.summons < S.length && b.hp <= b.maxHp * S[b.summons].at && b.state === 'idle') { b.summonTypes = summonFor(b, S[b.summons].types); b.summons++; b.state = 'summon'; b.st = .8; Sound.play('telegraph'); return; }
     const A = b.cur, P = A ? (P2 ? { ...A.p1, ...(A.p2 || {}) } : A.p1) : null;
     if (b.state !== 'charmAim' && b.state !== 'dashAim') b.flip = c.dx < 0;
     switch (b.state) {
@@ -5412,12 +5510,13 @@ const WEIGHT = { fodder: 1, medium: 2, heavy: 4 };
 const BUDGET = 12;
 
 function startQuest(id) {
-  const def = QUEST_BY_ID[id]; if (!def || !isUnlocked(def)) return;
+  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !isUnlocked(def))) return;
   G.rebinding = null;
   const A = ARENAS[def.arena], T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
   const layers = genLayers(A.theme, A.secret, { seed: def.arena });
+  if (A.paint) A.paint(layers.ground.getContext('2d'), mulberry(hashStr(def.arena + ':paint')));
   const s = A.secret;
   q = { def, arena: A, theme: A.theme, ground: layers.ground, cover: layers.cover, coverRect: layers.rect, obstacles,
         world: makeWorld(obstacles.map(o => o.box), s ? [s] : []), weather: T.weather || null, night: !!T.night, fog: [],
@@ -5436,7 +5535,8 @@ function startQuest(id) {
   Input.down.clear(); Input.endFrame();
   hudMode('quest'); hudReset();
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
-  if (!Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dodge and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dodge roll · hold to keep swinging`, 7);
+  tutStart();
+  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dodge and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dodge roll · hold to keep swinging`, 7);
   CG.gameplay(true);
 }
 function startWave(i) {
@@ -5447,7 +5547,7 @@ function startWave(i) {
   const list = light.slice(); heavy.forEach(t => list.splice(Math.min(list.length, 3 + Math.floor(Math.random() * 3)), 0, t));
   q.pending = list.map(type => ({ type })); q.spawnT = .2;
   q.phase = 'fight';
-  banner(`Wave ${i + 1}`, Object.entries(w).map(([t, n]) => monsterCount(t, n)).join(' · ')); Sound.play('wave');
+  if (q.def.prologue) proWaveBanner(i); else banner(`Wave ${i + 1}`, Object.entries(w).map(([t, n]) => monsterCount(t, n)).join(' · ')); Sound.play('wave');
 }
 function pickSpawnPoint() {
   const p = q.player;
@@ -5517,6 +5617,7 @@ function openChest() {
 }
 function inCover(x, y) { const r = q.coverRect; return r && x > r.x - 4 && x < r.x + r.w + 4 && y > r.y - 4 && y < r.y + r.h + 6; }
 function updateQuestFlow(dt) {
+  if (q.def.prologue) proFlow();
   if (q.phase === 'intro') { q.timer -= dt; if (q.timer <= 0) startWave(0); }
   if (q.pending.length && (q.phase === 'fight')) {
     q.spawnT -= dt;
@@ -5534,6 +5635,7 @@ function updateQuestFlow(dt) {
     const p = q.player;
     if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
     else if (q.def.boss) { q.phase = 'between'; q.timer = 2.4; q.nextIsBoss = true; banner('The air goes still', 'Something is coming'); }
+    else if (q.def.prologue) proWalkout();
     else questVictory();
   }
   if (q.phase === 'between') { q.timer -= dt; if (q.timer <= 0) { if (q.nextIsBoss) startBoss(); else startWave(q.waveIdx + 1); } }
@@ -5568,7 +5670,7 @@ function tick(dt) {
   G.slowmo = Math.min(1, G.slowmo + dt * (q.phase !== 'victory' && q.phase !== 'defeat' ? 1.5 : .35));
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
-  updatePlayer(sdt);
+  updatePlayer(sdt); tutHunt(sdt);
   if (q.boss && q.boss.def.titan && !q.boss.dead) titanTick(q.boss, sdt);
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
   q.tokUse.melee = q.tokUse.ranged = 0;
@@ -5592,7 +5694,7 @@ function tick(dt) {
 /* ============================== VILLAGE ================================== */
 // Two walkable places: the village of Akros, and the Temple of the Twelve inside it.
 const BUILDINGS = [
-  { id: 'temple', name: 'Temple of the Twelve', kind: 'temple', x: 14, y: 3, w: 12, h: 5, goes: 'temple' },
+  { id: 'temple', name: 'Temple of the Twelve', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
   { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, opens: 'armory' },
   { id: 'hall',   name: 'Herald’s Hall',   kind: 'hall',   x: 29, y: 8, w: 7,  h: 5, opens: 'quests' },
   { id: 'store',  name: 'Storehouse',           kind: 'store',  x: 4,  y: 16, w: 6, h: 4, opens: 'stash' },
@@ -5622,6 +5724,13 @@ const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.
 const allGodsDone = (r, save = G.save) => ALL_GOD_QUESTS.every(id => save.cleared[rid(id, r)]);
 // The rank the herald is waiting to open (shown as a ! over his head), or 0.
 function rankReady(save = G.save) { return save && save.rank < RANKS.length - 1 && rankDone(save.rank, save) ? save.rank + 1 : 0; }
+// Everything hunted on the last rank: Kleon has a word for you (for now, the end of the game).
+function finaleReady(save = G.save) { const last = RANKS.length - 1; return !!save && save.rank === last && rankDone(last, save) && !save.finale; }
+function finishGame() {
+  const s = G.save; if (s.finale) return;
+  s.finale = true; persist(true);
+  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy();
+}
 function unlockRank(r) {
   const s = G.save; if (s.rank >= r) return;
   s.rank = r; G.boardRank = r; G.forgeRank = r; persist(true);
@@ -5637,6 +5746,9 @@ function npcLines(n) {
         'The gods are back, and they’re angry. Faster, meaner, hitting harder. Their beasts too.', 'High Rank is open. Every hunt on the board starts over, and none of it will go easy.'];
       if (ready === 2) return ['You did it again. Every god and every Titan, even the angry ones.', 'There’s one thing left. Until now the gods held back. Not anymore.',
         'God Rank is open. Good luck. I mean that.'];
+      if (finaleReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank.', 'Congratulations, you completed the game.',
+        'Stay tuned for future updates. Thank you for playing.'];
+      if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god, side gods too. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
@@ -5673,11 +5785,11 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 } });
+  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 }, gateRoad: true });
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
-    const door = { id: b.id + '_door', name: b.goes ? 'the ' + b.name : b.name, kind: 'door', x: tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 };
+    const door = { id: b.id + '_door', name: b.goes ? 'the ' + b.name : b.name, kind: 'door', x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 };
     if (b.opens) door.opens = b.opens; if (b.goes) door.goes = b.goes;
     spots.push(door);
   }
@@ -5691,9 +5803,10 @@ function buildTemple() {
   GODS.forEach((g, i) => { const o = mkObstacle('statue', 4.6 + i * 2.8, 4.4, g.id); o.trophy = true; props.push(o); });
   [[5, 9.5], [5, 13.5], [5, 17.5], [35, 9.5], [35, 13.5]].forEach(([tx, ty], i) => { const o = mkObstacle('statue', tx, ty, SIDE_GODS[i].id); o.trophy = true; props.push(o); });
   [[10, 9], [30, 9], [10, 18], [30, 18]].forEach(([tx, ty]) => props.push(mkObstacle('column', tx, ty)));
-  props.push(mkObstacle('hearth', 19.5, 13));
-  [[14, 20], [25, 20]].forEach(([tx, ty]) => props.push(mkObstacle('brazier', tx, ty)));
-  const layers = genLayers('hall', null, { gate: { x: 19, y: 23, w: 3 }, seed: 'temple' });
+  props.push(mkObstacle('hearth', 20, 13));
+  [[14.5, 20], [25.5, 20]].forEach(([tx, ty]) => props.push(mkObstacle('brazier', tx, ty)));
+  // Everything in here lines up on the doorway: carpet, hearth, braziers, stairway, columns and statues.
+  const layers = genLayers('hall', null, { gate: { x: 19, y: 23, w: 3 }, seed: 'temple', axis: tc(20) });
   const spots = [];
   // The stairway down to the Titans, behind Hestia's hearth. Only there once it has opened.
   const boxes = props.map(o => o.box);
@@ -5705,8 +5818,10 @@ function buildTemple() {
   return { id: 'temple', name: 'Temple of the Twelve', theme: 'hall', world: makeWorld(boxes, [{ x: 19, y: 23, w: 3, h: 2 }]), stairsOpen: !!(G.save && G.save.stairs),
            ground: layers.ground, buildings: [], props, npcs: [], spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
-const STAIRS = { x: 18.5 * 16, y: 7 * 16, w: 48, h: 30 };
+const STAIRS = { x: 19 * 16, y: 7 * 16, w: 48, h: 30 };   // centred on the doorway, like the carpet
 function enterPlace(id, from) {
+  // a brand-new hunter starts on the road outside the gate, where the controls are taught
+  if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
   setWorldSize(40, 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
@@ -5716,7 +5831,7 @@ function enterPlace(id, from) {
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
   else if (id === 'temple') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
-  else if (from === 'gate') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
+  else if (from === 'gate' || from === 'road') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
   else if (from === 'temple') { p.x = tc(20); p.y = 8 * TILE + 14; p.face = Math.PI / 2; }
   else { p.x = tc(20); p.y = tc(17); }
   V.player = p;
@@ -5727,7 +5842,7 @@ function enterPlace(id, from) {
     G.save.seenIntro = true; persist(); banner('Akros', 'Talk to Kleon the Herald, east of the fountain');
     showHint(touchMode ? 'Drag on the left to walk · tap Use to talk' : `${moveKeysHTML()} to walk · ${kbd(Input.bind.guard[0])} to talk and open doors`, 9);
   }
-  if (id === 'village' && rankReady()) banner('Akros', 'Kleon the Herald wants a word');
+  if (id === 'village' && (rankReady() || finaleReady())) banner('Akros', 'Kleon the Herald wants a word');
   if (id === 'temple' && from !== 'hall' && from !== 'stairs') {
     if (!G.save.stairs && allGodsDone(0)) G.cutscene = { kind: 'stairs', t: 0 };   // every god is down: the floor opens
     else banner('Temple of the Twelve', 'Every god you hunt is gilded here');
@@ -5745,7 +5860,7 @@ function resumeVillage() {
   hideScreens(); $('stage').hidden = false; $('pause').hidden = true; resize();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();
-  hudMode('village');
+  hudMode('village'); tutGoal();
 }
 function interactPressed() { return Input.hit('guard') || Input.hit('attack') || Input.enter; }
 function nearestInteract(p) {
@@ -5758,8 +5873,8 @@ function startInteract(t) {
   Sound.play('click');
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
-    const ready = n.id === 'herald' ? rankReady() : 0;
-    openDialog(n.name, npcLines(n), ready ? () => unlockRank(ready) : n.opens, n.sprite);
+    const ready = n.id === 'herald' ? rankReady() : 0, fin = n.id === 'herald' && finaleReady();
+    openDialog(n.name, npcLines(n), ready ? () => unlockRank(ready) : fin ? finishGame : n.opens, n.sprite);
   } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
@@ -5778,7 +5893,7 @@ function renderDialog() {
   const line = d.lines[d.i], shown = line.slice(0, Math.floor(d.chars));
   $('dlgLine').textContent = shown;
   const last = d.i >= d.lines.length - 1, done = d.chars >= line.length;
-  $('dlgMore').innerHTML = done ? `${kbd(Input.bind.guard[0])} ${last ? (d.after ? 'Go in' : 'Close') : 'Next'}` : '';
+  $('dlgMore').innerHTML = done ? `${touchMode ? 'Tap:' : kbd(Input.bind.guard[0])} ${last ? (d.after ? 'Go in' : 'Close') : 'Next'}` : '';
 }
 function advanceDialog() {
   const d = G.dialog; if (!d) return;
@@ -5791,10 +5906,10 @@ function advanceDialog() {
 function closeDialog() { G.dialog = null; $('dialog').hidden = true; }
 function updateNpcs(dt) { for (const n of V.npcs) n.talkT = Math.max(0, n.talkT - dt); }
 function villageMove(p, dt) {
-  p.invuln = Math.max(0, p.invuln - dt); p.dodgeCd = Math.max(0, p.dodgeCd - dt);
+  p.invuln = Math.max(0, p.invuln - dt); tickDashes(p, dt);
   const mv = moveVector();
   if (p.dodgeT > 0) { p.dodgeT -= dt; moveEntity(p, p.dvx * dt, p.dvy * dt); if (Math.random() < .5) dust(p.x, p.y, 1); return; }
-  if (Input.hit('dodge') && p.dodgeCd <= 0) { startDodge(p, mv); return; }
+  if (Input.hit('dodge') && canDash(p)) { startDodge(p, mv); return; }
   p.moving = !!(mv.x || mv.y);
   if (p.moving) { p.face = Math.atan2(mv.y, mv.x); p.walkT += dt; }
   moveEntity(p, mv.x * p.st.speed * dt, mv.y * p.st.speed * dt);
@@ -5845,7 +5960,7 @@ function openPanel(kind, title = null) {
   closeDialog();
   G.panel = kind; G.panelTitle = title; G.mode = 'panel'; G.rebinding = null; bindNote = '';
   Sound.play('door');
-  show('scrHub'); renderHub();
+  show('scrHub'); tutPanel(kind); renderHub();
 }
 function closePanel() { if (G.mode !== 'panel') return; Sound.play('door'); resumeVillage(); }
 // Hestia's blessing: one offering, and the next time you fall in a hunt you get back up.
@@ -5853,6 +5968,237 @@ function highestTier() { let t = 1; for (const qd of QUESTS) if (isUnlocked(qd))
 function offeringCost() { return Math.round(huntPay(highestTier()) * .4 / 10) * 10; }
 
 
+/* ============================== THE ROAD TO AKROS ============================== */
+// A new hunter's first minutes: the dirt road outside the village, bandits robbing a cart, and every control
+// taught by doing it (walk, attack, dodge, parts, potions). You can't fall here. When the road is clear the
+// gate opens and you walk straight into Akros. Pause → Skip the tutorial jumps to the village.
+Object.assign(THEMES, { approach: { floor: 'grass', base: '#5b7832', shades: ['#506a2c', '#69883b', '#486127'], flowers: 110, ...HEDGE } });
+ARENAS.akros_road = {
+  name: 'Outside Akros', theme: 'approach', paint: paintApproach,
+  obstacles: [['cart', 24, 12], ['crate', 26, 13], ['amphora', 25, 14], ['rock', 9, 8], ['rock', 31, 18], ['tree', 7, 15], ['tree', 33, 7],
+              ['tree', 12, 20], ['rock', 15, 5], ['boulder', 28, 20], ['olive', 6, 5], ['olive', 34, 15]],
+};
+const PROLOGUE = { id: 'prologue', name: 'The Road to Akros', prologue: true, god: 'hermes', tier: 1, mt: 1, rank: 0, arena: 'akros_road',
+                   reward: 0, stars: 1, requires: [], waves: [{ bandit: 2 }, { bandit: 3 }, { bandit: 2, slinger: 2 }] };
+const ROAD_GATE = { x0: 19 * TILE, x1: 22 * TILE };          // the gateway in Akros' wall, same street as inside
+
+// The road's look: the village wall across the north end with its gate, and the dirt road running up to it.
+function paintApproach(x, R) {
+  const W = WORLD_W, H = WORLD_H, top = IPX.minY, gx0 = ROAD_GATE.x0, gx1 = ROAD_GATE.x1, mid = (gx0 + gx1) / 2;
+  const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
+  const V = THEMES.village, pick = a => a[(R() * a.length) | 0];
+  // the dirt road, wandering a little, straight where it meets the gate
+  const cxAt = py => mid + (py > top + 40 ? Math.sin((py - top - 40) / 60) * 12 : 0);
+  for (let py = top - 4; py < H; py++) {
+    const cx = cxAt(py), hw = 21 + Math.sin(py / 9) * 1.2 + Math.sin(py / 4) * .6;
+    for (let px = Math.floor(cx - hw); px <= cx + hw; px++) dot(px, py, Math.abs(px - cx) > hw - 2 ? '#7f6239' : (R() < .14 ? '#9a774a' : '#a8834f'));
+    for (const off of [-9, 9]) { dot(cx + off + Math.round(Math.sin(py / 13) * .8), py, '#93703f', 2, 1); }
+  }
+  for (let i = 0; i < 260; i++) { const py = top + R() * (H - top), cx = cxAt(py); dot(cx + (R() - .5) * 40, py, R() < .5 ? '#7c5f3a' : '#c09a63'); }
+  // the street's last cobbles spilling out of the gate
+  for (let py = top; py < top + 22; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) {
+    if (py - top > 8 + R() * 14) continue;
+    dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3);
+  }
+  // Akros' wall across the top, the same stone as inside
+  dot(0, 0, V.stoneBase, W, top);
+  for (let py = 0; py < top; py += 6) for (let px = -(R() * 8 | 0); px < W;) { const w = 7 + (R() * 7 | 0); dot(px, py, pick(V.stone), w - 1, 5); dot(px, py, V.stoneHi, w - 1, 1); px += w; }
+  dot(0, top - 3, '#3a362e', W, 3); dot(0, top, 'rgba(0,0,0,.22)', W, 4);           // the wall's foot and its shadow on the grass
+  // the gateway: cobbles through the wall, shaded inner faces, a sill, two posts
+  for (let py = 0; py < top; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) { dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3); }
+  dot(gx0, 0, 'rgba(20,13,11,.35)', 4, top); dot(gx1 - 4, 0, 'rgba(20,13,11,.35)', 4, top);
+  dot(gx0 + 4, 0, 'rgba(20,13,11,.16)', 3, top); dot(gx1 - 7, 0, 'rgba(20,13,11,.16)', 3, top);
+  dot(gx0, top - 4, '#140d0b', gx1 - gx0, 7); dot(gx0, top - 3, '#cfc4ab', gx1 - gx0, 5); dot(gx0, top - 3, '#e8dfc9', gx1 - gx0, 1); dot(gx0, top + 1, '#a99e86', gx1 - gx0, 1);
+  for (const px of [gx0 - 10, gx1 + 2]) {
+    dot(px - 1, top - 30, '#140d0b', 10, 32); dot(px, top - 29, '#d8ceb7', 8, 30); dot(px + 6, top - 29, '#b5a98f', 2, 30);
+    dot(px - 1, top - 32, '#f3ecdb', 10, 3); dot(px + 2, top - 24, '#cf6a2f', 4, 10);
+  }
+  // red roof tiles peeking over the wall
+  for (const [rx, rw] of [[70, 90], [430, 110]]) { dot(rx, 0, '#6b2c12', rw, 10); for (let px = rx; px < rx + rw; px += 6) dot(px, 2, '#b5532a', 5, 6); dot(rx, 9, '#8f3f1d', rw, 1); }
+}
+
+// ---- the tutorial's state while you walk the road ----
+function startPrologue() {
+  const s = G.save;
+  // a traveller's pack: a couple of potions to learn with (you keep what you don't drink)
+  s.potions.health = Math.max(s.potions.health || 0, 2); s.potions.strength = Math.max(s.potions.strength || 0, 1); s.potions.speed = Math.max(s.potions.speed || 0, 1);
+  startQuest(PROLOGUE);
+  if (!q) return;
+  const p = q.player; p.x = (ROAD_GATE.x0 + ROAD_GATE.x1) / 2; p.y = IPX.maxY - 26; p.face = -Math.PI / 2;
+  G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
+  q.pro = { step: 'move', x0: p.x, y0: p.y, moved: 0, swings: 0, atk: 0, partsT: 0, partsShown: false, potions: q.stats.potions || 0, shown: '' };
+  banner('The Road to Akros', 'Bandits have been seen near the village gate');
+}
+function proHint(key, html, pulse) {
+  const P = q.pro;
+  if (P.shown !== key) { P.shown = key; showHint(html, 999); $('hint').classList.add('tut'); }
+  tutPulse(touchMode ? pulse : null);
+}
+function proClear() { const P = q.pro; if (P.shown) { P.shown = ''; $('hint').hidden = true; $('hint').classList.remove('tut'); tutPulse(null); } }
+const potionKeys = () => `${kbd(Input.bind.potion1[0])} heals · ${kbd(Input.bind.potion2[0])} strength · ${kbd(Input.bind.potion3[0])} double dash`;
+// Every tick of the road: one prompt at a time, each cleared by doing it.
+function proTick(dt) {
+  const P = q.pro, p = q.player; if (!P) return;
+  const drank = (q.stats.potions || 0) > P.potions;
+  const mouse = Settings.data.mouse;
+  if (P.step === 'move') {
+    P.moved = Math.max(P.moved, Math.hypot(p.x - P.x0, p.y - P.y0));
+    proHint('move', touchMode ? 'Drag on the left side of the screen to walk' : `${moveKeysHTML()} to walk · ${kbd('Escape')} pauses`, null);
+    if (P.moved > 36) { P.step = 'attack'; q.timer = .7; }
+  } else if (P.step === 'attack') {
+    if (p.atkCd > P.atk + .01) P.swings++; P.atk = p.atkCd;
+    proHint('attack', touchMode ? 'Bandits! Tap <b>Attack</b> to swing your sword' : `Bandits! ${kbd(Input.bind.attack[0])}${mouse ? ' or click' : ''} to <b>attack</b> · hold it to keep swinging`, 'tAttack');
+    if (P.swings >= 3) { P.step = 'fight'; proClear(); }
+  } else if (P.step === 'fight' && q.waveIdx >= 1) {
+    P.step = 'dodge';
+  } else if (P.step === 'dodge') {
+    proHint('dodge', touchMode ? 'When a bandit winds up, tap <b>Dodge</b> to roll. Nothing hits you mid-roll' : `When a bandit winds up, ${kbd(Input.bind.dodge[0])}${mouse ? ' or right click' : ''} to <b>roll</b> · nothing can hit you mid-roll`, 'dodge');
+    if (p.dodgeT > 0) { P.step = 'fight2'; proClear(); }
+  } else if (P.step === 'fight2' && (q.waveIdx >= 2 || p.hp < p.st.maxHp * .55)) {
+    P.step = 'potion'; P.potions = q.stats.potions || 0;
+  } else if (P.step === 'potion') {
+    proHint('potion', touchMode ? 'Tap a <b>potion</b> at the top right to drink it. Red heals, green gives a double dash'
+                                : `Drink a potion from the corner: ${potionKeys()}`, null);
+    if (drank) { P.step = 'fight3'; proClear(); }
+  }
+  // parts: shown once, when nothing else is being taught
+  const got = Object.values(q.loot).reduce((a, b) => a + b, 0);
+  if (got > 0 && !P.partsShown && (P.step === 'fight' || P.step === 'fight2' || P.step === 'fight3')) { P.partsShown = true; P.partsT = 5; }
+  const teaching = P.step === 'move' || P.step === 'attack' || P.step === 'dodge' || P.step === 'potion' || P.step === 'walkout';
+  if (P.partsT > 0 && teaching) P.partsT = 0;                              // a lesson that needs doing comes first
+  if (P.partsT > 0) {
+    P.partsT -= dt; proHint('parts', touchMode ? 'Monsters drop <b>parts</b>. The smith in Akros forges them into gear' : 'Monsters drop <b>parts</b>. Take them home and the smith forges them into armor and weapons', null);
+    if (P.partsT <= 0) proClear();
+  }
+  if (q.phase === 'walkout') {
+    proHint('gate', 'The road is clear. Walk through the gate into <b>Akros</b>', null);
+    if (p.y < IPX.minY - 6 && p.x > ROAD_GATE.x0 && p.x < ROAD_GATE.x1) proFinish(false);
+  }
+}
+// The flow of the road: wait for your first steps before the bandits come; at the end, open the gate instead of a results screen.
+function proFlow() {
+  if (q.phase === 'intro' && q.pro && q.pro.step === 'move') { q.timer = Math.max(q.timer, .7); }
+}
+function proWaveBanner(i) {
+  const lines = [['Bandits!', 'They’re robbing a cart on the road'], ['More of them', 'Watch for the wind-up before they lunge'], ['Slingers', 'They throw from range. Close in, or roll past the stones']];
+  banner(...(lines[i] || ['Bandits', '']));
+}
+function proWalkout() {
+  q.phase = 'walkout'; Sound.play('win'); q.hazards = [];
+  for (let ty = 0; ty < INNER.y0; ty++) for (let tx = 19; tx < 22; tx++) q.world.grid[ty * q.world.wt + tx] = 0;   // the gate opens
+  banner('The road is clear', 'Akros is through the gate');
+  q.pro.step = 'walkout'; proClear();
+}
+function proFinish(skipped) {
+  if (!q || q.phase === 'leaving') return;
+  const s = G.save; q.phase = 'leaving';
+  for (const k of q.pickups) if (!k.dead && k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
+  for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
+  s.tut = Math.max(s.tut, TUT.TALK); persist(); CG.gameplay(false);
+  proClear(); tutPulse(null);
+  if (skipped) toast('Tutorial skipped. You can turn tips off in Options.');
+  fadeTo(() => enterVillage('road'));
+}
+// The arrow to the gate once the road is clear.
+function proDraw(S) {
+  if (!q || !q.def.prologue || q.phase !== 'walkout') return;
+  drawPointer(S, (ROAD_GATE.x0 + ROAD_GATE.x1) / 2, IPX.minY - 4, 22);
+}
+// You can't fall on the road: you get back up with some health and a reminder about potions.
+function proSave(p) {
+  p.hp = Math.max(1, Math.round(p.st.maxHp * .3)); p.invuln = 1.5; G.slowmo = .5;
+  burst(p.x, p.y - 8, 14, ['#ebc152', '#9bbb55', '#ffffff'], 80); banner('Back on your feet', 'Drink a health potion when you’re hurt');
+  if (q.pro && (q.pro.step === 'fight' || q.pro.step === 'fight2')) q.pro.step = 'potion';
+}
+/* ============================== FIRST STEPS ============================== */
+// The soft tutorial. A new save starts on the road outside Akros (86_prologue.js), where the controls are taught.
+// In the village a goal line under the place name and an arrow point the way: talk to Kleon, take a hunt, forge
+// gear, take the next hunt. It never stops the game. Saved per save (save.tut); old saves that already have hunts
+// behind them skip it, and Options can turn tips off. One-time hints also explain a weapon skill or a shield the
+// first time you carry one.
+const TUT = { ROAD: 0, TALK: 1, DEPART: 2, HUNT: 3, FORGE: 4, NEXT: 5, DONE: 6 };
+const tutOn = () => !!G.save && G.save.tut < TUT.DONE && Settings.data.tips !== false;
+function tutSet(n) {
+  if (!G.save || n <= G.save.tut) return;
+  G.save.tut = n; persist(); tutGoal();
+}
+// The village goal line, under the place name.
+function tutGoal() {
+  const el = $('goal'), s = G.save;
+  const show = tutOn() && s.tut >= TUT.TALK && G.mode === 'village' && V && V.id === 'village';
+  el.hidden = !show; if (!show) return;
+  $('goalText').textContent = s.tut === TUT.TALK ? 'Talk to Kleon the Herald'
+    : s.tut === TUT.FORGE ? 'Forge new gear at Dion the Smith'
+    : s.tut === TUT.NEXT ? 'Take your next hunt from Kleon'
+    : 'Pick a hunt from Kleon or the notice board';
+}
+function tutTargetNpc() {
+  if (!tutOn() || G.save.tut < TUT.TALK || !V || V.id !== 'village') return null;
+  return V.npcs.find(n => n.id === (G.save.tut === TUT.FORGE ? 'smith' : 'herald')) || null;
+}
+// A bobbing gold arrow over a spot, or on the edge of the screen pointing its way when it's off screen.
+function drawPointer(S, x, y, lift) {
+  const [sx, sy] = S(x, y), bob = Math.floor(G.time * 3) % 2, M = 12;
+  if (sx > M && sx < VIEW_W - M && sy - lift > M && sy < VIEW_H - M) {
+    const top = sy - lift - bob;
+    ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 4, top - 1, 9, 7);
+    ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 3, top, 7, 2); ctx.fillRect(sx - 2, top + 2, 5, 1); ctx.fillRect(sx - 1, top + 3, 3, 1); ctx.fillRect(sx, top + 4, 1, 1);
+    return;
+  }
+  const px = VIEW_W / 2, py = VIEW_H / 2, a = Math.atan2(sy - 14 - py, sx - px);
+  const k = Math.min((VIEW_W / 2 - M) / Math.abs(Math.cos(a) || 1e-6), (VIEW_H / 2 - M) / Math.abs(Math.sin(a) || 1e-6));
+  const ex = px + Math.cos(a) * (k - bob), ey = py + Math.sin(a) * (k - bob);
+  const tri = (r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(ex + Math.cos(a) * r, ey + Math.sin(a) * r); ctx.lineTo(ex + Math.cos(a + 2.4) * r, ey + Math.sin(a + 2.4) * r); ctx.lineTo(ex + Math.cos(a - 2.4) * r, ey + Math.sin(a - 2.4) * r); ctx.closePath(); ctx.fill(); };
+  tri(8, OUTLINE); tri(6, '#ebc152');
+}
+function tutDraw(S) {
+  const n = tutTargetNpc(); if (!n || G.dialog || G.cutscene) return;
+  if (V.target && V.target.id === n.id) return;                          // the normal "talk" marker is already showing
+  drawPointer(S, n.x, n.y, 32);
+}
+// Called when a panel opens and when a hunt starts or ends.
+function tutPanel(kind) {
+  if (!G.save) return;
+  if (kind === 'quests' && G.save.tut === TUT.TALK) tutSet(TUT.DEPART);
+  if (kind === 'armory' && G.save.tut === TUT.FORGE) tutSet(TUT.NEXT);
+}
+function tutStart() {
+  if (!G.save || q.def.prologue) return;
+  const first = tutOn() && G.save.tut <= TUT.DEPART;
+  if (G.save.tut >= TUT.TALK && G.save.tut <= TUT.DEPART) tutSet(TUT.HUNT);
+  else if (G.save.tut >= TUT.FORGE && G.save.tut < TUT.DONE && Object.keys(G.save.cleared).length) tutSet(TUT.DONE);
+  if (first) { showHint('Clear every wave to finish the hunt. The parts you pick up go home with you', 7); $('hint').classList.add('tut'); }
+  tutH = { t: 0 };
+}
+function tutEnd(win) {
+  if (!G.save || (q && q.def.prologue)) return;
+  if (G.save.tut === TUT.HUNT) { if (win) tutSet(TUT.FORGE); else { G.save.tut = TUT.DEPART; persist(); } }
+  tutPulse(null);
+}
+function tutPulse(id) { for (const b of document.querySelectorAll('#touchBtns button')) b.classList.toggle('pulse', b.id === id || (id === 'dodge' && b.dataset.act === 'dodge')); }
+// In any hunt: the road's lessons, or a one-time word about a weapon skill or a shield the first time you carry one.
+let tutH = { t: 0 };
+function tutHunt(dt) {
+  if (!q || q.phase === 'victory' || q.phase === 'defeat') return;
+  if (q.def.prologue) { if (Settings.data.tips !== false) proTick(dt); return; }
+  if (Settings.data.tips === false) return;
+  const s = G.save, p = q.player, h = s.hints;
+  tutH.t += dt; if (tutH.t < 3 || !$('hint').hidden) return;
+  const ab = p.st.weapon.ability;
+  if (ab && !h.skill) {
+    h.skill = true; persist(); tutPulse(touchMode ? 'tAbil' : null); setTimeout(() => tutPulse(null), 6000);
+    showHint(touchMode ? `Tap <b>Skill</b> for your weapon’s skill: ${esc(ABILITIES[ab].name)}` : `${kbd(Input.bind.ability[0])} <b>${esc(ABILITIES[ab].name)}</b> · your weapon’s skill. It recharges after each use`, 7);
+    $('hint').classList.add('tut');
+  } else if (p.st.shield && !h.guard) {
+    h.guard = true; persist(); tutPulse(touchMode ? 'tGuard' : null); setTimeout(() => tutPulse(null), 6000);
+    showHint(touchMode ? 'Hold <b>Guard</b> to block with your shield. Tap it just as a hit lands for a perfect block' : `Hold ${kbd(Input.bind.guard[0])} to <b>block</b> with your shield · tap it just as a hit lands for a perfect block`, 8);
+    $('hint').classList.add('tut');
+  }
+}
+// The forge's first visit: say what it's for.
+function tutForgeNote() {
+  return tutOn() && G.save.tut === TUT.NEXT ? `<p class="tutnote">Parts from your hunts become gear here. Anything you have the parts and drachmae for has a <b>Craft</b> button. Better armor means monsters hurt less.</p>` : '';
+}
 /* ============================== RENDER =================================== */
 let vignette = null;
 function makeVignette() {
@@ -5991,6 +6337,7 @@ function renderQuest() {
     else if (f.t === 'beamfx') { const [sx, sy] = S(f.x, f.y); ctx.globalAlpha = clamp(f.life / f.max * 2, 0, 1); for (let o = -1; o <= 1; o++) pxLine(sx, sy + o, sx + Math.cos(f.a) * f.len, sy + o + Math.sin(f.a) * f.len, o ? f.c : '#ffffff'); ctx.globalAlpha = 1; }
   }
   for (const pr of q.projs) drawProj(pr, S);
+  proDraw(S);
   drawParticlesAndText(S);
   // off-screen enemy arrows
   for (const e of q.enemies) {
@@ -6336,7 +6683,7 @@ function renderVillage() {
   for (const o of V.props) list.push({ y: o.y + o.h / 2, draw: () => { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); } });
   for (const n of V.npcs) list.push({ y: n.y, draw: () => {
     const [sx, sy] = S(n.x, n.y); drawSpr(n.sprite, 0, sx, sy, n.flip);
-    if (n.id === 'herald' && rankReady()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
+    if (n.id === 'herald' && (rankReady() || finaleReady())) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
   list.push({ y: V.player.y, draw: () => drawPlayer(V.player, S) });
   list.sort((a, b) => a.y - b.y);
@@ -6347,6 +6694,7 @@ function renderVillage() {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 52 : 26) - (Math.floor(G.time * 3) % 2);
     ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, top - 1, 7, 5); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 2, top, 5, 1); ctx.fillRect(sx - 1, top + 1, 3, 1); ctx.fillRect(sx, top + 2, 1, 1);
   }
+  tutDraw(S);
   if (V.night) {                                       // the Titans' hall is lit by braziers and your own torch
     const [px, py] = S(V.player.x, V.player.y - 6), g = ctx.createRadialGradient(px, py, 40, px, py, 230);
     g.addColorStop(0, 'rgba(10,6,20,.05)'); g.addColorStop(1, 'rgba(10,6,20,.55)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -6416,7 +6764,7 @@ function setText(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).text
 function setHTML(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).innerHTML = v; } }
 function hudMode(m) {
   for (const k in hudCache) delete hudCache[k];
-  $('qhud').hidden = m !== 'quest'; $('vhud').hidden = m !== 'village'; $('hint').hidden = true;
+  $('qhud').hidden = m !== 'quest'; $('vhud').hidden = m !== 'village'; $('hint').hidden = true; $('hint').classList.remove('tut'); $('goal').hidden = true;
   const r = m === 'quest' && q ? q.def.rank : G.save ? G.save.rank : 0, tag = $(m === 'quest' ? 'hudRank' : 'vRank');
   if (tag) { tag.hidden = !r; tag.dataset.rank = r; tag.textContent = r ? RANKS[r].name : ''; }
   $('prompt').hidden = true; $('dialog').hidden = true; $('banner').hidden = true;
@@ -6440,11 +6788,13 @@ function updateHud() {
   if (hudCache.hpW !== w) { hudCache.hpW = w; $('hpFill').style.width = w; $('hpGhost').style.width = w; }
   $('hpBar').classList.toggle('low', frac < .3);
   setText('hpText', `${Math.ceil(p.hp)} / ${p.st.maxHp}`);
-  $('pipDodge').classList.toggle('cool', p.dodgeCd > 0);
+  $('pipDodge').classList.toggle('cool', !canDash(p));
+  const dl = 'Dodge' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
+  if (hudCache.dl !== dl) { hudCache.dl = dl; $('pipDodge').querySelector('b').textContent = dl; }
   $('pipAbil').classList.toggle('cool', p.abilCd > 0);
   // cooldowns drain from the top of each pip
   const w2 = p.st.weapon, ab = w2.ability ? ABILITIES[w2.ability].cd * (1 - p.st.abilityCd) * (w2.cdMul || 1) : 1;
-  const dc = (clamp(p.dodgeCd / p.st.dodgeCd, 0, 1) * 100).toFixed(0) + '%', ac = (clamp(p.abilCd / ab, 0, 1) * 100).toFixed(0) + '%';
+  const dc = (canDash(p) ? 0 : clamp(p.dodgeCd / dashRecharge(p), 0, 1) * 100).toFixed(0) + '%', ac = (clamp(p.abilCd / ab, 0, 1) * 100).toFixed(0) + '%';
   if (hudCache.dc !== dc) { hudCache.dc = dc; $('pipDodge').querySelector('u').style.height = dc; }
   if (hudCache.ac !== ac) { hudCache.ac = ac; $('pipAbil').querySelector('u').style.height = ac; }
   if (p.st.shield) { $('guardFill').style.width = (clamp(p.guard / p.st.guardMax, 0, 1) * 100).toFixed(1) + '%'; $('guardBar').classList.toggle('broken', p.guardBreak > 0); }
@@ -6454,7 +6804,7 @@ function updateHud() {
   else if (F.drowsy > .4) tags.push(['bad', 'Drowsy']);
   if (F.slow > 0) tags.push(['bad', 'Slowed']); if (F.poison > 0) tags.push(['bad', 'Poisoned']); if (F.burn > 0) tags.push(['bad', 'Burning']);
   if (p.guardBreak > 0) tags.push(['bad', 'Guard broken']);
-  if (F.riposte > 0) tags.push(['good', 'Riposte']); if (F.str > 0) tags.push(['good', `Strength ${Math.ceil(F.str)}s`]); if (F.spd > 0) tags.push(['good', `Speed ${Math.ceil(F.spd)}s`]);
+  if (F.riposte > 0) tags.push(['good', 'Riposte']); if (F.str > 0) tags.push(['good', `Strength ${Math.ceil(F.str)}s`]); if (F.spd > 0) tags.push(['good', `Double dash ${Math.ceil(F.spd)}s`]);
   if (F.frenzy > 0) tags.push(['good', 'Frenzy']); if (F.heart > 0) tags.push(['good', 'Heartsteal']); if (F.killRush > 0) tags.push(['good', 'Revel']);
   if (F.echo > 0) tags.push(['good', 'Echo']); if (F.foresight > 0 && p.foresightN > 0) tags.push(['good', `Foresight ${p.foresightN}`]); if (q.timeStop > 0) tags.push(['good', 'Time stopped']);
   if (p.st.perks.ward && p.wardT <= 0) tags.push(['good', 'Warded']);
@@ -6477,7 +6827,7 @@ function updateHud() {
 }
 // Short hints for new hunters at the top of the screen.
 let hintT = 0;
-function showHint(html, t = 6) { const h = $('hint'); h.innerHTML = html; h.hidden = false; hintT = t; }
+function showHint(html, t = 6) { const h = $('hint'); h.innerHTML = html; h.hidden = false; h.classList.remove('tut'); hintT = t; }
 function tickHint() { if (hintT > 0) { hintT -= 1 / 60; if (hintT <= 0) $('hint').hidden = true; } }
 function updateVillageHud() {
   setText('vMoney', fmtMoney(G.save.money));
@@ -6892,7 +7242,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn" type="button" data-depart="${qd.id}">Depart</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">Depart</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -6942,7 +7292,7 @@ function renderArmory() {
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
           <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${P.def}</b>${eq ? '' : delta(P.def, cur.def)}</span>${P.hp || cur.hp ? `<span>Health <b>${P.hp}</b>${eq ? '' : delta(P.hp, cur.hp)}</span>` : ''}</div>
-          ${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
+          ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · roll twice in a row, but rolls recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
       const lines = [];
@@ -6975,7 +7325,7 @@ function renderArmory() {
     }
   }
   if (!cards) cards = `<div class="empty-note" style="grid-column:1/-1">${G.forgeFilter === 'craft' ? 'Nothing you can forge right now. Bring home more parts.' : G.forgeFilter === 'owned' ? 'You don’t own anything here yet.' : 'Nothing here yet.'}</div>`;
-  return seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here as you hunt higher gods.</p>` : '');
+  return tutForgeNote() + seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here as you hunt higher gods.</p>` : '');
 }
 function renderStash() {
   const s = G.save;
@@ -7038,6 +7388,7 @@ function renderOptions() {
       <div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div></div>
     <div class="opt"><h3>Sound and screen</h3>
       <div class="toggle"><span>Sound effects</span><button class="btn ghost small" type="button" data-opt="sound">${Settings.data.sound ? 'On' : 'Off'}</button></div>
+      <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen <kbd>F</kbd></span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
     <div class="opt"><h3>Your save</h3><p>${where}</p>
@@ -7125,6 +7476,7 @@ $('scrHub').addEventListener('click', ev => {
   if (o === 'resetkeys') { G.rebinding = null; saveBinds(null); bindNote = 'Controls reset to the defaults.'; renderHub(); return; }
   if (o === 'fullscreen') { toggleFullscreen(); return; }
   if (o === 'sound') { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); Sound.play('click'); renderHub(); }
+  else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
   else if (o === 'title') { persist(true); G.mode = 'slots'; q = null; show('scrSlots'); renderSlots(); }
   else if (o === 'export') { $('importBox').hidden = true; $('codeBox').hidden = false; $('saveCode').value = encodeSave(G.save); }
@@ -7147,8 +7499,8 @@ $('scrHub').addEventListener('click', ev => {
 function finishQuest(win) {
   const s = G.save, d = q.def;
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
-  const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0);
-  G.lastQuest = d.id; CG.gameplay(false);
+  const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady();
+  G.lastQuest = d.id; CG.gameplay(false); tutEnd(win);
   if (win) for (const k of q.pickups) if (k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
   for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
   s.money += q.chestMoney;
@@ -7170,9 +7522,13 @@ function finishQuest(win) {
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Twelve.');
   if (win && !readyWas && rankReady()) notes.push('Every god and Titan on this rank has fallen. Kleon the Herald wants a word.');
+  if (win && !finaleWas && finaleReady()) notes.push('You’ve hunted everything there is, even in God Rank. Kleon the Herald wants a word.');
   if (unlocked.length <= 4) unlocked.forEach(u => notes.push(`New quest on the board: ${u.name}`));
   else notes.push(`${unlocked.length} new quests on the board.`);
   $('resUnlock').innerHTML = notes.map(n => `<div class="unlock">${esc(n)}</div>`).join('');
+  // a lost hunt: point at the two things that make the next try easier
+  if (!win && Settings.data.tips !== false && ((s.potions.health || 0) < POTION_MAX || !s.blessing))
+    $('resUnlock').innerHTML += `<p class="tutnote">Tough one? <b>Melita the Trader</b> sells health potions (${touchMode ? 'tap one in the corner' : 'press ' + esc(codeLabel(Input.bind.potion1[0]))} during a hunt to drink it). An offering at <b>Hestia’s hearth</b> in the temple gets you back on your feet once if you fall. Better armor from the forge helps too.</p>`;
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
@@ -7190,6 +7546,10 @@ function setPaused(v) {
   const inQuest = G.mode === 'quest';
   $('pauseWhere').textContent = inQuest && q ? (q.def.rank ? RANKS[q.def.rank].name + ' · ' : '') + q.def.name : V ? V.name : '';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
+  const road = !!(inQuest && q && q.def.prologue);
+  $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : 'Leave now? You keep the parts you picked up, but you get no reward.';
+  $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => codeLabel(Input.bind[a][0]);
@@ -7201,10 +7561,11 @@ $('btnResume').onclick = () => setPaused(false);
 $('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off'); };
 $('btnAbandon').onclick = () => { $('pauseMain').hidden = true; $('pauseConfirm').hidden = false; $('btnAbandonNo').focus(); };
 $('btnAbandonNo').onclick = () => { $('pauseMain').hidden = false; $('pauseConfirm').hidden = true; };
-$('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; finishQuest(false); };
+$('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else finishQuest(false); };
 $('btnPauseOptions').onclick = () => { G.paused = false; $('pause').hidden = true; openPanel('options'); };
 $('btnQuit').onclick = () => { G.paused = false; $('pause').hidden = true; persist(true); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('tPause').onclick = () => setPaused(true);
+$('goalHide').onclick = ev => { ev.stopPropagation(); Settings.data.tips = false; Settings.save(); tutGoal(); toast('Tips hidden. Turn them back on in Options.'); };
 $('btnPauseFs').onclick = () => toggleFullscreen();
 $('dialog').addEventListener('click', () => { if (G.mode === 'village' && G.dialog) advanceDialog(); });
 
