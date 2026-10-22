@@ -3061,16 +3061,18 @@ function drawObstacle(o, sx, sy) {
       // A square stone pier seen from above and in front, like everything else here: a big light top with a
       // terracotta inlay, a short front face of two courses on a plinth, the east side in shade, a shadow to the lower right.
       const K = '#1a1210', L = '#e8dfca', M = '#cfc4ab', D = '#b5a98f';
+      // 35px tall, the same seen from inside the town and from the road
       ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(sx - 4, sy - 1, 15, 4);
-      ctx.fillStyle = K; ctx.fillRect(sx - 8, sy - 25, 16, 26);
+      ctx.fillStyle = K; ctx.fillRect(sx - 8, sy - 35, 16, 36);
       ctx.fillStyle = D; ctx.fillRect(sx - 7, sy - 4, 14, 4); ctx.fillStyle = '#9d927b'; ctx.fillRect(sx - 7, sy - 1, 14, 1);
-      ctx.fillStyle = M; ctx.fillRect(sx - 7, sy - 14, 14, 10);
-      ctx.fillStyle = D; ctx.fillRect(sx - 7, sy - 9, 14, 1); ctx.fillRect(sx - 2, sy - 14, 1, 5); ctx.fillRect(sx + 2, sy - 9, 1, 5);
-      ctx.fillStyle = '#a99e86'; ctx.fillRect(sx + 4, sy - 14, 3, 14);
-      ctx.fillStyle = L; ctx.fillRect(sx - 7, sy - 24, 14, 10);
-      ctx.fillStyle = '#f6f0e1'; ctx.fillRect(sx - 7, sy - 24, 14, 1); ctx.fillRect(sx - 7, sy - 24, 1, 9);
-      ctx.fillStyle = D; ctx.fillRect(sx - 7, sy - 15, 14, 1); ctx.fillRect(sx + 6, sy - 23, 1, 8);
-      ctx.fillStyle = '#86391a'; ctx.fillRect(sx - 3, sy - 21, 6, 4); ctx.fillStyle = '#cf6a2f'; ctx.fillRect(sx - 2, sy - 20, 4, 2);
+      ctx.fillStyle = M; ctx.fillRect(sx - 7, sy - 24, 14, 20);
+      ctx.fillStyle = D; ctx.fillRect(sx - 7, sy - 18, 14, 1); ctx.fillRect(sx - 7, sy - 11, 14, 1);
+      ctx.fillRect(sx - 2, sy - 24, 1, 6); ctx.fillRect(sx + 2, sy - 17, 1, 6); ctx.fillRect(sx - 3, sy - 10, 1, 6);
+      ctx.fillStyle = '#a99e86'; ctx.fillRect(sx + 4, sy - 24, 3, 24);
+      ctx.fillStyle = L; ctx.fillRect(sx - 7, sy - 34, 14, 10);
+      ctx.fillStyle = '#f6f0e1'; ctx.fillRect(sx - 7, sy - 34, 14, 1); ctx.fillRect(sx - 7, sy - 34, 1, 9);
+      ctx.fillStyle = D; ctx.fillRect(sx - 7, sy - 25, 14, 1); ctx.fillRect(sx + 6, sy - 33, 1, 8);
+      ctx.fillStyle = '#86391a'; ctx.fillRect(sx - 3, sy - 31, 6, 4); ctx.fillStyle = '#cf6a2f'; ctx.fillRect(sx - 2, sy - 30, 4, 2);
       break;
     }
     case 'column': case 'brokencol': {
