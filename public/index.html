@@ -5999,23 +5999,18 @@ function paintApproach(x, R) {
   // the dirt road, wandering a little, straight where it meets the gate
   const cxAt = py => mid + (py > top + 40 ? Math.sin((py - top - 40) / 60) * 12 : 0);
   for (let py = top - 4; py < H; py++) {
-    const cx = cxAt(py), hw = 21 + Math.sin(py / 9) * 1.2 + Math.sin(py / 4) * .6;
+    const cx = cxAt(py), near = clamp(1 - (py - top) / 36, 0, 1), hw = (21 + Math.sin(py / 9) * 1.2 + Math.sin(py / 4) * .6) * (1 - near) + 24 * near;
     for (let px = Math.floor(cx - hw); px <= cx + hw; px++) dot(px, py, Math.abs(px - cx) > hw - 2 ? '#7f6239' : (R() < .14 ? '#9a774a' : '#a8834f'));
     for (const off of [-9, 9]) { dot(cx + off + Math.round(Math.sin(py / 13) * .8), py, '#93703f', 2, 1); }
   }
   for (let i = 0; i < 260; i++) { const py = top + R() * (H - top), cx = cxAt(py); dot(cx + (R() - .5) * 40, py, R() < .5 ? '#7c5f3a' : '#c09a63'); }
-  // the street's last cobbles spilling out of the gate
-  for (let py = top; py < top + 22; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) {
-    if (py - top > 8 + R() * 14) continue;
-    dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3);
-  }
   // Akros' wall across the top, the same stone as inside
   dot(0, 0, V.stoneBase, W, top);
   for (let py = 0; py < top; py += 6) for (let px = -(R() * 8 | 0); px < W;) { const w = 7 + (R() * 7 | 0); dot(px, py, pick(V.stone), w - 1, 5); dot(px, py, V.stoneHi, w - 1, 1); px += w; }
   dot(0, top - 3, '#3a362e', W, 3); dot(0, top, 'rgba(0,0,0,.22)', W, 4);           // the wall's foot and its shadow on the grass
   // the gateway: cobbles through the wall, shaded inner faces, a sill, two posts
-  for (let py = 0; py < top - 14; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) { dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3); }
-  for (let py = top - 14; py < top; py++) for (let px = gx0; px < gx1; px++) if (py > top - 12 + R() * 6 - 3) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
+  for (let py = 0; py < top; py++) for (let px = gx0; px < gx1; px++) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
+  for (let py = 0; py < top - 6; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) { if (py > top - 22 && R() < (py - (top - 22)) / 16) continue; dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3); }
   for (let py = 0; py < top; py++) dot(gx0, py, `rgba(20,13,11,${(.5 - .4 * py / top).toFixed(3)})`, gx1 - gx0, 1);   // deeper in, darker
   dot(gx0, 0, 'rgba(20,13,11,.35)', 4, top); dot(gx1 - 4, 0, 'rgba(20,13,11,.35)', 4, top);
   dot(gx0 + 4, 0, 'rgba(20,13,11,.16)', 3, top); dot(gx1 - 7, 0, 'rgba(20,13,11,.16)', 3, top);
