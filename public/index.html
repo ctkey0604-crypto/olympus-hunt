@@ -2696,7 +2696,7 @@ function genLayers(themeKey, secret, opts = {}) {
     bx.clearRect(rect.x, rect.y, rect.w, rect.h);
     gx.fillStyle = 'rgba(0,0,0,.2)'; gx.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
-  if (opts.gate) bx.clearRect(opts.gate.x * TILE, opts.gate.y * TILE, opts.gate.w * TILE, WORLD_H);     // the gateposts are objects (gatepost), placed by the village and temple
+  if (opts.gate) { const gp = opts.gate.pad || 0; bx.clearRect(opts.gate.x * TILE - gp, opts.gate.y * TILE, opts.gate.w * TILE + gp * 2, WORLD_H); }     // the gateposts are objects (gatepost), placed by the village and temple
   if (opts.gate) paintGateway(gx, opts.gate, inner, R, !!opts.gateRoad);
   gx.drawImage(border, 0, 0);
   gx.fillStyle = 'rgba(0,0,0,.14)'; gx.fillRect(inner.minX, inner.minY, inner.maxX - inner.minX, 3); gx.fillRect(inner.minX, inner.minY, 3, inner.maxY - inner.minY);
@@ -2845,8 +2845,13 @@ function paintBorder(x, T, R, B = IPX) {
 // The passage through the wall under a gate: the wall's inner faces in shadow, a stone sill on the threshold,
 // and (in the village) the street's cobbles giving way to the dirt road that leads out of town.
 function paintGateway(x, g, B, R, road) {
-  const x0 = g.x * TILE, x1 = (g.x + g.w) * TILE, y0 = B.maxY, H = WORLD_H;
+  const x0 = g.x * TILE - (g.pad || 0), x1 = (g.x + g.w) * TILE + (g.pad || 0), y0 = B.maxY, H = WORLD_H;
   const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
+  const gp = g.pad || 0;
+  if (gp) for (const sx of [x0, x1 - gp - 3]) for (let py = y0 - 2; py < y0 + 20; py += 4) {   // paving into the widened sides
+    dot(sx, py, '#7f7765', gp + 3, 4);
+    for (let px = sx - ((py >> 2) % 2) * 3; px < sx + gp + 3; px += 6) { const a = Math.max(px, sx), b = Math.min(px + 5, sx + gp + 3); if (b > a) dot(a, py, ['#b5ab98', '#a69c88', '#c2b8a4', '#ada390'][(R() * 4) | 0], b - a, 3); }
+  }
   if (road) {
     // cobbles thin out into packed earth with wheel ruts
     for (let py = y0 + 10; py < H; py++) {
@@ -5783,7 +5788,7 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 }, gateRoad: true });
+  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3, pad: 6 }, gateRoad: true });
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
