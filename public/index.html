@@ -2769,7 +2769,6 @@ function isPath(px, py) {
   const dx = (px - 328) / 112, dy = (py - 240) / 74;
   if (dx * dx + dy * dy < 1) return true;
   if (px >= 304 && px < 352 && py > 120) return true;          // the main street
-  if (py > 330 && Math.abs(px - 328) < 24 + Math.min(19, (py - 330) * .7)) return true;   // flaring out to the wide town gate
   if (py > 200 && py < 238 && px > 100 && px < 560) return true;
   if (px > 102 && px < 138 && py > 200 && py < 336) return true;
   if (px > 518 && px < 554 && py > 200 && py < 336) return true;
@@ -5789,7 +5788,7 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: 18, y: 23, w: 5 }, gateRoad: true });
+  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 }, gateRoad: true });
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
@@ -5798,7 +5797,7 @@ function buildVillage() {
     spots.push(door);
   }
   for (const o of props) if (o.kind === 'board') spots.push({ id: 'board', name: 'the notice board', kind: 'board', opens: 'quests', x: o.x, y: o.y + 8 });
-  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 18 * TILE, y: IPX.maxY - 6, w: 5 * TILE, h: 6 }]),
+  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 // Inside the temple: the twelve gods along the back wall, the side-hunt gods along the walls, Hestia's hearth in the middle.
