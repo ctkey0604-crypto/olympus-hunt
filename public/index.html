@@ -6011,9 +6011,6 @@ function paintApproach(x, R) {
   // the gateway: cobbles through the wall, shaded inner faces, a sill, two posts
   for (let py = 0; py < top; py++) for (let px = gx0; px < gx1; px++) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
   for (let py = 0; py < top - 6; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) { if (py > top - 22 && R() < (py - (top - 22)) / 16) continue; dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3); }
-  for (let py = 0; py < top; py++) dot(gx0, py, `rgba(20,13,11,${(.5 - .4 * py / top).toFixed(3)})`, gx1 - gx0, 1);   // deeper in, darker
-  dot(gx0, 0, 'rgba(20,13,11,.35)', 4, top); dot(gx1 - 4, 0, 'rgba(20,13,11,.35)', 4, top);
-  dot(gx0 + 4, 0, 'rgba(20,13,11,.16)', 3, top); dot(gx1 - 7, 0, 'rgba(20,13,11,.16)', 3, top);
   dot(gx0, top - 4, '#140d0b', gx1 - gx0, 7); dot(gx0, top - 3, '#cfc4ab', gx1 - gx0, 5); dot(gx0, top - 3, '#e8dfc9', gx1 - gx0, 1); dot(gx0, top + 1, '#a99e86', gx1 - gx0, 1);
   // red roof tiles peeking over the wall
   for (const [rx, rw] of [[70, 90], [430, 110]]) { dot(rx, 0, '#6b2c12', rw, 10); for (let px = rx; px < rx + rw; px += 6) dot(px, 2, '#b5532a', 5, 6); dot(rx, 9, '#8f3f1d', rw, 1); }
