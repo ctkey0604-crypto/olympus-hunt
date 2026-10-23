@@ -48,7 +48,7 @@ function bossCommon(b, dt) {
 }
 function bossEnrage(b, title, sub) {
   if (b.phase === 1 && b.hp <= b.maxHp * .5) {
-    b.phase = 2; b.state = 'enrage'; b.st = 1.3; b.invuln = 1.3; b.vx = b.vy = 0; b.guard = false; b.reflectT = 0; b.hidden = false; b.air = false; b.alpha = 1; b.beam = null;
+    b.phase = 2; Music.level(2); b.state = 'enrage'; b.st = 1.3; b.invuln = 1.3; b.vx = b.vy = 0; b.guard = false; b.reflectT = 0; b.hidden = false; b.air = false; b.alpha = 1; b.beam = null;
     banner(title, sub, true); Sound.play('roar'); addShake(5);
     return true;
   }
@@ -76,7 +76,14 @@ function summonAround(b, types, text, o = {}) {
 function dashTowardEnd(b, sp, dmg) {
   const p = q.player, dx = b.dashEnd.x - b.x, dy = b.dashEnd.y - b.y, d = Math.hypot(dx, dy);
   if (!b.hitDone && dist(b, p) < b.r + p.r + 3) { if (hurtPlayer(dmg, b.aim, 220, { src: b, melee: true })) b.hitDone = true; }
-  if (d < sp * (1 / 60) + 1) { b.x = b.dashEnd.x; b.y = b.dashEnd.y; b.vx = b.vy = 0; return true; }
+  // a wall or a crowd can stop a dash short, and a slow frame can carry it past the end: either way the dash is over
+  const moved = b.dashPrev ? Math.hypot(b.x - b.dashPrev.x, b.y - b.dashPrev.y) : 1;
+  b.dashStall = moved < .25 ? (b.dashStall || 0) + 1 : 0; b.dashPrev = { x: b.x, y: b.y };
+  const passed = b.vx * dx + b.vy * dy < 0, stuck = b.dashStall > 6;
+  if (d < sp * (1 / 60) + 1 || passed || stuck) {
+    if (!stuck && !pointBlocked(b.dashEnd.x, b.dashEnd.y)) { b.x = b.dashEnd.x; b.y = b.dashEnd.y; }
+    b.vx = b.vy = 0; b.dashPrev = null; b.dashStall = 0; return true;
+  }
   b.vx = dx / d * sp; b.vy = dy / d * sp; return false;
 }
 function farSpot(p) {
@@ -225,7 +232,7 @@ const BOSS_AI = {
     if (bossCommon(b, dt)) return;
     if (bossEnrage(b, 'Zeus unleashes the storm', 'Lightning falls on its own now')) return;
     if (b.phase === 2 && b.hp <= b.maxHp * .22 && b.state !== 'enrage') {
-      b.phase = 3; b.state = 'ascend'; b.st = 1.8; b.invuln = 1.8; b.vx = b.vy = 0;
+      b.phase = 3; Music.level(3); b.state = 'ascend'; b.st = 1.8; b.invuln = 1.8; b.vx = b.vy = 0;
       banner('Zeus takes his true form', 'The whole sky is falling', true); Sound.play('roar'); addShake(7); G.flash = .25;
       for (const pr of q.projs) if (pr.team === 'enemy') pr.dead = true;
       return;

@@ -36,7 +36,7 @@ function finaleReady(save = G.save) { const last = RANKS.length - 1; return !!sa
 function finishGame() {
   const s = G.save; if (s.finale) return;
   s.finale = true; persist(true);
-  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy();
+  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy(); Music.play('title');
 }
 function unlockRank(r) {
   const s = G.save; if (s.rank >= r) return;
@@ -134,6 +134,7 @@ function enterPlace(id, from) {
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = [];
+  Music.play(id === 'village' ? 'akros' : id);
   const p = makePlayer();
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }

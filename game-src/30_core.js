@@ -16,7 +16,7 @@ const Sound = {
   held: false,
   hold(v) { this.held = v; if (!this.ctx) return; if (v) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {}); },
   setOn(v) { this.on = v; this.refresh(); },
-  refresh() { if (this.master) this.master.gain.value = this.on && !CG.muted ? .22 : 0; },
+  refresh() { if (this.master) this.master.gain.value = this.on && !CG.muted ? .22 : 0; try { Music.refresh(); } catch (e) {} },
   tone(freq, dur, type = 'square', vol = .3, slide = 0, delay = 0) {
     if (!this.ctx || !this.on) return;
     const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain();
@@ -385,12 +385,12 @@ function sanitize(s) {
 }
 
 const Settings = {
-  data: { sound: true, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
+  data: { sound: true, music: true, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
-        for (const k of ['sound', 'shake', 'autoAim', 'mouse']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {
           const b = {}; let ok = true;

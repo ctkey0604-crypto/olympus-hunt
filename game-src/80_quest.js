@@ -18,6 +18,7 @@ const BUDGET = 12;
 function startQuest(id) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !isUnlocked(def))) return;
   G.rebinding = null;
+  if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
   const A = ARENAS[def.arena], T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
@@ -66,6 +67,7 @@ function aliveWeight() { let n = 0; for (const e of q.enemies) if (!e.dead && !e
 const budget = () => BUDGET + 2 * (q.def.rank || 0);
 function startBoss() {
   q.phase = 'boss';
+  if (q.def.titan) Music.level(1); else if (Music.songs[q.def.god]) Music.play(q.def.god, 1);
   const titan = BOSSES[q.def.boss].titan, p = q.player, top = { x: WORLD_W / 2, y: IPX.minY + (titan ? 110 : 50) }, bottom = { x: WORLD_W / 2, y: IPX.maxY - 30 };
   const spot = Math.hypot(top.x - p.x, top.y - p.y) > Math.hypot(bottom.x - p.x, bottom.y - p.y) ? top : bottom;
   q.boss = makeBoss(q.def.boss, spot.x, spot.y);
@@ -85,14 +87,14 @@ function bossDefeated() {
 }
 function questVictory() {
   if (q.phase === 'victory' || q.phase === 'defeat') return;
-  q.phase = 'victory'; q.endT = 2.8; Sound.play('win'); q.timeStop = 0;
+  q.phase = 'victory'; q.endT = 2.8; Sound.play('win'); Music.sting('win'); q.timeStop = 0;
   if (q.def.boss && !G.save.cleared[q.def.id]) CG.happy();
   q.hazards = []; q.player.fx.charm = q.player.fx.confuse = q.player.fx.sleep = 0;
   banner('Quest complete', `Reward: ${fmtMoney(q.def.reward)} drachmae`);
 }
 function playerDie() {
   if (q.phase === 'victory') return;
-  const p = q.player; p.dead = true; q.phase = 'defeat'; q.endT = 2.6; G.slowmo = .35;
+  const p = q.player; p.dead = true; q.phase = 'defeat'; Music.sting('lose'); q.endT = 2.6; G.slowmo = .35;
   Sound.play('lose'); burst(p.x, p.y - 6, 20, ['#c0412e', '#e9c04f', '#f3e9d4'], 100);
   banner('You fell', 'Quest failed');
 }

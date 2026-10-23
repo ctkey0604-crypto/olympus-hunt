@@ -1,6 +1,6 @@
 /* ============================== MENUS ==================================== */
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
-function show(id) { $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
+function show(id) { if (id === 'scrTitle' || id === 'scrSlots') Music.play('title'); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
 let toastTimer = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200); }
 function persist(urgent = false) { if (G.save) Store.save(G.slot, G.save, urgent); }
@@ -361,6 +361,7 @@ function renderOptions() {
       ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</div>
     <div class="opt"><h3>Sound and screen</h3>
       <div class="toggle"><span>Sound effects</span><button class="btn ghost small" type="button" data-opt="sound">${Settings.data.sound ? 'On' : 'Off'}</button></div>
+      <div class="toggle"><span>Music</span><button class="btn ghost small" type="button" data-opt="music">${Settings.data.music !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
@@ -448,6 +449,7 @@ $('scrHub').addEventListener('click', ev => {
   if (o === 'autoAim' || o === 'mouse') { Settings.data[o] = !Settings.data[o]; Settings.save(); renderTitleControls(); renderHub(); return; }
   if (o === 'resetkeys') { G.rebinding = null; saveBinds(null); bindNote = 'Controls reset to the defaults.'; renderHub(); return; }
   if (o === 'fullscreen') { toggleFullscreen(); return; }
+  if (o === 'music') { Settings.data.music = Settings.data.music === false; Settings.save(); Music.refresh(); Sound.play('click'); renderHub(); return; }
   if (o === 'sound') { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); Sound.play('click'); renderHub(); }
   else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
@@ -515,7 +517,7 @@ function finishQuest(win) {
 function setPaused(v) {
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if (v && q && (q.phase === 'victory' || q.phase === 'defeat')) return;
-  G.paused = v; $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
+  G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
   $('pauseWhere').textContent = inQuest && q ? (q.def.rank ? RANKS[q.def.rank].name + ' · ' : '') + q.def.name : V ? V.name : '';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
@@ -687,7 +689,7 @@ updateTitleSub();
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
-window.OlympusHunt = {
+window.OlympusHunt = { Music,
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },
