@@ -442,7 +442,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
           <div class="hud-hp">
             <div class="bar" id="hpBar"><s id="hpGhost"></s><i id="hpFill"></i><span id="hpText">100</span></div>
             <div class="pips">
-              <span class="pip" id="pipDodge"><i><u></u></i><b>Dodge</b></span>
+              <span class="pip" id="pipDodge"><i><u></u></i><b>Dash</b></span>
               <span class="pip" id="pipAbil" hidden><i><u></u></i><b id="abilName">Skill</b></span>
             </div>
             <div class="bar" id="guardBar" hidden><i id="guardFill"></i></div>
@@ -470,7 +470,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
       <div id="touchBtns">
         <button type="button" data-act="ability" id="tAbil">Skill</button>
         <button type="button" data-act="attack" class="big" id="tAttack">Attack</button>
-        <button type="button" data-act="dodge">Dodge</button>
+        <button type="button" data-act="dodge">Dash</button>
         <button type="button" data-act="guard" id="tGuard" hidden>Guard</button>
       </div>
       <button type="button" id="tPause" aria-label="Pause">II</button>
@@ -734,7 +734,7 @@ const KINDS = {
   sword:   { label: 'Sword',        melee: true,  oneHand: true,  dmgM: 1,    reach: 22, arc: 2.2, windup: .05, active: .13, cooldown: .32, knock: 85,  moveMul: .55, hitstop: .035, shake: 1, sfx: 'swing', blurb: 'Quick, wide swing. Works with a shield.' },
   spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.2,  reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .44, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
   hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.6,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
-  daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .55,  reach: 17, arc: 1.8, windup: .02, active: .09, cooldown: .15, knock: 45,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs with short reach. No shield.' },
+  daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
   bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', blurb: 'Ranged shots that auto-aim. No shield.' },
 };
 
@@ -766,7 +766,7 @@ const WEAPONS = {
   silver_bow:      { name: 'Silver Bow of Artemis', kind: 'bow',     wt: 3,    pierce: 1, ability: 'volley', recipe: { items: { moon_silver: 3, hunt_token: 2, silver_arrowhead: 4 }, cost: 800 }, desc: 'Strung with moonlight.' },
   satyr_club:      { name: 'Satyr Club',            kind: 'hammer',  wt: 3.5,  recipe: { items: { satyr_fur: 6, panther_pelt: 2, centaur_hoof: 1 }, cost: 650 }, desc: 'Knotted vine-wood, very heavy.' },
   thyrsus:         { name: 'Thyrsus',               kind: 'spear',   wt: 4,    ability: 'frenzy', recipe: { items: { wine_of_ages: 3, revel_token: 2, maenad_ivy: 4 }, cost: 1000 }, desc: 'Dionysus’ pine-cone staff. It makes you a little wild.' },
-  wild_maul:       { name: 'Pan’s Wild Maul',  kind: 'hammer',  wt: 4.2,  ability: 'stampede', recipe: { items: { wild_horn: 2, satyr_fur: 4 }, cost: 900 }, desc: 'A side-hunt prize. Hits like a herd.' },
+  wild_maul:       { name: 'Pan’s Wild Maul',  kind: 'hammer',  wt: 4.2,  ability: 'stampede', recipe: { items: { wild_horn: 2, satyr_fur: 4 }, cost: 900 }, desc: 'Hits like a herd.' },
   owl_bow:         { name: 'Owlfeather Bow',        kind: 'bow',     wt: 4.5,  pierce: 2, recipe: { items: { owl_quill: 5, cedar_shaft: 4, silver_talon: 1 }, cost: 700 }, desc: 'Light and silent. Shots punch through two extra enemies.' },
   hoplite_dory:    { name: 'Hoplite Dory',          kind: 'spear',   wt: 4.5,  recipe: { items: { bronze_plate: 5, cedar_shaft: 3, hoplite_crest: 1 }, cost: 750 }, desc: 'The long spear of the Athenian battle line.' },
   athena_spear:    { name: 'Spear of Athena',       kind: 'spear',   wt: 5,    ability: 'aegis', recipe: { items: { aegis_scale: 4, wisdom_token: 2, bronze_plate: 3 }, cost: 1300 }, desc: 'Athena’s own spear, balanced perfectly.' },
@@ -774,21 +774,21 @@ const WEAPONS = {
   rose_blade:      { name: 'Rose Blade',            kind: 'sword',   wt: 6,    ability: 'soulsteal', recipe: { items: { foam_pearl: 3, love_token: 2, rose_quartz: 1 }, cost: 1500 }, desc: 'Pretty, and much sharper than it looks.' },
   laurel_bow:      { name: 'Laurel Bow',            kind: 'bow',     wt: 6.5,  pierce: 2, recipe: { items: { sun_arrowhead: 5, python_scale: 3, python_fang: 1 }, cost: 1100 }, desc: 'Apollo’s favourite wood.' },
   sunblade:        { name: 'Sunblade',              kind: 'sword',   wt: 7,    ability: 'sunburst', recipe: { items: { sun_disk: 3, light_token: 2, python_scale: 4 }, cost: 1800 }, desc: 'Forged at noon, on the longest day.' },
-  witchfire_daggers:{ name: 'Witchfire Daggers',    kind: 'daggers', wt: 7,    ability: 'eruption', recipe: { items: { witch_torch: 2, plague_ash: 6 }, cost: 1500 }, desc: 'A side-hunt prize. Cold blue fire on both blades.' },
+  witchfire_daggers:{ name: 'Witchfire Daggers',    kind: 'daggers', wt: 7,    ability: 'eruption', recipe: { items: { witch_torch: 2, plague_ash: 6 }, cost: 1500 }, desc: 'Cold blue fire on both blades.' },
   spartoi_spear:   { name: 'Spartoi Spear',         kind: 'spear',   wt: 7.5,  recipe: { items: { dragon_tooth: 6, bloodied_bronze: 3, gigas_bone: 1 }, cost: 1300 }, desc: 'Taken from a soldier who grew out of the ground.' },
   ares_warblade:   { name: 'Warblade of Ares',      kind: 'sword',   wt: 8,    ability: 'whirlwind', recipe: { items: { war_ember: 3, war_token: 2, bloodied_bronze: 4 }, cost: 2200 }, desc: 'It wants to be swung.' },
-  retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'A side-hunt prize. Everyone gets what they deserve.' },
+  retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'Everyone gets what they deserve.' },
   coral_daggers:   { name: 'Coral Daggers',         kind: 'daggers', wt: 8.5,  recipe: { items: { crab_shell: 6, triton_scale: 3, giant_claw: 1 }, cost: 1600 }, desc: 'Grown, not forged.' },
   trident:         { name: 'Trident of the Deep',   kind: 'spear',   wt: 9,    ability: 'tidal', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. It drips forever.' },
   peacock_bow:     { name: 'Peacock Bow',           kind: 'bow',     wt: 9.5,  pierce: 2, recipe: { items: { peacock_plume: 6, royal_gold: 3, argus_eye: 1 }, cost: 1900 }, desc: 'Fletched with eye-feathers.' },
   hera_scepter:    { name: 'Scepter of Hera',       kind: 'hammer',  wt: 10,   ability: 'quake', recipe: { items: { regal_plume: 3, queen_token: 2, royal_gold: 4 }, cost: 3000 }, desc: 'The queen’s scepter. Heavier than a throne.' },
-  discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'A side-hunt prize. Its arrows never fly quite straight. They don’t need to.' },
+  discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'Its arrows never fly quite straight. They don’t need to.' },
   cyclops_club:    { name: 'Cyclops Club',          kind: 'hammer',  wt: 10.5, recipe: { items: { cyclops_hide: 5, cyclops_eye: 1, automaton_core: 2 }, cost: 2200 }, desc: 'A small tree with a bad attitude.' },
   automaton_blade: { name: 'Automaton Blade',       kind: 'sword',   wt: 10.5, recipe: { items: { bronze_gear: 6, automaton_core: 3, cyclops_eye: 1 }, cost: 2200 }, desc: 'Cut from a bronze guardian’s arm.' },
   forge_hammer:    { name: 'Hammer of Hephaestus',  kind: 'hammer',  wt: 11,   ability: 'eruption', recipe: { items: { divine_bronze: 3, forge_token: 2, automaton_core: 4 }, cost: 3400 }, desc: 'The hammer that forged the thunderbolt.' },
   stygian_daggers: { name: 'Stygian Daggers',       kind: 'daggers', wt: 11.5, recipe: { items: { shade_essence: 6, styx_water: 3, cerberus_fang: 1 }, cost: 2600 }, desc: 'Dipped in the Styx.' },
   bident:          { name: 'Bident of Hades',       kind: 'spear',   wt: 12,   ability: 'deathmark', recipe: { items: { soul_gem: 3, death_token: 2, styx_water: 4 }, cost: 3800 }, desc: 'Two prongs. Both of them final.' },
-  dream_daggers:   { name: 'Dreamweaver Daggers',   kind: 'daggers', wt: 12,   ability: 'soulsteal', recipe: { items: { poppy_dream: 2, shade_essence: 6 }, cost: 3200 }, desc: 'A side-hunt prize. They hit like a bad dream.' },
+  dream_daggers:   { name: 'Dreamweaver Daggers',   kind: 'daggers', wt: 12,   ability: 'soulsteal', recipe: { items: { poppy_dream: 2, shade_essence: 6 }, cost: 3200 }, desc: 'They hit like a bad dream.' },
   storm_fangs:     { name: 'Storm Fangs',           kind: 'daggers', wt: 12.5, recipe: { items: { harpy_talon: 6, storm_glass: 3, storm_eye: 1 }, cost: 3000 }, desc: 'Twin blades of lightning glass.' },
   keraunos:        { name: 'Keraunos',              kind: 'sword',   wt: 13,   ability: 'chain', recipe: { items: { thunder_core: 4, olympian_token: 2, storm_eye: 1 }, cost: 5000 }, desc: 'A blade forged around one of Zeus’ thunderbolts.' },
 };
@@ -838,7 +838,7 @@ const PERK_TEXT = {
   killFrenzy: () => 'Every kill makes you attack faster for 3 seconds', reflectPerfect: () => 'Perfect blocks send projectiles back',
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
-  phase: () => 'Dodge rolls stay untouchable 50% longer', lightning: v => `Every ${v}th hit calls down lightning`,
+  phase: () => 'Dashes stay untouchable 50% longer', lightning: v => `Every ${v}th hit calls down lightning`,
 };
 
 // Shields: only with one-handed weapons (sword, spear). Hold Guard to block from the front.
@@ -1016,7 +1016,7 @@ const BOSSES = {
 const POTIONS = {
   health:   { name: 'Health Potion',   key: 'potion1', share: .3,  col: ['#d9493b', '#7f2618', '#ffd0c0'], short: 'Health',   desc: 'Heals 40% of your health right away.' },
   strength: { name: 'Strength Potion', key: 'potion2', share: .4,  col: ['#e9a030', '#8f5a1c', '#fff0b0'], short: 'Strength', desc: '+25% damage for 60 seconds.' },
-  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: 'Double dash for 60 seconds: roll twice in a row, but each roll recharges a bit slower. Already wearing double-dash boots? Then your rolls recharge at full speed instead.' },
+  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: 'Double dash for 60 seconds: dash twice in a row, but each dash recharges a bit slower. Already wearing double-dash boots? Then your dashes recharge at full speed instead.' },
 };
 const POTION_MAX = 3;
 // Plurals that don't just add an s.
@@ -1150,7 +1150,7 @@ const QUESTS = [
     waves: [{ bandit: 5, slinger: 2 }, { bandit: 4, bull: 2, slinger: 2 }] },
 
   { id: 'wolf_woods', god: 'artemis', tier: 2, name: 'Wolves in the Woods', arena: 'woods', requires: ['hermes_hunt'],
-    desc: 'Artemis’ wolves hunt in packs. A wolf crouches before it pounces, so roll sideways when one goes still.',
+    desc: 'Artemis’ wolves hunt in packs. A wolf crouches before it pounces, so dash sideways when one goes still.',
     waves: [{ wolf: 5 }, { wolf: 6, huntress: 1 }, { wolf: 8, huntress: 2 }] },
   { id: 'golden_stag', god: 'artemis', tier: 2, name: 'The Golden Stag', arena: 'glade', requires: ['hermes_hunt'],
     desc: 'Golden stags charge like bulls, and the great Calydonian boar charges twice in a row. Don’t stop moving after the first one.',
@@ -1166,15 +1166,15 @@ const QUESTS = [
     desc: 'Dionysus’ panthers pounce twice in a row. A drunken centaur guards the path and charges through anything.',
     waves: [{ panther: 2, satyr: 4 }, { panther: 3, goat: 4 }, { centaur: 1, panther: 2, satyr: 4 }] },
   { id: 'dionysus_hunt', god: 'dionysus', tier: 3, boss: 'dionysus', name: 'The Wild Feast', arena: 'theater', requires: ['vineyard_riot', 'panther_path'],
-    desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Roll through it, or keep calm and steer the other way.',
+    desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Dash through it, or keep calm and steer the other way.',
     waves: [{ satyr: 6, maenad: 2 }, { panther: 1, maenad: 1, satyr: 4 }] },
   { id: 'pan_hunt', god: 'pan', tier: 3.5, side: true, boss: 'pan', name: 'The Panic of Pan', arena: 'meadow', requires: ['dionysus_hunt'],
-    desc: 'Side hunt. The wild god Pan sends stampedes of goats across the meadow. Watch the marked lanes and step out of them.',
+    desc: 'The wild god Pan sends stampedes of goats across the meadow. Watch the marked lanes and step out of them.',
     waves: [{ goat: 6, satyr: 4 }] },
 
   // ---- High Rank ----
   { id: 'owl_grove', god: 'athena', tier: 4, name: 'Owls of the Olive Grove', arena: 'grove', requires: ['dionysus_hunt'],
-    desc: 'Athena’s war owls nest in the sacred grove and dive at anyone who comes close. Each dive starts with a short hover, so roll sideways when they stop moving.',
+    desc: 'Athena’s war owls nest in the sacred grove and dive at anyone who comes close. Each dive starts with a short hover, so dash sideways when they stop moving.',
     waves: [{ owl: 4, archer: 1 }, { owl: 5, archer: 2 }, { owl: 6, archer: 2, hoplite: 1 }] },
   { id: 'bronze_wall', god: 'athena', tier: 4, name: 'The Bronze Wall', arena: 'ruins', requires: ['dionysus_hunt'],
     desc: 'Hoplites hold the old agora behind bronze shields. Hits on the shield barely land, so get around them, or strike right after they thrust.',
@@ -1187,14 +1187,14 @@ const QUESTS = [
     desc: 'A crowd of lovesick suitors has turned violent. Doves dive like owls, only faster.',
     waves: [{ suitor: 7 }, { suitor: 8, dove: 3 }, { suitor: 9, dove: 4, eros: 1 }] },
   { id: 'doves_darts', god: 'aphrodite', tier: 5, name: 'Doves and Darts', arena: 'dovecote', requires: ['athena_hunt'],
-    desc: 'The little Erotes fly over everything and shoot heart arrows. One hit makes you stumble toward them. Rolling clears it.',
+    desc: 'The little Erotes fly over everything and shoot heart arrows. One hit makes you stumble toward them. Dashing clears it.',
     waves: [{ dove: 5, eros: 1 }, { dove: 6, eros: 2 }, { dove: 7, eros: 2, suitor: 4 }] },
   { id: 'aphrodite_hunt', god: 'aphrodite', tier: 5, boss: 'aphrodite', name: 'The Foam-Born', arena: 'cythera', requires: ['jealous_suitors', 'doves_darts'],
-    desc: 'Aphrodite’s gaze pulls you toward her. When the pink line locks onto you, roll out of it. Her mirror images explode, so kill them early or keep away.',
+    desc: 'Aphrodite’s gaze pulls you toward her. When the pink line locks onto you, dash out of it. Her mirror images explode, so kill them early or keep away.',
     waves: [{ suitor: 8, eros: 2 }, { dove: 6, eros: 2, suitor: 3 }] },
 
   { id: 'plague_arrows', god: 'apollo', tier: 6, name: 'The Plague Arrows', arena: 'plagueroad', requires: ['aphrodite_hunt'],
-    desc: 'Plague wretches run at you and burst, leaving poison on the ground. Kill them before they reach you, or roll away when they start to swell.',
+    desc: 'Plague wretches run at you and burst, leaving poison on the ground. Kill them before they reach you, or dash away when they start to swell.',
     waves: [{ plague: 6 }, { plague: 7, sun_archer: 2 }, { plague: 8, sun_archer: 3 }] },
   { id: 'python_lair', god: 'apollo', tier: 6, name: 'Lair of the Python', arena: 'pythoncave', requires: ['aphrodite_hunt'],
     desc: 'The great serpent of Delphi leaves a trail of venom wherever it charges. Make it hit a wall.',
@@ -1203,7 +1203,7 @@ const QUESTS = [
     desc: 'Apollo sweeps a beam of sunlight across the temple. Watch which way the thin line is pointing and get behind him or out of its path.',
     waves: [{ plague: 7, sun_archer: 2 }, { sun_archer: 3, plague: 6 }] },
   { id: 'hecate_hunt', god: 'hecate', tier: 6.5, side: true, boss: 'hecate', name: 'Crossroads at Midnight', arena: 'crossroads', requires: ['apollo_hunt'],
-    desc: 'Side hunt. Hecate, goddess of witchcraft, blinks around the crossroads in cold blue fire. Shades appear right behind you, so keep moving.',
+    desc: 'Hecate, goddess of witchcraft, blinks around the crossroads in cold blue fire. Shades appear right behind you, so keep moving.',
     waves: [{ shade: 6, plague: 4 }] },
 
   { id: 'sown_men', god: 'ares', tier: 7, name: 'The Sown Men', arena: 'battlefield', requires: ['apollo_hunt'],
@@ -1216,7 +1216,7 @@ const QUESTS = [
     desc: 'Ares fights up close and never stops. Once he’s hurt he gets faster. A shield helps here, but his earthquakes go under it.',
     waves: [{ spartoi: 8, berserker: 2 }, { war_boar: 3, berserker: 2, spartoi: 4 }] },
   { id: 'nemesis_hunt', god: 'nemesis', tier: 7.5, side: true, boss: 'nemesis', name: 'Retribution', arena: 'rhamnous', requires: ['ares_hunt'],
-    desc: 'Side hunt. Nemesis punishes greed. When she glows silver, every hit you land comes back at you. Wait for the glow to fade.',
+    desc: 'Nemesis punishes greed. When she glows silver, every hit you land comes back at you. Wait for the glow to fade.',
     waves: [{ spartoi: 6, berserker: 2 }] },
 
   // ---- Master Rank ----
@@ -1240,7 +1240,7 @@ const QUESTS = [
     desc: 'Hera sweeps the hall with the gaze of Argus and curses the ground under you. She calls Argus himself when she’s hurt.',
     waves: [{ peacock: 8, priestess: 2 }, { priestess: 2, peacock: 6, hoplite: 2 }] },
   { id: 'eris_hunt', god: 'eris', tier: 9.5, side: true, boss: 'eris', name: 'The Golden Apple', arena: 'applegarden', requires: ['hera_hunt'],
-    desc: 'Side hunt. Eris, goddess of strife, calls in monsters from every hunt you’ve been on and throws golden apples that burst.',
+    desc: 'Eris, goddess of strife, calls in monsters from every hunt you’ve been on and throws golden apples that burst.',
     waves: [{ bandit: 4, satyr: 4, crab: 3 }] },
 
   { id: 'bronze_hounds', god: 'hephaestus', tier: 10, name: 'Hounds of Bronze', arena: 'workshop', requires: ['hera_hunt'],
@@ -1263,7 +1263,7 @@ const QUESTS = [
     desc: 'Hades vanishes into shadow and strikes from where you least expect. Watch for his shadow on the floor.',
     waves: [{ skeleton: 9, shade: 3 }, { fury: 3, shade: 4, skeleton: 4 }] },
   { id: 'hypnos_hunt', god: 'hypnos', tier: 11.5, side: true, boss: 'hypnos', name: 'The Long Sleep', arena: 'dreamfield', requires: ['hades_hunt'],
-    desc: 'Side hunt. Hypnos fills the field with sleeping fog. Stand in it too long and you fall asleep, so keep moving.',
+    desc: 'Hypnos fills the field with sleeping fog. Stand in it too long and you fall asleep, so keep moving.',
     waves: [{ shade: 8 }] },
 
   { id: 'harpy_storm', god: 'zeus', tier: 12, name: 'Harpies on the Wind', arena: 'storm', requires: ['hades_hunt'],
@@ -1542,7 +1542,7 @@ for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w
 
 // Build the 4 pieces of every set. Piece ids look like "winged:head".
 const PIECES = {};
-// Boots with a power of their own. Double dash: roll twice in a row, but rolls recharge slower, and these boots
+// Boots with a power of their own. Double dash: dash twice in a row, but dashes recharge slower, and these boots
 // give up the faster dodge recovery other boots have. Every rank's version of the set keeps it.
 const PIECE_PERKS = { 'winged:feet': 'doubleDash', 'timeless:feet': 'doubleDash' };
 for (const [sid, set] of Object.entries(ARMOR_SETS)) {
@@ -1598,7 +1598,7 @@ for (const [id, A] of Object.entries(ARENAS)) {
     const local = qd.tier - RANKS[qd.rank].off, base = huntPay(Math.floor(qd.tier));
     if (!qd.reward) qd.reward = qd.boss ? Math.round(base * (qd.titan ? 3.2 : qd.side ? 2.4 : 3) / 10) * 10 : base;
     qd.stars = clamp(Math.round(local * .55 + (qd.boss ? .6 : 0)), 1, 10);
-    qd.urgent = !!qd.boss && !qd.side;
+    qd.urgent = !!qd.boss;
     // A god's own quest also needs the previous god beaten, so old saves can't skip ahead.
     const gi = GODS.findIndex(g => g.id === qd.god);
     if (qd.boss && !qd.side && !qd.titan && gi > 0) { const prev = bossQuest[qd.rank + ':' + GODS[gi - 1].id]; if (!qd.requires.includes(prev)) qd.requires.push(prev); }
@@ -2264,7 +2264,7 @@ const DEFAULT_BINDS = {
   attack: ['KeyJ', 'Space', 'KeyZ'], dodge: ['KeyK', 'ShiftLeft', 'KeyX'], ability: ['KeyL', 'KeyR', 'KeyC'], guard: ['KeyE', 'KeyI', 'KeyQ'],
   potion1: ['Digit1'], potion2: ['Digit2'], potion3: ['Digit3'],
 };
-const ACTION_LABELS = { up: 'Move up', left: 'Move left', down: 'Move down', right: 'Move right', attack: 'Attack', dodge: 'Dodge roll', ability: 'Weapon skill', guard: 'Guard / use in town',
+const ACTION_LABELS = { up: 'Move up', left: 'Move left', down: 'Move down', right: 'Move right', attack: 'Attack', dodge: 'Dash', ability: 'Weapon skill', guard: 'Guard / use in town',
   potion1: 'Health potion', potion2: 'Strength potion', potion3: 'Speed potion' };
 // Keys that can't be bound: game shortcuts plus Chromebook/OS keys (Search, Ctrl, Alt) that trigger system shortcuts.
 const RESERVED = new Set(['Escape', 'KeyP', 'KeyM', 'KeyF', 'Enter', 'NumpadEnter', 'Tab', 'CapsLock', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ContextMenu']);
@@ -2304,7 +2304,7 @@ function controlsItems() {
   if (document.body.classList.contains('touch')) return [
     ['Move', 'Drag on the left side of the screen'],
     ['Attack', 'The Attack button<br>Hold it to keep swinging'],
-    ['Dodge roll', 'The Dodge button'],
+    ['Dash', 'The Dash button'],
     ['Weapon skill', 'The Skill button'],
     ['Guard / use in town', 'The Guard button<br>Hold to block with a shield. Talk and open doors in town'],
     ['Potions', 'Tap one in the top right corner<br>Health, strength, speed'],
@@ -2313,7 +2313,7 @@ function controlsItems() {
   return [
     ['Move', moveKeysHTML()],
     ['Attack', keys('attack') + (m ? ' or click' : '') + '<br>Hold to keep swinging'],
-    ['Dodge roll', keys('dodge') + (m ? ' or right click' : '')],
+    ['Dash', keys('dodge') + (m ? ' or right click' : '')],
     ['Weapon skill', keys('ability')],
     ['Guard / use in town', keys('guard') + '<br>Hold to block with a shield. Talk and open doors in town'],
     ['Potions', ['potion1', 'potion2', 'potion3'].map(a => keys(a)).join(' ') + '<br>Health, strength, speed'],
@@ -3386,7 +3386,9 @@ function updatePlayer(dt) {
   if (Input.hit('ability')) p.bufAbil = .16;
   if (Input.hit('dodge') && q.onPlayerAct) q.onPlayerAct('dodge');
   if (p.bufAtk <= 0 && (Input.is('attack') || Input.mouse.held)) { p.bufAtk = .02; p.bufMouse = Input.mouse.held; }
-  p.bufAtk -= dt; p.bufDodge -= dt; p.bufAbil -= dt;
+  const dashing = p.dodgeT > 0 || p.dashT > 0, winding = p.swing && !p.swing.fired;
+  if (!dashing) { p.bufAtk -= dt; p.bufAbil -= dt; }
+  if (!winding) p.bufDodge -= dt;
   for (const [id, P] of Object.entries(POTIONS)) if (Input.hit(P.key)) drinkPotion(id);
   let mv = moveVector();
   if (F.confuse > 0) mv = { x: -mv.x, y: -mv.y };
@@ -3407,7 +3409,7 @@ function updatePlayer(dt) {
     if (p.dashT <= 0) p.invuln = Math.max(p.invuln, .15);
     return;
   }
-  // charmed: your feet carry you toward whoever charmed you. Rolling breaks it.
+  // charmed: your feet carry you toward whoever charmed you. Dashing breaks it.
   if (F.charm > 0 && p.charmFrom) {
     if (p.bufDodge > 0 && canDash(p)) { F.charm = 0; startDodge(p, mv); p.bufDodge = 0; return; }
     const a = Math.atan2(p.charmFrom.y - p.y, p.charmFrom.x - p.x);
@@ -3525,8 +3527,8 @@ function meleeHit(p, aim, dmg, riposte = false, quiet = false, o = {}) {
   else if (hits) Sound.play('hit');
   return hits;
 }
-// Dodge charges. Normally one. Double dash (the speed potion, or boots that have it) gives a second one, so you can roll
-// twice back to back, but each charge comes back half again as slowly. That keeps rolls (you can't be hit mid-roll)
+// Dodge charges. Normally one. Double dash (the speed potion, or boots that have it) gives a second one, so you can dash
+// twice back to back, but each charge comes back half again as slowly. That keeps dashes (you can't be hit mid-dash)
 // from chaining forever. Boots and potion don't stack: with both, you keep two charges and they recharge at the normal speed.
 const SWIFT_RECHARGE = 1.5;
 const potionDash = p => !!(p.fx && p.fx.spd > 0);
@@ -4997,7 +4999,7 @@ function rainAround(p, n, r, delay, dmg, kind, spread = 100) {
   for (let i = 1; i < n; i++) { const a = rand(0, Math.PI * 2), d = rand(26, spread); addCircleHazard(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, r, delay + i * .08, dmg, kind); }
 }
 const LAWS = {
-  stillness: ['Law of Stillness', 'Do not roll'],
+  stillness: ['Law of Stillness', 'Do not dash'],
   peace:     ['Law of Peace', 'Do not strike'],
   motion:    ['Law of Motion', 'Keep moving'],
   measure:   ['Law of Measure', 'No more than 3 strikes in a row'],
@@ -5591,7 +5593,7 @@ function startQuest(id) {
   hudMode('quest'); hudReset();
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
-  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dodge and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dodge roll · hold to keep swinging`, 7);
+  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dodge and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
 }
 function startWave(i) {
@@ -5805,7 +5807,7 @@ function npcLines(n) {
         'Stay tuned for future updates. Thank you for playing.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
-      if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god, side gods too. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
+      if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
       if (s.rank > 0) return [`${RANKS[s.rank].name} work’s on the board. Everything out there hits harder now.`];
       return [c.zeus_hunt ? 'You’ve hunted all twelve gods of Olympus. The board still has work if you want parts.' : 'Work’s on the board. Pick a hunt and I’ll send you out.'];
@@ -6096,7 +6098,7 @@ function proTick(dt) {
   } else if (P.step === 'fight' && q.waveIdx >= 1) {
     P.step = 'dodge';
   } else if (P.step === 'dodge') {
-    proHint('dodge', touchMode ? 'When a bandit winds up, tap <b>Dodge</b> to roll. Nothing hits you mid-roll' : `When a bandit winds up, ${kbd(Input.bind.dodge[0])}${mouse ? ' or right click' : ''} to <b>roll</b> · nothing can hit you mid-roll`, 'dodge');
+    proHint('dodge', touchMode ? 'When a bandit winds up, tap <b>Dash</b> to get clear. Nothing hits you mid-dash' : `When a bandit winds up, ${kbd(Input.bind.dodge[0])}${mouse ? ' or right click' : ''} to <b>dash</b> · nothing can hit you mid-dash`, 'dodge');
     if (p.dodgeT > 0) { P.step = 'fight2'; proClear(); }
   } else if (P.step === 'fight2' && (q.waveIdx >= 2 || p.hp < p.st.maxHp * .55)) {
     P.step = 'potion'; P.potions = q.stats.potions || 0;
@@ -6124,7 +6126,7 @@ function proFlow() {
   if (q.phase === 'intro' && q.pro && q.pro.step === 'move') { q.timer = Math.max(q.timer, .7); }
 }
 function proWaveBanner(i) {
-  const lines = [['Bandits!', 'They’re robbing a cart on the road'], ['More of them', 'Watch for the wind-up before they lunge'], ['Slingers', 'They throw from range. Close in, or roll past the stones']];
+  const lines = [['Bandits!', 'They’re robbing a cart on the road'], ['More of them', 'Watch for the wind-up before they lunge'], ['Slingers', 'They throw from range. Close in, or dash past the stones']];
   banner(...(lines[i] || ['Bandits', '']));
 }
 function proWalkout() {
@@ -6822,7 +6824,7 @@ function hudReset() {
   const st = q.player.st, ab = st.weapon.ability;
   const key = a => touchMode ? '' : ` [${codeLabel(Input.bind[a][0])}]`;
   $('pipAbil').hidden = !ab; if (ab) $('abilName').textContent = ABILITIES[ab].name + key('ability');
-  $('pipDodge').querySelector('b').textContent = 'Dodge' + key('dodge');
+  $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
   $('guardBar').hidden = !st.shield;
 }
@@ -6833,7 +6835,7 @@ function updateHud() {
   $('hpBar').classList.toggle('low', frac < .3);
   setText('hpText', `${Math.ceil(p.hp)} / ${p.st.maxHp}`);
   $('pipDodge').classList.toggle('cool', !canDash(p));
-  const dl = 'Dodge' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
+  const dl = 'Dash' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
   if (hudCache.dl !== dl) { hudCache.dl = dl; $('pipDodge').querySelector('b').textContent = dl; }
   $('pipAbil').classList.toggle('cool', p.abilCd > 0);
   // cooldowns drain from the top of each pip
@@ -7263,7 +7265,7 @@ function renderBoard() {
     }
     html += `<p class="chapter">${esc(g.name)}</p>` + qs.map(questCard).join('');
     const bq = qs.find(qd => qd.boss);
-    for (const side of mine.filter(qd => qd.side && qd.requires.includes(bq.id))) if (isUnlocked(side) || s.cleared[bq.id]) html += `<p class="chapter">Side hunt · ${esc(godName(side.god))}</p>` + questCard(side);
+    for (const side of mine.filter(qd => qd.side && qd.requires.includes(bq.id))) if (isUnlocked(side) || s.cleared[bq.id]) html += `<p class="chapter">${esc(godName(side.god))}</p>` + questCard(side);
   }
   if (hidden) html += `<div class="qlock">${hidden} more god${hidden > 1 ? 's' : ''} further up the mountain</div>`;
   // The Titans: only once the stairway under the temple has opened.
@@ -7336,7 +7338,7 @@ function renderArmory() {
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
           <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${P.def}</b>${eq ? '' : delta(P.def, cur.def)}</span>${P.hp || cur.hp ? `<span>Health <b>${P.hp}</b>${eq ? '' : delta(P.hp, cur.hp)}</span>` : ''}</div>
-          ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · roll twice in a row, but rolls recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
+          ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
       const lines = [];
@@ -7361,7 +7363,7 @@ function renderArmory() {
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(sh.block * 100)}%</b></span><span>Guard <b>${sh.meter * 10}</b></span><span>Dodge recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="stats"><span>Blocks <b>${Math.round(sh.block * 100)}%</b></span><span>Guard <b>${sh.meter * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? '' : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
@@ -7597,7 +7599,7 @@ function setPaused(v) {
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => codeLabel(Input.bind[a][0]);
-  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dodge ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
+  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dash ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
   Input.down.clear(); Input.virt = {}; Input.mouse.held = false;
   if (v) setTimeout(() => $('btnResume').focus(), 0); else if (document.activeElement) document.activeElement.blur();
 }
