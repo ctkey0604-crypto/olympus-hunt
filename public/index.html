@@ -2696,7 +2696,7 @@ function genLayers(themeKey, secret, opts = {}) {
     bx.clearRect(rect.x, rect.y, rect.w, rect.h);
     gx.fillStyle = 'rgba(0,0,0,.2)'; gx.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
-  if (opts.gate) { const gp = opts.gate.pad || 0; bx.clearRect(opts.gate.x * TILE - gp, opts.gate.y * TILE, opts.gate.w * TILE + gp * 2, WORLD_H); }     // the gateposts are objects (gatepost), placed by the village and temple
+  if (opts.gate) { const gp = opts.gate.pad || 0; const lip = opts.gate.lip || 0; bx.clearRect(opts.gate.x * TILE - gp, opts.gate.y * TILE + lip, opts.gate.w * TILE + gp * 2, WORLD_H); }     // the gateposts are objects (gatepost), placed by the village and temple
   if (opts.gate) paintGateway(gx, opts.gate, inner, R, !!opts.gateRoad);
   gx.drawImage(border, 0, 0);
   gx.fillStyle = 'rgba(0,0,0,.14)'; gx.fillRect(inner.minX, inner.minY, inner.maxX - inner.minX, 3); gx.fillRect(inner.minX, inner.minY, 3, inner.maxY - inner.minY);
@@ -2865,12 +2865,6 @@ function paintGateway(x, g, B, R, road) {
     }
     for (let i = 0; i < 40; i++) dot(x0 + R() * (x1 - x0), y0 + 14 + R() * (H - y0 - 14), R() < .5 ? '#7c5f3a' : '#c09a63');
   }
-  // the stone threshold across the gateway, the town's edge
-  x.fillStyle = '#140d0b'; x.fillRect(x0, y0 - 4, x1 - x0, 11);
-  x.fillStyle = '#cfc4ab'; x.fillRect(x0, y0 - 3, x1 - x0, 8);
-  x.fillStyle = '#e8dfc9'; x.fillRect(x0, y0 - 3, x1 - x0, 1);
-  x.fillStyle = '#a99e86'; x.fillRect(x0, y0 + 4, x1 - x0, 1);
-  for (let px = x0 + 11; px < x1 - 4; px += 12) dot(px, y0 - 3, '#a99e86', 1, 7);
 }
 // A small visual clue where the hidden nook meets the arena.
 function paintHint(x, T, s, R) {
@@ -5794,7 +5788,7 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 }, gateRoad: true });
+  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3, lip: 4 }, gateRoad: true });
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
