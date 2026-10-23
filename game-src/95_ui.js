@@ -322,7 +322,7 @@ function renderMarket() {
   const cards = Object.entries(POTIONS).map(([id, P]) => {
     const have = s.potions[id] || 0, cost = potionCost(id), full = have >= POTION_MAX;
     return `<article class="gear">
-      <div class="gear-head"><img class="px-icon" alt="" src="${icon('potion:' + id)}"><div><b>${esc(P.name)}</b><span>Key ${esc(codeLabel(Input.bind[P.key][0]))} in a hunt</span></div></div>
+      <div class="gear-head"><img class="px-icon" alt="" src="${icon('potion:' + id)}"><div><b>${esc(P.name)}</b><span>${touchMode ? 'Tap it in the corner during a hunt' : 'Key ' + esc(codeLabel(Input.bind[P.key][0])) + ' in a hunt'}</span></div></div>
       <p class="desc">${esc(P.desc)}</p>
       <div class="stats"><span>You have <b>${have} / ${POTION_MAX}</b></span><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-buy="${id}" ${full || s.money < cost ? 'disabled' : ''}>${full ? 'Bag full' : 'Buy'}</button></div></article>`;
@@ -354,16 +354,16 @@ function renderOptions() {
   return `<div class="opts">
     ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
     <div class="opt wide"><h3>Controls</h3>
-      ${touchMode ? '<details><summary class="muted">Keyboard controls (for a plugged-in keyboard)</summary>' : ''}<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
-      <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>${touchMode ? '</details>' : ''}
+      ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
+      <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
       <div class="toggle"><span>Auto-aim: attacks turn toward the nearest enemy</span><button class="btn ghost small" type="button" data-opt="autoAim">${Settings.data.autoAim ? 'On' : 'Off'}</button></div>
-      <div class="toggle"><span>Mouse and touchpad clicks attack and dodge</span><button class="btn ghost small" type="button" data-opt="mouse">${Settings.data.mouse ? 'On' : 'Off'}</button></div>
-      <div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div></div>
+      ${touchMode ? '' : `<div class="toggle"><span>Mouse and touchpad clicks attack and dodge</span><button class="btn ghost small" type="button" data-opt="mouse">${Settings.data.mouse ? 'On' : 'Off'}</button></div>`}
+      ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</div>
     <div class="opt"><h3>Sound and screen</h3>
       <div class="toggle"><span>Sound effects</span><button class="btn ghost small" type="button" data-opt="sound">${Settings.data.sound ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
-      <div class="toggle"><span>Fullscreen <kbd>F</kbd></span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
+      <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
     <div class="opt"><h3>Your save</h3><p>${where}</p>
       <div class="row"><button class="btn small" type="button" data-opt="export">Show save code</button><button class="btn ghost small" type="button" data-opt="import">Load a save code</button></div>
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
@@ -545,9 +545,9 @@ $('dialog').addEventListener('click', () => { if (G.mode === 'village' && G.dial
 /* ---- fullscreen (Chromebooks also have a fullscreen key on the top row) ---- */
 let fsByUs = false;
 function toggleFullscreen() {
-  if (!document.fullscreenEnabled) { toast('Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.'); return; }
+  if (!document.fullscreenEnabled) { toast(touchMode ? 'Fullscreen is blocked here.' : 'Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.'); return; }
   if (document.fullscreenElement) { fsByUs = true; document.exitFullscreen().catch(() => {}); }
-  else document.documentElement.requestFullscreen().catch(() => toast('Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.'));
+  else document.documentElement.requestFullscreen().catch(() => toast(touchMode ? 'Fullscreen is blocked here.' : 'Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.'));
 }
 document.addEventListener('fullscreenchange', () => {
   resize();
@@ -605,7 +605,7 @@ cv.addEventListener('contextmenu', ev => ev.preventDefault());
 // Touch controls only appear once you actually touch the screen, and hide again when you use
 // the keyboard or touchpad. That keeps them out of the way on touchscreen Chromebooks.
 let touchMode = false;
-function setTouchMode(v) { if (touchMode === v) return; touchMode = v; $('touch').hidden = !v; $('stage').classList.toggle('touch', v); if (!v) { Input.stick.x = Input.stick.y = 0; Input.virt = {}; } }
+function setTouchMode(v) { if (touchMode === v) return; touchMode = v; $('touch').hidden = !v; $('stage').classList.toggle('touch', v); document.body.classList.toggle('touch', v); renderTitleControls(); hudCache.prompt = null; if (!v) { Input.stick.x = Input.stick.y = 0; Input.virt = {}; } }
 if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) setTouchMode(true);
 addEventListener('pointerdown', ev => { if (ev.pointerType === 'touch') setTouchMode(true); else if (ev.pointerType === 'mouse') setTouchMode(false); }, true);
 {

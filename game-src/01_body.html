@@ -51,14 +51,14 @@
           <button class="btn ghost" id="btnPauseOptions" type="button">Options and controls</button>
           <button class="btn ghost" id="btnAbandon" type="button">Abandon quest</button>
           <button class="btn ghost" id="btnQuit" type="button">Save and quit</button>
-          <p class="muted" id="pauseKeys" style="margin:0;font-size:.85rem"></p>
+          <p class="muted keys-only" id="pauseKeys" style="margin:0;font-size:.85rem"></p>
         </div>
         <div class="stack" id="pauseConfirm" hidden>
           <p style="margin:0" id="abandonText">Leave now? You keep the parts you picked up, but you get no reward.</p>
           <button class="btn danger" id="btnAbandonYes" type="button">Leave the quest</button>
           <button class="btn ghost" id="btnAbandonNo" type="button">Keep fighting</button>
         </div>
-        <p class="muted" style="margin:0;font-size:.85rem">Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume.</p>
+        <p class="muted keys-only" style="margin:0;font-size:.85rem">Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume.</p>
       </div>
     </div>
     <div id="rotate">Turn your phone sideways to play.</div>
@@ -78,7 +78,7 @@
     <p class="title-sub muted" id="titleSub"></p>
     <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
     <div class="controls" id="titleControls" aria-label="Controls"></div>
-    <p class="tip" id="titleTip"></p>
+    <p class="tip keys-only" id="titleTip"></p>
     <div class="meander" style="width:100%"></div>
   </div>
 </section>
@@ -94,7 +94,7 @@
 
 <section class="screen" id="scrHub" hidden>
   <div class="wrap">
-    <div class="panel-top"><button class="btn ghost small" type="button" id="btnPanelBack">Back to the village</button><span class="muted"><kbd>Esc</kbd> also works</span></div>
+    <div class="panel-top"><button class="btn ghost small" type="button" id="btnPanelBack">Back to the village</button><span class="muted keys-only"><kbd>Esc</kbd> also works</span></div>
     <header class="hub-head">
       <h2 class="hub-title" id="hubTitle">The Forge</h2>
       <div class="purse"><b id="hubMoney">0</b><span>drachmae</span></div>

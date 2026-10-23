@@ -155,6 +155,15 @@ function moveKeysHTML() {
 }
 function controlsItems() {
   const m = Settings.data.mouse, keys = a => Input.bind[a].map(kbd).join(' ');
+  if (document.body.classList.contains('touch')) return [
+    ['Move', 'Drag on the left side of the screen'],
+    ['Attack', 'The Attack button<br>Hold it to keep swinging'],
+    ['Dodge roll', 'The Dodge button'],
+    ['Weapon skill', 'The Skill button'],
+    ['Guard / use in town', 'The Guard button<br>Hold to block with a shield. Talk and open doors in town'],
+    ['Potions', 'Tap one in the top right corner<br>Health, strength, speed'],
+    ['Pause', 'The pause button in the top right'],
+  ];
   return [
     ['Move', moveKeysHTML()],
     ['Attack', keys('attack') + (m ? ' or click' : '') + '<br>Hold to keep swinging'],
