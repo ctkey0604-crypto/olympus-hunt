@@ -2865,6 +2865,12 @@ function paintGateway(x, g, B, R, road) {
     }
     for (let i = 0; i < 40; i++) dot(x0 + R() * (x1 - x0), y0 + 14 + R() * (H - y0 - 14), R() < .5 ? '#7c5f3a' : '#c09a63');
   }
+  // the stone threshold across the gateway, the town's edge
+  x.fillStyle = '#140d0b'; x.fillRect(x0, y0 - 4, x1 - x0, 11);
+  x.fillStyle = '#cfc4ab'; x.fillRect(x0, y0 - 3, x1 - x0, 8);
+  x.fillStyle = '#e8dfc9'; x.fillRect(x0, y0 - 3, x1 - x0, 1);
+  x.fillStyle = '#a99e86'; x.fillRect(x0, y0 + 4, x1 - x0, 1);
+  for (let px = x0 + 11; px < x1 - 4; px += 12) dot(px, y0 - 3, '#a99e86', 1, 7);
 }
 // A small visual clue where the hidden nook meets the arena.
 function paintHint(x, T, s, R) {
