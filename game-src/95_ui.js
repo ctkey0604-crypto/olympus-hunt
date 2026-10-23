@@ -319,10 +319,15 @@ function renderStash() {
 const POTION_PRICE = { health: 150, strength: 200, speed: 175 };
 const rankPrice = n => Math.round(n * ((RANKS[G.save.rank] || RANKS[0]).cost || 1) / 10) * 10;
 function potionCost(id) { return rankPrice(POTION_PRICE[id] || 100); }
-// Melita's parts: anything from a hunt you've cleared, at a fixed price by rarity that steps up with rank. Hunting stays cheaper.
-const PART_PRICE = [0, 60, 150, 400, 1200];
+// Melita's parts: anything from a hunt you've cleared in your rank. Each part has one fixed price, set by the
+// earliest hunt it drops in (a share of that hunt's pay, by rarity), so hunting for it always pays better.
+const PART_SHARE = [0, .15, .35, .8, 2];
 const partItem = id => ITEMS[id] || ITEMS[baseId(id)];
-function partCost(id) { return Math.round(PART_PRICE[partItem(id).rarity || 1] * ((RANKS[rankOf(id)] || RANKS[0]).cost || 1) / 10) * 10; }
+let PART_TIER = null;
+function partCost(id) {
+  if (!PART_TIER) { PART_TIER = {}; for (const qd of QUESTS) for (const p of questParts(qd)) PART_TIER[p] = Math.min(PART_TIER[p] ?? 99, Math.floor(qd.tier)); }
+  return Math.max(20, Math.round(huntPay(PART_TIER[id] ?? 1) * PART_SHARE[partItem(id).rarity || 1] / 10) * 10);
+}
 function shopParts() {
   const s = G.save, set = new Set();
   for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id)) set.add(id);   // your current rank's parts
