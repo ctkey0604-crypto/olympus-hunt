@@ -1,0 +1,123 @@
+<div id="app">
+  <div id="stage" hidden>
+    <canvas id="game" width="384" height="216" aria-label="Game view"></canvas>
+    <div id="hud">
+      <div id="qhud" hidden>
+        <div class="hud-top">
+          <div class="hud-hp">
+            <div class="bar" id="hpBar"><s id="hpGhost"></s><i id="hpFill"></i><span id="hpText">100</span></div>
+            <div class="pips">
+              <span class="pip" id="pipDodge"><i><u></u></i><b>Dodge</b></span>
+              <span class="pip" id="pipAbil" hidden><i><u></u></i><b id="abilName">Skill</b></span>
+            </div>
+            <div class="bar" id="guardBar" hidden><i id="guardFill"></i></div>
+            <div class="status-row" id="statusRow"></div>
+          </div>
+          <div class="hud-mid"><span class="rank-tag" id="hudRank" hidden></span><div class="hud-wave" id="hudWave">Wave 1</div></div>
+          <div class="hud-loot"><span>Parts</span><b id="hudLoot">0</b></div>
+        </div>
+        <div id="potionBar" aria-label="Potions"></div>
+        <div id="lootFeed"></div>
+        <div id="bossBar" hidden>
+          <div class="boss-label"><b id="bossName">Hermes</b><span id="bossTitle"></span></div>
+          <div class="bar"><s id="bossGhost"></s><i id="bossFill"></i><em></em></div>
+        </div>
+      </div>
+      <div id="vhud" hidden><span class="place" id="vPlace">Akros</span><span class="vright"><span class="rank-tag" id="vRank" hidden></span><span class="money"><b id="vMoney">0</b> drachmae</span></span></div>
+      <div id="goal" hidden><span class="goal-tag">Goal</span><span id="goalText"></span><button type="button" id="goalHide">Hide tips</button></div>
+      <div id="hint" hidden></div>
+      <div id="prompt" hidden></div>
+      <div id="banner" hidden><div id="bannerMain"></div><div id="bannerSub"></div></div>
+      <div id="dialog" hidden><canvas id="dlgFace" width="14" height="14" aria-hidden="true"></canvas><div class="dlg-body"><div class="who" id="dlgWho"></div><div class="line" id="dlgLine"></div><div class="more" id="dlgMore"></div></div></div>
+    </div>
+    <div id="touch" hidden>
+      <div id="stickZone"><div id="stickBase"><div id="stickKnob"></div></div></div>
+      <div id="touchBtns">
+        <button type="button" data-act="ability" id="tAbil">Skill</button>
+        <button type="button" data-act="attack" class="big" id="tAttack">Attack</button>
+        <button type="button" data-act="dodge">Dodge</button>
+        <button type="button" data-act="guard" id="tGuard" hidden>Guard</button>
+      </div>
+      <button type="button" id="tPause" aria-label="Pause">II</button>
+    </div>
+    <div id="pause" hidden>
+      <div class="pause-card">
+        <p class="eyebrow" id="pauseWhere"></p>
+        <h2>Paused</h2>
+        <div class="stack" id="pauseMain">
+          <button class="btn" id="btnResume" type="button">Resume</button>
+          <button class="btn ghost" id="btnPauseSound" type="button">Sound: on</button>
+          <button class="btn ghost" id="btnPauseFs" type="button">Fullscreen</button>
+          <button class="btn ghost" id="btnPauseOptions" type="button">Options and controls</button>
+          <button class="btn ghost" id="btnAbandon" type="button">Abandon quest</button>
+          <button class="btn ghost" id="btnQuit" type="button">Save and quit</button>
+          <p class="muted" id="pauseKeys" style="margin:0;font-size:.85rem"></p>
+        </div>
+        <div class="stack" id="pauseConfirm" hidden>
+          <p style="margin:0" id="abandonText">Leave now? You keep the parts you picked up, but you get no reward.</p>
+          <button class="btn danger" id="btnAbandonYes" type="button">Leave the quest</button>
+          <button class="btn ghost" id="btnAbandonNo" type="button">Keep fighting</button>
+        </div>
+        <p class="muted" style="margin:0;font-size:.85rem">Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume.</p>
+      </div>
+    </div>
+    <div id="rotate">Turn your phone sideways to play.</div>
+  </div>
+</div>
+
+<section class="screen" id="scrTitle">
+  <div class="wrap title-wrap">
+    <div class="meander" style="width:100%"></div>
+    <p class="eyebrow">A monster-hunting game of the Greek gods</p>
+    <h1 class="logo">Olympus<br>Hunt</h1>
+    <canvas id="titleArt" width="272" height="44" aria-hidden="true"></canvas>
+    <div class="title-actions">
+      <button class="btn big" id="btnPlay" type="button">Play</button>
+      <button class="btn ghost" id="btnSaves" type="button">Saves</button>
+    </div>
+    <p class="title-sub muted" id="titleSub"></p>
+    <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
+    <div class="controls" id="titleControls" aria-label="Controls"></div>
+    <p class="tip" id="titleTip"></p>
+    <div class="meander" style="width:100%"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrSlots" hidden>
+  <div class="wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnSlotsBack">Back</button><h2>Choose a save</h2></div>
+    <div class="acct" id="acctBox" hidden></div>
+    <p class="muted" id="saveStatus" style="margin:0">Loading saves…</p>
+    <div class="slots" id="slotList"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrHub" hidden>
+  <div class="wrap">
+    <div class="panel-top"><button class="btn ghost small" type="button" id="btnPanelBack">Back to the village</button><span class="muted"><kbd>Esc</kbd> also works</span></div>
+    <header class="hub-head">
+      <h2 class="hub-title" id="hubTitle">The Forge</h2>
+      <div class="purse"><b id="hubMoney">0</b><span>drachmae</span></div>
+    </header>
+    <div class="meander"></div>
+    <div class="equip" id="hubEquip"></div>
+    <div id="hubBody"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrResults" hidden>
+  <div class="wrap results">
+    <div class="meander"></div>
+    <p class="eyebrow" id="resQuest"></p>
+    <h2 class="res-title" id="resTitle">Quest complete</h2>
+    <div class="res-stats" id="resStats"></div>
+    <div id="resUnlock" style="display:grid;gap:8px"></div>
+    <h3>Parts carried home</h3>
+    <div class="res-loot" id="resLoot"></div>
+    <p class="muted" id="resNote" style="margin:0"></p>
+    <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Hunt again</button></div>
+  </div>
+</section>
+
+<div id="toast" hidden></div>
+<div id="fader" aria-hidden="true"></div>
