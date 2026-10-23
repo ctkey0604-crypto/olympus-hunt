@@ -237,6 +237,9 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 textarea{width:100%;box-sizing:border-box;min-height:84px;background:#000;color:var(--bone);border:0;box-shadow:inset 0 0 0 2px var(--line);padding:8px;font:.8rem/1.3 ui-monospace,monospace;resize:vertical;user-select:text;-webkit-user-select:text}
 textarea:focus{outline:2px solid var(--gold)}
 .toggle{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.vol{display:flex;align-items:center;gap:10px;margin-top:-4px}
+.vol input{flex:1;min-width:0;accent-color:var(--clay);height:22px;cursor:pointer}
+.vol b{min-width:4ch;text-align:right;color:var(--bone-dim);font-variant-numeric:tabular-nums}
 .binds{display:grid}
 .bind-row{display:grid;grid-template-columns:minmax(110px,160px) 1fr;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .bind-row>span{font-weight:600}
@@ -481,7 +484,8 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
         <h2>Paused</h2>
         <div class="stack" id="pauseMain">
           <button class="btn" id="btnResume" type="button">Resume</button>
-          <button class="btn ghost" id="btnPauseSound" type="button">Sound: on</button>
+          <button class="btn ghost" id="btnPauseSound" type="button">Sound effects: on</button>
+          <button class="btn ghost" id="btnPauseMusic" type="button">Music: on</button>
           <button class="btn ghost" id="btnPauseFs" type="button">Fullscreen</button>
           <button class="btn ghost" id="btnPauseOptions" type="button">Options and controls</button>
           <button class="btn ghost" id="btnAbandon" type="button">Abandon quest</button>
@@ -2152,7 +2156,7 @@ const Sound = {
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       this.ctx = new AC();
-      this.master = this.ctx.createGain(); this.master.gain.value = this.on ? .22 : 0; this.master.connect(this.ctx.destination);
+      this.master = this.ctx.createGain(); this.master.gain.value = this.on ? .22 : 0; this.master.connect(this.ctx.destination); this.refresh();
       const len = this.ctx.sampleRate; this.nbuf = this.ctx.createBuffer(1, len, len);
       const d = this.nbuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     } catch (e) { this.ctx = null; }
@@ -2162,7 +2166,7 @@ const Sound = {
   held: false,
   hold(v) { this.held = v; if (!this.ctx) return; if (v) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {}); },
   setOn(v) { this.on = v; this.refresh(); },
-  refresh() { if (this.master) this.master.gain.value = this.on && !CG.muted ? .22 : 0; try { Music.refresh(); } catch (e) {} },
+  refresh() { let vol = 1; try { vol = Settings.data.sfxVol ?? 1; } catch (e) {} if (this.master) this.master.gain.value = this.on && !CG.muted ? .22 * vol : 0; try { Music.refresh(); } catch (e) {} },
   tone(freq, dur, type = 'square', vol = .3, slide = 0, delay = 0) {
     if (!this.ctx || !this.on) return;
     const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain();
@@ -2531,12 +2535,13 @@ function sanitize(s) {
 }
 
 const Settings = {
-  data: { sound: true, music: true, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
+  data: { sound: true, music: true, sfxVol: 1, musicVol: 1, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
         for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        for (const k of ['sfxVol', 'musicVol']) if (typeof s[k] === 'number' && s[k] >= 0 && s[k] <= 1) this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {
           const b = {}; let ok = true;
@@ -2839,14 +2844,14 @@ const Music = (() => {
   const events = (id, lvl) => cache[id + ':' + lvl] || (cache[id + ':' + lvl] = build(id, lvl));
   const M = { want: null, wantLvl: 1, cur: null, out: null, ducked: false, timer: null, songs: SONGS };
   const speed = lvl => lvl >= 3 ? 1.12 : lvl >= 2 ? 1.07 : 1;
-  function audible() { return !!(Sound.on && Settings.data.music !== false && !CG.muted); }
+  function audible() { return !!(Settings.data.music !== false && !CG.muted); }      // its own switch, apart from sound effects
   function ensureOut(ctx) {
     if (M.out) return M.out;
     M.out = ctx.createGain(); M.out.gain.value = 0; M.out.connect(ctx.destination); return M.out;
   }
   M.refresh = () => {
     const ctx = Sound.ctx; if (!ctx) return;
-    const out = ensureOut(ctx), v = audible() ? (M.ducked ? .35 : 1) * .2 : 0;      // well under the sound effects
+    const out = ensureOut(ctx), v = audible() ? (M.ducked ? .35 : 1) * .2 * (Settings.data.musicVol ?? 1) : 0;      // well under the sound effects
     out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(v, ctx.currentTime, .08);
   };
   function stopCur(fade = .5) {
@@ -7749,6 +7754,7 @@ function renderShrine() {
       : `<button class="btn" type="button" data-offer="1" ${s.money >= cost ? '' : 'disabled'}>Make an offering (${fmtMoney(cost)} dr)</button>${s.money >= cost ? '' : '<span class="muted">Not enough drachmae.</span>'}`}</div>
   </div></div>`;
 }
+const volRow = (k, label) => { const v = Math.round((Settings.data[k] ?? 1) * 100); return `<div class="vol"><input type="range" min="0" max="100" step="5" value="${v}" data-vol="${k}" aria-label="${label}"><b>${v}%</b></div>`; };
 function renderOptions() {
   const where = Store.user ? 'Your progress saves automatically to your account and to this browser.' : CG.data ? 'Your progress saves automatically with CrazyGames.' : Store.cloud ? 'Your progress saves automatically to your Claude account and to this browser.' : Store.localOk ? 'Your progress saves automatically to this browser.' : 'This browser blocks storage. Copy your save code before closing the page.';
   return `<div class="opts">
@@ -7761,7 +7767,9 @@ function renderOptions() {
       ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</div>
     <div class="opt"><h3>Sound and screen</h3>
       <div class="toggle"><span>Sound effects</span><button class="btn ghost small" type="button" data-opt="sound">${Settings.data.sound ? 'On' : 'Off'}</button></div>
+      ${volRow('sfxVol', 'Sound effects volume')}
       <div class="toggle"><span>Music</span><button class="btn ghost small" type="button" data-opt="music">${Settings.data.music !== false ? 'On' : 'Off'}</button></div>
+      ${volRow('musicVol', 'Music volume')}
       <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
@@ -7801,6 +7809,13 @@ function payRecipe(rec) {
   G.save.money -= rec.cost;
   for (const [it, n] of Object.entries(rec.items)) { G.save.inv[it] -= n; if (G.save.inv[it] <= 0) delete G.save.inv[it]; }
 }
+// volume sliders: change as you drag, save when you let go
+$('scrHub').addEventListener('input', ev => {
+  const k = ev.target.dataset && ev.target.dataset.vol; if (!k) return;
+  Settings.data[k] = Math.max(0, Math.min(1, +ev.target.value / 100)); Sound.refresh();
+  const lab = ev.target.nextElementSibling; if (lab) lab.textContent = ev.target.value + '%';
+});
+$('scrHub').addEventListener('change', ev => { const k = ev.target.dataset && ev.target.dataset.vol; if (!k) return; Settings.save(); if (k === 'sfxVol') Sound.play('click'); });
 $('scrHub').addEventListener('click', ev => {
   const t = ev.target.closest('button'); if (!t) return;
   Sound.init();
@@ -7925,7 +7940,8 @@ function setPaused(v) {
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
   $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : 'Leave now? You keep the parts you picked up, but you get no reward.';
   $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
-  $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
+  $('btnPauseSound').textContent = 'Sound effects: ' + (Settings.data.sound ? 'on' : 'off');
+  $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => codeLabel(Input.bind[a][0]);
   $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dash ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
@@ -7933,7 +7949,8 @@ function setPaused(v) {
   if (v) setTimeout(() => $('btnResume').focus(), 0); else if (document.activeElement) document.activeElement.blur();
 }
 $('btnResume').onclick = () => setPaused(false);
-$('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off'); };
+$('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound effects: ' + (Settings.data.sound ? 'on' : 'off'); };
+$('btnPauseMusic').onclick = () => { Settings.data.music = Settings.data.music === false; Settings.save(); Music.refresh(); $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off'); Sound.play('click'); };
 $('btnAbandon').onclick = () => { $('pauseMain').hidden = true; $('pauseConfirm').hidden = false; $('btnAbandonNo').focus(); };
 $('btnAbandonNo').onclick = () => { $('pauseMain').hidden = false; $('pauseConfirm').hidden = true; };
 $('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else finishQuest(false); };
