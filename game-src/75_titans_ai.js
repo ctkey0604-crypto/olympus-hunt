@@ -41,7 +41,7 @@ function rainAround(p, n, r, delay, dmg, kind, spread = 100) {
   for (let i = 1; i < n; i++) { const a = rand(0, Math.PI * 2), d = rand(26, spread); addCircleHazard(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, r, delay + i * .08, dmg, kind); }
 }
 const LAWS = {
-  stillness: ['Law of Stillness', 'Do not roll'],
+  stillness: ['Law of Stillness', 'Do not dash'],
   peace:     ['Law of Peace', 'Do not strike'],
   motion:    ['Law of Motion', 'Keep moving'],
   measure:   ['Law of Measure', 'No more than 3 strikes in a row'],

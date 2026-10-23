@@ -165,7 +165,7 @@ const KINDS = {
   sword:   { label: 'Sword',        melee: true,  oneHand: true,  dmgM: 1,    reach: 22, arc: 2.2, windup: .05, active: .13, cooldown: .32, knock: 85,  moveMul: .55, hitstop: .035, shake: 1, sfx: 'swing', blurb: 'Quick, wide swing. Works with a shield.' },
   spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.2,  reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .44, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
   hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.6,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
-  daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .55,  reach: 17, arc: 1.8, windup: .02, active: .09, cooldown: .15, knock: 45,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs with short reach. No shield.' },
+  daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
   bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', blurb: 'Ranged shots that auto-aim. No shield.' },
 };
 
@@ -197,7 +197,7 @@ const WEAPONS = {
   silver_bow:      { name: 'Silver Bow of Artemis', kind: 'bow',     wt: 3,    pierce: 1, ability: 'volley', recipe: { items: { moon_silver: 3, hunt_token: 2, silver_arrowhead: 4 }, cost: 800 }, desc: 'Strung with moonlight.' },
   satyr_club:      { name: 'Satyr Club',            kind: 'hammer',  wt: 3.5,  recipe: { items: { satyr_fur: 6, panther_pelt: 2, centaur_hoof: 1 }, cost: 650 }, desc: 'Knotted vine-wood, very heavy.' },
   thyrsus:         { name: 'Thyrsus',               kind: 'spear',   wt: 4,    ability: 'frenzy', recipe: { items: { wine_of_ages: 3, revel_token: 2, maenad_ivy: 4 }, cost: 1000 }, desc: 'Dionysus’ pine-cone staff. It makes you a little wild.' },
-  wild_maul:       { name: 'Pan’s Wild Maul',  kind: 'hammer',  wt: 4.2,  ability: 'stampede', recipe: { items: { wild_horn: 2, satyr_fur: 4 }, cost: 900 }, desc: 'A side-hunt prize. Hits like a herd.' },
+  wild_maul:       { name: 'Pan’s Wild Maul',  kind: 'hammer',  wt: 4.2,  ability: 'stampede', recipe: { items: { wild_horn: 2, satyr_fur: 4 }, cost: 900 }, desc: 'Hits like a herd.' },
   owl_bow:         { name: 'Owlfeather Bow',        kind: 'bow',     wt: 4.5,  pierce: 2, recipe: { items: { owl_quill: 5, cedar_shaft: 4, silver_talon: 1 }, cost: 700 }, desc: 'Light and silent. Shots punch through two extra enemies.' },
   hoplite_dory:    { name: 'Hoplite Dory',          kind: 'spear',   wt: 4.5,  recipe: { items: { bronze_plate: 5, cedar_shaft: 3, hoplite_crest: 1 }, cost: 750 }, desc: 'The long spear of the Athenian battle line.' },
   athena_spear:    { name: 'Spear of Athena',       kind: 'spear',   wt: 5,    ability: 'aegis', recipe: { items: { aegis_scale: 4, wisdom_token: 2, bronze_plate: 3 }, cost: 1300 }, desc: 'Athena’s own spear, balanced perfectly.' },
@@ -205,21 +205,21 @@ const WEAPONS = {
   rose_blade:      { name: 'Rose Blade',            kind: 'sword',   wt: 6,    ability: 'soulsteal', recipe: { items: { foam_pearl: 3, love_token: 2, rose_quartz: 1 }, cost: 1500 }, desc: 'Pretty, and much sharper than it looks.' },
   laurel_bow:      { name: 'Laurel Bow',            kind: 'bow',     wt: 6.5,  pierce: 2, recipe: { items: { sun_arrowhead: 5, python_scale: 3, python_fang: 1 }, cost: 1100 }, desc: 'Apollo’s favourite wood.' },
   sunblade:        { name: 'Sunblade',              kind: 'sword',   wt: 7,    ability: 'sunburst', recipe: { items: { sun_disk: 3, light_token: 2, python_scale: 4 }, cost: 1800 }, desc: 'Forged at noon, on the longest day.' },
-  witchfire_daggers:{ name: 'Witchfire Daggers',    kind: 'daggers', wt: 7,    ability: 'eruption', recipe: { items: { witch_torch: 2, plague_ash: 6 }, cost: 1500 }, desc: 'A side-hunt prize. Cold blue fire on both blades.' },
+  witchfire_daggers:{ name: 'Witchfire Daggers',    kind: 'daggers', wt: 7,    ability: 'eruption', recipe: { items: { witch_torch: 2, plague_ash: 6 }, cost: 1500 }, desc: 'Cold blue fire on both blades.' },
   spartoi_spear:   { name: 'Spartoi Spear',         kind: 'spear',   wt: 7.5,  recipe: { items: { dragon_tooth: 6, bloodied_bronze: 3, gigas_bone: 1 }, cost: 1300 }, desc: 'Taken from a soldier who grew out of the ground.' },
   ares_warblade:   { name: 'Warblade of Ares',      kind: 'sword',   wt: 8,    ability: 'whirlwind', recipe: { items: { war_ember: 3, war_token: 2, bloodied_bronze: 4 }, cost: 2200 }, desc: 'It wants to be swung.' },
-  retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'A side-hunt prize. Everyone gets what they deserve.' },
+  retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'Everyone gets what they deserve.' },
   coral_daggers:   { name: 'Coral Daggers',         kind: 'daggers', wt: 8.5,  recipe: { items: { crab_shell: 6, triton_scale: 3, giant_claw: 1 }, cost: 1600 }, desc: 'Grown, not forged.' },
   trident:         { name: 'Trident of the Deep',   kind: 'spear',   wt: 9,    ability: 'tidal', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. It drips forever.' },
   peacock_bow:     { name: 'Peacock Bow',           kind: 'bow',     wt: 9.5,  pierce: 2, recipe: { items: { peacock_plume: 6, royal_gold: 3, argus_eye: 1 }, cost: 1900 }, desc: 'Fletched with eye-feathers.' },
   hera_scepter:    { name: 'Scepter of Hera',       kind: 'hammer',  wt: 10,   ability: 'quake', recipe: { items: { regal_plume: 3, queen_token: 2, royal_gold: 4 }, cost: 3000 }, desc: 'The queen’s scepter. Heavier than a throne.' },
-  discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'A side-hunt prize. Its arrows never fly quite straight. They don’t need to.' },
+  discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'Its arrows never fly quite straight. They don’t need to.' },
   cyclops_club:    { name: 'Cyclops Club',          kind: 'hammer',  wt: 10.5, recipe: { items: { cyclops_hide: 5, cyclops_eye: 1, automaton_core: 2 }, cost: 2200 }, desc: 'A small tree with a bad attitude.' },
   automaton_blade: { name: 'Automaton Blade',       kind: 'sword',   wt: 10.5, recipe: { items: { bronze_gear: 6, automaton_core: 3, cyclops_eye: 1 }, cost: 2200 }, desc: 'Cut from a bronze guardian’s arm.' },
   forge_hammer:    { name: 'Hammer of Hephaestus',  kind: 'hammer',  wt: 11,   ability: 'eruption', recipe: { items: { divine_bronze: 3, forge_token: 2, automaton_core: 4 }, cost: 3400 }, desc: 'The hammer that forged the thunderbolt.' },
   stygian_daggers: { name: 'Stygian Daggers',       kind: 'daggers', wt: 11.5, recipe: { items: { shade_essence: 6, styx_water: 3, cerberus_fang: 1 }, cost: 2600 }, desc: 'Dipped in the Styx.' },
   bident:          { name: 'Bident of Hades',       kind: 'spear',   wt: 12,   ability: 'deathmark', recipe: { items: { soul_gem: 3, death_token: 2, styx_water: 4 }, cost: 3800 }, desc: 'Two prongs. Both of them final.' },
-  dream_daggers:   { name: 'Dreamweaver Daggers',   kind: 'daggers', wt: 12,   ability: 'soulsteal', recipe: { items: { poppy_dream: 2, shade_essence: 6 }, cost: 3200 }, desc: 'A side-hunt prize. They hit like a bad dream.' },
+  dream_daggers:   { name: 'Dreamweaver Daggers',   kind: 'daggers', wt: 12,   ability: 'soulsteal', recipe: { items: { poppy_dream: 2, shade_essence: 6 }, cost: 3200 }, desc: 'They hit like a bad dream.' },
   storm_fangs:     { name: 'Storm Fangs',           kind: 'daggers', wt: 12.5, recipe: { items: { harpy_talon: 6, storm_glass: 3, storm_eye: 1 }, cost: 3000 }, desc: 'Twin blades of lightning glass.' },
   keraunos:        { name: 'Keraunos',              kind: 'sword',   wt: 13,   ability: 'chain', recipe: { items: { thunder_core: 4, olympian_token: 2, storm_eye: 1 }, cost: 5000 }, desc: 'A blade forged around one of Zeus’ thunderbolts.' },
 };
@@ -269,7 +269,7 @@ const PERK_TEXT = {
   killFrenzy: () => 'Every kill makes you attack faster for 3 seconds', reflectPerfect: () => 'Perfect blocks send projectiles back',
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
-  phase: () => 'Dodge rolls stay untouchable 50% longer', lightning: v => `Every ${v}th hit calls down lightning`,
+  phase: () => 'Dashes stay untouchable 50% longer', lightning: v => `Every ${v}th hit calls down lightning`,
 };
 
 // Shields: only with one-handed weapons (sword, spear). Hold Guard to block from the front.
@@ -447,7 +447,7 @@ const BOSSES = {
 const POTIONS = {
   health:   { name: 'Health Potion',   key: 'potion1', share: .3,  col: ['#d9493b', '#7f2618', '#ffd0c0'], short: 'Health',   desc: 'Heals 40% of your health right away.' },
   strength: { name: 'Strength Potion', key: 'potion2', share: .4,  col: ['#e9a030', '#8f5a1c', '#fff0b0'], short: 'Strength', desc: '+25% damage for 60 seconds.' },
-  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: 'Double dash for 60 seconds: roll twice in a row, but each roll recharges a bit slower. Already wearing double-dash boots? Then your rolls recharge at full speed instead.' },
+  speed:    { name: 'Speed Potion',    key: 'potion3', share: .35, col: ['#57c2b0', '#2c7a70', '#e6fffa'], short: 'Speed',    desc: 'Double dash for 60 seconds: dash twice in a row, but each dash recharges a bit slower. Already wearing double-dash boots? Then your dashes recharge at full speed instead.' },
 };
 const POTION_MAX = 3;
 // Plurals that don't just add an s.
@@ -581,7 +581,7 @@ const QUESTS = [
     waves: [{ bandit: 5, slinger: 2 }, { bandit: 4, bull: 2, slinger: 2 }] },
 
   { id: 'wolf_woods', god: 'artemis', tier: 2, name: 'Wolves in the Woods', arena: 'woods', requires: ['hermes_hunt'],
-    desc: 'Artemis’ wolves hunt in packs. A wolf crouches before it pounces, so roll sideways when one goes still.',
+    desc: 'Artemis’ wolves hunt in packs. A wolf crouches before it pounces, so dash sideways when one goes still.',
     waves: [{ wolf: 5 }, { wolf: 6, huntress: 1 }, { wolf: 8, huntress: 2 }] },
   { id: 'golden_stag', god: 'artemis', tier: 2, name: 'The Golden Stag', arena: 'glade', requires: ['hermes_hunt'],
     desc: 'Golden stags charge like bulls, and the great Calydonian boar charges twice in a row. Don’t stop moving after the first one.',
@@ -597,15 +597,15 @@ const QUESTS = [
     desc: 'Dionysus’ panthers pounce twice in a row. A drunken centaur guards the path and charges through anything.',
     waves: [{ panther: 2, satyr: 4 }, { panther: 3, goat: 4 }, { centaur: 1, panther: 2, satyr: 4 }] },
   { id: 'dionysus_hunt', god: 'dionysus', tier: 3, boss: 'dionysus', name: 'The Wild Feast', arena: 'theater', requires: ['vineyard_riot', 'panther_path'],
-    desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Roll through it, or keep calm and steer the other way.',
+    desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Dash through it, or keep calm and steer the other way.',
     waves: [{ satyr: 6, maenad: 2 }, { panther: 1, maenad: 1, satyr: 4 }] },
   { id: 'pan_hunt', god: 'pan', tier: 3.5, side: true, boss: 'pan', name: 'The Panic of Pan', arena: 'meadow', requires: ['dionysus_hunt'],
-    desc: 'Side hunt. The wild god Pan sends stampedes of goats across the meadow. Watch the marked lanes and step out of them.',
+    desc: 'The wild god Pan sends stampedes of goats across the meadow. Watch the marked lanes and step out of them.',
     waves: [{ goat: 6, satyr: 4 }] },
 
   // ---- High Rank ----
   { id: 'owl_grove', god: 'athena', tier: 4, name: 'Owls of the Olive Grove', arena: 'grove', requires: ['dionysus_hunt'],
-    desc: 'Athena’s war owls nest in the sacred grove and dive at anyone who comes close. Each dive starts with a short hover, so roll sideways when they stop moving.',
+    desc: 'Athena’s war owls nest in the sacred grove and dive at anyone who comes close. Each dive starts with a short hover, so dash sideways when they stop moving.',
     waves: [{ owl: 4, archer: 1 }, { owl: 5, archer: 2 }, { owl: 6, archer: 2, hoplite: 1 }] },
   { id: 'bronze_wall', god: 'athena', tier: 4, name: 'The Bronze Wall', arena: 'ruins', requires: ['dionysus_hunt'],
     desc: 'Hoplites hold the old agora behind bronze shields. Hits on the shield barely land, so get around them, or strike right after they thrust.',
@@ -618,14 +618,14 @@ const QUESTS = [
     desc: 'A crowd of lovesick suitors has turned violent. Doves dive like owls, only faster.',
     waves: [{ suitor: 7 }, { suitor: 8, dove: 3 }, { suitor: 9, dove: 4, eros: 1 }] },
   { id: 'doves_darts', god: 'aphrodite', tier: 5, name: 'Doves and Darts', arena: 'dovecote', requires: ['athena_hunt'],
-    desc: 'The little Erotes fly over everything and shoot heart arrows. One hit makes you stumble toward them. Rolling clears it.',
+    desc: 'The little Erotes fly over everything and shoot heart arrows. One hit makes you stumble toward them. Dashing clears it.',
     waves: [{ dove: 5, eros: 1 }, { dove: 6, eros: 2 }, { dove: 7, eros: 2, suitor: 4 }] },
   { id: 'aphrodite_hunt', god: 'aphrodite', tier: 5, boss: 'aphrodite', name: 'The Foam-Born', arena: 'cythera', requires: ['jealous_suitors', 'doves_darts'],
-    desc: 'Aphrodite’s gaze pulls you toward her. When the pink line locks onto you, roll out of it. Her mirror images explode, so kill them early or keep away.',
+    desc: 'Aphrodite’s gaze pulls you toward her. When the pink line locks onto you, dash out of it. Her mirror images explode, so kill them early or keep away.',
     waves: [{ suitor: 8, eros: 2 }, { dove: 6, eros: 2, suitor: 3 }] },
 
   { id: 'plague_arrows', god: 'apollo', tier: 6, name: 'The Plague Arrows', arena: 'plagueroad', requires: ['aphrodite_hunt'],
-    desc: 'Plague wretches run at you and burst, leaving poison on the ground. Kill them before they reach you, or roll away when they start to swell.',
+    desc: 'Plague wretches run at you and burst, leaving poison on the ground. Kill them before they reach you, or dash away when they start to swell.',
     waves: [{ plague: 6 }, { plague: 7, sun_archer: 2 }, { plague: 8, sun_archer: 3 }] },
   { id: 'python_lair', god: 'apollo', tier: 6, name: 'Lair of the Python', arena: 'pythoncave', requires: ['aphrodite_hunt'],
     desc: 'The great serpent of Delphi leaves a trail of venom wherever it charges. Make it hit a wall.',
@@ -634,7 +634,7 @@ const QUESTS = [
     desc: 'Apollo sweeps a beam of sunlight across the temple. Watch which way the thin line is pointing and get behind him or out of its path.',
     waves: [{ plague: 7, sun_archer: 2 }, { sun_archer: 3, plague: 6 }] },
   { id: 'hecate_hunt', god: 'hecate', tier: 6.5, side: true, boss: 'hecate', name: 'Crossroads at Midnight', arena: 'crossroads', requires: ['apollo_hunt'],
-    desc: 'Side hunt. Hecate, goddess of witchcraft, blinks around the crossroads in cold blue fire. Shades appear right behind you, so keep moving.',
+    desc: 'Hecate, goddess of witchcraft, blinks around the crossroads in cold blue fire. Shades appear right behind you, so keep moving.',
     waves: [{ shade: 6, plague: 4 }] },
 
   { id: 'sown_men', god: 'ares', tier: 7, name: 'The Sown Men', arena: 'battlefield', requires: ['apollo_hunt'],
@@ -647,7 +647,7 @@ const QUESTS = [
     desc: 'Ares fights up close and never stops. Once he’s hurt he gets faster. A shield helps here, but his earthquakes go under it.',
     waves: [{ spartoi: 8, berserker: 2 }, { war_boar: 3, berserker: 2, spartoi: 4 }] },
   { id: 'nemesis_hunt', god: 'nemesis', tier: 7.5, side: true, boss: 'nemesis', name: 'Retribution', arena: 'rhamnous', requires: ['ares_hunt'],
-    desc: 'Side hunt. Nemesis punishes greed. When she glows silver, every hit you land comes back at you. Wait for the glow to fade.',
+    desc: 'Nemesis punishes greed. When she glows silver, every hit you land comes back at you. Wait for the glow to fade.',
     waves: [{ spartoi: 6, berserker: 2 }] },
 
   // ---- Master Rank ----
@@ -671,7 +671,7 @@ const QUESTS = [
     desc: 'Hera sweeps the hall with the gaze of Argus and curses the ground under you. She calls Argus himself when she’s hurt.',
     waves: [{ peacock: 8, priestess: 2 }, { priestess: 2, peacock: 6, hoplite: 2 }] },
   { id: 'eris_hunt', god: 'eris', tier: 9.5, side: true, boss: 'eris', name: 'The Golden Apple', arena: 'applegarden', requires: ['hera_hunt'],
-    desc: 'Side hunt. Eris, goddess of strife, calls in monsters from every hunt you’ve been on and throws golden apples that burst.',
+    desc: 'Eris, goddess of strife, calls in monsters from every hunt you’ve been on and throws golden apples that burst.',
     waves: [{ bandit: 4, satyr: 4, crab: 3 }] },
 
   { id: 'bronze_hounds', god: 'hephaestus', tier: 10, name: 'Hounds of Bronze', arena: 'workshop', requires: ['hera_hunt'],
@@ -694,7 +694,7 @@ const QUESTS = [
     desc: 'Hades vanishes into shadow and strikes from where you least expect. Watch for his shadow on the floor.',
     waves: [{ skeleton: 9, shade: 3 }, { fury: 3, shade: 4, skeleton: 4 }] },
   { id: 'hypnos_hunt', god: 'hypnos', tier: 11.5, side: true, boss: 'hypnos', name: 'The Long Sleep', arena: 'dreamfield', requires: ['hades_hunt'],
-    desc: 'Side hunt. Hypnos fills the field with sleeping fog. Stand in it too long and you fall asleep, so keep moving.',
+    desc: 'Hypnos fills the field with sleeping fog. Stand in it too long and you fall asleep, so keep moving.',
     waves: [{ shade: 8 }] },
 
   { id: 'harpy_storm', god: 'zeus', tier: 12, name: 'Harpies on the Wind', arena: 'storm', requires: ['hades_hunt'],

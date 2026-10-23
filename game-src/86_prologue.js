@@ -71,7 +71,7 @@ function proTick(dt) {
   } else if (P.step === 'fight' && q.waveIdx >= 1) {
     P.step = 'dodge';
   } else if (P.step === 'dodge') {
-    proHint('dodge', touchMode ? 'When a bandit winds up, tap <b>Dodge</b> to roll. Nothing hits you mid-roll' : `When a bandit winds up, ${kbd(Input.bind.dodge[0])}${mouse ? ' or right click' : ''} to <b>roll</b> · nothing can hit you mid-roll`, 'dodge');
+    proHint('dodge', touchMode ? 'When a bandit winds up, tap <b>Dash</b> to get clear. Nothing hits you mid-dash' : `When a bandit winds up, ${kbd(Input.bind.dodge[0])}${mouse ? ' or right click' : ''} to <b>dash</b> · nothing can hit you mid-dash`, 'dodge');
     if (p.dodgeT > 0) { P.step = 'fight2'; proClear(); }
   } else if (P.step === 'fight2' && (q.waveIdx >= 2 || p.hp < p.st.maxHp * .55)) {
     P.step = 'potion'; P.potions = q.stats.potions || 0;
@@ -99,7 +99,7 @@ function proFlow() {
   if (q.phase === 'intro' && q.pro && q.pro.step === 'move') { q.timer = Math.max(q.timer, .7); }
 }
 function proWaveBanner(i) {
-  const lines = [['Bandits!', 'They’re robbing a cart on the road'], ['More of them', 'Watch for the wind-up before they lunge'], ['Slingers', 'They throw from range. Close in, or roll past the stones']];
+  const lines = [['Bandits!', 'They’re robbing a cart on the road'], ['More of them', 'Watch for the wind-up before they lunge'], ['Slingers', 'They throw from range. Close in, or dash past the stones']];
   banner(...(lines[i] || ['Bandits', '']));
 }
 function proWalkout() {

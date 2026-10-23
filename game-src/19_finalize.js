@@ -4,7 +4,7 @@ for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w
 
 // Build the 4 pieces of every set. Piece ids look like "winged:head".
 const PIECES = {};
-// Boots with a power of their own. Double dash: roll twice in a row, but rolls recharge slower, and these boots
+// Boots with a power of their own. Double dash: dash twice in a row, but dashes recharge slower, and these boots
 // give up the faster dodge recovery other boots have. Every rank's version of the set keeps it.
 const PIECE_PERKS = { 'winged:feet': 'doubleDash', 'timeless:feet': 'doubleDash' };
 for (const [sid, set] of Object.entries(ARMOR_SETS)) {
@@ -60,7 +60,7 @@ for (const [id, A] of Object.entries(ARENAS)) {
     const local = qd.tier - RANKS[qd.rank].off, base = huntPay(Math.floor(qd.tier));
     if (!qd.reward) qd.reward = qd.boss ? Math.round(base * (qd.titan ? 3.2 : qd.side ? 2.4 : 3) / 10) * 10 : base;
     qd.stars = clamp(Math.round(local * .55 + (qd.boss ? .6 : 0)), 1, 10);
-    qd.urgent = !!qd.boss && !qd.side;
+    qd.urgent = !!qd.boss;
     // A god's own quest also needs the previous god beaten, so old saves can't skip ahead.
     const gi = GODS.findIndex(g => g.id === qd.god);
     if (qd.boss && !qd.side && !qd.titan && gi > 0) { const prev = bossQuest[qd.rank + ':' + GODS[gi - 1].id]; if (!qd.requires.includes(prev)) qd.requires.push(prev); }

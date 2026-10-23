@@ -57,7 +57,7 @@ function npcLines(n) {
         'Stay tuned for future updates. Thank you for playing.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
-      if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god, side gods too. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
+      if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
       if (s.rank > 0) return [`${RANKS[s.rank].name} work’s on the board. Everything out there hits harder now.`];
       return [c.zeus_hunt ? 'You’ve hunted all twelve gods of Olympus. The board still has work if you want parts.' : 'Work’s on the board. Pick a hunt and I’ll send you out.'];

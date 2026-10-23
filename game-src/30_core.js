@@ -118,7 +118,7 @@ const DEFAULT_BINDS = {
   attack: ['KeyJ', 'Space', 'KeyZ'], dodge: ['KeyK', 'ShiftLeft', 'KeyX'], ability: ['KeyL', 'KeyR', 'KeyC'], guard: ['KeyE', 'KeyI', 'KeyQ'],
   potion1: ['Digit1'], potion2: ['Digit2'], potion3: ['Digit3'],
 };
-const ACTION_LABELS = { up: 'Move up', left: 'Move left', down: 'Move down', right: 'Move right', attack: 'Attack', dodge: 'Dodge roll', ability: 'Weapon skill', guard: 'Guard / use in town',
+const ACTION_LABELS = { up: 'Move up', left: 'Move left', down: 'Move down', right: 'Move right', attack: 'Attack', dodge: 'Dash', ability: 'Weapon skill', guard: 'Guard / use in town',
   potion1: 'Health potion', potion2: 'Strength potion', potion3: 'Speed potion' };
 // Keys that can't be bound: game shortcuts plus Chromebook/OS keys (Search, Ctrl, Alt) that trigger system shortcuts.
 const RESERVED = new Set(['Escape', 'KeyP', 'KeyM', 'KeyF', 'Enter', 'NumpadEnter', 'Tab', 'CapsLock', 'MetaLeft', 'MetaRight', 'OSLeft', 'OSRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ContextMenu']);
@@ -158,7 +158,7 @@ function controlsItems() {
   if (document.body.classList.contains('touch')) return [
     ['Move', 'Drag on the left side of the screen'],
     ['Attack', 'The Attack button<br>Hold it to keep swinging'],
-    ['Dodge roll', 'The Dodge button'],
+    ['Dash', 'The Dash button'],
     ['Weapon skill', 'The Skill button'],
     ['Guard / use in town', 'The Guard button<br>Hold to block with a shield. Talk and open doors in town'],
     ['Potions', 'Tap one in the top right corner<br>Health, strength, speed'],
@@ -167,7 +167,7 @@ function controlsItems() {
   return [
     ['Move', moveKeysHTML()],
     ['Attack', keys('attack') + (m ? ' or click' : '') + '<br>Hold to keep swinging'],
-    ['Dodge roll', keys('dodge') + (m ? ' or right click' : '')],
+    ['Dash', keys('dodge') + (m ? ' or right click' : '')],
     ['Weapon skill', keys('ability')],
     ['Guard / use in town', keys('guard') + '<br>Hold to block with a shield. Talk and open doors in town'],
     ['Potions', ['potion1', 'potion2', 'potion3'].map(a => keys(a)).join(' ') + '<br>Health, strength, speed'],

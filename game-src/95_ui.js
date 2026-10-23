@@ -192,7 +192,7 @@ function renderBoard() {
     }
     html += `<p class="chapter">${esc(g.name)}</p>` + qs.map(questCard).join('');
     const bq = qs.find(qd => qd.boss);
-    for (const side of mine.filter(qd => qd.side && qd.requires.includes(bq.id))) if (isUnlocked(side) || s.cleared[bq.id]) html += `<p class="chapter">Side hunt · ${esc(godName(side.god))}</p>` + questCard(side);
+    for (const side of mine.filter(qd => qd.side && qd.requires.includes(bq.id))) if (isUnlocked(side) || s.cleared[bq.id]) html += `<p class="chapter">${esc(godName(side.god))}</p>` + questCard(side);
   }
   if (hidden) html += `<div class="qlock">${hidden} more god${hidden > 1 ? 's' : ''} further up the mountain</div>`;
   // The Titans: only once the stairway under the temple has opened.
@@ -265,7 +265,7 @@ function renderArmory() {
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
           <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${P.def}</b>${eq ? '' : delta(P.def, cur.def)}</span>${P.hp || cur.hp ? `<span>Health <b>${P.hp}</b>${eq ? '' : delta(P.hp, cur.hp)}</span>` : ''}</div>
-          ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · roll twice in a row, but rolls recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
+          ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
       const lines = [];
@@ -290,7 +290,7 @@ function renderArmory() {
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(sh.block * 100)}%</b></span><span>Guard <b>${sh.meter * 10}</b></span><span>Dodge recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="stats"><span>Blocks <b>${Math.round(sh.block * 100)}%</b></span><span>Guard <b>${sh.meter * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? '' : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
@@ -526,7 +526,7 @@ function setPaused(v) {
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => codeLabel(Input.bind[a][0]);
-  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dodge ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
+  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dash ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
   Input.down.clear(); Input.virt = {}; Input.mouse.held = false;
   if (v) setTimeout(() => $('btnResume').focus(), 0); else if (document.activeElement) document.activeElement.blur();
 }

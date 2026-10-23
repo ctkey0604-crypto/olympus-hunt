@@ -577,7 +577,7 @@ function hudReset() {
   const st = q.player.st, ab = st.weapon.ability;
   const key = a => touchMode ? '' : ` [${codeLabel(Input.bind[a][0])}]`;
   $('pipAbil').hidden = !ab; if (ab) $('abilName').textContent = ABILITIES[ab].name + key('ability');
-  $('pipDodge').querySelector('b').textContent = 'Dodge' + key('dodge');
+  $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
   $('guardBar').hidden = !st.shield;
 }
@@ -588,7 +588,7 @@ function updateHud() {
   $('hpBar').classList.toggle('low', frac < .3);
   setText('hpText', `${Math.ceil(p.hp)} / ${p.st.maxHp}`);
   $('pipDodge').classList.toggle('cool', !canDash(p));
-  const dl = 'Dodge' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
+  const dl = 'Dash' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
   if (hudCache.dl !== dl) { hudCache.dl = dl; $('pipDodge').querySelector('b').textContent = dl; }
   $('pipAbil').classList.toggle('cool', p.abilCd > 0);
   // cooldowns drain from the top of each pip

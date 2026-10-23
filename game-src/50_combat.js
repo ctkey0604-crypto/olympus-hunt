@@ -111,7 +111,9 @@ function updatePlayer(dt) {
   if (Input.hit('ability')) p.bufAbil = .16;
   if (Input.hit('dodge') && q.onPlayerAct) q.onPlayerAct('dodge');
   if (p.bufAtk <= 0 && (Input.is('attack') || Input.mouse.held)) { p.bufAtk = .02; p.bufMouse = Input.mouse.held; }
-  p.bufAtk -= dt; p.bufDodge -= dt; p.bufAbil -= dt;
+  const dashing = p.dodgeT > 0 || p.dashT > 0, winding = p.swing && !p.swing.fired;
+  if (!dashing) { p.bufAtk -= dt; p.bufAbil -= dt; }
+  if (!winding) p.bufDodge -= dt;
   for (const [id, P] of Object.entries(POTIONS)) if (Input.hit(P.key)) drinkPotion(id);
   let mv = moveVector();
   if (F.confuse > 0) mv = { x: -mv.x, y: -mv.y };
@@ -132,7 +134,7 @@ function updatePlayer(dt) {
     if (p.dashT <= 0) p.invuln = Math.max(p.invuln, .15);
     return;
   }
-  // charmed: your feet carry you toward whoever charmed you. Rolling breaks it.
+  // charmed: your feet carry you toward whoever charmed you. Dashing breaks it.
   if (F.charm > 0 && p.charmFrom) {
     if (p.bufDodge > 0 && canDash(p)) { F.charm = 0; startDodge(p, mv); p.bufDodge = 0; return; }
     const a = Math.atan2(p.charmFrom.y - p.y, p.charmFrom.x - p.x);
@@ -250,8 +252,8 @@ function meleeHit(p, aim, dmg, riposte = false, quiet = false, o = {}) {
   else if (hits) Sound.play('hit');
   return hits;
 }
-// Dodge charges. Normally one. Double dash (the speed potion, or boots that have it) gives a second one, so you can roll
-// twice back to back, but each charge comes back half again as slowly. That keeps rolls (you can't be hit mid-roll)
+// Dodge charges. Normally one. Double dash (the speed potion, or boots that have it) gives a second one, so you can dash
+// twice back to back, but each charge comes back half again as slowly. That keeps dashes (you can't be hit mid-dash)
 // from chaining forever. Boots and potion don't stack: with both, you keep two charges and they recharge at the normal speed.
 const SWIFT_RECHARGE = 1.5;
 const potionDash = p => !!(p.fx && p.fx.spd > 0);
