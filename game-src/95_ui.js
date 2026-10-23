@@ -349,6 +349,7 @@ function renderShrine() {
       : `<button class="btn" type="button" data-offer="1" ${s.money >= cost ? '' : 'disabled'}>Make an offering (${fmtMoney(cost)} dr)</button>${s.money >= cost ? '' : '<span class="muted">Not enough drachmae.</span>'}`}</div>
   </div></div>`;
 }
+const volRow = (k, label) => { const v = Math.round((Settings.data[k] ?? 1) * 100); return `<div class="vol"><input type="range" min="0" max="100" step="5" value="${v}" data-vol="${k}" aria-label="${label}"><b>${v}%</b></div>`; };
 function renderOptions() {
   const where = Store.user ? 'Your progress saves automatically to your account and to this browser.' : CG.data ? 'Your progress saves automatically with CrazyGames.' : Store.cloud ? 'Your progress saves automatically to your Claude account and to this browser.' : Store.localOk ? 'Your progress saves automatically to this browser.' : 'This browser blocks storage. Copy your save code before closing the page.';
   return `<div class="opts">
@@ -361,7 +362,9 @@ function renderOptions() {
       ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</div>
     <div class="opt"><h3>Sound and screen</h3>
       <div class="toggle"><span>Sound effects</span><button class="btn ghost small" type="button" data-opt="sound">${Settings.data.sound ? 'On' : 'Off'}</button></div>
+      ${volRow('sfxVol', 'Sound effects volume')}
       <div class="toggle"><span>Music</span><button class="btn ghost small" type="button" data-opt="music">${Settings.data.music !== false ? 'On' : 'Off'}</button></div>
+      ${volRow('musicVol', 'Music volume')}
       <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
@@ -401,6 +404,13 @@ function payRecipe(rec) {
   G.save.money -= rec.cost;
   for (const [it, n] of Object.entries(rec.items)) { G.save.inv[it] -= n; if (G.save.inv[it] <= 0) delete G.save.inv[it]; }
 }
+// volume sliders: change as you drag, save when you let go
+$('scrHub').addEventListener('input', ev => {
+  const k = ev.target.dataset && ev.target.dataset.vol; if (!k) return;
+  Settings.data[k] = Math.max(0, Math.min(1, +ev.target.value / 100)); Sound.refresh();
+  const lab = ev.target.nextElementSibling; if (lab) lab.textContent = ev.target.value + '%';
+});
+$('scrHub').addEventListener('change', ev => { const k = ev.target.dataset && ev.target.dataset.vol; if (!k) return; Settings.save(); if (k === 'sfxVol') Sound.play('click'); });
 $('scrHub').addEventListener('click', ev => {
   const t = ev.target.closest('button'); if (!t) return;
   Sound.init();
@@ -525,7 +535,8 @@ function setPaused(v) {
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
   $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : 'Leave now? You keep the parts you picked up, but you get no reward.';
   $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
-  $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
+  $('btnPauseSound').textContent = 'Sound effects: ' + (Settings.data.sound ? 'on' : 'off');
+  $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => codeLabel(Input.bind[a][0]);
   $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dash ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
@@ -533,7 +544,8 @@ function setPaused(v) {
   if (v) setTimeout(() => $('btnResume').focus(), 0); else if (document.activeElement) document.activeElement.blur();
 }
 $('btnResume').onclick = () => setPaused(false);
-$('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off'); };
+$('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound effects: ' + (Settings.data.sound ? 'on' : 'off'); };
+$('btnPauseMusic').onclick = () => { Settings.data.music = Settings.data.music === false; Settings.save(); Music.refresh(); $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off'); Sound.play('click'); };
 $('btnAbandon').onclick = () => { $('pauseMain').hidden = true; $('pauseConfirm').hidden = false; $('btnAbandonNo').focus(); };
 $('btnAbandonNo').onclick = () => { $('pauseMain').hidden = false; $('pauseConfirm').hidden = true; };
 $('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else finishQuest(false); };

@@ -228,6 +228,9 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 textarea{width:100%;box-sizing:border-box;min-height:84px;background:#000;color:var(--bone);border:0;box-shadow:inset 0 0 0 2px var(--line);padding:8px;font:.8rem/1.3 ui-monospace,monospace;resize:vertical;user-select:text;-webkit-user-select:text}
 textarea:focus{outline:2px solid var(--gold)}
 .toggle{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.vol{display:flex;align-items:center;gap:10px;margin-top:-4px}
+.vol input{flex:1;min-width:0;accent-color:var(--clay);height:22px;cursor:pointer}
+.vol b{min-width:4ch;text-align:right;color:var(--bone-dim);font-variant-numeric:tabular-nums}
 .binds{display:grid}
 .bind-row{display:grid;grid-template-columns:minmax(110px,160px) 1fr;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .bind-row>span{font-weight:600}

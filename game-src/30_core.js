@@ -6,7 +6,7 @@ const Sound = {
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       this.ctx = new AC();
-      this.master = this.ctx.createGain(); this.master.gain.value = this.on ? .22 : 0; this.master.connect(this.ctx.destination);
+      this.master = this.ctx.createGain(); this.master.gain.value = this.on ? .22 : 0; this.master.connect(this.ctx.destination); this.refresh();
       const len = this.ctx.sampleRate; this.nbuf = this.ctx.createBuffer(1, len, len);
       const d = this.nbuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     } catch (e) { this.ctx = null; }
@@ -16,7 +16,7 @@ const Sound = {
   held: false,
   hold(v) { this.held = v; if (!this.ctx) return; if (v) this.ctx.suspend().catch(() => {}); else this.ctx.resume().catch(() => {}); },
   setOn(v) { this.on = v; this.refresh(); },
-  refresh() { if (this.master) this.master.gain.value = this.on && !CG.muted ? .22 : 0; try { Music.refresh(); } catch (e) {} },
+  refresh() { let vol = 1; try { vol = Settings.data.sfxVol ?? 1; } catch (e) {} if (this.master) this.master.gain.value = this.on && !CG.muted ? .22 * vol : 0; try { Music.refresh(); } catch (e) {} },
   tone(freq, dur, type = 'square', vol = .3, slide = 0, delay = 0) {
     if (!this.ctx || !this.on) return;
     const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain();
@@ -385,12 +385,13 @@ function sanitize(s) {
 }
 
 const Settings = {
-  data: { sound: true, music: true, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
+  data: { sound: true, music: true, sfxVol: 1, musicVol: 1, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
         for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        for (const k of ['sfxVol', 'musicVol']) if (typeof s[k] === 'number' && s[k] >= 0 && s[k] <= 1) this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {
           const b = {}; let ok = true;

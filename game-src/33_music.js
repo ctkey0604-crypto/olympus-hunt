@@ -263,14 +263,14 @@ const Music = (() => {
   const events = (id, lvl) => cache[id + ':' + lvl] || (cache[id + ':' + lvl] = build(id, lvl));
   const M = { want: null, wantLvl: 1, cur: null, out: null, ducked: false, timer: null, songs: SONGS };
   const speed = lvl => lvl >= 3 ? 1.12 : lvl >= 2 ? 1.07 : 1;
-  function audible() { return !!(Sound.on && Settings.data.music !== false && !CG.muted); }
+  function audible() { return !!(Settings.data.music !== false && !CG.muted); }      // its own switch, apart from sound effects
   function ensureOut(ctx) {
     if (M.out) return M.out;
     M.out = ctx.createGain(); M.out.gain.value = 0; M.out.connect(ctx.destination); return M.out;
   }
   M.refresh = () => {
     const ctx = Sound.ctx; if (!ctx) return;
-    const out = ensureOut(ctx), v = audible() ? (M.ducked ? .35 : 1) * .2 : 0;      // well under the sound effects
+    const out = ensureOut(ctx), v = audible() ? (M.ducked ? .35 : 1) * .2 * (Settings.data.musicVol ?? 1) : 0;      // well under the sound effects
     out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(v, ctx.currentTime, .08);
   };
   function stopCur(fade = .5) {
