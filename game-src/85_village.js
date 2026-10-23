@@ -273,6 +273,6 @@ function openPanel(kind, title = null) {
 function closePanel() { if (G.mode !== 'panel') return; Sound.play('door'); resumeVillage(); }
 // Hestia's blessing: one offering, and the next time you fall in a hunt you get back up.
 function highestTier() { let t = 1; for (const qd of QUESTS) if (isUnlocked(qd)) t = Math.max(t, Math.floor(qd.tier)); return t; }
-function offeringCost() { return 250; }                 // one fixed price, like the potions
+function offeringCost() { return rankPrice(400); }      // fixed per rank, like the potions
 
 

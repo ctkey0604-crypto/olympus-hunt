@@ -315,9 +315,10 @@ function renderStash() {
   };
   return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || 'nothing yet')}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
 }
-// Market: potions have one fixed price for the whole game (the carry limit keeps them from being spammed later on).
-const POTION_PRICE = { health: 80, strength: 110, speed: 100 };
-function potionCost(id) { return POTION_PRICE[id] || 100; }
+// Market: potions have one fixed price per rank; it steps up at High and God Rank, the same way forge costs do.
+const POTION_PRICE = { health: 150, strength: 200, speed: 175 };
+const rankPrice = n => Math.round(n * ((RANKS[G.save.rank] || RANKS[0]).cost || 1) / 10) * 10;
+function potionCost(id) { return rankPrice(POTION_PRICE[id] || 100); }
 function renderMarket() {
   const s = G.save;
   const cards = Object.entries(POTIONS).map(([id, P]) => {
