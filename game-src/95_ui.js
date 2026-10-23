@@ -315,8 +315,9 @@ function renderStash() {
   };
   return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || 'nothing yet')}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
 }
-// Market: potions, priced from the highest god you've unlocked so they stay worth thinking about.
-function potionCost(id) { return Math.max(20, Math.round(huntPay(highestTier()) * POTIONS[id].share / 10) * 10); }
+// Market: potions, priced from the highest god you've unlocked so they stay worth thinking about,
+// but they climb slower than hunt pay, so late-game hunters can keep a few on hand (about half the old price at God Rank).
+function potionCost(id) { const t = highestTier(); return Math.max(20, Math.round(huntPay(t) * POTIONS[id].share / (1 + .035 * (t - 1)) / 10) * 10); }
 function renderMarket() {
   const s = G.save;
   const cards = Object.entries(POTIONS).map(([id, P]) => {
