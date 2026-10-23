@@ -246,19 +246,21 @@ const Store = {
     if (this.token) { try { const me = await this.call('GET', 'me'); this.user = me.name; } catch (e) { if (!this.token) this.user = null; } }
   },
   forget() {
-    this.token = null; this.user = null; this.remote = null;
+    for (const n in this.timers) clearTimeout(this.timers[n]);
+    this.token = null; this.user = null; this.remote = null; this.pending = {}; this.timers = {};
     try { localStorage.removeItem('olympus-hunt/session'); localStorage.removeItem('olympus-hunt/user'); } catch (e) {}
   },
   // Fetch the account's three saves (used by the save list).
   async refresh() { if (!this.user) { this.remote = null; return; } try { this.remote = (await this.call('GET', 'saves')).saves || {}; } catch (e) { this.remote = null; } },
-  // Sign in or create an account. Saves in this browser move into empty account slots.
+  // Sign in or create an account. Only a brand-new account takes the saves played signed out in this browser
+  // (on a shared device, signing in must never pull someone else's guest saves into your account).
   async signIn(name, password, create) {
     const d = await this.call('POST', create ? 'register' : 'login', { name, password });
     this.token = d.token; this.user = d.name;
     try { localStorage.setItem('olympus-hunt/session', d.token); localStorage.setItem('olympus-hunt/user', d.name); } catch (e) {}
     await this.refresh();
     const moved = [], kept = [];
-    for (let n = 1; n <= 3; n++) {
+    for (let n = 1; n <= 3 && create; n++) {
       const guest = sanitize(this.readLocal(n, null)); if (!guest) continue;
       if (this.remote && !this.remote[n]) {
         try { await this.call('PUT', 'saves/' + n, { save: guest }); this.remote[n] = { save: guest, savedAt: guest.savedAt }; this.writeLocal(n, guest); this.delLocal(n, null); moved.push(n); } catch (e) { kept.push(n); }

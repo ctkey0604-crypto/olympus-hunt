@@ -86,7 +86,8 @@ function renderAccount() {
   const f = document.querySelector('[data-acctform] input[name="name"]'); if (f && !acctBusy && document.activeElement !== f && !f.value) f.focus();
 }
 // Signing in or out while playing takes you back to the save list, since your saves change.
-function afterAccountChange() { if (G.mode === 'panel' || G.mode === 'village') { G.mode = 'slots'; q = null; G.save = null; show('scrSlots'); } renderSlots(); }
+// The save in memory always belongs to whoever was signed in before, so drop it: otherwise it could be written into the new account.
+function afterAccountChange() { const playing = G.mode === 'panel' || G.mode === 'village' || G.mode === 'quest'; q = null; G.save = null; G.slot = null; if (playing) { G.mode = 'slots'; G.paused = false; $('pause').hidden = true; show('scrSlots'); } renderSlots(); }
 document.addEventListener('click', async ev => {
   const b = ev.target.closest('[data-acct]'); if (!b || acctBusy) return;
   const a = b.dataset.acct; Sound.init(); Sound.play('click');
@@ -729,7 +730,7 @@ updateTitleSub();
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
-window.OlympusHunt = { Music,
+window.OlympusHunt = { Music, Store,
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },
