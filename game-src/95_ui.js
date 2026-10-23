@@ -319,6 +319,23 @@ function renderStash() {
 const POTION_PRICE = { health: 150, strength: 200, speed: 175 };
 const rankPrice = n => Math.round(n * ((RANKS[G.save.rank] || RANKS[0]).cost || 1) / 10) * 10;
 function potionCost(id) { return rankPrice(POTION_PRICE[id] || 100); }
+// Melita's parts: anything from a hunt you've cleared, at a fixed price by rarity that steps up with rank. Hunting stays cheaper.
+const PART_PRICE = [0, 60, 150, 400, 1200];
+const partItem = id => ITEMS[id] || ITEMS[baseId(id)];
+function partCost(id) { return Math.round(PART_PRICE[partItem(id).rarity || 1] * ((RANKS[rankOf(id)] || RANKS[0]).cost || 1) / 10) * 10; }
+function shopParts() {
+  const s = G.save, set = new Set();
+  for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id)) set.add(id);   // your current rank's parts
+  return [...set].sort((a, b) => (rankOf(a) - rankOf(b)) || (partItem(a).rarity - partItem(b).rarity) || partItem(a).name.localeCompare(partItem(b).name));
+}
+function renderParts() {
+  const s = G.save, ids = shopParts();
+  if (!ids.length) return `<p class="muted" style="margin:16px 0 0">Clear a hunt and Melita will stock its parts here.</p>`;
+  return `<p class="sub" style="margin:18px 0 6px">Parts</p><p class="muted" style="margin:0 0 10px">Parts from hunts you've cleared. Hunting them is cheaper, but this saves a trip.</p><div class="stash">${ids.map(id => {
+    const it = partItem(id), cost = partCost(id);
+    return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>You have ${s.inv[id] || 0}</p></div><button class="btn small" type="button" data-part="${id}" ${s.money < cost ? 'disabled' : ''}>${fmtMoney(cost)} dr</button></div>`;
+  }).join('')}</div>`;
+}
 function renderMarket() {
   const s = G.save;
   const cards = Object.entries(POTIONS).map(([id, P]) => {
@@ -329,7 +346,7 @@ function renderMarket() {
       <div class="stats"><span>You have <b>${have} / ${POTION_MAX}</b></span><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-buy="${id}" ${full || s.money < cost ? 'disabled' : ''}>${full ? 'Bag full' : 'Buy'}</button></div></article>`;
   }).join('');
-  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. Drink them during a hunt with the keys shown, or tap them in the corner of the screen.</p><div class="grid">${cards}</div>`;
+  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. Drink them during a hunt with the keys shown, or tap them in the corner of the screen.</p><div class="grid">${cards}</div>` + renderParts();
 }
 // The potions you're carrying, shown at the top of the screen during a hunt.
 function updatePotionBar(p) {
@@ -425,6 +442,10 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; fadeTo(() => startQuest(id)); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.part) {
+    const id = t.dataset.part, cost = partCost(id); if (s.money < cost) return;
+    s.money -= cost; s.inv[id] = (s.inv[id] || 0) + 1; Sound.play('pickup'); persist(); renderHub(); toast(`Bought ${partItem(id).name}`); return;
+  }
   if (t.dataset.buy) {
     const id = t.dataset.buy, cost = potionCost(id);
     if ((s.potions[id] || 0) >= POTION_MAX || s.money < cost) return;
