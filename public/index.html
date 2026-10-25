@@ -256,9 +256,9 @@ textarea:focus{outline:2px solid var(--gold)}
 .res-title.win{color:var(--gold)}
 .res-title.lose{color:var(--blood)}
 .res-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:2px;background:#000}
-.res-stats div{background:var(--glaze-2);padding:12px 14px;display:grid}
-.res-stats span{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--bone-mute)}
-.res-stats b{font-family:var(--font-display);font-weight:400;font-size:1.75rem;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+.res-stats div{background:var(--glaze-2);padding:12px 14px;display:grid;align-content:start;container-type:inline-size}
+.res-stats span{font-size:.72rem;font-size:min(.72rem,10cqi);letter-spacing:.12em;text-transform:uppercase;color:var(--bone-mute);white-space:nowrap}
+.res-stats b{font-family:var(--font-display);font-weight:400;font-size:1.75rem;font-size:min(1.75rem,26cqi);line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
 .res-loot{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
 .res-item{display:flex;align-items:center;gap:10px;background:var(--glaze-2);padding:8px 10px;box-shadow:0 0 0 2px #000}
 .res-item img{width:32px;height:32px;image-rendering:pixelated}
@@ -835,10 +835,10 @@ const ARMOR_SETS = {
 const PERK_TEXT = {
   healDrops: v => `+${Math.round(v * 100)}% chance monsters drop healing`, hp: v => `+${v} health`, def: v => `+${v} defense`,
   speed: v => `+${Math.round(v * 100)}% move speed`, dmg: v => `+${Math.round(v * 100)}% damage`, bowDmg: v => `+${Math.round(v * 100)}% bow damage`,
-  dodgeCd: v => `${Math.round(v * 100)}% faster dodge`, dodgeDist: v => `+${Math.round(v * 100)}% dodge distance`, regen: v => `Heal ${v} health per second`,
+  dodgeCd: v => `Dash recharges ${Math.round(v * 100)}% faster`, dodgeDist: v => `+${Math.round(v * 100)}% dash distance`, regen: v => `Heal ${v} health per second`,
   abilityCd: v => `Weapon skill recharges ${Math.round(v * 100)}% faster`, guard: v => `+${Math.round(v * 100)}% guard meter`, projRes: v => `Arrows, stones and bolts deal ${Math.round(v * 100)}% less`,
   lifesteal: v => `Hits heal you for ${Math.round(v * 100)}% of the damage`, knock: v => `+${Math.round(v * 100)}% knockback`,
-  dashDodge: () => 'Your dodge becomes a long dash that cuts through enemies', dodgeStrike: v => `Your first hit after a dodge deals +${Math.round(v * 100)}%`,
+  dashDodge: () => 'Your dash becomes a long charge that cuts through enemies', dodgeStrike: v => `Your first hit after a dash deals +${Math.round(v * 100)}%`,
   killFrenzy: () => 'Every kill makes you attack faster for 3 seconds', reflectPerfect: () => 'Perfect blocks send projectiles back',
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
@@ -3166,6 +3166,8 @@ function paintBorder(x, T, R, B = IPX) {
   const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
   const fill = col => { x.fillStyle = col; x.fillRect(0, 0, W, B.minY); x.fillRect(0, B.maxY, W, H - B.maxY); x.fillRect(0, 0, B.minX, H); x.fillRect(B.maxX, 0, W - B.maxX, H); };
   const disc = (cx, cy, r, col) => { x.fillStyle = col; for (let yy = -r; yy <= r; yy++) { const w = Math.sqrt(r * r - yy * yy); x.fillRect((cx - w) | 0, (cy + yy) | 0, (w * 2) | 0, 1); } };
+  // bricks and stones stop flush at the edge of the floor instead of poking teeth into it
+  const clipOut = () => { x.save(); x.beginPath(); x.rect(0, 0, W, H); x.rect(B.minX, B.minY, B.maxX - B.minX, B.maxY - B.minY); x.clip('evenodd'); };
   let edge = '#140d0b';
   if (T.border === 'hedge') {
     fill(T.hedgeBase);
@@ -3175,19 +3177,21 @@ function paintBorder(x, T, R, B = IPX) {
     fill(T.rockBase);
     for (let i = 0; i < 1500; i++) { const px = R() * W, py = R() * H; if (!inB(px, py)) continue; const w = 4 + R() * 9, h = 3 + R() * 7; dot(px, py, pick(T.rocks), w | 0, h | 0); dot(px, py, T.rockHi, w | 0, 1); }
   } else if (T.border === 'drystone') {
-    fill(T.stoneBase);
+    fill(T.stoneBase); clipOut();
     for (let py = 0; py < H; py += 6) for (let px = -(R() * 8 | 0); px < W;) {
       const w = 7 + (R() * 7 | 0);
       if (inB(px + w / 2, py + 3)) { dot(px, py, pick(T.stone), w - 1, 5); dot(px, py, T.stoneHi, w - 1, 1); }
       px += w;
     }
+    x.restore();
   } else if (T.border === 'wall') {
-    fill(T.wallBase);
+    fill(T.wallBase); clipOut();
     for (let py = 0; py < H; py += 8) for (let px = ((py / 8) % 2) * 8; px < W; px += 16) {
       if (!inB(px + 4, py + 4)) continue;
       if (T.broken && R() < .12) { dot(px, py, '#5e5545', 15, 7); continue; }
       dot(px, py, pick(T.wall), 15, 7); dot(px, py, T.wallHi, 15, 1);
     }
+    x.restore();
     const fy = B.minY - 22; dot(0, fy, '#1a1210', W, 10);
     for (let px = 0; px < W; px += 6) { x.fillStyle = T.frieze; x.fillRect(px, fy + 1, 5, 1); x.fillRect(px + 4, fy + 1, 1, 5); x.fillRect(px + 1, fy + 5, 4, 1); x.fillRect(px + 1, fy + 3, 1, 3); x.fillRect(px + 1, fy + 3, 2, 1); x.fillRect(px, fy + 7, 6, 1); }
     if (T.broken) for (let i = 0; i < 40; i++) { let px = R() * W, py = R() * H; if (!inB(px, py)) continue; for (let k = 0; k < 8; k++) { dot(px, py, '#4a4236'); px += R() * 2 - 1; py += R() * 2 - .5; } }
@@ -5925,7 +5929,7 @@ function startQuest(id) {
   hudMode('quest'); hudReset();
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
-  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dodge and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
+  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
 }
 function startWave(i) {
@@ -6143,7 +6147,12 @@ function npcLines(n) {
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
       if (s.rank > 0) return [`${RANKS[s.rank].name} work’s on the board. Everything out there hits harder now.`];
-      return [c.zeus_hunt ? 'You’ve hunted all twelve gods of Olympus. The board still has work if you want parts.' : 'Work’s on the board. Pick a hunt and I’ll send you out.'];
+      if (c.zeus_hunt) {                                 // the twelve are down, but the temple waits on every god
+        const left = ALL_GOD_QUESTS.filter(id => !c[id]).map(id => godName(QUEST_BY_ID[id].boss));
+        if (left.length) return ['You’ve hunted all twelve gods of Olympus. The priests say the temple won’t settle until ' + (left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left[left.length - 1] : left[0]) + (left.length > 1 ? ' are' : ' is') + ' hunted too.'];
+        return ['You’ve hunted every god there is. The board still has work if you want parts.'];
+      }
+      return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
@@ -6324,7 +6333,8 @@ function tickVillage(dt) {
   updateNpcs(dt);
   if (V.id === 'village') {
     V.smokeT -= dt;
-    if (V.smokeT <= 0) { V.smokeT = .14; const b = V.buildings[1]; V.parts.push({ x: b.box.x + b.box.w - 18 + rand(-1, 1), y: b.box.y + 2, vx: rand(4, 10), vy: rand(-16, -10), g: 0, life: 2.2, max: 2.2, c: Math.random() < .5 ? '#8f8a82' : '#b5b0a6', s: 2 }); }
+    if (V.smokeT <= 0) { V.smokeT = .14; const b = V.buildings.find(b => b.kind === 'forge'); V.parts.push({ x: b.box.x + b.box.w - 18 + rand(-1, 1), y: b.box.y - 7 + rand(-1, 0),   // out of the forge chimney's mouth (drawn in drawBuilding)
+      vx: rand(4, 10), vy: rand(-16, -10), g: 0, life: 2.2, max: 2.2, c: Math.random() < .5 ? '#8f8a82' : '#b5b0a6', s: 2 }); }
   }
   tickParticles(dt);
   followCam(p, dt);
@@ -7033,7 +7043,7 @@ function drawBuilding(b, sx, sy) {
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
   ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
   for (let y = sy + 3; y < sy + RH; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
-  for (let y = sy; y < sy + RH - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, 3, 1); }
+  for (let y = sy; y < sy + RH - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
   ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
   ctx.fillStyle = '#6b2c12'; ctx.fillRect(sx, sy + RH - 2, W, 2);
   ctx.fillStyle = wall[0]; ctx.fillRect(sx, sy + RH, W, F);
@@ -7533,8 +7543,8 @@ function slotCard(n, s) {
   const el = document.createElement('article'); el.className = 'slot' + (s ? '' : ' empty');
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
-    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = GODS.filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of 12 gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = [...GODS, ...SIDE_GODS].filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new hunter here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -7759,7 +7769,7 @@ function renderMarket() {
       <div class="stats"><span>You have <b>${have} / ${POTION_MAX}</b></span><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-buy="${id}" ${full || s.money < cost ? 'disabled' : ''}>${full ? 'Bag full' : 'Buy'}</button></div></article>`;
   }).join('');
-  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. Drink them during a hunt with the keys shown, or tap them in the corner of the screen.</p><div class="grid">${cards}</div>` + renderParts();
+  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. ${touchMode ? 'Tap them in the corner of the screen during a hunt.' : 'Drink them during a hunt with the keys shown, or tap them in the corner of the screen.'}</p><div class="grid">${cards}</div>` + renderParts();
 }
 // The potions you're carrying, shown at the top of the screen during a hunt.
 function updatePotionBar(p) {
@@ -7956,7 +7966,7 @@ function finishQuest(win) {
   $('btnResAgain').textContent = win ? 'Hunt again' : 'Try again';
   G.mode = 'results'; q = null;
   show('scrResults');
-  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus(); }, 900);
+  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
 }
 
 /* ---- pause ---- */
