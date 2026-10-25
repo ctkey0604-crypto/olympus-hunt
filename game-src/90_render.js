@@ -452,7 +452,7 @@ function drawBuilding(b, sx, sy) {
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
   ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
   for (let y = sy + 3; y < sy + RH; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
-  for (let y = sy; y < sy + RH - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, 3, 1); }
+  for (let y = sy; y < sy + RH - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
   ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
   ctx.fillStyle = '#6b2c12'; ctx.fillRect(sx, sy + RH - 2, W, 2);
   ctx.fillStyle = wall[0]; ctx.fillRect(sx, sy + RH, W, F);

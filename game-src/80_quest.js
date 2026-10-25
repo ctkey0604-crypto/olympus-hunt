@@ -43,7 +43,7 @@ function startQuest(id) {
   hudMode('quest'); hudReset();
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
-  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dodge and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
+  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
 }
 function startWave(i) {

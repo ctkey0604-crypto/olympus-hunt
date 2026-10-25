@@ -126,8 +126,8 @@ function slotCard(n, s) {
   const el = document.createElement('article'); el.className = 'slot' + (s ? '' : ' empty');
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
-    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = GODS.filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of 12 gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = [...GODS, ...SIDE_GODS].filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new hunter here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -352,7 +352,7 @@ function renderMarket() {
       <div class="stats"><span>You have <b>${have} / ${POTION_MAX}</b></span><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-buy="${id}" ${full || s.money < cost ? 'disabled' : ''}>${full ? 'Bag full' : 'Buy'}</button></div></article>`;
   }).join('');
-  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. Drink them during a hunt with the keys shown, or tap them in the corner of the screen.</p><div class="grid">${cards}</div>` + renderParts();
+  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. ${touchMode ? 'Tap them in the corner of the screen during a hunt.' : 'Drink them during a hunt with the keys shown, or tap them in the corner of the screen.'}</p><div class="grid">${cards}</div>` + renderParts();
 }
 // The potions you're carrying, shown at the top of the screen during a hunt.
 function updatePotionBar(p) {
@@ -549,7 +549,7 @@ function finishQuest(win) {
   $('btnResAgain').textContent = win ? 'Hunt again' : 'Try again';
   G.mode = 'results'; q = null;
   show('scrResults');
-  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus(); }, 900);
+  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
 }
 
 /* ---- pause ---- */

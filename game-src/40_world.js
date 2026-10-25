@@ -266,6 +266,8 @@ function paintBorder(x, T, R, B = IPX) {
   const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
   const fill = col => { x.fillStyle = col; x.fillRect(0, 0, W, B.minY); x.fillRect(0, B.maxY, W, H - B.maxY); x.fillRect(0, 0, B.minX, H); x.fillRect(B.maxX, 0, W - B.maxX, H); };
   const disc = (cx, cy, r, col) => { x.fillStyle = col; for (let yy = -r; yy <= r; yy++) { const w = Math.sqrt(r * r - yy * yy); x.fillRect((cx - w) | 0, (cy + yy) | 0, (w * 2) | 0, 1); } };
+  // bricks and stones stop flush at the edge of the floor instead of poking teeth into it
+  const clipOut = () => { x.save(); x.beginPath(); x.rect(0, 0, W, H); x.rect(B.minX, B.minY, B.maxX - B.minX, B.maxY - B.minY); x.clip('evenodd'); };
   let edge = '#140d0b';
   if (T.border === 'hedge') {
     fill(T.hedgeBase);
@@ -275,19 +277,21 @@ function paintBorder(x, T, R, B = IPX) {
     fill(T.rockBase);
     for (let i = 0; i < 1500; i++) { const px = R() * W, py = R() * H; if (!inB(px, py)) continue; const w = 4 + R() * 9, h = 3 + R() * 7; dot(px, py, pick(T.rocks), w | 0, h | 0); dot(px, py, T.rockHi, w | 0, 1); }
   } else if (T.border === 'drystone') {
-    fill(T.stoneBase);
+    fill(T.stoneBase); clipOut();
     for (let py = 0; py < H; py += 6) for (let px = -(R() * 8 | 0); px < W;) {
       const w = 7 + (R() * 7 | 0);
       if (inB(px + w / 2, py + 3)) { dot(px, py, pick(T.stone), w - 1, 5); dot(px, py, T.stoneHi, w - 1, 1); }
       px += w;
     }
+    x.restore();
   } else if (T.border === 'wall') {
-    fill(T.wallBase);
+    fill(T.wallBase); clipOut();
     for (let py = 0; py < H; py += 8) for (let px = ((py / 8) % 2) * 8; px < W; px += 16) {
       if (!inB(px + 4, py + 4)) continue;
       if (T.broken && R() < .12) { dot(px, py, '#5e5545', 15, 7); continue; }
       dot(px, py, pick(T.wall), 15, 7); dot(px, py, T.wallHi, 15, 1);
     }
+    x.restore();
     const fy = B.minY - 22; dot(0, fy, '#1a1210', W, 10);
     for (let px = 0; px < W; px += 6) { x.fillStyle = T.frieze; x.fillRect(px, fy + 1, 5, 1); x.fillRect(px + 4, fy + 1, 1, 5); x.fillRect(px + 1, fy + 5, 4, 1); x.fillRect(px + 1, fy + 3, 1, 3); x.fillRect(px + 1, fy + 3, 2, 1); x.fillRect(px, fy + 7, 6, 1); }
     if (T.broken) for (let i = 0; i < 40; i++) { let px = R() * W, py = R() * H; if (!inB(px, py)) continue; for (let k = 0; k < 8; k++) { dot(px, py, '#4a4236'); px += R() * 2 - 1; py += R() * 2 - .5; } }

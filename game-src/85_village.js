@@ -60,7 +60,12 @@ function npcLines(n) {
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
       if (s.rank > 0) return [`${RANKS[s.rank].name} work’s on the board. Everything out there hits harder now.`];
-      return [c.zeus_hunt ? 'You’ve hunted all twelve gods of Olympus. The board still has work if you want parts.' : 'Work’s on the board. Pick a hunt and I’ll send you out.'];
+      if (c.zeus_hunt) {                                 // the twelve are down, but the temple waits on every god
+        const left = ALL_GOD_QUESTS.filter(id => !c[id]).map(id => godName(QUEST_BY_ID[id].boss));
+        if (left.length) return ['You’ve hunted all twelve gods of Olympus. The priests say the temple won’t settle until ' + (left.length > 1 ? left.slice(0, -1).join(', ') + ' and ' + left[left.length - 1] : left[0]) + (left.length > 1 ? ' are' : ' is') + ' hunted too.'];
+        return ['You’ve hunted every god there is. The board still has work if you want parts.'];
+      }
+      return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
@@ -241,7 +246,8 @@ function tickVillage(dt) {
   updateNpcs(dt);
   if (V.id === 'village') {
     V.smokeT -= dt;
-    if (V.smokeT <= 0) { V.smokeT = .14; const b = V.buildings[1]; V.parts.push({ x: b.box.x + b.box.w - 18 + rand(-1, 1), y: b.box.y + 2, vx: rand(4, 10), vy: rand(-16, -10), g: 0, life: 2.2, max: 2.2, c: Math.random() < .5 ? '#8f8a82' : '#b5b0a6', s: 2 }); }
+    if (V.smokeT <= 0) { V.smokeT = .14; const b = V.buildings.find(b => b.kind === 'forge'); V.parts.push({ x: b.box.x + b.box.w - 18 + rand(-1, 1), y: b.box.y - 7 + rand(-1, 0),   // out of the forge chimney's mouth (drawn in drawBuilding)
+      vx: rand(4, 10), vy: rand(-16, -10), g: 0, life: 2.2, max: 2.2, c: Math.random() < .5 ? '#8f8a82' : '#b5b0a6', s: 2 }); }
   }
   tickParticles(dt);
   followCam(p, dt);

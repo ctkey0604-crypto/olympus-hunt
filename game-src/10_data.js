@@ -262,10 +262,10 @@ const ARMOR_SETS = {
 const PERK_TEXT = {
   healDrops: v => `+${Math.round(v * 100)}% chance monsters drop healing`, hp: v => `+${v} health`, def: v => `+${v} defense`,
   speed: v => `+${Math.round(v * 100)}% move speed`, dmg: v => `+${Math.round(v * 100)}% damage`, bowDmg: v => `+${Math.round(v * 100)}% bow damage`,
-  dodgeCd: v => `${Math.round(v * 100)}% faster dodge`, dodgeDist: v => `+${Math.round(v * 100)}% dodge distance`, regen: v => `Heal ${v} health per second`,
+  dodgeCd: v => `Dash recharges ${Math.round(v * 100)}% faster`, dodgeDist: v => `+${Math.round(v * 100)}% dash distance`, regen: v => `Heal ${v} health per second`,
   abilityCd: v => `Weapon skill recharges ${Math.round(v * 100)}% faster`, guard: v => `+${Math.round(v * 100)}% guard meter`, projRes: v => `Arrows, stones and bolts deal ${Math.round(v * 100)}% less`,
   lifesteal: v => `Hits heal you for ${Math.round(v * 100)}% of the damage`, knock: v => `+${Math.round(v * 100)}% knockback`,
-  dashDodge: () => 'Your dodge becomes a long dash that cuts through enemies', dodgeStrike: v => `Your first hit after a dodge deals +${Math.round(v * 100)}%`,
+  dashDodge: () => 'Your dash becomes a long charge that cuts through enemies', dodgeStrike: v => `Your first hit after a dash deals +${Math.round(v * 100)}%`,
   killFrenzy: () => 'Every kill makes you attack faster for 3 seconds', reflectPerfect: () => 'Perfect blocks send projectiles back',
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
