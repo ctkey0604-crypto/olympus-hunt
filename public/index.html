@@ -255,6 +255,11 @@ textarea:focus{outline:2px solid var(--gold)}
 .res-title{margin:0;font-family:var(--font-display);font-weight:400;font-size:clamp(44px,8vw,88px);line-height:.9;letter-spacing:.03em}
 .res-title.win{color:var(--gold)}
 .res-title.lose{color:var(--blood)}
+.refine{border-top:1px dashed var(--line);margin-top:10px;padding-top:8px;display:grid;gap:6px}
+.refine-top{display:flex;justify-content:space-between;align-items:baseline;gap:4px 10px;flex-wrap:wrap;font-size:.82rem}
+.refine-top span{color:var(--bone-mute)}
+.refine .btn{justify-self:start}
+.refine-tag{color:var(--gold);font-family:var(--font-display);font-weight:400;font-size:1.15em;margin-left:2px}
 .res-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:2px;background:#000}
 .res-stats div{background:var(--glaze-2);padding:12px 14px;display:grid;align-content:start;container-type:inline-size}
 .res-stats span{font-size:.72rem;font-size:min(.72rem,10cqi);letter-spacing:.12em;text-transform:uppercase;color:var(--bone-mute);white-space:nowrap}
@@ -345,6 +350,19 @@ textarea:focus{outline:2px solid var(--gold)}
 .qcard[data-rank="1"].sel{box-shadow:0 0 0 2px #000,inset 4px 0 0 #e2603f}
 .qcard[data-rank="2"].sel{box-shadow:0 0 0 2px #000,inset 4px 0 0 #b48cff}
 .rank.titans{color:#c9a0ff}
+.rank.titans.final{color:#ff8a2b}
+/* the end credits */
+#scrCredits{background:#0b0706;padding:12px 16px}
+.credits-wrap{display:flex;flex-direction:column;gap:8px;max-width:760px;margin:0 auto;height:calc(100vh - 24px);height:calc(100dvh - 24px)}
+#creditsArt{height:min(20vh,170px);width:auto;max-width:100%;align-self:center;image-rendering:pixelated;flex:0 0 auto;border-bottom:2px solid var(--line)}
+.credits-view{position:relative;flex:1;min-height:100px;overflow:hidden;-webkit-mask-image:linear-gradient(transparent,#000 10%,#000 90%,transparent);mask-image:linear-gradient(transparent,#000 10%,#000 90%,transparent)}
+.credits-roll{position:absolute;left:0;right:0;top:0;text-align:center;will-change:transform;padding:0 8px}
+.credits-roll .logo{font-size:clamp(44px,10vw,96px);margin:0 0 14px}
+.credits-roll h3{margin:30px 0 4px;color:var(--gold);font-family:var(--font-display);font-weight:400;font-size:1.45rem;letter-spacing:.04em}
+.credits-roll p{margin:0 auto;max-width:520px;color:var(--bone)}
+.credits-roll .lede{color:var(--bone-dim)}
+.credits-roll .thanks{margin-top:44px;font-family:var(--font-display);font-size:2.2rem;color:var(--clay-hi)}
+.credits-bar{display:flex;justify-content:flex-end;gap:8px;flex:0 0 auto}
 .gear .rk{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;padding:1px 6px;margin-left:6px;vertical-align:middle;background:#000}
 .gear .rk[data-rank="1"]{color:#ff8a6a}.gear .rk[data-rank="2"]{color:#c9a0ff}
 .chip.ready{color:#160e0b;background:var(--olive);box-shadow:none;font-weight:600}
@@ -555,6 +573,14 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
     <div class="res-loot" id="resLoot"></div>
     <p class="muted" id="resNote" style="margin:0"></p>
     <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Hunt again</button></div>
+  </div>
+</section>
+
+<section class="screen" id="scrCredits" hidden>
+  <div class="credits-wrap">
+    <canvas id="creditsArt" width="320" height="72" aria-hidden="true"></canvas>
+    <div class="credits-view"><div class="credits-roll" id="creditsRoll"></div></div>
+    <div class="credits-bar"><button class="btn ghost small" id="btnCreditsSkip" type="button">Skip</button><button class="btn" id="btnCreditsDone" type="button" hidden>Continue</button></div>
   </div>
 </section>
 
@@ -1540,6 +1566,29 @@ function scalePerks(perks, r, ch) {
     }
   }
 }
+/* ============================== TYPHON: THE LAST HUNT ============================== */
+// God Rank only. Once every god and every Titan has fallen on God Rank, Typhon, the father of monsters, climbs out from
+// under Mount Etna. A hundred serpent heads on his shoulders, wings of storm, and a mountain's worth of fire.
+// His fight, art and arena live in 88_typhon.js; this file only adds his data before the numbers are worked out.
+const TYPHON_Q = 'gr_typhon_hunt';
+{
+  // his parts only drop on God Rank; the plain form only exists so the God Rank icon has something to be drawn from
+  const add = (id, it) => { ITEMS[id] = { ...it, rank: 0, trophy: true }; ITEMS[rid(id, 2)] = { ...it, name: it.name + RANKS[2].item, rank: 2, base: id, trophy: true }; };
+  add('typhon_scale', { name: 'Typhon Scale', rarity: 3, icon: ['plate', '#6b7a4a', '#2e3822', '#ff8a2b'], desc: 'A scale from the father of monsters. Still warm, and harder than bronze.' });
+  add('storm_heart',  { name: 'Storm Heart', rarity: 4, icon: ['orb', '#ff5a3c', '#7f2618', '#ffd463'], desc: 'Typhon’s heart. It still beats like far-off thunder. A trophy for the last hunt.' });
+}
+Object.assign(ENEMIES, {
+  typhon_head: { name: 'Serpent Head', role: 'shooter', cls: 'medium', sprite: 'typhonhead', r: 8, scale: 2, speed: 0, hpM: 3.2, dmgP: .07, kbRes: 0,
+                 proj: { kind: 'typhonfire', speed: 130 }, near: 0, far: 999, cd: [1.8, 2.6], colors: ['#6b7a4a', '#45512f', '#ff5a3c'], loot: [] },
+});
+Object.assign(PLURALS, { typhon_head: 'Serpent Heads' });
+BOSSES.typhon = { name: 'Typhon', title: 'Father of Monsters', tier: 17, titan: true, custom: true, final: true, r: 13, sprite: 'typhon', arrivalHeals: 3,
+                  colors: ['#ff8a2b', '#6b7a4a', '#ffd463'], loot: [['storm_heart', 1], ['typhon_scale', 1, 3, 5]], dmgScale: 1.15 };
+QUESTS.push({ id: TYPHON_Q, base: 'typhon_hunt', god: 'typhon', titan: true, final: true, rank: 2, tier: 17 + RANKS[2].off, boss: 'typhon',
+  name: 'The Father of Monsters', arena: 'etna',
+  requires: [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].map(id => rid(id, 2)),
+  desc: 'Typhon broke out from under Mount Etna to finish what the Titans started. His serpent heads spit fire and he hurls the mountain itself. When the heads rise out of the ground he is shielded until you cut them all down.',
+  waves: [{ earthborn: 8, colossus: 1, sky_harpy: 3 }, { river_serpent: 2, lion: 2, obsidian_guard: 2 }] });
 /* ============================== FINISH DATA ============================== */
 // Numbers worked out from the tables above, for every rank.
 for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w.kind].dmgM);
@@ -1599,7 +1648,8 @@ for (const [id, A] of Object.entries(ARENAS)) {
   for (const qd of QUESTS) if (qd.boss && !qd.side && !qd.titan) bossQuest[qd.rank + ':' + qd.god] = qd.id;
   const huntN = {};
   for (const qd of QUESTS) {
-    const local = qd.tier - RANKS[qd.rank].off, base = huntPay(Math.floor(qd.tier));
+    // Titans sit on half tiers; their pay follows the curve between whole tiers so each one pays more than the last.
+    const local = qd.tier - RANKS[qd.rank].off, ft = Math.floor(qd.tier), base = qd.titan ? lerp(huntPay(ft), huntPay(ft + 1), qd.tier - ft) : huntPay(ft);
     if (!qd.reward) qd.reward = qd.boss ? Math.round(base * (qd.titan ? 3.2 : qd.side ? 2.4 : 3) / 10) * 10 : base;
     qd.stars = clamp(Math.round(local * .55 + (qd.boss ? .6 : 0)), 1, 10);
     qd.urgent = !!qd.boss;
@@ -1614,6 +1664,22 @@ for (const [id, A] of Object.entries(ARENAS)) {
   }
 }
 const QUEST_BY_ID = Object.fromEntries(QUESTS.map(qd => [qd.id, qd]));
+
+// Refinement at the smith: +1 to +5 on gear you own. Each step costs drachmae and some of the parts the gear was made from;
+// the last two steps also need one of its rare parts. Weapons hit harder, armor sets and shields hold more.
+const REFINE_MAX = 5, REFINE_COST = [.35, .5, .7, 1, 1.4], REFINE_PARTS = [.25, .35, .5, .65, .85];
+const REFINE_GAIN = { weapon: .05, armor: .06, shield: .06 };
+function refineLevel(id, save = G.save) { return (save && save.refine && save.refine[id]) || 0; }
+function refineDef(kind, id) { return kind === 'weapon' ? WEAPONS[id] : kind === 'shield' ? SHIELDS[id] : ARMOR_SETS[id]; }
+function refineRecipe(kind, id, lv) {                      // what it takes to go from lv to lv + 1
+  const def = refineDef(kind, id), rec = def.recipe, items = {};
+  if (rec) for (const [it, n] of Object.entries(rec.items)) {
+    if (ITEMS[it].rarity >= 3) { if (lv >= 3) items[it] = 1; }
+    else items[it] = Math.max(1, Math.ceil(n * REFINE_PARTS[lv]));
+  }
+  const base = rec ? rec.cost : 150 * RANKS[def.rank || 0].cost;
+  return { items, cost: Math.max(50, Math.round(base * REFINE_COST[lv] / 10) * 10) };
+}
 /* ============================== ART ===================================== */
 // Sprites are text grids so they're easy to edit by hand: one letter = one pixel, '.' = empty.
 // A dark outline is added automatically. Swap these for your own art any time.
@@ -2194,6 +2260,7 @@ const Sound = {
       case 'hit': this.tone(320, .07, 'square', .16, .5); this.noise(.05, .2, 1800); break;
       case 'kill': this.noise(.25, .28, 900, .6, 'bandpass', 0, 200); this.tone(190, .2, 'square', .1, .4); break;
       case 'hurt': this.tone(170, .22, 'sawtooth', .22, .45); this.noise(.12, .25, 600); break;
+      case 'heartbeat': this.tone(58, .11, 'sine', .32, .7); this.tone(52, .13, 'sine', .26, .7, .17); break;
       case 'pickup': this.tone(880, .06, 'square', .1); this.tone(1320, .08, 'square', .1, 1, .05); break;
       case 'heal': this.tone(660, .1, 'triangle', .18); this.tone(990, .14, 'triangle', .18, 1, .08); break;
       case 'dodge': this.noise(.14, .18, 3000, .6, 'bandpass', 0, 800); break;
@@ -2491,7 +2558,7 @@ function newSave() {
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
-           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false };
+           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false };
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -2529,7 +2596,11 @@ function sanitize(s) {
   out.stairs = s.stairs === true; out.seenHall = s.seenHall === true;
   // first-steps tutorial: saves from before it existed skip it once they have a hunt behind them
   out.tut = typeof s.tut === 'number' ? clamp(Math.floor(s.tut), 0, 6) : Object.keys(out.cleared).length ? 6 : 0;
-  out.finale = s.finale === true;
+  out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
+  out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
+  if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
+    const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
+  }
   out.hints = { skill: !!(s.hints && s.hints.skill), guard: !!(s.hints && s.hints.guard) };
   out.blessing = s.blessing === true;
   for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);
@@ -2686,6 +2757,11 @@ const Music = (() => {
     cronus:     T({ key: 'F#', mode: 'phr', bpm: 184, prog: '1 2 1 2 6 7 1 1', bass: 'gallop', drums: 'blast', arp: 'harm', oct: 3,
                 A: '1:1 2:1 3:1 2:1 1:2 5,:2 1:1 2:1 3:1 4:1 5:4 | 2:1 3:1 4:1 3:1 2:2 7,:2 2:4 1:4 | 1:1 2:1 3:1 2:1 1:2 5,:2 1:1 2:1 3:1 4:1 6:4 | 5:4 4:4 2:8',
                 E: '5:2 4:2 3:2 2:2 1:8' }),
+    // Typhon, the last hunt: everything at once. And the end credits, the title theme in a major key.
+    typhon:     T({ key: 'C', mode: 'hm', bpm: 168, prog: '1 6 4 5 1 6 7 5', progB: '6 7 1 1 4 5 7 7', bass: 'gallop', drums: 'war', arp: 'harm', oct: 3,
+                A: '1:2 1:2 2:2 3:2 5:4 3:4 | 6:2 5:2 4:2 3:2 2:4 7,:4 | 1:2 1:2 2:2 3:2 5:2 6:2 1\':4 | 7:4 6:2 5:2 7,:8', E: '5:2 4:2 3:2 2:2 1:8' }),
+    credits:    T({ key: 'D', mode: 'ion', bpm: 104, prog: '1 5 6 4 1 5 4 5', progB: '4 5 3 6 4 5 1 1', bass: 'walk', drums: 'soft2', arp: 'broken8', duty: .125,
+                A: '1:4 5:4 4:2 3:2 2:2 3:2 | 1:6 7,:2 1:8 | 3:4 4:2 5:2 6:4 5:4 | 4:3 3:1 2:4 7,:8', E: '5:4 4:2 3:2 1:8' }),
     // stingers, played once
     win:  T({ key: 'C', mode: 'ion', bpm: 150, once: true, prog: '1 1', bass: 'pulse', drums: 'none', arp: 'none', A: '5,:2 1:2 3:2 5:2 1\':4 5:4 | 1\':16', bars: 2 }),
     lose: T({ key: 'A', mode: 'aeo', bpm: 84, once: true, prog: '1 1', bass: 'doom', drums: 'none', arp: 'none', A: '5:4 4:4 3:4 2:4 | 1:16', bars: 2 }),
@@ -3605,11 +3681,13 @@ function drawObstacle(o, sx, sy) {
 // Everything your gear adds up to: four armor pieces, their set bonuses, weapon and shield.
 function setCounts(eq) { const c = {}; for (const sl of SLOTS) c[eq[sl]] = (c[eq[sl]] || 0) + 1; return c; }
 function playerStats(save = G.save) {
-  const w = WEAPONS[save.weapon], K = KINDS[w.kind], eq = save.equip;
+  // refined gear (+1 to +5 at the smith) works from a copy with the bigger numbers and the + in its name
+  const w0 = WEAPONS[save.weapon], wl = refineLevel(save.weapon, save), K = KINDS[w0.kind], eq = save.equip;
+  const w = wl ? { ...w0, dmg: Math.round(w0.dmg * (1 + REFINE_GAIN.weapon * wl)), name: `${w0.name} +${wl}`, refine: wl } : w0;
   let def = 0, hp = 0; const perks = {};
   const add = (k, v) => { perks[k] = (perks[k] || 0) + v; };
   for (const sl of SLOTS) {
-    const P = PIECES[eq[sl] + ':' + sl]; def += P.def; hp += P.hp;
+    const P = PIECES[eq[sl] + ':' + sl], rl = refineLevel(eq[sl], save); def += Math.round(P.def * (1 + REFINE_GAIN.armor * rl)); hp += Math.round(P.hp * (1 + .04 * rl));
     for (const [k, v] of Object.entries(P.job)) if (v) add(k, v);
   }
   const bonuses = [];
@@ -3619,7 +3697,8 @@ function playerStats(save = G.save) {
     if (set.four && n >= 4) { for (const [k, v] of Object.entries(set.four)) add(k, v); bonuses.push({ set: sid, n: 4 }); }
   }
   def += perks.def || 0; hp += perks.hp || 0;
-  const shield = save.shield && K.oneHand ? SHIELDS[save.shield] : null;
+  const sh0 = save.shield && K.oneHand ? SHIELDS[save.shield] : null, shl = sh0 ? refineLevel(save.shield, save) : 0;
+  const shield = shl ? { ...sh0, meter: Math.round(sh0.meter * (1 + REFINE_GAIN.shield * shl)), block: Math.min(.97, sh0.block + .01 * shl) } : sh0;
   return {
     weapon: w, kind: K, shield, perks, bonuses, maxHp: 100 + hp, def, doubleDash: PIECES[eq.feet + ':feet'].perk === 'doubleDash',
     mul: 1 + (perks.dmg || 0) + (w.kind === 'bow' ? perks.bowDmg || 0 : 0),
@@ -4140,13 +4219,18 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   }
   if (e.markT > 0) dmg *= 1.5;
   if (e.vuln) dmg *= e.vuln;
+  if (e.ward) dmg *= e.ward;                                // Typhon, while his serpent heads still live
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
   dmg = Math.max(1, Math.round(dmg * rand(.9, 1.1)));
   if (e.stun > 0 && !e.boss) dmg = Math.round(dmg * 1.25);
   e.hp -= dmg; e.flash = .12;
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
-  if (!blocked) burst(e.x, e.y - 6, 4, ['#f0e4cc', '#ebc152'], 60);
+  if (!blocked) {                                           // sparks fly the way the hit went; big hits get more, and a beat of hitstop
+    const big = fromPlayer && dmg >= p.st.weapon.dmg * 1.6, n = big ? 9 : 5, hy = e.y - Math.min(e.h * .5, e.body ? 30 : 8);
+    for (let i = 0; i < n; i++) { const a = ang + rand(-.7, .7), sp = rand(70, big ? 190 : 140); sc.parts.push({ x: e.x, y: hy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 120, life: rand(.12, .26), max: .26, c: i % 3 ? '#ffd463' : '#fff6d8', s: i % 4 ? 1 : 2 }); }
+    if (big) { G.hitstop = Math.max(G.hitstop, .04); q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 10, life: .15, max: .15, c: '#ffd463' }); }
+  }
   q.stats.dealt += dmg;
   if (fromPlayer && !blocked) onPlayerHit(e, dmg);
   if (e.boss && e.def.titan) titanOnHit(e, dmg);
@@ -4181,6 +4265,10 @@ function killEnemy(e, o = {}) {
   if (e.onDeath) { e.onDeath(e); return; }
   Sound.play('kill');
   burst(e.x, e.y - 6, e.boss ? 40 : 14, e.def.colors, e.boss ? 140 : 90);
+  if (!e.boss) {
+    q.fx.push({ t: 'pop', spr: e.def.sprite, flip: e.flip, x: e.x, y: e.y - (e.fly ? 10 : 0), life: .2, max: .2, scale: e.scale || 1 });
+    if (e.def.cls === 'heavy') { G.hitstop = Math.max(G.hitstop, .06); addShake(3); dust(e.x, e.y, 12); Sound.play('thud'); }
+  }
   q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: e.boss ? 40 : 12, life: .3, max: .3, c: '#f0e4cc' });
   if (!o.noLoot) rollLoot(e);
   if (e.def.puddle === 'poison' && e.def.role === 'exploder' && !o.exploded) addPuddle(e.x, e.y, 12, 3, 'poison', .02);
@@ -4202,7 +4290,7 @@ function rollLoot(e) {
 function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
   q.projs.push({ x, y, px: x, py: y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, dmg, kind, team, r: o.r || 2.5, life: o.life || 3,
                  pierce: o.pierce || 0, homing: o.homing || 0, split: o.split || null, charm: o.charm || 0, knock: o.knock || 90, src: o.src || null, hit: new Set(), t: 0, dead: false,
-                 ghost: !!o.ghost, bounce: o.bounce || 0, big: o.big || 0 });
+                 ghost: !!o.ghost, bounce: o.bounce || 0, big: o.big || 0, delay: o.delay || 0, launch: o.launch || 0, boom: o.boom || null });
 }
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
@@ -4299,7 +4387,7 @@ function updateHazards(dt) {
         else if (h.kind === 'sky' || h.kind === 'judgment') { q.fx.push({ t: 'bolt', x: h.x, y: h.y, life: .22, max: .22, seed: (h.x * 7 + h.y) | 0, col: h.kind === 'sky' ? '#9fb8ff' : '#ffd463' }); burst(h.x, h.y - 6, 12, h.kind === 'sky' ? ['#e6f2ff', '#3c4a78', '#ffd463'] : ['#ffd463', '#ffffff'], 100); Sound.play(h.kind === 'sky' ? 'thud' : 'zap'); addShake(h.r > 40 ? 6 : 2); }
         else if (h.kind === 'axis' || h.kind === 'memory') { burst(h.x, h.y - 6, 14, h.kind === 'axis' ? ['#e6f2ff', '#5b9bd5', '#ffffff'] : ['#c8b8ff', '#ffffff'], 100); Sound.play('zap'); q.fx.push({ t: 'ring', x: h.x, y: h.y, r0: 2, r1: h.r, life: .25, max: .25, c: hazardCol(h.kind) }); }
         else if (h.kind === 'star') { burst(h.x, h.y - 4, 6, ['#ffffff', '#e6f2ff'], 50); }
-        else if (h.kind === 'stone') { dust(h.x, h.y, 10); burst(h.x, h.y - 6, 10, ['#c9bda4', '#8f846c'], 90); Sound.play('thud'); addShake(2); }
+        else if (h.kind === 'stone' || h.kind === 'etna') { dust(h.x, h.y, 10); burst(h.x, h.y - 6, 10, ['#c9bda4', '#8f846c'], 90); Sound.play('thud'); addShake(2); }
         else if (h.kind === 'shadow') { burst(h.x, h.y - 8, 18, ['#2a1f3a', '#7fe08a', '#140d0b'], 110); Sound.play('swing'); q.fx.push({ t: 'ring', x: h.x, y: h.y, r0: 4, r1: h.r, life: .25, max: .25, c: '#7fe08a' }); }
         else { burst(h.x, h.y - 6, 12, [hazardCol(h.kind), '#fff6d8'], 90); Sound.play('thud'); }
         if (h.then) h.then(h);
@@ -5831,6 +5919,7 @@ function rheaReveal(b, found) {
 // Runs every tick while a Titan fight is on: currents, memories, ghosts, laws.
 function titanTick(b, dt) {
   const p = q.player;
+  if (b.type === 'typhon') typhonTick(b, dt);
   if (b.type === 'oceanus' && q.current && !p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(q.current.a) * q.current.s * dt, Math.sin(q.current.a) * q.current.s * dt);
   if (b.type === 'mnemosyne') {
     q.mem = q.mem || []; q.memAtk = q.memAtk || []; q.ghosts = q.ghosts || [];
@@ -5965,8 +6054,14 @@ function startBoss() {
   $('bossBar').classList.toggle('titan', !!d.titan); $('bossBar').dataset.rank = q.def.rank;
   for (let i = 0; i < (d.arrivalHeals || 0); i++) spawnPickup(p.x + rand(-24, 24), p.y + rand(-14, 14), '@heal');
 }
-function bossDefeated() {
-  G.slowmo = .25; q.hazards = [];
+function bossDefeated(b) {
+  G.slowmo = .25; q.hazards = []; q.gale = null;
+  if (b) {                                                   // a god or Titan going down shakes the whole arena
+    G.flash = Math.max(G.flash, b.def.final ? .5 : .3); addShake(b.def.final ? 10 : 7); Sound.play('roar'); Sound.play('thud');
+    const big = b.def.titan ? 1.6 : 1;
+    [[.35, 50], [.55, 80], [.8, 115]].forEach(([life, r]) => q.fx.push({ t: 'ring', x: b.x, y: b.y, r0: 4, r1: r * big, life, max: life, c: b.def.colors[0] }));
+    burst(b.x, b.y - (b.def.titan ? 40 : 12), b.def.titan ? 60 : 36, [...b.def.colors, '#ffffff'], b.def.titan ? 190 : 150);
+  }
   for (const e of q.enemies) if (!e.dead && !e.boss) killEnemy(e, { final: true });
   for (const pr of q.projs) if (pr.team === 'enemy') pr.dead = true;
   questVictory();
@@ -6065,6 +6160,8 @@ function tick(dt) {
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
   updatePlayer(sdt); tutHunt(sdt);
+  { const p = q.player, low = !p.dead && p.hp / p.st.maxHp < .3 && q.phase !== 'victory';   // a heartbeat when you're nearly down
+    if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0; }
   if (q.boss && q.boss.def.titan && !q.boss.dead) titanTick(q.boss, sdt);
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
   q.tokUse.melee = q.tokUse.ranged = 0;
@@ -6119,11 +6216,14 @@ const allGodsDone = (r, save = G.save) => ALL_GOD_QUESTS.every(id => save.cleare
 // The rank the herald is waiting to open (shown as a ! over his head), or 0.
 function rankReady(save = G.save) { return save && save.rank < RANKS.length - 1 && rankDone(save.rank, save) ? save.rank + 1 : 0; }
 // Everything hunted on the last rank: Kleon has a word for you (for now, the end of the game).
-function finaleReady(save = G.save) { const last = RANKS.length - 1; return !!save && save.rank === last && rankDone(last, save) && !save.finale; }
+// God Rank done: Typhon climbs out from under Etna, and Kleon has to tell you. Typhon down: Kleon's last word.
+function typhonReady(save = G.save) { return !!save && save.rank === RANKS.length - 1 && rankDone(save.rank, save) && !save.cleared[TYPHON_Q] && !save.typhonTold; }
+function finaleReady(save = G.save) { return !!save && !!save.cleared[TYPHON_Q] && !save.finale; }
+const heraldNews = () => !!(rankReady() || typhonReady() || finaleReady());
 function finishGame() {
   const s = G.save; if (s.finale) return;
   s.finale = true; persist(true);
-  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy(); Music.play('title');
+  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy(); Music.play('credits');
 }
 function unlockRank(r) {
   const s = G.save; if (s.rank >= r) return;
@@ -6140,8 +6240,13 @@ function npcLines(n) {
         'The gods are back, and they’re angry. Faster, meaner, hitting harder. Their beasts too.', 'High Rank is open. Every hunt on the board starts over, and none of it will go easy.'];
       if (ready === 2) return ['You did it again. Every god and every Titan, even the angry ones.', 'There’s one thing left. Until now the gods held back. Not anymore.',
         'God Rank is open. Good luck. I mean that.'];
-      if (finaleReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank.', 'Congratulations, you completed the game.',
-        'Stay tuned for future updates. Thank you for playing.'];
+      if (typhonReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank. I thought that was the end of it.',
+        'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
+        'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
+      if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
+        'Congratulations, hunter. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
+      if (s.cleared[TYPHON_Q]) return ['They’re still singing about how you slew Typhon. The board still has work, and the smith says your gear can always be sharper.'];
+      if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
@@ -6242,7 +6347,7 @@ function enterPlace(id, from) {
     G.save.seenIntro = true; persist(); banner('Akros', 'Talk to Kleon the Herald, east of the fountain');
     showHint(touchMode ? 'Drag on the left to walk · tap Use to talk' : `${moveKeysHTML()} to walk · ${kbd(Input.bind.guard[0])} to talk and open doors`, 9);
   }
-  if (id === 'village' && (rankReady() || finaleReady())) banner('Akros', 'Kleon the Herald wants a word');
+  if (id === 'village' && heraldNews()) banner('Akros', 'Kleon the Herald wants a word');
   if (id === 'temple' && from !== 'hall' && from !== 'stairs') {
     if (!G.save.stairs && allGodsDone(0)) G.cutscene = { kind: 'stairs', t: 0 };   // every god is down: the floor opens
     else banner('Temple of the Twelve', 'Every god you hunt is gilded here');
@@ -6273,8 +6378,9 @@ function startInteract(t) {
   Sound.play('click');
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
-    const ready = n.id === 'herald' ? rankReady() : 0, fin = n.id === 'herald' && finaleReady();
-    openDialog(n.name, npcLines(n), ready ? () => unlockRank(ready) : fin ? finishGame : n.opens, n.sprite);
+    const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
+    const after = ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
@@ -6589,8 +6695,266 @@ function tutHunt(dt) {
 function tutForgeNote() {
   return tutOn() && G.save.tut === TUT.NEXT ? `<p class="tutnote">Parts from your hunts become gear here. Anything you have the parts and drachmae for has a <b>Craft</b> button. Better armor means monsters hurt less.</p>` : '';
 }
+/* ============================== TYPHON: art, arena and fight ============================== */
+// Seen from above like everything else: a horned giant rising out of a serpent's coils, bat wings spread behind him,
+// six serpent heads swaying on long necks from his shoulders. His rule: when the heads burst out of the ground he is
+// shielded until every one of them has been cut down, and then he reels.
+{
+  const pal = Object.assign({}, PAL, { a: '#2a1c18', A: '#160e0c', s: '#6b7a4a', S: '#45512f', T: '#2e3822', k: '#ff5a3c', m: '#8a2a16', M: '#5a180c',
+                                       d: '#2a1c18', c: '#55643c', C: '#3a4528', h: '#3a3036', H: '#1a1416', e: '#ff8a2b', E: '#ffd463' });
+  // horns, a burning mouth, a dark band at the waist where his body turns into the serpent
+  const look = { '0': '..h____________________h..', '1': '..Hh__________________hH..', '2': '...Hh________________hH...', '3': '....hH_____________Hh.....',
+                 '8': '__________seeees__________', '22': '_____dddddddddddddddd_____',
+                 '27': '.......CccccccccccC.......', '28': '........CccccccccC........' };
+  const body = rows => patchRows(rows, look).slice(0, 29);
+  SPR.typhon = [body(TITAN_BASE.bare), body(TITAN_BASE.bare), body(patchRows(TITAN_BASE.bare, TITAN_RAISE.bare))].map(r => frameOf(r, pal));
+  SPR.typhonhead = buildFrames(SPRITE_DATA.python, Object.assign({}, PAL, { g: '#8a9a5e', G: '#55643c', y: '#ff8a2b' }));
+}
+// He is a little bigger than the biggest Titan.
+BOSSES.typhon.hits *= 1.3;
+{ const cr = QUEST_BY_ID[rid('cronus_hunt', 2)], ty = QUEST_BY_ID[TYPHON_Q]; ty.reward = Math.round(cr.reward * 1.5 / 100) * 100; ty.stars = 10; }
+
+Object.assign(THEMES, {
+  etna: { floor: 'rock', base: '#2e1c18', shades: ['#281814', '#36221c', '#221410', '#3c2820'], crack: '#120604', pebble: '#4a2e26', lava: 64,
+          border: 'cliff', rockBase: '#0e0604', rocks: ['#2a1410', '#341a14', '#22100c', '#3e2018'], rockHi: '#6a2a1a', weather: 'embers' },
+});
+ARENAS.etna = { name: 'Heart of Etna', theme: 'etna', wt: 56, ht: 36,
+  obstacles: [['boulder', 11, 9], ['boulder', 44, 9], ['boulder', 11, 27], ['boulder', 44, 27], ['rock', 19, 17], ['rock', 36, 18], ['brazier', 22, 7], ['brazier', 33, 7], ['brazier', 22, 29], ['brazier', 33, 29]],
+  secret: { x: 41, y: 1, w: 3, h: 2, chest: [42, 1], hint: 'In the heart of Etna, the north wall on the right has cooled into a hollow. Walk into it.' } };
+
+/* ---- drawing ---- */
+function pxTri(x0, y0, x1, y1, x2, y2, col) {
+  const P = [[x0, y0], [x1, y1], [x2, y2]].map(([x, y]) => [Math.round(x), Math.round(y)]).sort((a, b) => a[1] - b[1]);
+  const at = (a, c, y) => a[1] === c[1] ? a[0] : a[0] + (c[0] - a[0]) * (y - a[1]) / (c[1] - a[1]);
+  ctx.fillStyle = col;
+  for (let y = P[0][1]; y <= P[2][1]; y++) {
+    const xa = at(P[0], P[2], y), xb = y < P[1][1] ? at(P[0], P[1], y) : at(P[1], P[2], y);
+    const l = Math.round(Math.min(xa, xb)), r = Math.round(Math.max(xa, xb)); ctx.fillRect(l, y, r - l + 1, 1);
+  }
+}
+const TY_LIFT = 7;                                           // he sits up on his coils
+function typhonTop(sy) { return sy - TY_LIFT - SPR.typhon[0].h + 1; }
+// The six heads: three on each shoulder, swaying. In buffer coordinates (the body is drawn at half size, then doubled).
+function typhonHeads(b, sx, top) {
+  const t = G.time, hot = b.state === 'breathAim' || b.state === 'breath' || b.state === 'volley' || b.state === 'summonHeads', out = [];
+  for (let i = 0; i < 6; i++) {
+    const s = i < 3 ? -1 : 1, k = i % 3, bx = sx + s * (6 + k * 2), by = top + 12 + k * 2;
+    const a = -Math.PI / 2 + s * (.5 + k * .52) + Math.sin(t * 1.6 + i * 1.3) * .14, L = 14 + k * 3 + (hot ? 4 : 0);
+    out.push({ s, bx, by, hx: bx + Math.cos(a) * L, hy: by + Math.sin(a) * L * .9, a });
+  }
+  return out;
+}
+function typhonHeadWorld(b, i) {
+  const h = typhonHeads(b, 55, typhonTop(100))[i];
+  return { x: b.x + (h.hx - 55) * TITAN_SCALE, y: clamp(b.y + (h.hy - 100) * TITAN_SCALE, IPX.minY + 6, IPX.maxY - 6) };
+}
+function typhonWings(b, sx, top) {
+  const gale = b.state === 'gale' || b.state === 'galeAim', flap = Math.sin(G.time * (gale ? 10 : 2.2)) * (gale ? 6 : 3);
+  for (const s of [-1, 1]) {
+    const rx = sx + s * 8, ry = top + 13;
+    const tips = [[s * 44, -24 + flap], [s * 50, -6 + flap * .7], [s * 45, 10 + flap * .4], [s * 30, 21 + flap * .2]];
+    for (let i = 0; i < tips.length - 1; i++) pxTri(rx, ry, rx + tips[i][0], ry + tips[i][1], rx + tips[i + 1][0], ry + tips[i + 1][1], i % 2 ? '#5a1c14' : '#6a2418');
+    for (let i = 0; i < tips.length - 1; i++) pxLine(rx + tips[i][0], ry + tips[i][1], rx + tips[i + 1][0], ry + tips[i + 1][1], OUTLINE);
+    for (const [dx, dy] of tips) pxLine(rx, ry, rx + dx, ry + dy, '#2a1c18');
+    pxLine(rx, ry - 1, rx + tips[0][0], ry + tips[0][1] - 1, OUTLINE);
+    ctx.fillStyle = '#e6dcc6'; ctx.fillRect(Math.round(rx + tips[0][0]), Math.round(ry + tips[0][1]) - 1, 1, 2);   // a claw on the wing tip
+  }
+}
+function typhonNecks(b, heads) {
+  const hot = b.state === 'breathAim' || b.state === 'breath' || b.state === 'volley';
+  for (const h of heads) {
+    const n = 7;
+    for (let j = 0; j <= n; j++) { const x = lerp(h.bx, h.hx, j / n), y = lerp(h.by, h.hy, j / n) - Math.sin(j / n * Math.PI) * 2; pxEllipse(x, y, 3, 2, OUTLINE); }
+    for (let j = 0; j <= n; j++) { const x = lerp(h.bx, h.hx, j / n), y = lerp(h.by, h.hy, j / n) - Math.sin(j / n * Math.PI) * 2; pxEllipse(x, y, 2, 1, j % 2 ? '#55643c' : '#6b7a4a'); }
+    pxEllipse(h.hx, h.hy, 4, 3, OUTLINE); pxEllipse(h.hx, h.hy, 3, 2, '#6b7a4a');
+    ctx.fillStyle = '#93a46a'; ctx.fillRect(Math.round(h.hx) - 1, Math.round(h.hy) - 2, 3, 1);
+    ctx.fillStyle = '#ff5a3c'; ctx.fillRect(Math.round(h.hx + h.s), Math.round(h.hy) - 1, 1, 1);
+    const mx = Math.round(h.hx + Math.cos(h.a) * 3), my = Math.round(h.hy + Math.sin(h.a) * 2);
+    ctx.fillStyle = hot ? (blink(12) ? '#ffd463' : '#ff8a2b') : '#2a1c18'; ctx.fillRect(mx - 1, my, 2, 1);
+  }
+}
+// The serpent half, coiled under him: a spiral tube of scales. It's split into arcs (the half-turns behind his body and
+// the ones in front of it); each arc is outlined and filled as one piece so it reads as a single snake, not a pile of beads.
+function typhonCoils(b, sx, sy, layer) {
+  const cx = sx, cy = sy - 4, n = 70, spin = (b.walkT || 0) * 1.4, arcs = []; let cur = null;
+  for (let i = 0; i < n; i++) {
+    const k = i / (n - 1), a = spin + k * Math.PI * 3.6 + 1.3, r = 29 - 22 * k;
+    if ((Math.sin(a) > 0) !== (layer === 'front')) { cur = null; continue; }
+    if (!cur) { cur = []; arcs.push(cur); }
+    cur.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * .42, i, rx: Math.round(1.5 + 4 * Math.min(1, k * 1.6)) });
+  }
+  const meanY = A => A.reduce((t, g) => t + g.y, 0) / A.length;
+  arcs.sort((A, B) => meanY(A) - meanY(B));
+  for (const arc of arcs) {
+    for (const g of arc) pxEllipse(g.x, g.y, g.rx + 1, Math.max(1, Math.round(g.rx * .7)) + 1, OUTLINE);
+    for (const g of arc) pxEllipse(g.x, g.y, g.rx, Math.max(1, Math.round(g.rx * .7)), '#6b7a4a');
+    for (const g of arc) if (g.rx >= 3) pxEllipse(g.x, g.y + 1, g.rx - 1, Math.max(1, Math.round(g.rx * .7) - 1), '#5a6a3e');
+    for (const g of arc) if (g.i % 4 === 0 && g.rx >= 3) { ctx.fillStyle = '#3a4528'; ctx.fillRect(Math.round(g.x), Math.round(g.y - g.rx * .7) + 1, 1, Math.max(1, Math.round(g.rx * 1.2))); }
+    for (const g of arc) { ctx.fillStyle = '#93a46a'; ctx.fillRect(Math.round(g.x), Math.round(g.y - g.rx * .7), 1, 1); }
+  }
+}
+function drawTyphonBody(b, sx, sy) {
+  const frames = SPR.typhon, fi = b.frame === 2 ? 2 : 0, top = typhonTop(sy);
+  const tint = b.flash > 0 ? 'white' : b.state === 'enrage' && blink(12) ? 'gold' : null, heads = typhonHeads(b, sx, top);
+  if (b.alpha < 1) ctx.globalAlpha = Math.max(0, b.alpha);
+  typhonWings(b, sx, top);
+  typhonCoils(b, sx, sy, 'back');
+  typhonNecks(b, heads);
+  ctx.globalAlpha = 1;
+  drawSpr(frames, fi, sx, sy - TY_LIFT, false, tint, b.alpha);
+  if (b.alpha < 1) ctx.globalAlpha = Math.max(0, b.alpha);
+  typhonCoils(b, sx, sy, 'front');
+  ctx.globalAlpha = 1;
+  if (b.ward) { ctx.globalAlpha = .55 + Math.sin(G.time * 6) * .2; pxRingFlat(sx, sy - 18, 30, '#ff8a2b', 2); pxRingFlat(sx, sy - 18, 32, '#ffd463', 3); ctx.globalAlpha = 1; }
+  if (b.vuln > 0) for (let i = 0; i < 5; i++) { const a = G.time * 4 + i * 1.26, x = Math.round(sx + Math.cos(a) * 16), y = Math.round(top - 4 + Math.sin(a) * 2); ctx.fillStyle = OUTLINE; ctx.fillRect(x - 1, y - 1, 3, 3); ctx.fillStyle = '#ebc152'; ctx.fillRect(x, y, 1, 1); }
+}
+// Telegraphs: the fire cone, the tail's rings, the wing beat.
+function drawTyphonTelegraph(b, S, sx, sy) {
+  if (b.state === 'breathAim') {
+    const locked = b.st < .3, col = locked ? '#ff5a3c' : blink(14) ? '#ffd463' : '#ff8a2b', R = 150;
+    ctx.globalAlpha = .2; for (let r = 14; r < R; r += 4) for (let k = -.55; k <= .55; k += 5 / r) { ctx.fillStyle = '#ff5a3c'; ctx.fillRect(Math.round(sx + Math.cos(b.aim + k) * r), Math.round(sy + Math.sin(b.aim + k) * r * .8), 2, 2); }
+    ctx.globalAlpha = 1;
+    for (const k of [-.55, .55]) pxLine(sx, sy, sx + Math.cos(b.aim + k) * R, sy + Math.sin(b.aim + k) * R * .8, col, 2);
+  }
+  if (b.state === 'coil') pxRingFlat(sx, sy, 10 + (1 - b.st / .85) * 30, blink(16) ? '#ff5a3c' : '#ebc152', 2);
+  if (b.state === 'galeAim') for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + G.time, r = 40 + (G.time * 60 % 20); arrowHead(sx + Math.cos(a) * r, sy - 10 + Math.sin(a) * r * .6, a, blink(10) ? '#ffffff' : '#9fb8ff'); }
+  if (b.state === 'summonHeads') pxRingFlat(sx, sy, 20 + Math.sin(G.time * 12) * 4, blink(10) ? '#ff8a2b' : '#ffd463', 2);
+}
+// On the floor: the wind of his wings while it blows.
+function drawTyphonWorld(S, b) {
+  if (!q.gale) return;
+  const [bx, by] = S(b.x, b.y), R = mulberry(5);
+  ctx.globalAlpha = .45; ctx.fillStyle = '#e6f2ff';
+  for (let i = 0; i < 48; i++) {
+    const a = R() * Math.PI * 2, d = (G.time * 150 + R() * 300) % 300 + 20, x = bx + Math.cos(a) * d, y = by + Math.sin(a) * d * .7;
+    for (let k = 0; k < 6; k++) ctx.fillRect(Math.round(x + Math.cos(a) * k), Math.round(y + Math.sin(a) * k * .7), 1, 1);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---- the fight ---- */
+TITAN_AI.typhon = function (b, dt, c) {
+  const p = q.player, P2 = b.phase >= 2, P3 = b.phase >= 3, D = pct => tD(b, pct);
+  if (titanCommon(b, dt, 'Typhon tears free', 'His serpent heads are waking up')) return;
+  // Below a quarter of his health he stops holding back: the mountain erupts around you for the rest of the fight.
+  if (b.phase === 2 && b.hp <= b.maxHp * .25) {
+    b.phase = 3; Music.level(3); b.state = 'enrage'; b.st = 1.6; b.invuln = 1.6; titanStill(b); b.headT = Math.min(b.headT ?? 0, 3);
+    banner('The hundred heads roar', 'Etna is erupting', true); Sound.play('roar'); addShake(7); G.flash = .2;
+    return;
+  }
+  b.flip = false; b.frame = null;
+  const heads = q.enemies.filter(e => e.type === 'typhon_head' && !e.dead);
+  b.ward = heads.length ? .3 : 0;
+  b.label = heads.length ? `${heads.length} serpent head${heads.length > 1 ? 's' : ''} left · shielded` : null;
+  if (P2) b.headT = (b.headT ?? 0) - dt;
+  if (P3) { b.eruptT = (b.eruptT ?? 2) - dt; if (b.eruptT <= 0 && !p.dead) { b.eruptT = rand(3.2, 4.2); typhonErupt(b, D); } }
+  switch (b.state) {
+    case 'idle':
+      titanWalk(b, c, 100, P2 ? 38 : 32, dt); b.st -= dt;
+      if (b.st <= 0 && !p.dead) {
+        if (P2 && b.headT <= 0 && !heads.length) { b.state = 'summonHeads'; b.st = 1.2; Sound.play('roar'); addShake(4); break; }
+        const opts = ['breath', 'volley', 'mountain', 'coil', 'breath'];
+        if (P2) opts.push('gale', 'mountain');
+        const pick = pickAttack(b, opts);
+        if (pick === 'breath') { b.state = 'breathAim'; b.st = P2 ? .8 : .95; Sound.play('telegraph'); }
+        else if (pick === 'volley') { b.state = 'volley'; b.st = .7; Sound.play('telegraph'); }
+        else if (pick === 'mountain') { b.state = 'heave'; b.st = 1; Sound.play('telegraph'); }
+        else if (pick === 'coil') { b.state = 'coil'; b.st = .85; Sound.play('telegraph'); }
+        else { b.state = 'galeAim'; b.st = .7; Sound.play('telegraph'); }
+      }
+      break;
+    case 'breathAim':                                          // the heads draw breath, then sweep fire across the cone
+      titanStill(b); b.st -= dt;
+      if (b.st > .3) b.aim = Math.atan2(c.dy, c.dx);
+      if (b.st <= 0) { b.state = 'breath'; b.st = b.breathMax = P3 ? 1.5 : 1.2; b.fireT = 0; Sound.play('roar'); }
+      break;
+    case 'breath': {
+      titanStill(b); b.st -= dt; b.fireT -= dt;
+      if (b.fireT <= 0) {
+        b.fireT = .055;
+        const k = 1 - b.st / b.breathMax, a = b.aim + Math.sin(k * Math.PI * 2) * .5;
+        spawnProj(b.x + Math.cos(a) * 18, b.y + Math.sin(a) * 12, a, 165, D(.11), 'typhonfire', 'enemy', { r: 4, life: 1.6, src: b });
+      }
+      if (b.st <= 0) { b.state = 'recover'; b.st = 1; }
+      break;
+    }
+    case 'volley':                                             // every head spits a fireball that hangs, then flies at you
+      titanStill(b); b.st -= dt;
+      if (b.st <= 0) {
+        const n = 6 + (P2 ? 2 : 0);
+        for (let i = 0; i < n; i++) { const h = typhonHeadWorld(b, i % 6); spawnProj(h.x, h.y, 0, 0, D(.13), 'typhonfire', 'enemy', { r: 4, life: 4, src: b, ghost: true, delay: .3 + i * .14, launch: 175 }); }
+        Sound.play('charm'); b.state = 'recover'; b.st = 1.2;
+      }
+      break;
+    case 'heave':                                              // he tears a piece off the mountain and throws it
+      titanStill(b); b.st -= dt; b.frame = 2;
+      if (Math.random() < .5) dust(b.x + rand(-24, 24), b.y + rand(-4, 4), 1);
+      if (b.st <= 0) {
+        addCircleHazard(p.x, p.y, 34, 1.3, D(.3), 'etna', { then: h => { addPuddle(h.x, h.y, 26, 6, 'lava', .025); addShake(5); burst(h.x, h.y - 6, 18, ['#ff8a2b', '#ffd463', '#5a3e32'], 120); } });
+        for (let i = 0; i < (P2 ? 6 : 4); i++) { const a = rand(0, Math.PI * 2), d = rand(50, 130); addCircleHazard(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * .8, 13, 1 + i * .1, D(.15), 'etna', { small: true }); }
+        Sound.play('roar'); addShake(3); b.state = 'recover'; b.st = 1.2;
+      }
+      break;
+    case 'coil':                                               // his tail lashes out in rings
+      titanStill(b); b.st -= dt;
+      if (b.st <= 0) { quakeRings(b, D, P2 ? [[36, 12, .25], [62, 16, .5], [90, 20, .75], [118, 24, 1]] : [[36, 12, .3], [62, 16, .55], [90, 20, .8]]); b.state = 'recover'; b.st = 1.1; }
+      break;
+    case 'galeAim': titanStill(b); b.st -= dt; b.frame = 2; if (b.st <= 0) { b.state = 'gale'; b.st = 2.6; q.gale = { t: 2.6, s: 72, a: 0 }; b.boltT = .2; Sound.play('roar'); } break;
+    case 'gale':                                               // his wings blow you away while lightning finds you
+      titanStill(b); b.st -= dt; b.boltT -= dt; b.frame = 2;
+      if (b.boltT <= 0 && !p.dead) { b.boltT = .5; addCircleHazard(p.x + rand(-16, 16), p.y + rand(-12, 12), 15, .75, D(.16), 'bolt'); }
+      if (b.st <= 0) { q.gale = null; b.state = 'recover'; b.st = .9; }
+      break;
+    case 'summonHeads': {                                      // serpent heads burst out of the ground; he is shielded until they're cut down
+      titanStill(b); b.st -= dt; b.frame = 2;
+      if (Math.random() < .4) burst(b.x + rand(-30, 30), b.y - rand(10, 60), 1, ['#ff8a2b', '#ffd463'], 60);
+      if (b.st <= 0) {
+        const n = P3 ? 4 : 3, off = rand(0, Math.PI * 2);
+        for (let i = 0; i < n; i++) {
+          const a = off + i / n * Math.PI * 2, r = rand(95, 130);
+          const e = makeEnemy('typhon_head', clamp(b.x + Math.cos(a) * r, IPX.minX + 16, IPX.maxX - 16), clamp(b.y + Math.sin(a) * r * .8, IPX.minY + 16, IPX.maxY - 16));
+          e.st = 1; e.onDeath = typhonHeadDown; e.typhon = b; q.enemies.push(e);
+          burst(e.x, e.y - 4, 16, ['#5a3e32', '#ff8a2b', '#ffd463'], 90); dust(e.x, e.y, 10);
+        }
+        banner('The serpent heads rise', 'Typhon is shielded until you cut them all down'); addShake(5); Sound.play('thud');
+        b.headT = 99; b.state = 'recover'; b.st = .8;
+      }
+      break;
+    }
+    case 'reel':                                               // every head is down: he's open
+      titanStill(b); b.st -= dt;
+      if (Math.random() < .3) sc.parts.push({ x: b.x + rand(-16, 16), y: b.y - rand(30, 70), vx: rand(-8, 8), vy: -16, g: 0, life: .6, max: .6, c: Math.random() < .5 ? '#8f8a82' : '#ff8a2b', s: 1 });
+      if (b.st <= 0) { b.state = 'idle'; b.st = .5; }
+      break;
+  }
+  bossContact(b, D(.1));
+};
+function typhonErupt(b, D) {
+  const p = q.player; Sound.play('thud'); addShake(3);
+  for (let i = 0; i < 5; i++) {
+    const a = rand(0, Math.PI * 2), d = i === 0 ? rand(0, 16) : rand(40, 150);
+    addCircleHazard(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * .8, 14, 1.1 + i * .12, D(.14), 'etna', { small: true, then: h => addPuddle(h.x, h.y, 14, 3.5, 'lava', .02) });
+  }
+}
+function typhonHeadDown(e) {
+  const b = e.typhon;
+  Sound.play('kill'); burst(e.x, e.y - 6, 18, ['#6b7a4a', '#ff8a2b', '#ffd463'], 110);
+  q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 18, life: .3, max: .3, c: '#ff8a2b' }); q.stats.kills++;
+  if (!b || b.dead || q.enemies.some(o => o.type === 'typhon_head' && !o.dead)) return;
+  b.ward = 0; b.label = null; b.state = 'reel'; b.st = 3; b.vx = b.vy = 0; setVuln(b, 1.35, 3); b.headT = b.phase >= 3 ? 14 : 20;
+  banner('Typhon reels', 'His heads are down. Hit him now'); Sound.play('break'); addShake(6); G.flash = .12;
+}
+// Runs every step of his fight: the wind from his wings pushes you away from him.
+function typhonTick(b, dt) {
+  const p = q.player, G2 = q.gale;
+  if (!G2) return;
+  G2.t -= dt; if (G2.t <= 0) { q.gale = null; return; }
+  G2.a = Math.atan2(p.y - b.y, p.x - b.x);
+  if (!p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(G2.a) * G2.s * dt, Math.sin(G2.a) * G2.s * dt);
+}
 /* ============================== RENDER =================================== */
 let vignette = null;
+let lowVignette = null;
 function makeVignette() {
   const c = mkCanvas(VIEW_W, VIEW_H), x = c.getContext('2d');
   const g = x.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * .35, VIEW_W / 2, VIEW_H / 2, VIEW_W * .62);
@@ -6662,13 +7026,19 @@ function drawHazards(S) {
     const [sx, sy] = S(h.x, h.y);
     if (h.type === 'circle' && !h.fired) {
       const k = clamp(h.t / h.delay, 0, 1), col = { bolt: '#57c2b0', lob: '#c8b8ff', geyser: '#5aa3c0', curse: '#3f9a8a', soulfire: '#7fe08a', witchfire: '#57c2b0', apple: '#e9c04f', shadow: '#7fe08a', sunfire: '#ffd463',
-        sky: '#9fb8ff', axis: '#e6f2ff', memory: '#c8b8ff', judgment: '#ffd463', stone: '#c9a46b' }[h.kind] || '#ff5a3c';
+        sky: '#9fb8ff', axis: '#e6f2ff', memory: '#c8b8ff', judgment: '#ffd463', stone: '#c9a46b', etna: '#ff8a2b' }[h.kind] || '#ff5a3c';
       if (h.kind === 'star') { const tw = blink(10) ? 3 : 2; ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - tw, sy - 6, tw * 2 + 1, 1); ctx.fillRect(sx, sy - 6 - tw, 1, tw * 2 + 1); pxRingFlat(sx, sy, 5, '#9fd0ff', 2); continue; }
       const fill = h.kind === 'lob' ? 'rgba(154,107,192,.25)' : h.kind === 'bolt' || h.kind === 'axis' ? 'rgba(87,194,176,.3)' : h.kind === 'sky' ? 'rgba(80,100,200,.3)' : h.kind === 'judgment' ? 'rgba(233,192,79,.3)' : 'rgba(217,73,59,.3)';
       pxEllipse(sx, sy, Math.round(h.r * k), Math.round(h.r * k * .6), fill);
       pxRingFlat(sx, sy, h.r, k > .75 && blink(20) ? '#ffffff' : col, 2);
       if ((h.kind === 'spear' || h.kind === 'arrow' || h.kind === 'sunfire') && k > .6) { const top = sy - 46 * (1 - (k - .6) / .4); pxLine(sx, top - 15, sx, top, h.kind === 'sunfire' ? '#ffd463' : '#8a5a34'); pxLine(sx, top, sx, top + 3, '#c7ccd1'); }
       if (h.kind === 'apple' && k > .5) { const top = sy - 50 * (1 - (k - .5) / .5); pxEllipse(sx, top, 2, 2, '#e9c04f'); }
+      if (h.kind === 'etna' && k > .4) {                     // a lump of the mountain, glowing, falling on the mark
+        const top = sy - 90 * (1 - (k - .4) / .6), r2 = h.small ? 3 : 7;
+        pxEllipse(sx, top, r2 + 1, r2 + 1, OUTLINE); pxEllipse(sx, top, r2, r2, '#5a3e32'); pxEllipse(sx - 1, top - 1, Math.max(1, r2 - 2), Math.max(1, r2 - 2), '#7a5440');
+        ctx.fillStyle = blink(10) ? '#ffd463' : '#ff8a2b'; ctx.fillRect(sx - 1, Math.round(top) + 1, 2, 1); ctx.fillRect(sx + 1, Math.round(top) - 2, 1, 2);
+        if (Math.random() < .5) sc.parts.push({ x: h.x + rand(-2, 2), y: h.y - (sy - top) - 4, vx: rand(-6, 6), vy: -20, g: 0, life: .3, max: .3, c: '#ff8a2b', s: 1 });
+      }
       if ((h.kind === 'sky' || h.kind === 'stone') && k > .45) { const top = sy - 70 * (1 - (k - .45) / .55), r2 = h.kind === 'sky' ? Math.min(5, h.r / 3) : 3; pxEllipse(sx, top, r2 + 1, r2 + 1, OUTLINE); pxEllipse(sx, top, r2, r2, h.kind === 'sky' ? '#9fb8ff' : '#8f846c'); if (h.kind === 'sky') { ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - 1, Math.round(top) - 1, 2, 2); pxLine(sx, top - r2 - 1, sx, top - r2 - 8, '#3c4a78', 2); } }
       if (h.kind === 'judgment' && k > .55) { const top = sy - 50 * (1 - (k - .55) / .45); pxLine(sx, top - 14, sx, top, '#f3e9d4'); pxLine(sx - 2, top - 11, sx + 2, top - 11, '#e9c04f'); }
       if (h.kind === 'lob' && h.from) { const [fx, fy] = S(h.from.x, h.from.y), x = lerp(fx, sx, k), y = lerp(fy, sy, k) - Math.sin(k * Math.PI) * 30; pxEllipse(x, y - 4, 2, 3, '#140d0b'); pxEllipse(x, y - 4, 1, 2, PUDDLE[h.puddle].hi); }
@@ -6717,7 +7087,8 @@ function renderQuest() {
   if (q.cover) { const r = q.coverRect, [sx, sy] = S(r.x, r.y); ctx.globalAlpha = inCover(q.player.x, q.player.y) ? .28 : 1; ctx.drawImage(q.cover, sx, sy); ctx.globalAlpha = 1; }
   for (const e of q.enemies) if (e.boss && e.beam && e.state === 'beam') drawBeam(e, S);
   for (const f of q.fx) {
-    if (f.t === 'after') { const [sx, sy] = S(f.x, f.y); drawSpr(f.frames || f.spr, 0, sx, sy, f.flip, f.gold ? 'gold' : 'white', f.life / f.max * .5, f.scale || 1); }
+    if (f.t === 'pop') { const [sx, sy] = S(f.x, f.y), k = 1 - f.life / f.max; drawSpr(f.spr, 0, sx, sy, f.flip, 'white', (1 - k) * .9, (f.scale || 1) * (1 + k * .45)); }
+    else if (f.t === 'after') { const [sx, sy] = S(f.x, f.y); drawSpr(f.frames || f.spr, 0, sx, sy, f.flip, f.gold ? 'gold' : 'white', f.life / f.max * .5, f.scale || 1); }
     else if (f.t === 'slash') { const [sx, sy] = S(f.x, f.y); for (let i = -3; i <= 3; i++) { const a = f.a + i * .22; ctx.fillStyle = f.col || '#f0e4cc'; ctx.fillRect(Math.round(sx + Math.cos(a) * 10), Math.round(sy + Math.sin(a) * 10), 1, 1); } }
     else if (f.t === 'bolt') { const [sx, sy] = S(f.x, f.y); jagged(sx, -4, sx, sy, '#ffffff', 5, 10, f.seed); jagged(sx + 1, -4, sx + 1, sy, f.col || '#ffd463', 5, 10, f.seed); pxEllipse(sx, sy, 6, 3, '#fff6d8'); }
     else if (f.t === 'laneBolt') { const [ax, ay] = S(f.x0, f.y0), [bx, by] = S(f.x1, f.y1); jagged(ax, ay, bx, by, '#ffffff', 5, 12, f.seed); jagged(ax, ay + 1, bx, by + 1, f.col || '#ffd463', 5, 12, f.seed + 2); }
@@ -6741,7 +7112,9 @@ function renderQuest() {
   if (!vignette) vignette = makeVignette();
   ctx.drawImage(vignette, 0, 0);
   const p = q.player;
-  if (!p.dead && p.hp / p.st.maxHp < .3) { ctx.fillStyle = `rgba(160,20,10,${.12 + Math.sin(G.time * 6) * .06})`; ctx.fillRect(0, 0, VIEW_W, 3); ctx.fillRect(0, VIEW_H - 3, VIEW_W, 3); ctx.fillRect(0, 0, 3, VIEW_H); ctx.fillRect(VIEW_W - 3, 0, 3, VIEW_H); }
+  if (!p.dead && p.hp / p.st.maxHp < .3) {                   // low health: the edges of the screen pulse red with your heartbeat
+    if (!lowVignette) { const c = mkCanvas(VIEW_W, VIEW_H), x = c.getContext('2d'), g = x.createRadialGradient(VIEW_W / 2, VIEW_H / 2, VIEW_H * .3, VIEW_W / 2, VIEW_H / 2, VIEW_W * .6); g.addColorStop(0, 'rgba(150,10,0,0)'); g.addColorStop(1, 'rgba(150,10,0,.6)'); x.fillStyle = g; x.fillRect(0, 0, VIEW_W, VIEW_H); lowVignette = c; }
+    const beat = Math.max(0, 1 - ((q.beatT ?? 0) > .6 ? (.9 - q.beatT) / .3 : 1)); ctx.globalAlpha = .45 + beat * .4; ctx.drawImage(lowVignette, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = `rgba(160,20,10,${.12 + Math.sin(G.time * 6) * .06})`; ctx.fillRect(0, 0, VIEW_W, 3); ctx.fillRect(0, VIEW_H - 3, VIEW_W, 3); ctx.fillRect(0, 0, 3, VIEW_H); ctx.fillRect(VIEW_W - 3, 0, 3, VIEW_H); }
   if (q.phase === 'defeat') { ctx.fillStyle = `rgba(30,0,0,${clamp((2.6 - q.endT) / 2.6, 0, .6)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
   if (G.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${clamp(G.flash * 3, 0, .45)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
 }
@@ -6985,7 +7358,7 @@ function drawPickup(k, S) {
   if (r >= 3 && Math.floor(G.time * 4 + k.x) % 3 === 0) { ctx.fillStyle = r === 4 ? '#ebc152' : '#5b9bd5'; ctx.fillRect(sx + 4, sy - 13 + bob, 1, 3); ctx.fillRect(sx + 3, sy - 12 + bob, 3, 1); }
 }
 const PROJ_COL = { heart: ['#f2a7c0', '#c76d8e'], water: ['#5aa3c0', '#e6f2ff'], grape: ['#7a4f9c', '#4a2f63'], soul: ['#7fe08a', '#2f8a4a'], note: ['#7fa548', '#e9c04f'],
-  witchfire: ['#57c2b0', '#2c5684'], dream: ['#c8b8ff', '#6b5a8a'], eyebolt: ['#5b9bd5', '#ffffff'], sunbolt: ['#ffd463', '#ffffff'], blade: ['#d5dbe5', '#8f98a8'], plume: ['#3f9a8a', '#e9c04f'] };
+  witchfire: ['#57c2b0', '#2c5684'], dream: ['#c8b8ff', '#6b5a8a'], eyebolt: ['#5b9bd5', '#ffffff'], sunbolt: ['#ffd463', '#ffffff'], blade: ['#d5dbe5', '#8f98a8'], plume: ['#3f9a8a', '#e9c04f'], typhonfire: ['#ff8a2b', '#ffd463'] };
 function drawProj(pr, S) {
   const [sx, sy] = S(pr.x, pr.y), a = Math.atan2(pr.vy, pr.vx), ca = Math.cos(a), sa = Math.sin(a);
   ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(sx - 1, sy, 3, 1);
@@ -7014,7 +7387,7 @@ function drawProj(pr, S) {
     case 'crescent': for (let k = -1.2; k <= 1.2; k += .1) { const px = sx + Math.cos(a + k) * 7 - ca * 4, py = y + Math.sin(a + k) * 7 - sa * 4; ctx.fillStyle = Math.abs(k) > .9 ? '#ffd463' : '#ffffff'; ctx.fillRect(Math.round(px), Math.round(py), 1, 1); } break;
     case 'piercer': pxLine(sx - ca * 10, y - sa * 10, sx, y, '#ffffff'); pxLine(sx - ca * 10, y - sa * 10 + 1, sx, y + 1, '#ffd463'); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(sx + ca), Math.round(y + sa), 2, 2); break;
     default: {
-      const [c1, c2] = PROJ_COL[pr.kind] || ['#ff5a3c', '#ffd463'], big = pr.kind === 'soul' || pr.kind === 'dream' || pr.kind === 'witchfire';
+      const [c1, c2] = PROJ_COL[pr.kind] || ['#ff5a3c', '#ffd463'], big = pr.kind === 'soul' || pr.kind === 'dream' || pr.kind === 'witchfire' || pr.kind === 'typhonfire';
       pxEllipse(sx, y, big ? 3 : 2, big ? 3 : 2, '#140d0b'); pxEllipse(sx, y, big ? 2 : 1, big ? 2 : 1, Math.floor(pr.t * 12) % 2 ? c1 : c2);
       if (big && Math.random() < .3) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: 0, vy: -10, g: 0, life: .25, max: .25, c: c1, s: 1 });
     }
@@ -7073,7 +7446,7 @@ function renderVillage() {
   for (const o of V.props) list.push({ y: o.y + o.h / 2, draw: () => { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); } });
   for (const n of V.npcs) list.push({ y: n.y, draw: () => {
     const [sx, sy] = S(n.x, n.y); drawSpr(n.sprite, 0, sx, sy, n.flip);
-    if (n.id === 'herald' && (rankReady() || finaleReady())) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
+    if (n.id === 'herald' && heraldNews()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
   list.push({ y: V.player.y, draw: () => drawPlayer(V.player, S) });
   list.sort((a, b) => a.y - b.y);
@@ -7340,7 +7713,7 @@ const TITAN_SCALE = 2, TBUF = mkCanvas(110, 120), TBX = TBUF.getContext('2d'); T
 function drawTitan(b, X, Y) {
   if (b.hidden) return;
   const main = ctx; ctx = TBX; TBX.clearRect(0, 0, TBUF.width, TBUF.height);
-  try { drawTitanBody(b, 55, 100); } finally { ctx = main; }
+  try { (b.type === 'typhon' ? drawTyphonBody : drawTitanBody)(b, 55, 100); } finally { ctx = main; }
   ctx.drawImage(TBUF, Math.round(X - 55 * TITAN_SCALE), Math.round(Y - 100 * TITAN_SCALE), TBUF.width * TITAN_SCALE, TBUF.height * TITAN_SCALE);
 }
 function drawTitanBody(b, sx, sy) {
@@ -7356,6 +7729,7 @@ function drawTitanBody(b, sx, sy) {
 // Telegraphs that belong only to the Titans.
 function drawTitanTelegraph(b, S, sx, sy) {
   const st = b.state;
+  if (b.type === 'typhon') { drawTyphonTelegraph(b, S, sx, sy); return; }
   if (st === 'throwAim') { const len = raycast(b.x, b.y, b.aim, 500, 14), col = b.st < b.lockAt ? '#ff5a3c' : blink(16) ? '#9fb8ff' : '#3c4a78'; for (const o of [-6, 0, 6]) pxLine(sx - Math.sin(b.aim) * o, sy + Math.cos(b.aim) * o, sx + Math.cos(b.aim) * len - Math.sin(b.aim) * o, sy + Math.sin(b.aim) * len + Math.cos(b.aim) * o, col, o ? 3 : 0); }
   if (st === 'stomp' || st === 'quake') pxRingFlat(sx, sy, 8 + (1 - b.st / .9) * 26, blink(16) ? '#ff5a3c' : '#ebc152', 2);
   if (st === 'beamsAim' && b.beams) {
@@ -7376,6 +7750,7 @@ function drawTitanTelegraph(b, S, sx, sy) {
 // Things on the arena floor during a Titan fight: the river's current, Hyperion's light and shadows, Mnemosyne's echoes.
 function drawTitanWorld(S) {
   const b = q.boss; if (!b || b.dead) return;
+  if (b.type === 'typhon') drawTyphonWorld(S, b);
   if (b.type === 'oceanus' && q.current) {
     const C = q.current, ca = Math.cos(C.a), sa = Math.sin(C.a), R = mulberry(3), sp = C.s * 2.2;
     ctx.globalAlpha = .4; ctx.fillStyle = '#bfe8f0';
@@ -7544,7 +7919,7 @@ function slotCard(n, s) {
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
     const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = [...GODS, ...SIDE_GODS].filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new hunter here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -7588,7 +7963,7 @@ function renderHub() {
 }
 function questCard(qd) {
   const s = G.save, un = isUnlocked(qd), done = s.cleared[qd.id];
-  const status = !un ? `<span class="chip">Locked</span>` : done ? `<span class="chip done">Cleared ×${done}</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
+  const status = !un ? `<span class="chip">Locked</span>` : done ? `<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
   return `<button type="button" class="qcard ${qd.id === G.selQuest ? 'sel' : ''} ${un ? '' : 'locked'}" data-quest="${qd.id}" data-rank="${qd.rank}">
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
@@ -7614,23 +7989,26 @@ function renderBoard() {
   }
   if (hidden) html += `<div class="qlock">${hidden} more god${hidden > 1 ? 's' : ''} further up the mountain</div>`;
   // The Titans: only once the stairway under the temple has opened.
-  const titans = mine.filter(qd => qd.titan);
+  const titans = mine.filter(qd => qd.titan && !qd.final), fin = mine.find(qd => qd.final);
   if (s.stairs && titans.some(qd => isUnlocked(qd))) {
     html += `<p class="rank titans">Beneath the temple</p>`;
     let lockShown = false;
     for (const qd of titans) { if (isUnlocked(qd) || s.cleared[qd.id]) html += questCard(qd); else if (!lockShown) { lockShown = true; html += `<div class="qlock">${esc(godName(qd.god))} · beat the Titan before to unlock</div>`; } }
   } else if (s.stairs && r > 0) html += `<div class="qlock">The Titans · hunt every god on this rank first</div>`;
+  // Typhon: God Rank only, once every god and Titan on it has fallen
+  if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
+  else if (fin && s.stairs) html += `<div class="qlock">Something older than the Titans is stirring · hunt every god and Titan on God Rank first</div>`;
   const qd = QUEST_BY_ID[G.selQuest], un = isUnlocked(qd);
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
   const needs = qd.requires.filter(x => !s.cleared[x]).map(x => QUEST_BY_ID[x].name);
-  const needText = needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
+  const needText = qd.final ? 'every god and Titan on God Rank' : needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
   const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
   return `${tabs}<div class="board"><div class="qlist">${html}</div>
     <div class="qdetail">
-      <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
+      <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.final ? 'The last hunt' : qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
       <p>${esc(qd.desc)}</p>
-      <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
+      <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
       <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">Depart</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
@@ -7640,6 +8018,15 @@ function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.i
 function recipeChips(rec) {
   const parts = Object.entries(rec.items).map(([id, n]) => { const have = G.save.inv[id] || 0; return `<span class="chip ${have >= n ? 'ok' : 'short'}"><img alt="" src="${icon(id)}">${esc(ITEMS[id].name)} <b>${have}/${n}</b></span>`; }).join('');
   return parts + `<span class="chip ${G.save.money >= rec.cost ? 'ok' : 'short'}"><b>${fmtMoney(rec.cost)}</b> dr</span>`;
+}
+// The smith's refinement: what the next + costs, or a note that it's maxed out.
+const refineTag = lv => lv ? ` <span class="refine-tag">+${lv}</span>` : '';
+function refineRow(kind, id) {
+  const lv = refineLevel(id), what = kind === 'weapon' ? 'damage' : kind === 'shield' ? 'guard' : 'defense for every piece';
+  if (lv >= REFINE_MAX) return `<div class="refine"><div class="refine-top"><b>Fully refined</b><span>+${Math.round(REFINE_GAIN[kind] * 100 * lv)}% ${what}</span></div></div>`;
+  const rec = refineRecipe(kind, id, lv);
+  return `<div class="refine"><div class="refine-top"><b>Refine to +${lv + 1}</b><span>+${Math.round(REFINE_GAIN[kind] * 100)}% ${what} each step, up to +${REFINE_MAX}</span></div>
+    <div class="chips">${recipeChips(rec)}</div><button class="btn ghost small" type="button" data-refine="${kind}:${id}" ${canCraft(rec) ? '' : 'disabled'}>Refine</button></div>`;
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
@@ -7655,19 +8042,19 @@ function renderArmory() {
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
   if (tab === 'weapons') {
-    const cur = WEAPONS[s.weapon];
+    const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
       const owned = s.weapons.includes(id);
       if (!forgeShows(w.rank, owned, w.recipe && canCraft(w.recipe))) continue;
       if (!gearVisible(w.wt, owned, w.titan)) { if (!w.titan || G.save.stairs) hidden++; continue; }
-      const eq = s.weapon === id, K = KINDS[w.kind];
+      const eq = s.weapon === id, K = KINDS[w.kind], lv = owned ? refineLevel(id) : 0, dmg = Math.round(w.dmg * (1 + REFINE_GAIN.weapon * lv));
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
-        <div class="stats"><span>Damage <b>${w.dmg}</b>${eq ? '' : delta(w.dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
+        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
         <p class="desc">${esc(w.desc)} ${esc(K.blurb)}</p>
         ${w.ability ? `<div class="ability"><b>${esc(ABILITIES[w.ability].name)}</b> · ${esc(ABILITIES[w.ability].desc)} (${Math.round(ABILITIES[w.ability].cd * (w.cdMul || 1) * 10) / 10}s cooldown)</div>` : ''}
-        ${owned ? '' : `<div class="chips">${recipeChips(w.recipe)}</div>`}
+        ${owned ? refineRow('weapon', id) : `<div class="chips">${recipeChips(w.recipe)}</div>`}
         <div class="actions">${act}</div></article>`;
     }
   } else if (tab === 'armor') {
@@ -7677,12 +8064,13 @@ function renderArmory() {
       const craftAny = SLOTS.some(sl => { const P = PIECES[sid + ':' + sl]; return P.recipe && !s.pieces.includes(P.id) && canCraft(P.recipe); });
       if (!forgeShows(set.rank, ownedAny, craftAny)) continue;
       if (!gearVisible(set.ch, ownedAny, set.titan)) { if (!set.titan || G.save.stairs) hidden++; continue; }
+      const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
-        const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl];
+        const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
         const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="piece:${P.id}">Equip</button>` : `<button class="btn small" type="button" data-craft="piece:${P.id}" ${canCraft(P.recipe) ? '' : 'disabled'}>Craft</button>`;
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
-          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${P.def}</b>${eq ? '' : delta(P.def, cur.def)}</span>${P.hp || cur.hp ? `<span>Health <b>${P.hp}</b>${eq ? '' : delta(P.hp, cur.hp)}</span>` : ''}</div>
+          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}</div>
           ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
@@ -7690,10 +8078,11 @@ function renderArmory() {
       if (set.two) lines.push(`<span class="${n >= 2 ? 'on' : 'off'}">2 pieces: ${esc(Object.entries(set.two).map(([k, v]) => PERK_TEXT[k](v)).join(', '))}</span>`);
       if (set.four) lines.push(`<span class="${n >= 4 ? 'on' : 'off'}">4 pieces: ${esc(Object.entries(set.four).map(([k, v]) => PERK_TEXT[k](v)).join(', '))}</span>`);
       cards += `<article class="gear ${n === 4 ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(sid + ':chest')}"><div><b>${esc(set.name)} set</b><span>${set.god ? 'Made from ' + esc(godName(set.god)) : 'Armor'} · ${set.def} defense${set.hp ? ' · +' + set.hp + ' health' : ''} for all 4${rankTag(set.rank)}</span></div></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(sid + ':chest')}"><div><b>${esc(set.name)} set${refineTag(rl)}</b><span>${set.god ? 'Made from ' + esc(godName(set.god)) : 'Armor'} · ${set.def} defense${set.hp ? ' · +' + set.hp + ' health' : ''} for all 4${rankTag(set.rank)}</span></div></div>
         <p class="desc">${esc(set.desc)}</p>
         ${lines.length ? `<div class="setbonus">${lines.join('')}</div>` : ''}
         ${rows}
+        ${ownedAny && !set.start ? refineRow('armor', sid) : ''}
         ${allOwned && n < 4 ? `<div class="actions"><button class="btn small" type="button" data-wearset="${sid}">Equip the whole set</button></div>` : ''}</article>`;
     }
   } else {
@@ -7703,15 +8092,15 @@ function renderArmory() {
       const owned = s.shields.includes(id);
       if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
       if (!gearVisible(sh.ch, owned, sh.titan)) { if (!sh.titan || G.save.stairs) hidden++; continue; }
-      const eq = s.shield === id;
+      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(sh.block * 100)}%</b></span><span>Guard <b>${sh.meter * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
+        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
-        ${owned ? '' : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
+        ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
         <div class="actions">${act}</div></article>`;
     }
   }
@@ -7731,7 +8120,7 @@ function renderStash() {
     for (const sh of Object.values(SHIELDS)) if (sh.recipe.items[id]) out.push(sh.name);
     return out;
   };
-  return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || 'nothing yet')}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
+  return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || (it.trophy ? 'nothing. It’s a trophy from the last hunt' : 'nothing yet'))}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
 }
 // Market: potions have one fixed price per rank; it steps up at High and God Rank, the same way forge costs do.
 const POTION_PRICE = { health: 150, strength: 200, speed: 175 };
@@ -7748,7 +8137,7 @@ function partCost(id) {
 }
 function shopParts() {
   const s = G.save, set = new Set();
-  for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id)) set.add(id);   // your current rank's parts
+  for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id) && !partItem(id).trophy) set.add(id);   // your current rank's parts (trophies aren't for sale)
   return [...set].sort((a, b) => (rankOf(a) - rankOf(b)) || (partItem(a).rarity - partItem(b).rarity) || partItem(a).name.localeCompare(partItem(b).name));
 }
 function renderParts() {
@@ -7815,7 +8204,7 @@ function renderOptions() {
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
     </div>
-    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button></div></div>
+    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
   </div>`;
 }
 function encodeSave(s) { return 'OH1.' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
@@ -7886,6 +8275,14 @@ $('scrHub').addEventListener('click', ev => {
     else { const P = PIECES[id]; s.equip[P.slot] = P.set; toast(`Equipped ${P.name}`); }
     Sound.play('click'); persist(); renderHub(); return;
   }
+  if (t.dataset.refine) {
+    const [k, id] = t.dataset.refine.split(/:(.*)/s), def = refineDef(k, id), lv = refineLevel(id);
+    if (!def || lv >= REFINE_MAX) return;
+    const rec = refineRecipe(k, id, lv); if (!canCraft(rec)) return;
+    payRecipe(rec); s.refine[id] = lv + 1;
+    Sound.play('craft'); Sound.play('perfect'); persist(); renderHub(); toast(`${def.name}${k === 'armor' ? ' set' : ''} is now +${lv + 1}`);
+    return;
+  }
   if (t.dataset.craft) {
     const [k, id] = t.dataset.craft.split(/:(.*)/s);
     const def = k === 'weapon' ? WEAPONS[id] : k === 'shield' ? SHIELDS[id] : PIECES[id];
@@ -7909,6 +8306,7 @@ $('scrHub').addEventListener('click', ev => {
   if (o === 'sound') { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); Sound.play('click'); renderHub(); }
   else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
+  else if (o === 'credits') { showCredits(() => { enterVillage('road'); openPanel('options'); }); }
   else if (o === 'title') { persist(true); G.mode = 'slots'; q = null; show('scrSlots'); renderSlots(); }
   else if (o === 'export') { $('importBox').hidden = true; $('codeBox').hidden = false; $('saveCode').value = encodeSave(G.save); }
   else if (o === 'copy') {
@@ -7930,7 +8328,7 @@ $('scrHub').addEventListener('click', ev => {
 function finishQuest(win) {
   const s = G.save, d = q.def;
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
-  const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady();
+  const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady(), typhonWas = typhonReady();
   G.lastQuest = d.id; CG.gameplay(false); tutEnd(win);
   if (win) for (const k of q.pickups) if (k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
   for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
@@ -7953,7 +8351,8 @@ function finishQuest(win) {
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Twelve.');
   if (win && !readyWas && rankReady()) notes.push('Every god and Titan on this rank has fallen. Kleon the Herald wants a word.');
-  if (win && !finaleWas && finaleReady()) notes.push('You’ve hunted everything there is, even in God Rank. Kleon the Herald wants a word.');
+  if (win && !typhonWas && typhonReady()) notes.push('Every god and Titan on God Rank has fallen. The ground is shaking under Mount Etna. Kleon the Herald wants a word.');
+  if (win && !finaleWas && finaleReady()) notes.push('You slew Typhon. Kleon the Herald wants a word.');
   if (unlocked.length <= 4) unlocked.forEach(u => notes.push(`New quest on the board: ${u.name}`));
   else notes.push(`${unlocked.length} new quests on the board.`);
   $('resUnlock').innerHTML = notes.map(n => `<div class="unlock">${esc(n)}</div>`).join('');
@@ -8021,7 +8420,66 @@ document.addEventListener('fullscreenchange', () => {
 $('btnPlay').onclick = () => { Sound.init(); Sound.play('click'); playNow(); };
 $('btnSaves').onclick = () => { Sound.init(); Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('btnSlotsBack').onclick = () => { Sound.play('click'); G.mode = 'title'; show('scrTitle'); };
-$('btnResContinue').onclick = () => { Sound.play('click'); CG.midgameAd(() => fadeTo(() => enterVillage('gate'))); };
+$('btnResContinue').onclick = () => {
+  Sound.play('click');
+  // Typhon just fell for the first time: roll the credits before going home
+  if (G.lastQuest === TYPHON_Q && G.save.cleared[TYPHON_Q] && !G.save.legend) { fadeTo(() => showCredits(() => enterVillage('gate'))); return; }
+  CG.midgameAd(() => fadeTo(() => enterVillage('gate')));
+};
+/* ---- the end credits: after Typhon falls for the first time, and from your home after that ---- */
+let creditsAfter = null, creditsRaf = 0;
+function showCredits(after) {
+  creditsAfter = after; G.mode = 'credits'; G.paused = false; CG.gameplay(false);
+  show('scrCredits'); Music.play('credits');
+  const s = G.save, dot = ' · ', names = ids => ids.map(id => esc(godName(id))).join(dot);
+  const hunts = QUESTS.filter(qd => s.cleared[qd.id]).length, caches = Object.keys(s.chests).length;
+  $('creditsRoll').innerHTML = `<h1 class="logo">Olympus<br>Hunt</h1>
+    <p class="lede">You slew Typhon, the father of monsters. Olympus is safe, thanks to you.</p>
+    <h3>Gods hunted</h3><p>${names([...GODS, ...SIDE_GODS].map(g => g.id))}</p>
+    <h3>Titans hunted</h3><p>${names(TITANS.map(t => t.id))}</p>
+    <h3>The father of monsters</h3><p>Typhon</p>
+    <h3>Your hunt</h3><p>${fmtPlay(s.playtime)} played${dot}${hunts} hunts cleared${dot}${caches} hidden caches found${dot}${fmtMoney(s.money)} drachmae in the bank</p>
+    <h3>Game design and ideas</h3><p>The creator of Olympus Hunt</p>
+    <h3>Code and pixel art</h3><p>Built with Claude</p>
+    <h3>Music</h3><p>A tiny NES-style band, made out of code</p>
+    <h3>Playtesters</h3><p>Friends who found the bugs first</p>
+    <h3>And you</h3><p>for hunting all the way to the end</p>
+    <p class="thanks">Thank you for playing</p>`;
+  $('btnCreditsDone').hidden = true; $('btnCreditsSkip').hidden = false;
+  const roll = $('creditsRoll'), view = roll.parentElement, art = $('creditsArt'), x = art.getContext('2d'); x.imageSmoothingEnabled = false;
+  // a parade of everything you hunted walks across the top
+  const parade = [...[...GODS, ...SIDE_GODS].map(g => ({ spr: BOSSES[g.id].sprite, s: 2 })), ...TITANS.map(t => ({ spr: t.id, s: 1 })), { spr: 'typhon', s: 1 }];
+  let px = 0; const widths = parade.map(p => SPR[p.spr][0].w * p.s + 12), total = widths.reduce((a, b) => a + b, 0);
+  let off = 0, last = performance.now();
+  cancelAnimationFrame(creditsRaf);
+  const step = now => {
+    if (G.mode !== 'credits') return;
+    const dt = Math.min(.1, (now - last) / 1000); last = now; off += dt * 34; px += dt * 22;
+    const H = view.clientHeight, end = roll.offsetHeight + H;
+    roll.style.transform = `translateY(${Math.round(H - Math.min(off, end - H * .45))}px)`;
+    if (off >= end - H * .45) { $('btnCreditsDone').hidden = false; $('btnCreditsSkip').hidden = true; }
+    x.fillStyle = '#0b0706'; x.fillRect(0, 0, art.width, art.height);
+    x.fillStyle = '#2a1e19'; x.fillRect(0, art.height - 6, art.width, 6);
+    let cx = art.width - (px % total);
+    for (let rep = 0; rep < 2; rep++) parade.forEach((p, i) => {
+      const fr = SPR[p.spr], f = fr[Math.floor(now / 160 + i) % Math.min(2, fr.length)], w = f.w * p.s, h = f.h * p.s;
+      const xx = Math.round(cx - total * rep), bob = Math.floor(now / 160 + i) % 2;
+      if (xx > -w && xx < art.width) x.drawImage(f.n, xx, art.height - 6 - h + bob, w, h);
+      cx += widths[i];
+    });
+    creditsRaf = requestAnimationFrame(step);
+  };
+  creditsRaf = requestAnimationFrame(step);
+}
+function endCredits() {
+  if (G.mode !== 'credits') return;
+  cancelAnimationFrame(creditsRaf); G.mode = 'slots';
+  if (G.save && !G.save.legend) { G.save.legend = true; persist(true); }
+  const f = creditsAfter || (() => enterVillage('gate')); creditsAfter = null;
+  fadeTo(f);
+}
+$('btnCreditsSkip').onclick = () => { Sound.play('click'); endCredits(); };
+$('btnCreditsDone').onclick = () => { Sound.play('click'); endCredits(); };
 $('btnResAgain').onclick = () => { Sound.play('click'); const id = G.lastQuest; if (id && isUnlocked(QUEST_BY_ID[id])) CG.midgameAd(() => fadeTo(() => startQuest(id))); };
 
 /* ============================== EVENTS =================================== */
@@ -8031,6 +8489,7 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;            // leave browser and ChromeOS shortcuts alone
   if (e.code === 'KeyM' && !e.repeat) { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); if (G.mode === 'quest' || G.mode === 'village') toast(Settings.data.sound ? 'Sound on' : 'Sound off'); }
   if (e.code === 'KeyF' && !e.repeat) { e.preventDefault(); toggleFullscreen(); return; }
+  if (G.mode === 'credits') { if ((e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); endCredits(); } return; }
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closePanel(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
