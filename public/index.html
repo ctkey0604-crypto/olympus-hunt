@@ -498,7 +498,6 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
     </div>
     <div id="pause" hidden>
       <div class="pause-card">
-        <p class="eyebrow" id="pauseWhere"></p>
         <h2>Paused</h2>
         <div class="stack" id="pauseMain">
           <button class="btn" id="btnResume" type="button">Resume</button>
@@ -8473,7 +8472,6 @@ function setPaused(v) {
   if (v && q && (q.phase === 'victory' || q.phase === 'defeat')) return;
   G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
-  $('pauseWhere').textContent = inQuest && q ? (q.def.rank ? RANKS[q.def.rank].name + ' · ' : '') + q.def.name : V ? V.name : '';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
   const road = !!(inQuest && q && q.def.prologue);
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
