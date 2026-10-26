@@ -572,7 +572,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
     <h3>Parts carried home</h3>
     <div class="res-loot" id="resLoot"></div>
     <p class="muted" id="resNote" style="margin:0"></p>
-    <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Hunt again</button></div>
+    <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
   </div>
 </section>
 
@@ -1574,8 +1574,8 @@ const TYPHON_Q = 'gr_typhon_hunt';
 {
   // his parts only drop on God Rank; the plain form only exists so the God Rank icon has something to be drawn from
   const add = (id, it) => { ITEMS[id] = { ...it, rank: 0, trophy: true }; ITEMS[rid(id, 2)] = { ...it, name: it.name + RANKS[2].item, rank: 2, base: id, trophy: true }; };
-  add('typhon_scale', { name: 'Typhon Scale', rarity: 3, icon: ['plate', '#6b7a4a', '#2e3822', '#ff8a2b'], desc: 'A scale from the father of monsters. Still warm, and harder than bronze.' });
-  add('storm_heart',  { name: 'Storm Heart', rarity: 4, icon: ['orb', '#ff5a3c', '#7f2618', '#ffd463'], desc: 'Typhon’s heart. It still beats like far-off thunder. A trophy for the last hunt.' });
+  add('typhon_scale', { name: 'Typhon Scale', rarity: 3, icon: ['plate', '#6b7a4a', '#2e3822', '#ff8a2b'], desc: 'A scale from the father of monsters. Still warm, and harder than bronze. The smith can forge it.' });
+  add('storm_heart',  { name: 'Storm Heart', rarity: 4, icon: ['orb', '#ff5a3c', '#7f2618', '#ffd463'], desc: 'Typhon’s heart. It still beats like far-off thunder. Only the smith would dare work it into gear.' });
 }
 Object.assign(ENEMIES, {
   typhon_head: { name: 'Serpent Head', role: 'shooter', cls: 'medium', sprite: 'typhonhead', r: 8, scale: 2, speed: 0, hpM: 3.2, dmgP: .07, kbRes: 0,
@@ -1589,6 +1589,17 @@ QUESTS.push({ id: TYPHON_Q, base: 'typhon_hunt', god: 'typhon', titan: true, fin
   requires: [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].map(id => rid(id, 2)),
   desc: 'Typhon broke out from under Mount Etna to finish what the Titans started. His serpent heads spit fire and he hurls the mountain itself. When the heads rise out of the ground he is shielded until you cut them all down.',
   waves: [{ earthborn: 8, colossus: 1, sky_harpy: 3 }, { river_serpent: 2, lion: 2, obsidian_guard: 2 }] });
+
+// The end-game gear, God Rank only, made from what Typhon drops. Ids have no gr_ prefix because there's no lower-rank form.
+Object.assign(ABILITIES, { hydra: { name: 'Hydra Breath', cd: 8, desc: 'Fire-serpents burst from the spear and breathe flame in a wide cone. Each flame burns through two enemies.' } });
+TITAN_WEAPON_COLORS.typhon_fang = ['#ff8a2b', '#6b7a4a', '#2e3822'];
+WEAPONS.typhon_fang = { titan: true, name: 'Fang of Typhon', kind: 'spear', wt: 17 + RANKS[2].off, rank: 2, ability: 'hydra', cdMul: .8,
+  recipe: { items: { gr_typhon_scale: 4, gr_storm_heart: 1, gr_primordial_token: 2 }, cost: 90000 }, desc: 'A fang from the father of monsters, still dripping fire.' };
+ARMOR_SETS.typhonic = { titan: true, name: 'Typhonic', ch: 17 + RANKS[2].off, rank: 2, god: 'typhon',
+  def: ARMOR_SETS.gr_timeless.def + 12, hp: ARMOR_SETS.gr_timeless.hp + 10, extra: 'horns',
+  colors: { head: ['#6b7a4a', '#45512f', '#ff8a2b'], chest: ['#6b7a4a', '#45512f', '#ffd463'], legs: ['#45512f', '#2e3822'], feet: ['#2e3822', '#1a1416'] },
+  recipe: { items: { gr_typhon_scale: 6, gr_storm_heart: 1, gr_primordial_token: 2 }, cost: 100000 },
+  two: { dmg: .15 }, four: { burn: 1, godBane: .2, lastStand: 1 }, desc: 'Scales of the father of monsters. Fire runs in the seams.' };
 /* ============================== FINISH DATA ============================== */
 // Numbers worked out from the tables above, for every rank.
 for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w.kind].dmgM);
@@ -3308,12 +3319,12 @@ function paintGateway(x, g, B, R, road) {
     dot(sx, py, '#7f7765', gp + 3, 4);
     for (let px = sx - ((py >> 2) % 2) * 3; px < sx + gp + 3; px += 6) { const a = Math.max(px, sx), b = Math.min(px + 5, sx + gp + 3); if (b > a) dot(a, py, ['#b5ab98', '#a69c88', '#c2b8a4', '#ada390'][(R() * 4) | 0], b - a, 3); }
   }
-  if (road) paintGatePassage(x, R, x0, x1, y0, H);
+  if (road) paintGatePassage(x, R, x0, x1, y0, H, H, 'closed');
 }
 // Akros' gate, the same from inside the town and from the road outside: the street's cobbles run into the gap and give
-// way to the dirt road, the cut ends of the wall show on both sides, and the two gate doors stand open against them.
-// Nothing runs across the opening, so it reads as a way through, not more wall.
-function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot) {
+// way to the dirt road, and the cut ends of the wall show on both sides. doors: 'closed' (inside Akros: the two doors
+// shut across the middle, seen from above), 'open' (standing open against the sides) or 'none' (drawn live elsewhere).
+function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot, doors = 'open') {
   const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
   const pick = a => a[(R() * a.length) | 0], len = yBot - yTop;
   for (let py = yTop; py < yBot; py++) for (let px = x0; px < x1; px++) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
@@ -3331,6 +3342,16 @@ function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot) {
     dot(lit ? fx + 3 : fx - 1, yTop, '#3a362e', 1, wallEnd - yTop);
   }
   dot(x1 - 7, yTop, 'rgba(0,0,0,.16)', 3, wallEnd - yTop);
+  if (doors === 'closed') {                                  // the doors shut, seen from above: their top edges across the gap
+    const by = yTop + Math.round((wallEnd - yTop) * .42), w = x1 - x0 - 6;
+    dot(x0 + 3, by + 6, 'rgba(0,0,0,.28)', w, 3);
+    dot(x0 + 3, by - 1, '#1a1210', w, 7); dot(x0 + 4, by, '#6b4528', w - 2, 5); dot(x0 + 4, by, '#8a5a34', w - 2, 1);
+    for (let px = x0 + 8; px < x1 - 5; px += 5) dot(px, by + 1, '#5a3a22', 1, 4);
+    dot(Math.round((x0 + x1) / 2) - 1, by - 1, '#1a1210', 2, 7);
+    for (const px of [x0 + 9, x0 + 17, x1 - 11, x1 - 19]) { dot(px, by + 2, '#3a2416', 2, 2); dot(px, by + 2, '#9aa0a6'); }
+    return;
+  }
+  if (doors !== 'open') return;
   // the gate doors, swung open flat against each side at the town end
   const dh = Math.min(22, len - 8);
   for (const [dx, d] of [[x0 + 5, 1], [x1 - 8, -1]]) {
@@ -4044,6 +4065,11 @@ function useAbility(p, mv) {
     addShake(4); Sound.play('thud');
     [[0, 30], [.22, 52], [.44, 74]].forEach(([d, r]) => q.pspikes.push({ x: p.x, y: p.y, t: -d - .01, dmg: W * .9, ring: true, r, hit: false }));
   } else if (id === 'flurry') { p.flurryT = .5; p.flurryAcc = 0; p.face = aim(); }
+  else if (id === 'hydra') {                                 // Fang of Typhon: fire-serpents breathe a wide cone of flame
+    const a = aim(); p.face = a;
+    for (let i = 0; i < 9; i++) { const b = a + (i - 4) * .12; spawnProj(p.x + Math.cos(b) * 6, p.y + Math.sin(b) * 6, b, 220 + (i % 3) * 35, W * 1.1, 'typhonfire', 'player', { r: 4, life: .8, pierce: 2 }); }
+    G.hitstop = Math.max(G.hitstop, .04); addShake(2); Sound.play('ability');
+  }
   else if (id === 'piercer') {
     const a = aim(); p.face = a;
     spawnProj(p.x + Math.cos(a) * 6, p.y + Math.sin(a) * 6, a, 340, W * 3, 'piercer', 'player', { r: 3, life: 1.1, pierce: 99 });
@@ -6314,7 +6340,6 @@ function buildVillage() {
     spots.push(door);
   }
   for (const o of props) if (o.kind === 'board') spots.push({ id: 'board', name: 'the notice board', kind: 'board', opens: 'quests', x: o.x, y: o.y + 8 });
-  spots.push({ id: 'gate', name: 'the gate', kind: 'gate', opens: 'quests', x: tc(20) - 8, y: IPX.maxY - 4 });   // the road out of town: pick a hunt
   return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
@@ -6524,7 +6549,7 @@ function paintApproach(x, R) {
   for (let py = 0; py < top; py += 6) for (let px = -(R() * 8 | 0); px < W;) { const w = 7 + (R() * 7 | 0); dot(px, py, pick(V.stone), w - 1, 5); dot(px, py, V.stoneHi, w - 1, 1); px += w; }
   dot(0, top - 3, '#3a362e', W, 3); dot(0, top, 'rgba(0,0,0,.22)', W, 4);           // the wall's foot and its shadow on the grass
   // the gateway: cobbles through the wall, shaded inner faces, a sill, two posts
-  paintGatePassage(x, R, gx0, gx1, 0, top + 4, top);
+  paintGatePassage(x, R, gx0, gx1, 0, top + 4, top, 'none');   // just the opening: Akros' one gate is the one you see from inside
   // red roof tiles peeking over the wall
   for (const [rx, rw] of [[70, 90], [430, 110]]) { dot(rx, 0, '#6b2c12', rw, 10); for (let px = rx; px < rx + rw; px += 6) dot(px, 2, '#b5532a', 5, 6); dot(rx, 9, '#8f3f1d', rw, 1); }
 }
@@ -6539,7 +6564,7 @@ function startPrologue() {
   const p = q.player; p.x = (ROAD_GATE.x0 + ROAD_GATE.x1) / 2; p.y = IPX.maxY - 26; p.face = -Math.PI / 2;
   G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   q.pro = { step: 'move', x0: p.x, y0: p.y, moved: 0, swings: 0, atk: 0, partsT: 0, partsShown: false, potions: q.stats.potions || 0, shown: '' };
-  banner('The Road to Akros', 'Bandits have been seen near the village gate');
+  banner('The Road to Akros', 'Bandits are robbing travelers outside the walls');
 }
 function proHint(key, html, pulse) {
   const P = q.pro;
@@ -6582,8 +6607,12 @@ function proTick(dt) {
     P.partsT -= dt; proHint('parts', touchMode ? 'Monsters drop <b>parts</b>. The smith in Akros forges them into gear' : 'Monsters drop <b>parts</b>. Take them home and the smith forges them into armor and weapons', null);
     if (P.partsT <= 0) proClear();
   }
+  // walking up to the way in before the road is clear: a reminder, and the opening stays blocked
+  const early = q.phase !== 'walkout' && q.phase !== 'leaving' && !teaching && p.y < IPX.minY + 16 && p.x > ROAD_GATE.x0 - 12 && p.x < ROAD_GATE.x1 + 12;
+  if (early) { proHint('early', 'Slay the bandits before you head into <b>Akros</b>', null); P.early = true; }
+  else if (P.early) { P.early = false; if (P.shown === 'early') proClear(); }
   if (q.phase === 'walkout') {
-    proHint('gate', 'The road is clear. Walk through the gate into <b>Akros</b>', null);
+    proHint('gate', 'The road is clear. Head on into <b>Akros</b>', null);
     if (p.y < IPX.minY - 6 && p.x > ROAD_GATE.x0 && p.x < ROAD_GATE.x1) proFinish(false);
   }
 }
@@ -6598,7 +6627,7 @@ function proWaveBanner(i) {
 function proWalkout() {
   q.phase = 'walkout'; Sound.play('win'); q.hazards = [];
   for (let ty = 0; ty < INNER.y0; ty++) for (let tx = 19; tx < 22; tx++) q.world.grid[ty * q.world.wt + tx] = 0;   // the gate opens
-  banner('The road is clear', 'Akros is through the gate');
+  banner('The road is clear', 'Akros is just ahead');
   q.pro.step = 'walkout'; proClear();
 }
 function proFinish(skipped) {
@@ -7613,7 +7642,7 @@ function updateVillageHud() {
   tickHint();
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
-    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' ? 'Open' : t.kind === 'gate' ? 'Head out through' : 'Enter';
+    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' ? 'Open' : 'Enter';
     const html = `${touchMode ? '' : kbd(Input.bind.guard[0]) + ' '}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
     pr.hidden = false;
@@ -8378,7 +8407,7 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('btnResAgain').textContent = win ? 'Hunt again' : 'Try again';
+  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again';
   G.mode = 'results'; q = null;
   show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
@@ -8456,10 +8485,10 @@ function showCredits(after) {
     <h3>The father of monsters</h3><p>Typhon</p>
     <h3>Your hunt</h3><p>${fmtPlay(s.playtime)} played${dot}${hunts} hunts cleared${dot}${caches} hidden caches found${dot}${fmtMoney(s.money)} drachmae in the bank</p>
     <h3>Created by</h3><p>Connor Key</p>
-    <h3>Creative</h3><p>Ben Wattkins</p>
+    <h3>Creative</h3><p>Ben Watkins</p>
     <h3>Code and pixel art</h3><p>Built with Claude</p>
     <h3>Music</h3><p>A tiny NES-style band, made out of code</p>
-    <h3>Playtesters</h3><p>Nick Miler${dot}Caleb Key${dot}and more</p>
+    <h3>Playtesters</h3><p>Nick Miller${dot}Caleb Key${dot}and more</p>
     <h3>And you</h3><p>for hunting all the way to the end</p>
     <p class="thanks">Thank you for playing</p>`;
   $('btnCreditsDone').hidden = true; $('btnCreditsSkip').hidden = false;
