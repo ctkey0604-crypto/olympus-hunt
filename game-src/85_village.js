@@ -114,7 +114,6 @@ function buildVillage() {
     spots.push(door);
   }
   for (const o of props) if (o.kind === 'board') spots.push({ id: 'board', name: 'the notice board', kind: 'board', opens: 'quests', x: o.x, y: o.y + 8 });
-  spots.push({ id: 'gate', name: 'the gate', kind: 'gate', opens: 'quests', x: tc(20) - 8, y: IPX.maxY - 4 });   // the road out of town: pick a hunt
   return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }

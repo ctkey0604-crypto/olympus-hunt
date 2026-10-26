@@ -349,6 +349,11 @@ function useAbility(p, mv) {
     addShake(4); Sound.play('thud');
     [[0, 30], [.22, 52], [.44, 74]].forEach(([d, r]) => q.pspikes.push({ x: p.x, y: p.y, t: -d - .01, dmg: W * .9, ring: true, r, hit: false }));
   } else if (id === 'flurry') { p.flurryT = .5; p.flurryAcc = 0; p.face = aim(); }
+  else if (id === 'hydra') {                                 // Fang of Typhon: fire-serpents breathe a wide cone of flame
+    const a = aim(); p.face = a;
+    for (let i = 0; i < 9; i++) { const b = a + (i - 4) * .12; spawnProj(p.x + Math.cos(b) * 6, p.y + Math.sin(b) * 6, b, 220 + (i % 3) * 35, W * 1.1, 'typhonfire', 'player', { r: 4, life: .8, pierce: 2 }); }
+    G.hitstop = Math.max(G.hitstop, .04); addShake(2); Sound.play('ability');
+  }
   else if (id === 'piercer') {
     const a = aim(); p.face = a;
     spawnProj(p.x + Math.cos(a) * 6, p.y + Math.sin(a) * 6, a, 340, W * 3, 'piercer', 'player', { r: 3, life: 1.1, pierce: 99 });

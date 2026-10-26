@@ -332,12 +332,12 @@ function paintGateway(x, g, B, R, road) {
     dot(sx, py, '#7f7765', gp + 3, 4);
     for (let px = sx - ((py >> 2) % 2) * 3; px < sx + gp + 3; px += 6) { const a = Math.max(px, sx), b = Math.min(px + 5, sx + gp + 3); if (b > a) dot(a, py, ['#b5ab98', '#a69c88', '#c2b8a4', '#ada390'][(R() * 4) | 0], b - a, 3); }
   }
-  if (road) paintGatePassage(x, R, x0, x1, y0, H);
+  if (road) paintGatePassage(x, R, x0, x1, y0, H, H, 'closed');
 }
 // Akros' gate, the same from inside the town and from the road outside: the street's cobbles run into the gap and give
-// way to the dirt road, the cut ends of the wall show on both sides, and the two gate doors stand open against them.
-// Nothing runs across the opening, so it reads as a way through, not more wall.
-function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot) {
+// way to the dirt road, and the cut ends of the wall show on both sides. doors: 'closed' (inside Akros: the two doors
+// shut across the middle, seen from above), 'open' (standing open against the sides) or 'none' (drawn live elsewhere).
+function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot, doors = 'open') {
   const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
   const pick = a => a[(R() * a.length) | 0], len = yBot - yTop;
   for (let py = yTop; py < yBot; py++) for (let px = x0; px < x1; px++) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
@@ -355,6 +355,16 @@ function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot) {
     dot(lit ? fx + 3 : fx - 1, yTop, '#3a362e', 1, wallEnd - yTop);
   }
   dot(x1 - 7, yTop, 'rgba(0,0,0,.16)', 3, wallEnd - yTop);
+  if (doors === 'closed') {                                  // the doors shut, seen from above: their top edges across the gap
+    const by = yTop + Math.round((wallEnd - yTop) * .42), w = x1 - x0 - 6;
+    dot(x0 + 3, by + 6, 'rgba(0,0,0,.28)', w, 3);
+    dot(x0 + 3, by - 1, '#1a1210', w, 7); dot(x0 + 4, by, '#6b4528', w - 2, 5); dot(x0 + 4, by, '#8a5a34', w - 2, 1);
+    for (let px = x0 + 8; px < x1 - 5; px += 5) dot(px, by + 1, '#5a3a22', 1, 4);
+    dot(Math.round((x0 + x1) / 2) - 1, by - 1, '#1a1210', 2, 7);
+    for (const px of [x0 + 9, x0 + 17, x1 - 11, x1 - 19]) { dot(px, by + 2, '#3a2416', 2, 2); dot(px, by + 2, '#9aa0a6'); }
+    return;
+  }
+  if (doors !== 'open') return;
   // the gate doors, swung open flat against each side at the town end
   const dh = Math.min(22, len - 8);
   for (const [dx, d] of [[x0 + 5, 1], [x1 - 8, -1]]) {

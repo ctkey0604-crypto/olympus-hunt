@@ -30,7 +30,7 @@ function paintApproach(x, R) {
   for (let py = 0; py < top; py += 6) for (let px = -(R() * 8 | 0); px < W;) { const w = 7 + (R() * 7 | 0); dot(px, py, pick(V.stone), w - 1, 5); dot(px, py, V.stoneHi, w - 1, 1); px += w; }
   dot(0, top - 3, '#3a362e', W, 3); dot(0, top, 'rgba(0,0,0,.22)', W, 4);           // the wall's foot and its shadow on the grass
   // the gateway: cobbles through the wall, shaded inner faces, a sill, two posts
-  paintGatePassage(x, R, gx0, gx1, 0, top + 4, top);
+  paintGatePassage(x, R, gx0, gx1, 0, top + 4, top, 'none');   // just the opening: Akros' one gate is the one you see from inside
   // red roof tiles peeking over the wall
   for (const [rx, rw] of [[70, 90], [430, 110]]) { dot(rx, 0, '#6b2c12', rw, 10); for (let px = rx; px < rx + rw; px += 6) dot(px, 2, '#b5532a', 5, 6); dot(rx, 9, '#8f3f1d', rw, 1); }
 }
@@ -45,7 +45,7 @@ function startPrologue() {
   const p = q.player; p.x = (ROAD_GATE.x0 + ROAD_GATE.x1) / 2; p.y = IPX.maxY - 26; p.face = -Math.PI / 2;
   G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   q.pro = { step: 'move', x0: p.x, y0: p.y, moved: 0, swings: 0, atk: 0, partsT: 0, partsShown: false, potions: q.stats.potions || 0, shown: '' };
-  banner('The Road to Akros', 'Bandits have been seen near the village gate');
+  banner('The Road to Akros', 'Bandits are robbing travelers outside the walls');
 }
 function proHint(key, html, pulse) {
   const P = q.pro;
@@ -88,8 +88,12 @@ function proTick(dt) {
     P.partsT -= dt; proHint('parts', touchMode ? 'Monsters drop <b>parts</b>. The smith in Akros forges them into gear' : 'Monsters drop <b>parts</b>. Take them home and the smith forges them into armor and weapons', null);
     if (P.partsT <= 0) proClear();
   }
+  // walking up to the way in before the road is clear: a reminder, and the opening stays blocked
+  const early = q.phase !== 'walkout' && q.phase !== 'leaving' && !teaching && p.y < IPX.minY + 16 && p.x > ROAD_GATE.x0 - 12 && p.x < ROAD_GATE.x1 + 12;
+  if (early) { proHint('early', 'Slay the bandits before you head into <b>Akros</b>', null); P.early = true; }
+  else if (P.early) { P.early = false; if (P.shown === 'early') proClear(); }
   if (q.phase === 'walkout') {
-    proHint('gate', 'The road is clear. Walk through the gate into <b>Akros</b>', null);
+    proHint('gate', 'The road is clear. Head on into <b>Akros</b>', null);
     if (p.y < IPX.minY - 6 && p.x > ROAD_GATE.x0 && p.x < ROAD_GATE.x1) proFinish(false);
   }
 }
@@ -104,7 +108,7 @@ function proWaveBanner(i) {
 function proWalkout() {
   q.phase = 'walkout'; Sound.play('win'); q.hazards = [];
   for (let ty = 0; ty < INNER.y0; ty++) for (let tx = 19; tx < 22; tx++) q.world.grid[ty * q.world.wt + tx] = 0;   // the gate opens
-  banner('The road is clear', 'Akros is through the gate');
+  banner('The road is clear', 'Akros is just ahead');
   q.pro.step = 'walkout'; proClear();
 }
 function proFinish(skipped) {

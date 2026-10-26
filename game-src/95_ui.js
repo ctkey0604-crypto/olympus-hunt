@@ -570,7 +570,7 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('btnResAgain').textContent = win ? 'Hunt again' : 'Try again';
+  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again';
   G.mode = 'results'; q = null;
   show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
@@ -648,10 +648,10 @@ function showCredits(after) {
     <h3>The father of monsters</h3><p>Typhon</p>
     <h3>Your hunt</h3><p>${fmtPlay(s.playtime)} played${dot}${hunts} hunts cleared${dot}${caches} hidden caches found${dot}${fmtMoney(s.money)} drachmae in the bank</p>
     <h3>Created by</h3><p>Connor Key</p>
-    <h3>Creative</h3><p>Ben Wattkins</p>
+    <h3>Creative</h3><p>Ben Watkins</p>
     <h3>Code and pixel art</h3><p>Built with Claude</p>
     <h3>Music</h3><p>A tiny NES-style band, made out of code</p>
-    <h3>Playtesters</h3><p>Nick Miler${dot}Caleb Key${dot}and more</p>
+    <h3>Playtesters</h3><p>Nick Miller${dot}Caleb Key${dot}and more</p>
     <h3>And you</h3><p>for hunting all the way to the end</p>
     <p class="thanks">Thank you for playing</p>`;
   $('btnCreditsDone').hidden = true; $('btnCreditsSkip').hidden = false;
