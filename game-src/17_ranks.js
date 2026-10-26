@@ -54,7 +54,7 @@ function scalePerks(perks, r, ch) {
     for (const id of baseItems) { const it = ITEMS[id]; ITEMS[rid(id, r)] = { ...it, name: it.name + R.item, rank: r, base: id }; }
     for (const [id, w] of baseWeapons) {
       if (!w.recipe) continue;                                          // the starting sword has no rank forms
-      WEAPONS[rid(id, r)] = { ...w, name: R.gear + w.name, wt: w.wt + R.off, ability: w.ability || KIND_SKILL[w.kind], pierce: w.pierce ? w.pierce + (r === 2 ? 1 : 0) : w.pierce,
+      WEAPONS[rid(id, r)] = { ...w, name: R.gear + w.name, wt: w.wt + R.off, ability: w.ability || KIND_SKILL[w.kind], pierce: w.pierce,
                               rank: r, base: id, recipe: rankRecipe(w.recipe, r), cdMul: 1 - .1 * r };
     }
     for (const [sid, set] of baseSets) {

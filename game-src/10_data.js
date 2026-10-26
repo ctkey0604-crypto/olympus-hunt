@@ -170,7 +170,7 @@ const KINDS = {
 };
 
 const ABILITIES = {
-  winged_step: { name: 'Winged Step',     cd: 4, desc: 'Dash forward untouchable, cutting through everything in your path.' },
+  winged_step: { name: 'Winged Step',     cd: 4, desc: 'Dash forward, cutting through everything in your path.' },
   stampede:    { name: 'Stampede Slam',   cd: 6, desc: 'Slam the ground. Stuns and hurls back everything nearby.' },
   volley:      { name: 'Moon Volley',     cd: 6, desc: 'Loose seven arrows in a wide fan.' },
   frenzy:      { name: 'Frenzy',          cd: 9, desc: 'Attack 60% faster for 5 seconds.' },
@@ -269,7 +269,7 @@ const PERK_TEXT = {
   killFrenzy: () => 'Every kill makes you attack faster for 3 seconds', reflectPerfect: () => 'Perfect blocks send projectiles back',
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
-  phase: () => 'Dashes stay untouchable 50% longer', lightning: v => `Every ${v}th hit calls down lightning`,
+  phase: () => 'Dashes carry you 15% further', lightning: v => `Every ${v}th hit calls down lightning`,
 };
 
 // Shields: only with one-handed weapons (sword, spear). Hold Guard to block from the front.
@@ -597,7 +597,7 @@ const QUESTS = [
     desc: 'Dionysus’ panthers pounce twice in a row. A drunken centaur guards the path and charges through anything.',
     waves: [{ panther: 2, satyr: 4 }, { panther: 3, goat: 4 }, { centaur: 1, panther: 2, satyr: 4 }] },
   { id: 'dionysus_hunt', god: 'dionysus', tier: 3, boss: 'dionysus', name: 'The Wild Feast', arena: 'theater', requires: ['vineyard_riot', 'panther_path'],
-    desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Dash through it, or keep calm and steer the other way.',
+    desc: 'Dionysus spreads madness. If his purple wave hits you, your controls flip for a few seconds. Dash away from it, or keep calm and steer the other way.',
     waves: [{ satyr: 6, maenad: 2 }, { panther: 1, maenad: 1, satyr: 4 }] },
   { id: 'pan_hunt', god: 'pan', tier: 3.5, side: true, boss: 'pan', name: 'The Panic of Pan', arena: 'meadow', requires: ['dionysus_hunt'],
     desc: 'The wild god Pan sends stampedes of goats across the meadow. Watch the marked lanes and step out of them.',

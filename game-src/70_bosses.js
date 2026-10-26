@@ -286,7 +286,7 @@ const BOSS_AI = {
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st > b.lockAt) { b.aim = Math.atan2(c.dy, c.dx); const len = raycast(b.x, b.y, b.aim, 300, 4); b.dashEnd = { x: b.x + Math.cos(b.aim) * len, y: b.y + Math.sin(b.aim) * len }; }
         if (b.st <= 0) {
-          spawnProj(b.x, b.y, b.aim, 270, D(22), 'thunder', 'enemy', { r: 4, life: 2, src: b, split: P2 ? { n: 6, kind: 'zspark', speed: 110, dmg: D(10) } : { n: 4, kind: 'zspark', speed: 95, dmg: D(9) } });
+          spawnProj(b.x, b.y, b.aim, 270, D(22), 'thunder', 'enemy', { r: 5.5, life: 2, src: b, split: P2 ? { n: 6, kind: 'zspark', speed: 110, dmg: D(10) } : { n: 4, kind: 'zspark', speed: 95, dmg: D(9) } });
           Sound.play('zap'); b.count--;
           if (b.count > 0) { b.st = .55; b.lockAt = .3; } else { b.state = 'recover'; b.st = .7; }
         }
@@ -352,6 +352,17 @@ const BOSS_AI = {
           b.state = 'recover'; b.st = .9;
         }
         break;
+      case 'tossAim': {                                           // takes aim along the marked line, then throws the weapon
+        b.vx = b.vy = 0; b.st -= dt; const R = P.range || 230;
+        if (b.st > b.lockAt) { b.aim = Math.atan2(c.dy, c.dx); b.dashEnd = { x: b.x + Math.cos(b.aim) * R, y: b.y + Math.sin(b.aim) * R }; }
+        if (b.st <= 0) {
+          spawnProj(b.x + Math.cos(b.aim) * 6, b.y - 6, b.aim, P.speed, dm(P.dmg), 'godweapon', 'enemy', { r: 5, life: 6, src: b, ghost: true, boom: { t: R / P.speed, src: b } });
+          q.projs[q.projs.length - 1].weapon = GOD_HELD[b.type] || ['spear', '#c7ccd1'];
+          b.tossOut = true; b.dashEnd = null; b.state = 'tossWait'; b.st = 3.5; Sound.play('swing'); Sound.play('heavy');
+        }
+        break;
+      }
+      case 'tossWait': b.vx = b.vy = 0; b.st -= dt; if (!b.tossOut || b.st <= 0) { b.tossOut = false; b.state = 'recover'; b.st = .45; } break;   // empty-handed until it comes back
       case 'leapAim':
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st > .3) { b.tx = clamp(p.x, IPX.minX + 10, IPX.maxX - 10); b.ty = clamp(p.y, IPX.minY + 10, IPX.maxY - 10); }
@@ -487,6 +498,7 @@ function startBossAttack(b, c) {
     case 'fan': b.state = 'fan'; b.st = .55; b.count = (P.volleys || 1) + (b.rage3 ? 1 : 0); break;
     case 'rain': b.state = 'rain'; b.st = .45; break;
     case 'leap': b.state = 'leapAim'; b.st = .65; Sound.play('telegraph'); break;
+    case 'toss': b.state = 'tossAim'; b.st = .75; b.lockAt = .25; Sound.play('telegraph'); break;
     case 'confuse': b.state = 'confuse'; b.st = .6; break;
     case 'puddles': b.state = 'puddles'; b.st = .5; break;
     case 'charm': b.state = 'charmAim'; b.st = .75; Sound.play('telegraph'); break;
@@ -523,3 +535,8 @@ function updateBoss(b, dt) {
 }
 
 
+
+// Gods who carry a weapon also throw it: it flies out along the marked line and comes back to their hand,
+// and they stand empty-handed (open to hits) until it's back.
+for (const id of ['ares', 'poseidon', 'hera', 'hephaestus', 'hades', 'dionysus', 'nemesis'])
+  if (BOSSES[id] && BOSSES[id].attacks) BOSSES[id].attacks.push({ id: 'toss', w: 2, p1: { dmg: .15, speed: 230, range: 230 }, p2: { speed: 285 } });

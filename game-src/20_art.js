@@ -162,11 +162,15 @@ const GOD_BASE = [
   '...ccCcccc...', '..cccCccccc..', '..cCCCCCCCc..', '....ss.ss....', '....ff.ff....',
 ];
 const GOD_WALK = { from: 17, rows: ['...ss...ss...', '...ff...ff...'] };
+// Male gods: short hair (none hanging past the ears), broad shoulders, and a knee-length tunic with legs showing.
+const GOD_MALE = { 5: '...AsssksS...', 6: '...AsssssS...', 7: '.....SssS....', 9: '.ssccCccccss.', 10: '.ss.cCcccc.ss',
+                   13: '...ccCcccc...', 14: '...cCCCCcc...', 15: '....ss.ss....', 16: '....ss.ss....' };
+const MALE_GODS = new Set(['dionysus', 'apollo', 'ares', 'hades', 'hypnos']);
 const GOD_LOOKS = {
   artemis:    { pal: { a: '#3a2416', A: '#24160c', c: '#5e7d35', C: '#3e5a22', d: '#d5dbe5', f: '#8a5a34' },
                 rows: { 0: '..aa.........', 1: '.aaaaaaa.....', 3: '__dddddddd___', 15: '...ccCcccc...', 16: '...cCCCCc....', 17: '....ss.ss....' } },
   dionysus:   { pal: { a: '#2e211b', A: '#1a1210', c: '#7a4f9c', C: '#4a2f63', d: '#e9c04f', f: '#5a3a22', g: '#4e8a3a', G: '#2f5a22', p: '#9a6bc0' },
-                rows: { 0: '...g.g.g.....', 1: '...gGgGgg....', 2: '..ggaaaagg...', 3: '.pgaaaaaaag..' } },
+                rows: { 0: '...g.g.g.....', 1: '...gGgGgg....', 2: '..ggaaaagg...', 3: '.pgaaaaaaag..', 6: '...Asaaaa....', 7: '....aaaa.....' } },
   aphrodite:  { pal: { a: '#e9c04f', A: '#a8842a', c: '#f2a7c0', C: '#c76d8e', d: '#e9c04f', f: '#e9c04f' },
                 rows: { 7: '..aA.SssS....', 8: '..adcccccd...', 9: '..accCccccs..', 10: '.sa.cCcccc.s.', 11: '.s..cCccdc.s.' } },
   apollo:     { pal: { a: '#ffd463', A: '#c9a032', c: '#f3e9d4', C: '#c2b293', d: '#ffd463', f: '#c9a032', g: '#6f9a3e' },
@@ -180,7 +184,8 @@ const GOD_LOOKS = {
   hephaestus: { pal: { a: '#2e211b', A: '#1a1210', c: '#6b4528', C: '#4e321d', d: '#9aa0a6', f: '#3a2416', s: '#c99a76', S: '#9a6f50' },
                 rows: { 1: '.............', 2: '....aaaa.....', 3: '...aaaaaa....', 6: '..aAaaaaa....', 7: '...Aaaaa.....', 9: '.sscCccccss..', 10: '.ss.cCcccc.ss' } },
   hades:      { pal: { a: '#1f1f24', A: '#0e0e12', c: '#2a1f3a', C: '#140e1e', d: '#7fe08a', f: '#1f1f24', s: '#c9c3cf', S: '#8f8a96', k: '#2f8a4a', g: '#7fe08a' },
-                rows: { 0: '..a.a.a.a....', 1: '..aaaaaaa....', 3: '.aaaaaaaaa...', 4: '.aaaAsssss...', 5: '.aaAsssksS...', 6: '.aaAsssssS...', 7: '.aaA.SssS....' } },
+                rows: { 0: '...g.g.g.g...', 1: '...kkkkkkk...', 6: '...Asaaaa....', 7: '....aaaa.....', 8: '...daaaad....',       // a crown, and a beard
+                        14: '...ccCcccc...', 15: '...ccCcccc...', 16: '...cCCCCc....' } },
   pan:        { pal: { a: '#5a3a22', A: '#3a2416', c: '#7a5232', C: '#5a3a22', d: '#7fa548', f: '#3a2416', n: '#c9a46b' },
                 rows: { 0: '..n....n.....', 1: '..nn.aann....', 9: '..sccCccccs..', 13: '...ccCcccc...', 16: '...cc..cc....', 17: '...cc..cc....', 18: '..ff...ff....' } },
   hecate:     { pal: { a: '#2c3a6a', A: '#1a2442', c: '#2c3a6a', C: '#1a2442', d: '#57c2b0', f: '#1a2442', s: '#b8c0d8', S: '#8a92aa' },
@@ -360,7 +365,7 @@ for (const [name, v] of Object.entries(SPRITE_VARIANTS)) {
   const b = SPRITE_DATA[v.base], def = [patchRows(b[0], v.rows), ...b.slice(1)];
   SPR[name] = buildFrames(def, Object.assign({}, PAL, v.pal));
 }
-for (const [name, look] of Object.entries(GOD_LOOKS)) SPR[name] = buildFrames([patchRows(GOD_BASE, look.rows), GOD_WALK], Object.assign({}, PAL, look.pal));
+for (const [name, look] of Object.entries(GOD_LOOKS)) SPR[name] = buildFrames([patchRows(MALE_GODS.has(name) ? patchRows(GOD_BASE, GOD_MALE) : GOD_BASE, look.rows), GOD_WALK], Object.assign({}, PAL, look.pal));
 for (const [name, look] of Object.entries(NPC_LOOKS)) SPR[name] = buildFrames(NPC_BASES[look.base], Object.assign({}, PAL, look.pal));
 const STONE = ['#4a463f', '#77716a', '#a39d91', '#cfc9bc', '#ebe6db'], GOLDR = ['#5c4410', '#8f6c1c', '#c9a032', '#e9c04f', '#fff0b0'];
 

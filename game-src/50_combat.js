@@ -126,7 +126,7 @@ function updatePlayer(dt) {
     p.dodgeT -= dt; moveEntity(p, p.dvx * dt, p.dvy * dt);
     if (st.perks.dashDodge) dashCuts(p, .6);
     if (Math.random() < .5) dust(p.x, p.y, 1);
-    if (p.dodgeT <= 0) { p.invuln = Math.max(p.invuln, st.perks.phase ? .14 : .04); if (st.perks.dodgeStrike) F.strike = 1; }
+    if (p.dodgeT <= 0 && st.perks.dodgeStrike) F.strike = 1;
     return;
   }
   if (p.dashT > 0) {
@@ -134,7 +134,6 @@ function updatePlayer(dt) {
     dashCuts(p, p.dashMult || 2.6);
     q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .22, max: .22 });
     if (Math.random() < .5) q.parts.push({ x: p.x + rand(-4, 4), y: p.y - rand(2, 12), vx: rand(-20, 20), vy: rand(-30, 0), life: .5, max: .5, c: '#f3e9d4', s: 1 });
-    if (p.dashT <= 0) p.invuln = Math.max(p.invuln, .15);
     return;
   }
   // charmed: your feet carry you toward whoever charmed you. Dashing breaks it.
@@ -256,7 +255,7 @@ function meleeHit(p, aim, dmg, riposte = false, quiet = false, o = {}) {
   return hits;
 }
 // Dodge charges. Normally one. Double dash (the speed potion, or boots that have it) gives a second one, so you can dash
-// twice back to back, but each charge comes back half again as slowly. That keeps dashes (you can't be hit mid-dash)
+// twice back to back, but each charge comes back half again as slowly. That keeps dashes
 // from chaining forever. Boots and potion don't stack: with both, you keep two charges and they recharge at the normal speed.
 const SWIFT_RECHARGE = 1.5;
 const potionDash = p => !!(p.fx && p.fx.spd > 0);
@@ -317,7 +316,8 @@ function useAbility(p, mv) {
     if (!targets.length) q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 2, r1: 20, life: .25, max: .25, c: '#57c2b0' });
   } else if (id === 'volley') {
     const a0 = aim(); p.face = a0;
-    for (let i = 0; i < 7; i++) spawnProj(p.x, p.y, a0 + (i / 6 - .5) * 1.0, 260, W * .8, 'arrow', 'player', { r: 2.5, life: 1, pierce: 1 });
+    const grp = new Map();
+    for (let i = 0; i < 7; i++) { spawnProj(p.x, p.y, a0 + (i / 6 - .5) * 1.0, 260, W * .8, 'arrow', 'player', { r: 2.5, life: 1, pierce: 1 }); q.projs[q.projs.length - 1].group = grp; }
     Sound.play('arrow');
   } else if (id === 'sunburst') {
     for (let i = 0; i < 14; i++) spawnProj(p.x, p.y, i / 14 * Math.PI * 2, 210, W * .9, 'sunbolt', 'player', { r: 3, life: .9, pierce: 1 });
@@ -356,7 +356,7 @@ function useAbility(p, mv) {
   }
   else if (id === 'piercer') {
     const a = aim(); p.face = a;
-    spawnProj(p.x + Math.cos(a) * 6, p.y + Math.sin(a) * 6, a, 340, W * 3, 'piercer', 'player', { r: 3, life: 1.1, pierce: 99 });
+    spawnProj(p.x + Math.cos(a) * 6, p.y + Math.sin(a) * 6, a, 340, W * 2.4, 'piercer', 'player', { r: 3, life: 1.1, pierce: 99 });
     G.hitstop = Math.max(G.hitstop, .04); Sound.play('arrow');
   }
   // ---- Titan weapons ----
@@ -412,7 +412,7 @@ function updatePSpikes(dt) {
 // Damage to you. o.proj: a projectile; o.unblockable: ground attacks your shield can't stop; o.src: who hit you.
 function hurtPlayer(dmg, ang, knock = 140, o = {}) {
   const p = q.player, st = p.st;
-  if (p.dead || p.invuln > 0 || p.dodgeT > 0 || p.dashT > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;
+  if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
@@ -645,6 +645,11 @@ function updateProjs(dt) {
       if (best) { const b = bodyPt(best, pr.x, pr.y), cur = Math.atan2(pr.vy, pr.vx), want = Math.atan2(b.y - pr.y, b.x - pr.x), sp = Math.hypot(pr.vx, pr.vy);
         const na = cur + clamp(angDiff(cur, want), -pr.homing * dt, pr.homing * dt); pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp; }
     }
+    if (pr.kind === 'godweapon' && pr.boom && pr.t > pr.boom.t) {          // a thrown god weapon turns round and flies back to its owner
+      const s = pr.boom.src, a = Math.atan2(s.y - 6 - pr.y, s.x - pr.x), sp = Math.min(380, Math.hypot(pr.vx, pr.vy) + 520 * dt);
+      pr.vx = Math.cos(a) * sp; pr.vy = Math.sin(a) * sp; pr.life = Math.max(pr.life, .5);
+      if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; continue; }
+    }
     pr.x += pr.vx * dt; pr.y += pr.vy * dt;
     if (pr.life <= 0) { killProj(pr); continue; }
     if (pr.bounce > 0 && pointBlocked(pr.x, pr.y)) {               // Atlas' sky bounces off walls
@@ -660,13 +665,15 @@ function updateProjs(dt) {
       if (d < pr.r + p.r + 1) {
         const r = hurtPlayer(pr.dmg, Math.atan2(pr.vy, pr.vx), pr.knock, { proj: pr.kind !== 'goat' && pr.kind !== 'wave', projObj: pr, src: pr.src, unblockable: pr.kind === 'globe' });
         if (r === 1 && pr.charm && pr.src && !pr.src.dead) { p.fx.charm = pr.charm; p.charmFrom = pr.src; Sound.play('charm'); }
-        if (r && pr.team === 'enemy' && pr.kind !== 'goat' && pr.kind !== 'wave' && pr.kind !== 'globe' && pr.kind !== 'sickle') killProj(pr);
+        if (r && pr.team === 'enemy' && pr.kind !== 'goat' && pr.kind !== 'wave' && pr.kind !== 'globe' && pr.kind !== 'sickle' && pr.kind !== 'godweapon') killProj(pr);
       }
     } else {
       for (const e of q.enemies) {
         if (!targetable(e) || pr.hit.has(e.id)) continue;
         if (edist(pr, e) < pr.r + e.r + 1) {
-          pr.hit.add(e.id); damageEnemy(e, pr.dmg, Math.atan2(pr.vy, pr.vx), KINDS.bow.knock); Sound.play('hit');
+          if (pr.group) { const n = pr.group.get(e.id) || 0; if (n >= 3) continue; pr.group.set(e.id, n + 1); }   // a volley hits one target with at most 3 arrows
+          pr.hit.add(e.id); damageEnemy(e, pr.dmg * (pr.fall || 1), Math.atan2(pr.vy, pr.vx), KINDS.bow.knock); Sound.play('hit');
+          if (pr.kind === 'arrow' || pr.kind === 'piercer') pr.fall = (pr.fall || 1) * (pr.kind === 'piercer' ? .8 : .7);   // each enemy it goes through takes less
           if (pr.pierce-- <= 0) { killProj(pr); break; }
         }
       }
@@ -728,7 +735,7 @@ function updateHazards(dt) {
       if (h.r > h.max) h.dead = true;
     } else if (h.type === 'puddle') {
       h.life -= dt; if (h.life <= 0) { h.dead = true; continue; }
-      if (p.dead || p.dodgeT > 0 || p.dashT > 0) continue;
+      if (p.dead) continue;
       if (Math.hypot(p.x - h.x, (p.y - h.y) * 1.6) < h.r + 2) {
         const P = PUDDLE[h.kind];
         if (P.slow) p.fx.slow = .3;

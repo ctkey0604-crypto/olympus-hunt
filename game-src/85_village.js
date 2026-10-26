@@ -1,7 +1,7 @@
 /* ============================== VILLAGE ================================== */
-// Two walkable places: the village of Akros, and the Temple of the Twelve inside it.
+// Two walkable places: the village of Akros, and the Temple of the Gods inside it.
 const BUILDINGS = [
-  { id: 'temple', name: 'Temple of the Twelve', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
+  { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
   { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, opens: 'armory' },
   { id: 'hall',   name: 'Herald’s Hall',   kind: 'hall',   x: 29, y: 8, w: 7,  h: 5, opens: 'quests' },
   { id: 'store',  name: 'Storehouse',           kind: 'store',  x: 4,  y: 16, w: 6, h: 4, opens: 'stash' },
@@ -135,7 +135,7 @@ function buildTemple() {
     if (o.kind === 'statue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
     if (o.kind === 'hearth') spots.push({ id: 'hearth', name: 'Hestia’s hearth', kind: 'hearth', opens: 'shrine', x: o.x, y: o.y + 9 });
   }
-  return { id: 'temple', name: 'Temple of the Twelve', theme: 'hall', world: makeWorld(boxes, [{ x: 19, y: 23, w: 3, h: 2 }]), stairsOpen: !!(G.save && G.save.stairs),
+  return { id: 'temple', name: 'Temple of the Gods', theme: 'hall', world: makeWorld(boxes, [{ x: 19, y: 23, w: 3, h: 2 }]), stairsOpen: !!(G.save && G.save.stairs),
            ground: layers.ground, buildings: [], props, npcs: [], spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 const STAIRS = { x: 19 * 16, y: 7 * 16, w: 48, h: 30 };   // centred on the doorway, like the carpet
@@ -166,7 +166,7 @@ function enterPlace(id, from) {
   if (id === 'village' && heraldNews()) banner('Akros', 'Kleon the Herald wants a word');
   if (id === 'temple' && from !== 'hall' && from !== 'stairs') {
     if (!G.save.stairs && allGodsDone(0)) G.cutscene = { kind: 'stairs', t: 0 };   // every god is down: the floor opens
-    else banner('Temple of the Twelve', 'Every god you hunt is gilded here');
+    else banner('Temple of the Gods', 'Every god you hunt is gilded here');
   }
   if (id === 'hall') {
     if (!G.save.seenHall) { G.save.seenHall = true; persist(); banner('Hall of the Titans', 'Their hunts start at the gate at the far end'); }
@@ -272,7 +272,7 @@ function tickCutscene(dt) {
   if (cs.t > 1.6 && !cs.crack) { cs.crack = true; Sound.play('break'); }
   cs.open = clamp((cs.t - 1.8) / 1.4, 0, 1);
   if (cs.t > 1.8 && Math.random() < .5) V.parts.push({ x: tx + rand(-20, 20), y: STAIRS.y + rand(0, STAIRS.h), vx: rand(-8, 8), vy: rand(-30, -10), g: 0, life: 1, max: 1, c: Math.random() < .5 ? '#b48cff' : '#8f8470', s: 1 });
-  if (cs.t > 3.4 && !cs.done) { cs.done = true; Sound.play('blessing'); banner('A stairway opens', 'Down to the Titans, beneath the Twelve', true); }
+  if (cs.t > 3.4 && !cs.done) { cs.done = true; Sound.play('blessing'); banner('A stairway opens', 'Down to the Titans, beneath the temple', true); }
   if (cs.t > 4.6) {
     G.save.stairs = true; persist(true); G.cutscene = null;
     delete PLACES.temple; const pos = { x: p.x, y: p.y, face: p.face }; enterPlace('temple', 'stairs');

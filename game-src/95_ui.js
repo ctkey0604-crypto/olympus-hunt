@@ -554,10 +554,10 @@ function finishQuest(win) {
   const title = $('resTitle'); title.textContent = win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win ? 'win' : 'lose');
   $('resStats').innerHTML = `<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
   const notes = [];
-  if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue in the ${d.titan ? 'Hall of the Titans' : 'Temple of the Twelve'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
+  if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue in the ${d.titan ? 'Hall of the Titans' : 'Temple of the Gods'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
   if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
-  if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Twelve.');
+  if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Gods.');
   if (win && !readyWas && rankReady()) notes.push('Every god and Titan on this rank has fallen. Kleon the Herald wants a word.');
   if (win && !typhonWas && typhonReady()) notes.push('Every god and Titan on God Rank has fallen. The ground is shaking under Mount Etna. Kleon the Herald wants a word.');
   if (win && !finaleWas && finaleReady()) notes.push('You slew Typhon. Kleon the Herald wants a word.');

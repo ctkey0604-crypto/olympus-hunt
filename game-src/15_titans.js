@@ -1,5 +1,5 @@
 /* ============================== TITANS =================================== */
-// The Titans live under the Temple of the Twelve. The stairway opens once every god has been hunted.
+// The Titans live under the Temple of the Gods. The stairway opens once every god has been hunted.
 // They're bigger than the gods and fight in bigger arenas, but every one of them fits on screen.
 const TITANS = [
   { id: 'atlas',     name: 'Atlas',     quest: 'atlas_hunt',     tier: 13 },
@@ -63,7 +63,7 @@ Object.assign(ABILITIES, {
   impale:      { name: 'Impaling Rush',  cd: 5,  desc: 'Charge spear-first, skewering everything in your path.' },
   shockwave:   { name: 'Shockwave',      cd: 7,  desc: 'Slam the ground three times. Each ring reaches further and stuns what it hits.' },
   flurry:      { name: 'Flurry',         cd: 6,  desc: 'Ten stabs in front of you in half a second.' },
-  piercer:     { name: 'Piercing Shot',  cd: 5,  desc: 'A heavy arrow that goes through everything and hits three times as hard.' },
+  piercer:     { name: 'Piercing Shot',  cd: 5,  desc: 'A heavy arrow that goes through everything and hits more than twice as hard.' },
   // Titan weapons
   skyfall:     { name: 'Skyfall',        cd: 9,  desc: 'Pieces of the sky crash down on the six nearest enemies.' },
   solar_lance: { name: 'Solar Lance',    cd: 7,  desc: 'A beam of dawn light burns through everything in a long line.' },

@@ -41,7 +41,7 @@ function drawTelegraphs(S) {
 }
 function drawBossTelegraph(b, S, sx, sy) {
   const st = b.state;
-  if ((st === 'dashAim' || st === 'lungeAim' || st === 'boltAim') && b.dashEnd) {
+  if ((st === 'dashAim' || st === 'lungeAim' || st === 'boltAim' || st === 'tossAim') && b.dashEnd) {
     const [ex, ey] = S(b.dashEnd.x, b.dashEnd.y), col = b.st < b.lockAt ? '#ff5a3c' : (blink(16) ? '#ebc152' : '#cf6a2f');
     pxLine(sx, sy, ex, ey, col); pxLine(sx, sy + 1, ex, ey + 1, col); pxRing(ex, ey, 5, col);
   }
@@ -202,7 +202,7 @@ function drawPlayer(p, S) {
   }
   if (shDraw && !shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
   if (behind) drawWeapon(p, hx, hy);
-  if (p.dodgeT > 0) drawSpr(frames, 1, sx, sy + 1, flip, null, .65);
+  if (p.dodgeT > 0) drawSpr(frames, 1, sx, sy + 1, flip, null, 1);
   else drawSpr(frames, fi, sx, sy - bob, flip, p.flash > 0 ? 'white' : null);
   if (!behind) drawWeapon(p, hx, hy);
   if (shDraw && shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
@@ -322,6 +322,24 @@ function drawShieldMark(e, sx, sy) {
 const GOD_HELD = { artemis: ['bow', '#d5dbe5'], dionysus: ['thyrsus', '#4e8a3a'], apollo: ['bow', '#ffd463'], ares: ['spear', '#c7ccd1'], poseidon: ['trident', '#e9c04f'],
   hera: ['scepter', '#e9c04f'], hephaestus: ['hammer', '#4b4f57'], hades: ['bident', '#7fe08a'], pan: ['pipes', '#c9a46b'], hecate: ['torches', '#57c2b0'],
   nemesis: ['sword', '#d5dbe5'], eris: ['apple', '#e9c04f'], hypnos: ['poppy', '#c0412e'], aphrodite: ['mirror', '#e9c04f'] };
+// A god's weapon in flight: spears, tridents and staffs fly point first, hammers and swords tumble.
+function drawThrown(H, sx, sy, a, t) {
+  const [kind, col] = H || ['spear', '#c7ccd1'];
+  if (kind === 'hammer' || kind === 'sword') a = t * 16;
+  const ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca, L = kind === 'hammer' ? 7 : kind === 'sword' ? 8 : 12;
+  const shaft = kind === 'scepter' ? '#e9c04f' : kind === 'sword' ? col : '#8a5a34', bx = sx - ca * L, by = sy - sa * L, fx = sx + ca * L, fy = sy + sa * L;
+  pxLine(bx, by + 1, fx, fy + 1, '#140d0b'); pxLine(bx, by, fx, fy, shaft);
+  switch (kind) {
+    case 'spear': pxLine(fx, fy, fx + ca * 5, fy + sa * 5, col); break;
+    case 'trident': pxLine(fx - nx * 3, fy - ny * 3, fx + nx * 3, fy + ny * 3, col); for (const o of [-3, 0, 3]) pxLine(fx + nx * o, fy + ny * o, fx + nx * o + ca * (o ? 4 : 6), fy + ny * o + sa * (o ? 4 : 6), col); break;
+    case 'bident': for (const o of [-1.5, 1.5]) pxLine(fx + nx * o, fy + ny * o, fx + nx * o + ca * 6, fy + ny * o + sa * 6, col); break;
+    case 'thyrsus': pxEllipse(fx + ca * 2, fy + sa * 2, 3, 3, '#140d0b'); pxEllipse(fx + ca * 2, fy + sa * 2, 2, 2, '#a8842a'); break;
+    case 'scepter': pxEllipse(fx + ca * 2, fy + sa * 2, 3, 3, '#140d0b'); ctx.fillStyle = '#3f9a8a'; ctx.fillRect(Math.round(fx + ca * 2) - 1, Math.round(fy + sa * 2) - 1, 3, 3); break;
+    case 'hammer': for (let s = -4; s <= 4; s++) pxLine(fx + nx * s, fy + ny * s, fx + nx * s + ca * 5, fy + ny * s + sa * 5, Math.abs(s) === 4 ? '#2a2c31' : col); break;
+    case 'sword': pxLine(bx + nx * 3, by + ny * 3, bx - nx * 3, by - ny * 3, '#e9c04f'); pxLine(fx, fy, fx + ca * 3, fy + sa * 3, '#ffffff'); break;
+  }
+  if (Math.random() < .5) sc.parts.push({ x: sx + G.cam.x + rand(-2, 2), y: sy + 6 + G.cam.y, vx: 0, vy: 0, g: 0, life: .25, max: .25, c: col, s: 1 });
+}
 function drawHeld(god, hx, hy, flip, raised) {
   const H = GOD_HELD[god]; if (!H) return;
   const [kind, col] = H, d = flip ? -1 : 1, up = raised ? -4 : 0;
@@ -376,8 +394,8 @@ function drawBoss(b, sx, sy) {
     const P3 = b.phase === 3, hover = Math.round(6 + Math.sin(G.time * 3) * 2), raised = /Wind|Aim/.test(b.state);
     const hx = sx + (b.flip ? -7 : 7), hy = sy - hover - (raised ? 22 : 12);
     ctx.fillStyle = blink(14) ? '#fff6d8' : '#ffd463';
-    const zig = [[0, 0], [3, -3], [1, -4], [4, -8], [1, -7], [2, -11]];
-    for (let i = 1; i < zig.length; i++) pxLine(hx + zig[i - 1][0], hy + zig[i - 1][1], hx + zig[i][0], hy + zig[i][1], ctx.fillStyle);
+    const zig = [[0, 0], [5, -5], [2, -7], [7, -14], [2, -12], [4, -20]], bc = ctx.fillStyle;   // his thunderbolt, nearly as tall as he is
+    for (const [o, col] of [[-1, '#140d0b'], [2, '#140d0b'], [0, bc], [1, bc]]) for (let i = 1; i < zig.length; i++) pxLine(hx + o + zig[i - 1][0], hy + zig[i - 1][1], hx + o + zig[i][0], hy + zig[i][1], col);
     if (P3) { pxRing(sx, sy - hover - 12, 14 + Math.sin(G.time * 6) * 2, blink(10) ? '#ffd463' : '#57c2b0', 2); if (!tint && blink(5)) tint = 'gold'; }
     drawSpr(RF('zeus'), 0, sx, sy - hover, b.flip, tint, b.alpha);
     if (b.phase >= 2 && Math.random() < (P3 ? .6 : .3)) sc.parts.push({ x: b.x + rand(-10, 10), y: b.y - rand(10, 28) - hover, vx: rand(-20, 20), vy: rand(-20, 10), g: 0, life: .2, max: .2, c: P3 ? '#ffd463' : '#57c2b0', s: 1 });
@@ -388,7 +406,7 @@ function drawBoss(b, sx, sy) {
     const hx = sx + (b.flip ? -6 : 6), hy = sy - 10 - lift + crouch, raised = /Aim|Wind|fan|ring|rain|wave|quake|puddles|confuse|stampede/.test(b.state);
     if (b.reflectT > 0) { pxEllipse(sx, sy - 9, 10, 13, 'rgba(255,255,255,.18)'); pxRing(sx, sy - 9, 12 + (blink(10) ? 1 : 0), '#ffffff', 1.5); }
     if (b.type === 'aphrodite' && Math.random() < .08) sc.parts.push({ x: b.x + rand(-8, 8), y: b.y - rand(10, 24), vx: 0, vy: -14, g: 0, life: .8, max: .8, c: '#f2a7c0', s: 1 });
-    drawHeld(b.type, hx, hy, b.flip, raised);
+    if (!b.tossOut) drawHeld(b.type, hx, hy, b.flip, raised);
     drawSpr(RF(b.def.sprite), fi, sx, sy - lift + crouch, b.flip, b.state === 'dash' ? 'gold' : tint, b.alpha);
   }
 }
@@ -416,7 +434,14 @@ function drawProj(pr, S) {
       for (let i = 4; i >= 0; i--) { const w = Math.sin(pr.t * 18 - i) * 1.5; ctx.fillStyle = i === 0 ? '#140d0b' : (i % 2 ? '#57c2b0' : '#3c8f82'); const px = sx - ca * i * 2 - sa * w, py = y - sa * i * 2 + ca * w; ctx.fillRect(Math.round(px) - (i === 0 ? 1 : 0), Math.round(py) - (i === 0 ? 1 : 0), i === 0 ? 3 : 2, i === 0 ? 3 : 2); }
       ctx.fillStyle = '#57c2b0'; ctx.fillRect(sx, y, 1, 1); break;
     case 'feather': pxLine(sx - ca * 4, y - sa * 4, sx, y, '#f3e9d4'); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx, y, 1, 1); ctx.fillStyle = '#140d0b'; ctx.fillRect(Math.round(sx - ca * 5), Math.round(y - sa * 5), 1, 1); break;
-    case 'thunder': jagged(sx - ca * 9, y - sa * 9, sx + ca * 2, y + sa * 2, '#fff6d8', 2, 4, (pr.t * 30) | 0); jagged(sx - ca * 9, y - sa * 9 + 1, sx + ca * 2, y + sa * 2 + 1, '#ffd463', 2, 4, (pr.t * 30 + 5) | 0); break;
+    case 'thunder': {                                       // Zeus' thunderbolt: big, thick and glowing
+      const seed = (pr.t * 30) | 0, x0 = sx - ca * 17, y0 = y - sa * 17, x1 = sx + ca * 6, y1 = y + sa * 6;
+      ctx.globalAlpha = .3; pxEllipse(sx - ca * 5, y - sa * 5, 11, 7, '#ffd463'); ctx.globalAlpha = 1;
+      for (const o of [-2, 2]) jagged(x0 - sa * o, y0 + ca * o, x1 - sa * o, y1 + ca * o, '#140d0b', 3, 5, seed);
+      for (const o of [-1, 1]) jagged(x0 - sa * o, y0 + ca * o, x1 - sa * o, y1 + ca * o, '#ffd463', 3, 5, seed);
+      jagged(x0, y0, x1, y1, '#ffffff', 3, 5, seed); break;
+    }
+    case 'godweapon': drawThrown(pr.weapon, sx, y, a, pr.t); break;
     case 'orb': pxEllipse(sx, y, 4, 4, '#140d0b'); pxEllipse(sx, y, 3, 3, Math.floor(pr.t * 10) % 2 ? '#57c2b0' : '#3c8f82'); ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
     case 'zspark': ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 2, y - 2, 4, 4); ctx.fillStyle = Math.floor(pr.t * 20) % 2 ? '#ffffff' : '#ffd463'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
     case 'heart': { ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, y - 2, 7, 4); ctx.fillRect(sx - 2, y + 2, 5, 1); ctx.fillRect(sx - 1, y + 3, 3, 1); const [c1] = PROJ_COL.heart; ctx.fillStyle = c1; ctx.fillRect(sx - 2, y - 1, 2, 2); ctx.fillRect(sx + 1, y - 1, 2, 2); ctx.fillRect(sx - 1, y + 1, 3, 1); ctx.fillRect(sx, y + 2, 1, 1); ctx.fillRect(sx, y, 1, 1); break; }
