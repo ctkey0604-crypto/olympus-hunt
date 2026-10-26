@@ -103,6 +103,11 @@ const Music = (() => {
     cronus:     T({ key: 'F#', mode: 'phr', bpm: 184, prog: '1 2 1 2 6 7 1 1', bass: 'gallop', drums: 'blast', arp: 'harm', oct: 3,
                 A: '1:1 2:1 3:1 2:1 1:2 5,:2 1:1 2:1 3:1 4:1 5:4 | 2:1 3:1 4:1 3:1 2:2 7,:2 2:4 1:4 | 1:1 2:1 3:1 2:1 1:2 5,:2 1:1 2:1 3:1 4:1 6:4 | 5:4 4:4 2:8',
                 E: '5:2 4:2 3:2 2:2 1:8' }),
+    // Typhon, the last hunt: everything at once. And the end credits, the title theme in a major key.
+    typhon:     T({ key: 'C', mode: 'hm', bpm: 168, prog: '1 6 4 5 1 6 7 5', progB: '6 7 1 1 4 5 7 7', bass: 'gallop', drums: 'war', arp: 'harm', oct: 3,
+                A: '1:2 1:2 2:2 3:2 5:4 3:4 | 6:2 5:2 4:2 3:2 2:4 7,:4 | 1:2 1:2 2:2 3:2 5:2 6:2 1\':4 | 7:4 6:2 5:2 7,:8', E: '5:2 4:2 3:2 2:2 1:8' }),
+    credits:    T({ key: 'D', mode: 'ion', bpm: 104, prog: '1 5 6 4 1 5 4 5', progB: '4 5 3 6 4 5 1 1', bass: 'walk', drums: 'soft2', arp: 'broken8', duty: .125,
+                A: '1:4 5:4 4:2 3:2 2:2 3:2 | 1:6 7,:2 1:8 | 3:4 4:2 5:2 6:4 5:4 | 4:3 3:1 2:4 7,:8', E: '5:4 4:2 3:2 1:8' }),
     // stingers, played once
     win:  T({ key: 'C', mode: 'ion', bpm: 150, once: true, prog: '1 1', bass: 'pulse', drums: 'none', arp: 'none', A: '5,:2 1:2 3:2 5:2 1\':4 5:4 | 1\':16', bars: 2 }),
     lose: T({ key: 'A', mode: 'aeo', bpm: 84, once: true, prog: '1 1', bass: 'doom', drums: 'none', arp: 'none', A: '5:4 4:4 3:4 2:4 | 1:16', bars: 2 }),

@@ -79,8 +79,14 @@ function startBoss() {
   $('bossBar').classList.toggle('titan', !!d.titan); $('bossBar').dataset.rank = q.def.rank;
   for (let i = 0; i < (d.arrivalHeals || 0); i++) spawnPickup(p.x + rand(-24, 24), p.y + rand(-14, 14), '@heal');
 }
-function bossDefeated() {
-  G.slowmo = .25; q.hazards = [];
+function bossDefeated(b) {
+  G.slowmo = .25; q.hazards = []; q.gale = null;
+  if (b) {                                                   // a god or Titan going down shakes the whole arena
+    G.flash = Math.max(G.flash, b.def.final ? .5 : .3); addShake(b.def.final ? 10 : 7); Sound.play('roar'); Sound.play('thud');
+    const big = b.def.titan ? 1.6 : 1;
+    [[.35, 50], [.55, 80], [.8, 115]].forEach(([life, r]) => q.fx.push({ t: 'ring', x: b.x, y: b.y, r0: 4, r1: r * big, life, max: life, c: b.def.colors[0] }));
+    burst(b.x, b.y - (b.def.titan ? 40 : 12), b.def.titan ? 60 : 36, [...b.def.colors, '#ffffff'], b.def.titan ? 190 : 150);
+  }
   for (const e of q.enemies) if (!e.dead && !e.boss) killEnemy(e, { final: true });
   for (const pr of q.projs) if (pr.team === 'enemy') pr.dead = true;
   questVictory();
@@ -179,6 +185,8 @@ function tick(dt) {
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
   updatePlayer(sdt); tutHunt(sdt);
+  { const p = q.player, low = !p.dead && p.hp / p.st.maxHp < .3 && q.phase !== 'victory';   // a heartbeat when you're nearly down
+    if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0; }
   if (q.boss && q.boss.def.titan && !q.boss.dead) titanTick(q.boss, sdt);
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
   q.tokUse.melee = q.tokUse.ranged = 0;

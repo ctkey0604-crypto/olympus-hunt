@@ -57,7 +57,8 @@ for (const [id, A] of Object.entries(ARENAS)) {
   for (const qd of QUESTS) if (qd.boss && !qd.side && !qd.titan) bossQuest[qd.rank + ':' + qd.god] = qd.id;
   const huntN = {};
   for (const qd of QUESTS) {
-    const local = qd.tier - RANKS[qd.rank].off, base = huntPay(Math.floor(qd.tier));
+    // Titans sit on half tiers; their pay follows the curve between whole tiers so each one pays more than the last.
+    const local = qd.tier - RANKS[qd.rank].off, ft = Math.floor(qd.tier), base = qd.titan ? lerp(huntPay(ft), huntPay(ft + 1), qd.tier - ft) : huntPay(ft);
     if (!qd.reward) qd.reward = qd.boss ? Math.round(base * (qd.titan ? 3.2 : qd.side ? 2.4 : 3) / 10) * 10 : base;
     qd.stars = clamp(Math.round(local * .55 + (qd.boss ? .6 : 0)), 1, 10);
     qd.urgent = !!qd.boss;
@@ -72,3 +73,19 @@ for (const [id, A] of Object.entries(ARENAS)) {
   }
 }
 const QUEST_BY_ID = Object.fromEntries(QUESTS.map(qd => [qd.id, qd]));
+
+// Refinement at the smith: +1 to +5 on gear you own. Each step costs drachmae and some of the parts the gear was made from;
+// the last two steps also need one of its rare parts. Weapons hit harder, armor sets and shields hold more.
+const REFINE_MAX = 5, REFINE_COST = [.35, .5, .7, 1, 1.4], REFINE_PARTS = [.25, .35, .5, .65, .85];
+const REFINE_GAIN = { weapon: .05, armor: .06, shield: .06 };
+function refineLevel(id, save = G.save) { return (save && save.refine && save.refine[id]) || 0; }
+function refineDef(kind, id) { return kind === 'weapon' ? WEAPONS[id] : kind === 'shield' ? SHIELDS[id] : ARMOR_SETS[id]; }
+function refineRecipe(kind, id, lv) {                      // what it takes to go from lv to lv + 1
+  const def = refineDef(kind, id), rec = def.recipe, items = {};
+  if (rec) for (const [it, n] of Object.entries(rec.items)) {
+    if (ITEMS[it].rarity >= 3) { if (lv >= 3) items[it] = 1; }
+    else items[it] = Math.max(1, Math.ceil(n * REFINE_PARTS[lv]));
+  }
+  const base = rec ? rec.cost : 150 * RANKS[def.rank || 0].cost;
+  return { items, cost: Math.max(50, Math.round(base * REFINE_COST[lv] / 10) * 10) };
+}

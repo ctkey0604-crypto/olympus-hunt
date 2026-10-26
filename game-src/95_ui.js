@@ -127,7 +127,7 @@ function slotCard(n, s) {
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
     const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = [...GODS, ...SIDE_GODS].filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new hunter here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -171,7 +171,7 @@ function renderHub() {
 }
 function questCard(qd) {
   const s = G.save, un = isUnlocked(qd), done = s.cleared[qd.id];
-  const status = !un ? `<span class="chip">Locked</span>` : done ? `<span class="chip done">Cleared ×${done}</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
+  const status = !un ? `<span class="chip">Locked</span>` : done ? `<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
   return `<button type="button" class="qcard ${qd.id === G.selQuest ? 'sel' : ''} ${un ? '' : 'locked'}" data-quest="${qd.id}" data-rank="${qd.rank}">
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
@@ -197,23 +197,26 @@ function renderBoard() {
   }
   if (hidden) html += `<div class="qlock">${hidden} more god${hidden > 1 ? 's' : ''} further up the mountain</div>`;
   // The Titans: only once the stairway under the temple has opened.
-  const titans = mine.filter(qd => qd.titan);
+  const titans = mine.filter(qd => qd.titan && !qd.final), fin = mine.find(qd => qd.final);
   if (s.stairs && titans.some(qd => isUnlocked(qd))) {
     html += `<p class="rank titans">Beneath the temple</p>`;
     let lockShown = false;
     for (const qd of titans) { if (isUnlocked(qd) || s.cleared[qd.id]) html += questCard(qd); else if (!lockShown) { lockShown = true; html += `<div class="qlock">${esc(godName(qd.god))} · beat the Titan before to unlock</div>`; } }
   } else if (s.stairs && r > 0) html += `<div class="qlock">The Titans · hunt every god on this rank first</div>`;
+  // Typhon: God Rank only, once every god and Titan on it has fallen
+  if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
+  else if (fin && s.stairs) html += `<div class="qlock">Something older than the Titans is stirring · hunt every god and Titan on God Rank first</div>`;
   const qd = QUEST_BY_ID[G.selQuest], un = isUnlocked(qd);
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
   const needs = qd.requires.filter(x => !s.cleared[x]).map(x => QUEST_BY_ID[x].name);
-  const needText = needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
+  const needText = qd.final ? 'every god and Titan on God Rank' : needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
   const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
   return `${tabs}<div class="board"><div class="qlist">${html}</div>
     <div class="qdetail">
-      <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
+      <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.final ? 'The last hunt' : qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
       <p>${esc(qd.desc)}</p>
-      <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
+      <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
       <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">Depart</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
@@ -223,6 +226,15 @@ function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.i
 function recipeChips(rec) {
   const parts = Object.entries(rec.items).map(([id, n]) => { const have = G.save.inv[id] || 0; return `<span class="chip ${have >= n ? 'ok' : 'short'}"><img alt="" src="${icon(id)}">${esc(ITEMS[id].name)} <b>${have}/${n}</b></span>`; }).join('');
   return parts + `<span class="chip ${G.save.money >= rec.cost ? 'ok' : 'short'}"><b>${fmtMoney(rec.cost)}</b> dr</span>`;
+}
+// The smith's refinement: what the next + costs, or a note that it's maxed out.
+const refineTag = lv => lv ? ` <span class="refine-tag">+${lv}</span>` : '';
+function refineRow(kind, id) {
+  const lv = refineLevel(id), what = kind === 'weapon' ? 'damage' : kind === 'shield' ? 'guard' : 'defense for every piece';
+  if (lv >= REFINE_MAX) return `<div class="refine"><div class="refine-top"><b>Fully refined</b><span>+${Math.round(REFINE_GAIN[kind] * 100 * lv)}% ${what}</span></div></div>`;
+  const rec = refineRecipe(kind, id, lv);
+  return `<div class="refine"><div class="refine-top"><b>Refine to +${lv + 1}</b><span>+${Math.round(REFINE_GAIN[kind] * 100)}% ${what} each step, up to +${REFINE_MAX}</span></div>
+    <div class="chips">${recipeChips(rec)}</div><button class="btn ghost small" type="button" data-refine="${kind}:${id}" ${canCraft(rec) ? '' : 'disabled'}>Refine</button></div>`;
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
@@ -238,19 +250,19 @@ function renderArmory() {
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
   if (tab === 'weapons') {
-    const cur = WEAPONS[s.weapon];
+    const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
       const owned = s.weapons.includes(id);
       if (!forgeShows(w.rank, owned, w.recipe && canCraft(w.recipe))) continue;
       if (!gearVisible(w.wt, owned, w.titan)) { if (!w.titan || G.save.stairs) hidden++; continue; }
-      const eq = s.weapon === id, K = KINDS[w.kind];
+      const eq = s.weapon === id, K = KINDS[w.kind], lv = owned ? refineLevel(id) : 0, dmg = Math.round(w.dmg * (1 + REFINE_GAIN.weapon * lv));
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
-        <div class="stats"><span>Damage <b>${w.dmg}</b>${eq ? '' : delta(w.dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
+        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
         <p class="desc">${esc(w.desc)} ${esc(K.blurb)}</p>
         ${w.ability ? `<div class="ability"><b>${esc(ABILITIES[w.ability].name)}</b> · ${esc(ABILITIES[w.ability].desc)} (${Math.round(ABILITIES[w.ability].cd * (w.cdMul || 1) * 10) / 10}s cooldown)</div>` : ''}
-        ${owned ? '' : `<div class="chips">${recipeChips(w.recipe)}</div>`}
+        ${owned ? refineRow('weapon', id) : `<div class="chips">${recipeChips(w.recipe)}</div>`}
         <div class="actions">${act}</div></article>`;
     }
   } else if (tab === 'armor') {
@@ -260,12 +272,13 @@ function renderArmory() {
       const craftAny = SLOTS.some(sl => { const P = PIECES[sid + ':' + sl]; return P.recipe && !s.pieces.includes(P.id) && canCraft(P.recipe); });
       if (!forgeShows(set.rank, ownedAny, craftAny)) continue;
       if (!gearVisible(set.ch, ownedAny, set.titan)) { if (!set.titan || G.save.stairs) hidden++; continue; }
+      const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
-        const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl];
+        const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
         const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="piece:${P.id}">Equip</button>` : `<button class="btn small" type="button" data-craft="piece:${P.id}" ${canCraft(P.recipe) ? '' : 'disabled'}>Craft</button>`;
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
-          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${P.def}</b>${eq ? '' : delta(P.def, cur.def)}</span>${P.hp || cur.hp ? `<span>Health <b>${P.hp}</b>${eq ? '' : delta(P.hp, cur.hp)}</span>` : ''}</div>
+          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}</div>
           ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
@@ -273,10 +286,11 @@ function renderArmory() {
       if (set.two) lines.push(`<span class="${n >= 2 ? 'on' : 'off'}">2 pieces: ${esc(Object.entries(set.two).map(([k, v]) => PERK_TEXT[k](v)).join(', '))}</span>`);
       if (set.four) lines.push(`<span class="${n >= 4 ? 'on' : 'off'}">4 pieces: ${esc(Object.entries(set.four).map(([k, v]) => PERK_TEXT[k](v)).join(', '))}</span>`);
       cards += `<article class="gear ${n === 4 ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(sid + ':chest')}"><div><b>${esc(set.name)} set</b><span>${set.god ? 'Made from ' + esc(godName(set.god)) : 'Armor'} · ${set.def} defense${set.hp ? ' · +' + set.hp + ' health' : ''} for all 4${rankTag(set.rank)}</span></div></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(sid + ':chest')}"><div><b>${esc(set.name)} set${refineTag(rl)}</b><span>${set.god ? 'Made from ' + esc(godName(set.god)) : 'Armor'} · ${set.def} defense${set.hp ? ' · +' + set.hp + ' health' : ''} for all 4${rankTag(set.rank)}</span></div></div>
         <p class="desc">${esc(set.desc)}</p>
         ${lines.length ? `<div class="setbonus">${lines.join('')}</div>` : ''}
         ${rows}
+        ${ownedAny && !set.start ? refineRow('armor', sid) : ''}
         ${allOwned && n < 4 ? `<div class="actions"><button class="btn small" type="button" data-wearset="${sid}">Equip the whole set</button></div>` : ''}</article>`;
     }
   } else {
@@ -286,15 +300,15 @@ function renderArmory() {
       const owned = s.shields.includes(id);
       if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
       if (!gearVisible(sh.ch, owned, sh.titan)) { if (!sh.titan || G.save.stairs) hidden++; continue; }
-      const eq = s.shield === id;
+      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(sh.block * 100)}%</b></span><span>Guard <b>${sh.meter * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
+        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
-        ${owned ? '' : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
+        ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
         <div class="actions">${act}</div></article>`;
     }
   }
@@ -314,7 +328,7 @@ function renderStash() {
     for (const sh of Object.values(SHIELDS)) if (sh.recipe.items[id]) out.push(sh.name);
     return out;
   };
-  return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || 'nothing yet')}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
+  return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || (it.trophy ? 'nothing. It’s a trophy from the last hunt' : 'nothing yet'))}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
 }
 // Market: potions have one fixed price per rank; it steps up at High and God Rank, the same way forge costs do.
 const POTION_PRICE = { health: 150, strength: 200, speed: 175 };
@@ -331,7 +345,7 @@ function partCost(id) {
 }
 function shopParts() {
   const s = G.save, set = new Set();
-  for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id)) set.add(id);   // your current rank's parts
+  for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id) && !partItem(id).trophy) set.add(id);   // your current rank's parts (trophies aren't for sale)
   return [...set].sort((a, b) => (rankOf(a) - rankOf(b)) || (partItem(a).rarity - partItem(b).rarity) || partItem(a).name.localeCompare(partItem(b).name));
 }
 function renderParts() {
@@ -398,7 +412,7 @@ function renderOptions() {
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
     </div>
-    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button></div></div>
+    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
   </div>`;
 }
 function encodeSave(s) { return 'OH1.' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
@@ -469,6 +483,14 @@ $('scrHub').addEventListener('click', ev => {
     else { const P = PIECES[id]; s.equip[P.slot] = P.set; toast(`Equipped ${P.name}`); }
     Sound.play('click'); persist(); renderHub(); return;
   }
+  if (t.dataset.refine) {
+    const [k, id] = t.dataset.refine.split(/:(.*)/s), def = refineDef(k, id), lv = refineLevel(id);
+    if (!def || lv >= REFINE_MAX) return;
+    const rec = refineRecipe(k, id, lv); if (!canCraft(rec)) return;
+    payRecipe(rec); s.refine[id] = lv + 1;
+    Sound.play('craft'); Sound.play('perfect'); persist(); renderHub(); toast(`${def.name}${k === 'armor' ? ' set' : ''} is now +${lv + 1}`);
+    return;
+  }
   if (t.dataset.craft) {
     const [k, id] = t.dataset.craft.split(/:(.*)/s);
     const def = k === 'weapon' ? WEAPONS[id] : k === 'shield' ? SHIELDS[id] : PIECES[id];
@@ -492,6 +514,7 @@ $('scrHub').addEventListener('click', ev => {
   if (o === 'sound') { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); Sound.play('click'); renderHub(); }
   else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
+  else if (o === 'credits') { showCredits(() => { enterVillage('road'); openPanel('options'); }); }
   else if (o === 'title') { persist(true); G.mode = 'slots'; q = null; show('scrSlots'); renderSlots(); }
   else if (o === 'export') { $('importBox').hidden = true; $('codeBox').hidden = false; $('saveCode').value = encodeSave(G.save); }
   else if (o === 'copy') {
@@ -513,7 +536,7 @@ $('scrHub').addEventListener('click', ev => {
 function finishQuest(win) {
   const s = G.save, d = q.def;
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
-  const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady();
+  const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady(), typhonWas = typhonReady();
   G.lastQuest = d.id; CG.gameplay(false); tutEnd(win);
   if (win) for (const k of q.pickups) if (k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
   for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
@@ -536,7 +559,8 @@ function finishQuest(win) {
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Twelve.');
   if (win && !readyWas && rankReady()) notes.push('Every god and Titan on this rank has fallen. Kleon the Herald wants a word.');
-  if (win && !finaleWas && finaleReady()) notes.push('You’ve hunted everything there is, even in God Rank. Kleon the Herald wants a word.');
+  if (win && !typhonWas && typhonReady()) notes.push('Every god and Titan on God Rank has fallen. The ground is shaking under Mount Etna. Kleon the Herald wants a word.');
+  if (win && !finaleWas && finaleReady()) notes.push('You slew Typhon. Kleon the Herald wants a word.');
   if (unlocked.length <= 4) unlocked.forEach(u => notes.push(`New quest on the board: ${u.name}`));
   else notes.push(`${unlocked.length} new quests on the board.`);
   $('resUnlock').innerHTML = notes.map(n => `<div class="unlock">${esc(n)}</div>`).join('');
@@ -604,7 +628,66 @@ document.addEventListener('fullscreenchange', () => {
 $('btnPlay').onclick = () => { Sound.init(); Sound.play('click'); playNow(); };
 $('btnSaves').onclick = () => { Sound.init(); Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('btnSlotsBack').onclick = () => { Sound.play('click'); G.mode = 'title'; show('scrTitle'); };
-$('btnResContinue').onclick = () => { Sound.play('click'); CG.midgameAd(() => fadeTo(() => enterVillage('gate'))); };
+$('btnResContinue').onclick = () => {
+  Sound.play('click');
+  // Typhon just fell for the first time: roll the credits before going home
+  if (G.lastQuest === TYPHON_Q && G.save.cleared[TYPHON_Q] && !G.save.legend) { fadeTo(() => showCredits(() => enterVillage('gate'))); return; }
+  CG.midgameAd(() => fadeTo(() => enterVillage('gate')));
+};
+/* ---- the end credits: after Typhon falls for the first time, and from your home after that ---- */
+let creditsAfter = null, creditsRaf = 0;
+function showCredits(after) {
+  creditsAfter = after; G.mode = 'credits'; G.paused = false; CG.gameplay(false);
+  show('scrCredits'); Music.play('credits');
+  const s = G.save, dot = ' · ', names = ids => ids.map(id => esc(godName(id))).join(dot);
+  const hunts = QUESTS.filter(qd => s.cleared[qd.id]).length, caches = Object.keys(s.chests).length;
+  $('creditsRoll').innerHTML = `<h1 class="logo">Olympus<br>Hunt</h1>
+    <p class="lede">You slew Typhon, the father of monsters. Olympus is safe, thanks to you.</p>
+    <h3>Gods hunted</h3><p>${names([...GODS, ...SIDE_GODS].map(g => g.id))}</p>
+    <h3>Titans hunted</h3><p>${names(TITANS.map(t => t.id))}</p>
+    <h3>The father of monsters</h3><p>Typhon</p>
+    <h3>Your hunt</h3><p>${fmtPlay(s.playtime)} played${dot}${hunts} hunts cleared${dot}${caches} hidden caches found${dot}${fmtMoney(s.money)} drachmae in the bank</p>
+    <h3>Game design and ideas</h3><p>The creator of Olympus Hunt</p>
+    <h3>Code and pixel art</h3><p>Built with Claude</p>
+    <h3>Music</h3><p>A tiny NES-style band, made out of code</p>
+    <h3>Playtesters</h3><p>Friends who found the bugs first</p>
+    <h3>And you</h3><p>for hunting all the way to the end</p>
+    <p class="thanks">Thank you for playing</p>`;
+  $('btnCreditsDone').hidden = true; $('btnCreditsSkip').hidden = false;
+  const roll = $('creditsRoll'), view = roll.parentElement, art = $('creditsArt'), x = art.getContext('2d'); x.imageSmoothingEnabled = false;
+  // a parade of everything you hunted walks across the top
+  const parade = [...[...GODS, ...SIDE_GODS].map(g => ({ spr: BOSSES[g.id].sprite, s: 2 })), ...TITANS.map(t => ({ spr: t.id, s: 1 })), { spr: 'typhon', s: 1 }];
+  let px = 0; const widths = parade.map(p => SPR[p.spr][0].w * p.s + 12), total = widths.reduce((a, b) => a + b, 0);
+  let off = 0, last = performance.now();
+  cancelAnimationFrame(creditsRaf);
+  const step = now => {
+    if (G.mode !== 'credits') return;
+    const dt = Math.min(.1, (now - last) / 1000); last = now; off += dt * 34; px += dt * 22;
+    const H = view.clientHeight, end = roll.offsetHeight + H;
+    roll.style.transform = `translateY(${Math.round(H - Math.min(off, end - H * .45))}px)`;
+    if (off >= end - H * .45) { $('btnCreditsDone').hidden = false; $('btnCreditsSkip').hidden = true; }
+    x.fillStyle = '#0b0706'; x.fillRect(0, 0, art.width, art.height);
+    x.fillStyle = '#2a1e19'; x.fillRect(0, art.height - 6, art.width, 6);
+    let cx = art.width - (px % total);
+    for (let rep = 0; rep < 2; rep++) parade.forEach((p, i) => {
+      const fr = SPR[p.spr], f = fr[Math.floor(now / 160 + i) % Math.min(2, fr.length)], w = f.w * p.s, h = f.h * p.s;
+      const xx = Math.round(cx - total * rep), bob = Math.floor(now / 160 + i) % 2;
+      if (xx > -w && xx < art.width) x.drawImage(f.n, xx, art.height - 6 - h + bob, w, h);
+      cx += widths[i];
+    });
+    creditsRaf = requestAnimationFrame(step);
+  };
+  creditsRaf = requestAnimationFrame(step);
+}
+function endCredits() {
+  if (G.mode !== 'credits') return;
+  cancelAnimationFrame(creditsRaf); G.mode = 'slots';
+  if (G.save && !G.save.legend) { G.save.legend = true; persist(true); }
+  const f = creditsAfter || (() => enterVillage('gate')); creditsAfter = null;
+  fadeTo(f);
+}
+$('btnCreditsSkip').onclick = () => { Sound.play('click'); endCredits(); };
+$('btnCreditsDone').onclick = () => { Sound.play('click'); endCredits(); };
 $('btnResAgain').onclick = () => { Sound.play('click'); const id = G.lastQuest; if (id && isUnlocked(QUEST_BY_ID[id])) CG.midgameAd(() => fadeTo(() => startQuest(id))); };
 
 /* ============================== EVENTS =================================== */
@@ -614,6 +697,7 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;            // leave browser and ChromeOS shortcuts alone
   if (e.code === 'KeyM' && !e.repeat) { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); if (G.mode === 'quest' || G.mode === 'village') toast(Settings.data.sound ? 'Sound on' : 'Sound off'); }
   if (e.code === 'KeyF' && !e.repeat) { e.preventDefault(); toggleFullscreen(); return; }
+  if (G.mode === 'credits') { if ((e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); endCredits(); } return; }
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closePanel(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {

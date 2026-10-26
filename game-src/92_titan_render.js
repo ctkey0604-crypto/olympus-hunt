@@ -87,7 +87,7 @@ const TITAN_SCALE = 2, TBUF = mkCanvas(110, 120), TBX = TBUF.getContext('2d'); T
 function drawTitan(b, X, Y) {
   if (b.hidden) return;
   const main = ctx; ctx = TBX; TBX.clearRect(0, 0, TBUF.width, TBUF.height);
-  try { drawTitanBody(b, 55, 100); } finally { ctx = main; }
+  try { (b.type === 'typhon' ? drawTyphonBody : drawTitanBody)(b, 55, 100); } finally { ctx = main; }
   ctx.drawImage(TBUF, Math.round(X - 55 * TITAN_SCALE), Math.round(Y - 100 * TITAN_SCALE), TBUF.width * TITAN_SCALE, TBUF.height * TITAN_SCALE);
 }
 function drawTitanBody(b, sx, sy) {
@@ -103,6 +103,7 @@ function drawTitanBody(b, sx, sy) {
 // Telegraphs that belong only to the Titans.
 function drawTitanTelegraph(b, S, sx, sy) {
   const st = b.state;
+  if (b.type === 'typhon') { drawTyphonTelegraph(b, S, sx, sy); return; }
   if (st === 'throwAim') { const len = raycast(b.x, b.y, b.aim, 500, 14), col = b.st < b.lockAt ? '#ff5a3c' : blink(16) ? '#9fb8ff' : '#3c4a78'; for (const o of [-6, 0, 6]) pxLine(sx - Math.sin(b.aim) * o, sy + Math.cos(b.aim) * o, sx + Math.cos(b.aim) * len - Math.sin(b.aim) * o, sy + Math.sin(b.aim) * len + Math.cos(b.aim) * o, col, o ? 3 : 0); }
   if (st === 'stomp' || st === 'quake') pxRingFlat(sx, sy, 8 + (1 - b.st / .9) * 26, blink(16) ? '#ff5a3c' : '#ebc152', 2);
   if (st === 'beamsAim' && b.beams) {
@@ -123,6 +124,7 @@ function drawTitanTelegraph(b, S, sx, sy) {
 // Things on the arena floor during a Titan fight: the river's current, Hyperion's light and shadows, Mnemosyne's echoes.
 function drawTitanWorld(S) {
   const b = q.boss; if (!b || b.dead) return;
+  if (b.type === 'typhon') drawTyphonWorld(S, b);
   if (b.type === 'oceanus' && q.current) {
     const C = q.current, ca = Math.cos(C.a), sa = Math.sin(C.a), R = mulberry(3), sp = C.s * 2.2;
     ctx.globalAlpha = .4; ctx.fillStyle = '#bfe8f0';

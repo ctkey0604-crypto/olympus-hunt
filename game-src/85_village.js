@@ -32,11 +32,14 @@ const allGodsDone = (r, save = G.save) => ALL_GOD_QUESTS.every(id => save.cleare
 // The rank the herald is waiting to open (shown as a ! over his head), or 0.
 function rankReady(save = G.save) { return save && save.rank < RANKS.length - 1 && rankDone(save.rank, save) ? save.rank + 1 : 0; }
 // Everything hunted on the last rank: Kleon has a word for you (for now, the end of the game).
-function finaleReady(save = G.save) { const last = RANKS.length - 1; return !!save && save.rank === last && rankDone(last, save) && !save.finale; }
+// God Rank done: Typhon climbs out from under Etna, and Kleon has to tell you. Typhon down: Kleon's last word.
+function typhonReady(save = G.save) { return !!save && save.rank === RANKS.length - 1 && rankDone(save.rank, save) && !save.cleared[TYPHON_Q] && !save.typhonTold; }
+function finaleReady(save = G.save) { return !!save && !!save.cleared[TYPHON_Q] && !save.finale; }
+const heraldNews = () => !!(rankReady() || typhonReady() || finaleReady());
 function finishGame() {
   const s = G.save; if (s.finale) return;
   s.finale = true; persist(true);
-  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy(); Music.play('title');
+  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy(); Music.play('credits');
 }
 function unlockRank(r) {
   const s = G.save; if (s.rank >= r) return;
@@ -53,8 +56,13 @@ function npcLines(n) {
         'The gods are back, and they’re angry. Faster, meaner, hitting harder. Their beasts too.', 'High Rank is open. Every hunt on the board starts over, and none of it will go easy.'];
       if (ready === 2) return ['You did it again. Every god and every Titan, even the angry ones.', 'There’s one thing left. Until now the gods held back. Not anymore.',
         'God Rank is open. Good luck. I mean that.'];
-      if (finaleReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank.', 'Congratulations, you completed the game.',
-        'Stay tuned for future updates. Thank you for playing.'];
+      if (typhonReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank. I thought that was the end of it.',
+        'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
+        'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
+      if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
+        'Congratulations, hunter. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
+      if (s.cleared[TYPHON_Q]) return ['They’re still singing about how you slew Typhon. The board still has work, and the smith says your gear can always be sharper.'];
+      if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
@@ -155,7 +163,7 @@ function enterPlace(id, from) {
     G.save.seenIntro = true; persist(); banner('Akros', 'Talk to Kleon the Herald, east of the fountain');
     showHint(touchMode ? 'Drag on the left to walk · tap Use to talk' : `${moveKeysHTML()} to walk · ${kbd(Input.bind.guard[0])} to talk and open doors`, 9);
   }
-  if (id === 'village' && (rankReady() || finaleReady())) banner('Akros', 'Kleon the Herald wants a word');
+  if (id === 'village' && heraldNews()) banner('Akros', 'Kleon the Herald wants a word');
   if (id === 'temple' && from !== 'hall' && from !== 'stairs') {
     if (!G.save.stairs && allGodsDone(0)) G.cutscene = { kind: 'stairs', t: 0 };   // every god is down: the floor opens
     else banner('Temple of the Twelve', 'Every god you hunt is gilded here');
@@ -186,8 +194,9 @@ function startInteract(t) {
   Sound.play('click');
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
-    const ready = n.id === 'herald' ? rankReady() : 0, fin = n.id === 'herald' && finaleReady();
-    openDialog(n.name, npcLines(n), ready ? () => unlockRank(ready) : fin ? finishGame : n.opens, n.sprite);
+    const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
+    const after = ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }

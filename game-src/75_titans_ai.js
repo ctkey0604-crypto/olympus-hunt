@@ -538,6 +538,7 @@ function rheaReveal(b, found) {
 // Runs every tick while a Titan fight is on: currents, memories, ghosts, laws.
 function titanTick(b, dt) {
   const p = q.player;
+  if (b.type === 'typhon') typhonTick(b, dt);
   if (b.type === 'oceanus' && q.current && !p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(q.current.a) * q.current.s * dt, Math.sin(q.current.a) * q.current.s * dt);
   if (b.type === 'mnemosyne') {
     q.mem = q.mem || []; q.memAtk = q.memAtk || []; q.ghosts = q.ghosts || [];

@@ -44,6 +44,7 @@ const Sound = {
       case 'hit': this.tone(320, .07, 'square', .16, .5); this.noise(.05, .2, 1800); break;
       case 'kill': this.noise(.25, .28, 900, .6, 'bandpass', 0, 200); this.tone(190, .2, 'square', .1, .4); break;
       case 'hurt': this.tone(170, .22, 'sawtooth', .22, .45); this.noise(.12, .25, 600); break;
+      case 'heartbeat': this.tone(58, .11, 'sine', .32, .7); this.tone(52, .13, 'sine', .26, .7, .17); break;
       case 'pickup': this.tone(880, .06, 'square', .1); this.tone(1320, .08, 'square', .1, 1, .05); break;
       case 'heal': this.tone(660, .1, 'triangle', .18); this.tone(990, .14, 'triangle', .18, 1, .08); break;
       case 'dodge': this.noise(.14, .18, 3000, .6, 'bandpass', 0, 800); break;
@@ -341,7 +342,7 @@ function newSave() {
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
-           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false };
+           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false };
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -379,7 +380,11 @@ function sanitize(s) {
   out.stairs = s.stairs === true; out.seenHall = s.seenHall === true;
   // first-steps tutorial: saves from before it existed skip it once they have a hunt behind them
   out.tut = typeof s.tut === 'number' ? clamp(Math.floor(s.tut), 0, 6) : Object.keys(out.cleared).length ? 6 : 0;
-  out.finale = s.finale === true;
+  out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
+  out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
+  if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
+    const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
+  }
   out.hints = { skill: !!(s.hints && s.hints.skill), guard: !!(s.hints && s.hints.guard) };
   out.blessing = s.blessing === true;
   for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);

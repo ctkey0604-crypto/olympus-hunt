@@ -2,11 +2,13 @@
 // Everything your gear adds up to: four armor pieces, their set bonuses, weapon and shield.
 function setCounts(eq) { const c = {}; for (const sl of SLOTS) c[eq[sl]] = (c[eq[sl]] || 0) + 1; return c; }
 function playerStats(save = G.save) {
-  const w = WEAPONS[save.weapon], K = KINDS[w.kind], eq = save.equip;
+  // refined gear (+1 to +5 at the smith) works from a copy with the bigger numbers and the + in its name
+  const w0 = WEAPONS[save.weapon], wl = refineLevel(save.weapon, save), K = KINDS[w0.kind], eq = save.equip;
+  const w = wl ? { ...w0, dmg: Math.round(w0.dmg * (1 + REFINE_GAIN.weapon * wl)), name: `${w0.name} +${wl}`, refine: wl } : w0;
   let def = 0, hp = 0; const perks = {};
   const add = (k, v) => { perks[k] = (perks[k] || 0) + v; };
   for (const sl of SLOTS) {
-    const P = PIECES[eq[sl] + ':' + sl]; def += P.def; hp += P.hp;
+    const P = PIECES[eq[sl] + ':' + sl], rl = refineLevel(eq[sl], save); def += Math.round(P.def * (1 + REFINE_GAIN.armor * rl)); hp += Math.round(P.hp * (1 + .04 * rl));
     for (const [k, v] of Object.entries(P.job)) if (v) add(k, v);
   }
   const bonuses = [];
@@ -16,7 +18,8 @@ function playerStats(save = G.save) {
     if (set.four && n >= 4) { for (const [k, v] of Object.entries(set.four)) add(k, v); bonuses.push({ set: sid, n: 4 }); }
   }
   def += perks.def || 0; hp += perks.hp || 0;
-  const shield = save.shield && K.oneHand ? SHIELDS[save.shield] : null;
+  const sh0 = save.shield && K.oneHand ? SHIELDS[save.shield] : null, shl = sh0 ? refineLevel(save.shield, save) : 0;
+  const shield = shl ? { ...sh0, meter: Math.round(sh0.meter * (1 + REFINE_GAIN.shield * shl)), block: Math.min(.97, sh0.block + .01 * shl) } : sh0;
   return {
     weapon: w, kind: K, shield, perks, bonuses, maxHp: 100 + hp, def, doubleDash: PIECES[eq.feet + ':feet'].perk === 'doubleDash',
     mul: 1 + (perks.dmg || 0) + (w.kind === 'bow' ? perks.bowDmg || 0 : 0),
@@ -537,13 +540,18 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   }
   if (e.markT > 0) dmg *= 1.5;
   if (e.vuln) dmg *= e.vuln;
+  if (e.ward) dmg *= e.ward;                                // Typhon, while his serpent heads still live
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
   dmg = Math.max(1, Math.round(dmg * rand(.9, 1.1)));
   if (e.stun > 0 && !e.boss) dmg = Math.round(dmg * 1.25);
   e.hp -= dmg; e.flash = .12;
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
-  if (!blocked) burst(e.x, e.y - 6, 4, ['#f0e4cc', '#ebc152'], 60);
+  if (!blocked) {                                           // sparks fly the way the hit went; big hits get more, and a beat of hitstop
+    const big = fromPlayer && dmg >= p.st.weapon.dmg * 1.6, n = big ? 9 : 5, hy = e.y - Math.min(e.h * .5, e.body ? 30 : 8);
+    for (let i = 0; i < n; i++) { const a = ang + rand(-.7, .7), sp = rand(70, big ? 190 : 140); sc.parts.push({ x: e.x, y: hy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 120, life: rand(.12, .26), max: .26, c: i % 3 ? '#ffd463' : '#fff6d8', s: i % 4 ? 1 : 2 }); }
+    if (big) { G.hitstop = Math.max(G.hitstop, .04); q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 10, life: .15, max: .15, c: '#ffd463' }); }
+  }
   q.stats.dealt += dmg;
   if (fromPlayer && !blocked) onPlayerHit(e, dmg);
   if (e.boss && e.def.titan) titanOnHit(e, dmg);
@@ -578,6 +586,10 @@ function killEnemy(e, o = {}) {
   if (e.onDeath) { e.onDeath(e); return; }
   Sound.play('kill');
   burst(e.x, e.y - 6, e.boss ? 40 : 14, e.def.colors, e.boss ? 140 : 90);
+  if (!e.boss) {
+    q.fx.push({ t: 'pop', spr: e.def.sprite, flip: e.flip, x: e.x, y: e.y - (e.fly ? 10 : 0), life: .2, max: .2, scale: e.scale || 1 });
+    if (e.def.cls === 'heavy') { G.hitstop = Math.max(G.hitstop, .06); addShake(3); dust(e.x, e.y, 12); Sound.play('thud'); }
+  }
   q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: e.boss ? 40 : 12, life: .3, max: .3, c: '#f0e4cc' });
   if (!o.noLoot) rollLoot(e);
   if (e.def.puddle === 'poison' && e.def.role === 'exploder' && !o.exploded) addPuddle(e.x, e.y, 12, 3, 'poison', .02);
@@ -599,7 +611,7 @@ function rollLoot(e) {
 function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
   q.projs.push({ x, y, px: x, py: y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, dmg, kind, team, r: o.r || 2.5, life: o.life || 3,
                  pierce: o.pierce || 0, homing: o.homing || 0, split: o.split || null, charm: o.charm || 0, knock: o.knock || 90, src: o.src || null, hit: new Set(), t: 0, dead: false,
-                 ghost: !!o.ghost, bounce: o.bounce || 0, big: o.big || 0 });
+                 ghost: !!o.ghost, bounce: o.bounce || 0, big: o.big || 0, delay: o.delay || 0, launch: o.launch || 0, boom: o.boom || null });
 }
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
@@ -696,7 +708,7 @@ function updateHazards(dt) {
         else if (h.kind === 'sky' || h.kind === 'judgment') { q.fx.push({ t: 'bolt', x: h.x, y: h.y, life: .22, max: .22, seed: (h.x * 7 + h.y) | 0, col: h.kind === 'sky' ? '#9fb8ff' : '#ffd463' }); burst(h.x, h.y - 6, 12, h.kind === 'sky' ? ['#e6f2ff', '#3c4a78', '#ffd463'] : ['#ffd463', '#ffffff'], 100); Sound.play(h.kind === 'sky' ? 'thud' : 'zap'); addShake(h.r > 40 ? 6 : 2); }
         else if (h.kind === 'axis' || h.kind === 'memory') { burst(h.x, h.y - 6, 14, h.kind === 'axis' ? ['#e6f2ff', '#5b9bd5', '#ffffff'] : ['#c8b8ff', '#ffffff'], 100); Sound.play('zap'); q.fx.push({ t: 'ring', x: h.x, y: h.y, r0: 2, r1: h.r, life: .25, max: .25, c: hazardCol(h.kind) }); }
         else if (h.kind === 'star') { burst(h.x, h.y - 4, 6, ['#ffffff', '#e6f2ff'], 50); }
-        else if (h.kind === 'stone') { dust(h.x, h.y, 10); burst(h.x, h.y - 6, 10, ['#c9bda4', '#8f846c'], 90); Sound.play('thud'); addShake(2); }
+        else if (h.kind === 'stone' || h.kind === 'etna') { dust(h.x, h.y, 10); burst(h.x, h.y - 6, 10, ['#c9bda4', '#8f846c'], 90); Sound.play('thud'); addShake(2); }
         else if (h.kind === 'shadow') { burst(h.x, h.y - 8, 18, ['#2a1f3a', '#7fe08a', '#140d0b'], 110); Sound.play('swing'); q.fx.push({ t: 'ring', x: h.x, y: h.y, r0: 4, r1: h.r, life: .25, max: .25, c: '#7fe08a' }); }
         else { burst(h.x, h.y - 6, 12, [hazardCol(h.kind), '#fff6d8'], 90); Sound.play('thud'); }
         if (h.then) h.then(h);
