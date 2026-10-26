@@ -94,10 +94,10 @@ function buildHall() {
   TITANS.forEach((t, i) => { const left = i < 4, o = mkObstacle('tstatue', left ? 9.5 : 29.5, 7.6 + (i % 4) * 4.1, t.id); props.push(o); });
   [[5, 6], [34, 6], [5, 14], [34, 14], [5, 21], [34, 21]].forEach(([tx, ty]) => props.push(mkObstacle('brazier', tx, ty)));
   [[14, 9], [25, 9], [14, 18], [25, 18]].forEach(([tx, ty]) => { const o = mkObstacle('column', tx, ty); o.variant = 'dark'; props.push(o); });
-  const door = mkObstacle('tdoor', 19.5, 22.5); props.push(door);
-  const layers = genLayers('titanhall', null, { seed: 'hall' });
+  const layers = genLayers('titanhall', null, { seed: 'hall' }), gx = tc(20) - 8;
+  paintTartarusGate(layers.ground.getContext('2d'), mulberry(hashStr('tgate')), gx - 24, gx + 24, IPX.maxY, WORLD_H);
   const spots = [{ id: 'upstairs', name: 'the stairs', kind: 'stairs', goes: 'temple', x: tc(20) - 8, y: IPX.minY + 10 },
-                 { id: 'tgate', name: 'the Gate of Tartarus', kind: 'tgate', opens: 'quests', x: door.x, y: door.y - 12 }];
+                 { id: 'tgate', name: 'the Gate of Tartarus', kind: 'tgate', opens: 'quests', x: gx, y: IPX.maxY - 4 }];
   for (const o of props) if (o.kind === 'tstatue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
   return { id: 'hall', name: 'Hall of the Titans', theme: 'titanhall', night: true, world: makeWorld(props.map(o => o.box)),
            ground: layers.ground, buildings: [], props, npcs: [], spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
@@ -139,6 +139,23 @@ function buildTemple() {
            ground: layers.ground, buildings: [], props, npcs: [], spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 const STAIRS = { x: 19 * 16, y: 7 * 16, w: 48, h: 30 };   // centred on the doorway, like the carpet
+// The Gate of Tartarus, set into the hall's south wall like Akros' gate: the wall's cut ends on both sides, black stone
+// steps going down into the dark, and heavy bronze doors shut across the top of them, with Tartarus' light at the seam.
+function paintTartarusGate(x, R, x0, x1, yTop, yBot) {
+  const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); }, len = yBot - yTop;
+  for (let i = 0; i < len; i++) { const k = i / len, v = Math.round(58 * (1 - k) + 6); dot(x0, yTop + i, `rgb(${v},${Math.round(v * .86)},${Math.round(v * 1.12)})`, x1 - x0, 1); }
+  for (let py = yTop + 12; py < yBot; py += 6) { const k = (py - yTop) / len; dot(x0 + 3, py, `rgba(120,100,150,${.35 * (1 - k)})`, x1 - x0 - 6, 1); dot(x0 + 3, py + 1, 'rgba(0,0,0,.5)', x1 - x0 - 6, 1); }   // step edges
+  for (let i = 0; i < 26; i++) { const k = R(); dot(x0 + 4 + R() * (x1 - x0 - 8), yTop + 14 + k * (len - 16), `rgba(180,140,255,${.15 + k * .3})`); }   // the glow from below
+  dot(x0 + 3, yBot - 10, 'rgba(140,90,220,.18)', x1 - x0 - 6, 10);
+  for (const [fx, lit] of [[x0, true], [x1 - 3, false]]) { dot(fx, yTop, lit ? '#56525e' : '#1e1c22', 3, len); for (let py = yTop + 3; py < yBot; py += 7) dot(fx, py, lit ? '#3a3640' : '#141218', 3, 1); dot(lit ? fx + 3 : fx - 1, yTop, '#0a090c', 1, len); }
+  dot(x0 + 3, yTop, '#a8842a', x1 - x0 - 6, 1);                                       // a bronze threshold
+  const by = yTop + 3, w = x1 - x0 - 6;                                               // the doors, shut
+  dot(x0 + 3, by + 8, 'rgba(0,0,0,.45)', w, 3);
+  dot(x0 + 3, by - 1, '#0a090c', w, 10); dot(x0 + 4, by, '#4a3a24', w - 2, 8); dot(x0 + 4, by, '#7a5a2a', w - 2, 1); dot(x0 + 4, by + 7, '#2e2416', w - 2, 1);
+  for (let px = x0 + 9; px < x1 - 6; px += 6) dot(px, by + 1, '#3a2e1c', 1, 6);
+  const mid = Math.round((x0 + x1) / 2); dot(mid - 1, by - 1, '#0a090c', 2, 10); dot(mid - 1, by + 1, '#8a5ad8', 2, 6); dot(mid - 1, by + 3, '#b48cff', 2, 2);   // the seam, lit from below
+  for (const px of [x0 + 8, x0 + 16, x1 - 10, x1 - 18]) { dot(px, by + 3, '#140d0b', 2, 2); dot(px, by + 3, '#e9c04f'); }
+}
 function enterPlace(id, from) {
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
@@ -253,6 +270,7 @@ function tickVillage(dt) {
     else if (p.y > IPX.maxY + 6 && V.id === 'temple') { Sound.play('door'); fadeTo(() => enterPlace('village', 'temple')); Input.endFrame(); return; }
   }
   updateNpcs(dt);
+  if (V.id === 'hall' && Math.random() < .25) V.parts.push({ x: tc(20) - 8 + rand(-18, 18), y: IPX.maxY + rand(10, 44), vx: rand(-3, 3), vy: rand(-16, -7), g: 0, life: 1.4, max: 1.4, c: Math.random() < .5 ? '#b48cff' : '#8a5ad8', s: 1 });   // Tartarus' light drifting up from the gate
   if (V.id === 'village') {
     V.smokeT -= dt;
     if (V.smokeT <= 0) { V.smokeT = .14; const b = V.buildings.find(b => b.kind === 'forge'); V.parts.push({ x: b.box.x + b.box.w - 18 + rand(-1, 1), y: b.box.y - 7 + rand(-1, 0),   // out of the forge chimney's mouth (drawn in drawBuilding)
