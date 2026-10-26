@@ -332,18 +332,34 @@ function paintGateway(x, g, B, R, road) {
     dot(sx, py, '#7f7765', gp + 3, 4);
     for (let px = sx - ((py >> 2) % 2) * 3; px < sx + gp + 3; px += 6) { const a = Math.max(px, sx), b = Math.min(px + 5, sx + gp + 3); if (b > a) dot(a, py, ['#b5ab98', '#a69c88', '#c2b8a4', '#ada390'][(R() * 4) | 0], b - a, 3); }
   }
-  if (road) {
-    // cobbles thin out into packed earth with wheel ruts
-    for (let py = y0 + 10; py < H; py++) {
-      const t = (py - y0 - 10) / (H - y0 - 10);
-      for (let px = x0; px < x1; px++) {
-        const ragged = R() < .5 ? 1 : 0, edge = 6 + ((px * 7 + py * 3) % 5) + ragged * 2;
-        if (py - y0 < edge + 4 && R() > t * 1.6) continue;              // a ragged line where the paving stops
-        dot(px, py, R() < .12 ? '#93703f' : R() < .5 ? '#a8834f' : '#9e7a48');
-      }
-      for (const rx of [x0 + 13, x1 - 14]) { const w = rx + Math.round(Math.sin(py / 6 + rx) * 1.2); dot(w, py, '#7f6239', 2, 1); if (R() < .3) dot(w + 2, py, '#8a6a40'); }
-    }
-    for (let i = 0; i < 40; i++) dot(x0 + R() * (x1 - x0), y0 + 14 + R() * (H - y0 - 14), R() < .5 ? '#7c5f3a' : '#c09a63');
+  if (road) paintGatePassage(x, R, x0, x1, y0, H);
+}
+// Akros' gate, the same from inside the town and from the road outside: the street's cobbles run into the gap and give
+// way to the dirt road, the cut ends of the wall show on both sides, and the two gate doors stand open against them.
+// Nothing runs across the opening, so it reads as a way through, not more wall.
+function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot) {
+  const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); };
+  const pick = a => a[(R() * a.length) | 0], len = yBot - yTop;
+  for (let py = yTop; py < yBot; py++) for (let px = x0; px < x1; px++) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
+  // cobbles over the town end, thinning out toward the road
+  for (let py = yTop; py < yBot; py += 4) for (let px = x0 + 3 - ((py - yTop) / 4 % 2) * 3; px < x1 - 3; px += 6) {
+    const k = (py - yTop) / len; if (k > .4 && R() < (k - .4) * 2.4) continue;
+    const a = Math.max(px, x0 + 4), b = Math.min(px + 6, x1 - 4); if (b - a < 2) continue;
+    dot(a, py, '#8a8170', b - a, 4); dot(a, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), b - a - 1, 3);
+  }
+  for (const rx of [x0 + 15, x1 - 16]) for (let py = yTop + Math.round(len * .45); py < yBot; py++) if (R() < .75) dot(rx + Math.round(Math.sin(py / 5 + rx) * .7), py, '#7f6239');   // wheel ruts
+  // the wall's cut ends: the left face catches the light, the right one is in shadow
+  for (const [fx, lit] of [[x0, true], [x1 - 3, false]]) {
+    dot(fx, yTop, lit ? '#c9c1ae' : '#7f7868', 3, wallEnd - yTop);
+    for (let py = yTop + 2; py < wallEnd; py += 6) dot(fx, py, lit ? '#a39b8b' : '#5f594d', 3, 1);
+    dot(lit ? fx + 3 : fx - 1, yTop, '#3a362e', 1, wallEnd - yTop);
+  }
+  dot(x1 - 7, yTop, 'rgba(0,0,0,.16)', 3, wallEnd - yTop);
+  // the gate doors, swung open flat against each side at the town end
+  const dh = Math.min(22, len - 8);
+  for (const [dx, d] of [[x0 + 5, 1], [x1 - 8, -1]]) {
+    dot(dx - 1, yTop + 1, '#1a1210', 5, dh + 2); dot(dx, yTop + 2, '#6b4528', 3, dh); dot(d > 0 ? dx + 2 : dx, yTop + 2, '#5a3a22', 1, dh);
+    for (const yy of [yTop + 5, yTop + dh - 3]) { dot(dx, yy, '#3a2416', 3, 2); dot(dx + 1, yy, '#9aa0a6'); }
   }
 }
 // A small visual clue where the hidden nook meets the arena.

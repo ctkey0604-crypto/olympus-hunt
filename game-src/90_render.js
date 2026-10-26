@@ -643,7 +643,7 @@ function updateVillageHud() {
   tickHint();
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
-    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' ? 'Open' : 'Enter';
+    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' ? 'Open' : t.kind === 'gate' ? 'Head out through' : 'Enter';
     const html = `${touchMode ? '' : kbd(Input.bind.guard[0]) + ' '}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
     pr.hidden = false;

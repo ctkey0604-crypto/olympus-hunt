@@ -30,8 +30,7 @@ function paintApproach(x, R) {
   for (let py = 0; py < top; py += 6) for (let px = -(R() * 8 | 0); px < W;) { const w = 7 + (R() * 7 | 0); dot(px, py, pick(V.stone), w - 1, 5); dot(px, py, V.stoneHi, w - 1, 1); px += w; }
   dot(0, top - 3, '#3a362e', W, 3); dot(0, top, 'rgba(0,0,0,.22)', W, 4);           // the wall's foot and its shadow on the grass
   // the gateway: cobbles through the wall, shaded inner faces, a sill, two posts
-  for (let py = 0; py < top + 4; py++) for (let px = gx0; px < gx1; px++) dot(px, py, R() < .14 ? '#9a774a' : '#a8834f');
-  for (let py = 0; py < top - 6; py += 4) for (let px = gx0 + ((py / 4) % 2) * 3; px < gx1; px += 6) { if (py > top - 22 && R() < (py - (top - 22)) / 16) continue; dot(px, py, '#7f7765', 6, 4); dot(px, py, pick(['#b5ab98', '#a69c88', '#c2b8a4', '#ada390']), 5, 3); }
+  paintGatePassage(x, R, gx0, gx1, 0, top + 4, top);
   // red roof tiles peeking over the wall
   for (const [rx, rw] of [[70, 90], [430, 110]]) { dot(rx, 0, '#6b2c12', rw, 10); for (let px = rx; px < rx + rw; px += 6) dot(px, 2, '#b5532a', 5, 6); dot(rx, 9, '#8f3f1d', rw, 1); }
 }

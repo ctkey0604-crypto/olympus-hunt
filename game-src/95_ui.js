@@ -647,10 +647,11 @@ function showCredits(after) {
     <h3>Titans hunted</h3><p>${names(TITANS.map(t => t.id))}</p>
     <h3>The father of monsters</h3><p>Typhon</p>
     <h3>Your hunt</h3><p>${fmtPlay(s.playtime)} played${dot}${hunts} hunts cleared${dot}${caches} hidden caches found${dot}${fmtMoney(s.money)} drachmae in the bank</p>
-    <h3>Game design and ideas</h3><p>The creator of Olympus Hunt</p>
+    <h3>Created by</h3><p>Connor Key</p>
+    <h3>Creative</h3><p>Ben Wattkins</p>
     <h3>Code and pixel art</h3><p>Built with Claude</p>
     <h3>Music</h3><p>A tiny NES-style band, made out of code</p>
-    <h3>Playtesters</h3><p>Friends who found the bugs first</p>
+    <h3>Playtesters</h3><p>Nick Miler${dot}Caleb Key${dot}and more</p>
     <h3>And you</h3><p>for hunting all the way to the end</p>
     <p class="thanks">Thank you for playing</p>`;
   $('btnCreditsDone').hidden = true; $('btnCreditsSkip').hidden = false;
