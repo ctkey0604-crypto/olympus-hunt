@@ -582,7 +582,6 @@ function setPaused(v) {
   if (v && q && (q.phase === 'victory' || q.phase === 'defeat')) return;
   G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
-  $('pauseWhere').textContent = inQuest && q ? (q.def.rank ? RANKS[q.def.rank].name + ' · ' : '') + q.def.name : V ? V.name : '';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
   const road = !!(inQuest && q && q.def.prologue);
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
