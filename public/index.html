@@ -2682,7 +2682,7 @@ const Music = (() => {
                   nm: [0, 1, 3, 5, 7, 8, 11] };                 // nm: harmonic minor with a flat 2nd, the scariest of the lot
   // Boss fights play their tune in a darker mode: bright modes go minor, and on God Rank (and Typhon) the 2nd drops a half step.
   const DARK = { 1: { ion: 'aeo', lyd: 'aeo', mix: 'dor', dor: 'aeo' }, 2: { ion: 'hm', lyd: 'hm', mix: 'phr', dor: 'phr', aeo: 'phr', hm: 'nm' } };
-  const darken = (mode, grit) => DARK[Math.min(2, grit)][mode] || mode;
+  const darken = (mode, grit) => DARK[grit >= 3 ? 2 : 1][mode] || mode;
   const NOTES = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
   const DRUMS = {
     none: {},
@@ -2699,17 +2699,21 @@ const Music = (() => {
     anvil:  { k: 'x.......x.......', s: '....x.......x...', a: 'x.....x...x.....', h: '..x...x...x...x.' },
     slow:   { k: 'x...............', t: '........x.......' },
   };
-  // Boss fights get grunge beats instead of the plain loops: syncopated kicks, ghost snares (g), open hats (o), a groove that
-  // changes every other bar (A/B), a half-time stomp in the bridge, tom fills every 4 bars. 1 = boss themes, 2 = God Rank,
-  // 3 = Typhon (double-kick bursts and 16th hats).
+  // Fights get grunge beats instead of the plain loops: syncopated kicks, ghost snares (g), open hats (o), a groove that
+  // changes every other bar (A/B), a half-time stomp in the bridge, tom fills. Grit: 1 = Low Rank boss, 2 = High Rank boss,
+  // 3 = God Rank boss, 4 = Typhon (double-kick bursts and 16th hats). Hunt music runs one step below its rank's boss.
+  // When a boss changes phase the groove steps up one row.
   const GRUNGE = {
     1: { A: { k: 'x..x..x...x..x..', s: '....x..g....x..g', h: 'x.x.x.x.x.x.x.o.' },
          B: { k: 'x..x..x.x.x..x.x', s: '....x.g.....x.gg', h: 'x.x.x.o.x.x.x.o.' },
          half: { k: 'x.....x...x.....', s: '........x.......', h: 'x...x...x...x.o.' } },
-    2: { A: { k: 'x.xx..x.x.xx..x.', s: '....x..g.g..x..g', h: 'xxxxxxxxxxxxxxox' },
+    2: { A: { k: 'x..x..x.x..x..x.', s: '....x..g....x..g', h: 'x.x.x.x.x.x.xxo.' },
+         B: { k: 'x.xx..x...xx..x.', s: '....x.g.....x.gg', h: 'x.x.x.o.x.x.x.o.' },
+         half: { k: 'x.....x.x.x.....', s: '........x.....g.', h: 'x...x...x.x.x.o.' } },
+    3: { A: { k: 'x.xx..x.x.xx..x.', s: '....x..g.g..x..g', h: 'xxxxxxxxxxxxxxox' },
          B: { k: 'xxx.xxx.x.xxx.xx', s: '....x.g..g..x.gx', h: 'x.x.o.x.x.x.o.x.' },
          half: { k: 'x.x...x.xx......', s: '........x.....g.', h: 'x.x.x.x.x.x.x.o.' } },
-    3: { A: { k: 'xxx.xxx.xxx.xxx.', s: '....x..g....x..g', h: 'x.x.x.x.x.x.x.x.' },
+    4: { A: { k: 'xxx.xxx.xxx.xxx.', s: '....x..g....x..g', h: 'x.x.x.x.x.x.x.x.' },
          B: { k: 'xxxxxxxxxxxx.x.x', s: '....x..g....x.xx', h: 'xxxxxxxxxxxxxxxx' },
          half: { k: 'x..xx..xx..x....', s: '........x.......', h: 'x.x.o.x.x.x.o.x.' } },
   };
@@ -2819,7 +2823,7 @@ const Music = (() => {
   function chordTones(S, base, root) { return [pitch(S, base, root), pitch(S, base, root + 2), pitch(S, base, root + 4), pitch(S, base, root + 7)]; }
   // events[step] = [[channel, midi, steps, vol], ...]
   function build(id, level, grit = 0) {
-    const S0 = SONGS[id], S = grit && S0.boss && !S0.once ? { ...S0, mode: darken(S0.mode, grit) } : S0, bars = S.bars || 16, steps = bars * 16, ev = Array.from({ length: steps }, () => []);
+    const S0 = SONGS[id], fight = (S0.boss || S0.hunt) && !S0.once, S = grit && fight ? { ...S0, mode: darken(S0.mode, grit) } : S0, bars = S.bars || 16, steps = bars * 16, ev = Array.from({ length: steps }, () => []);
     const add = (st, e) => { if (st < steps) ev[st].push(e); };
     const prog = S.prog.split(/\s+/).map(Number), progB = (S.progB || S.prog).split(/\s+/).map(Number);
     const chordAt = bar => bar < 8 ? prog[bar % prog.length] : progB[(bar - 8) % progB.length];
@@ -2833,7 +2837,7 @@ const Music = (() => {
         if (!n.rest) {
           const m = pitch(S, lead, n.deg + 7 * n.oct, n.acc), hm = pitch(S, lead, n.deg + 7 * n.oct - 2, n.acc);
           // in a boss fight a long note is hammered out in eighths instead of held: it drives instead of floating
-          const hits = S.boss && grit && n.len >= (grit >= 2 ? 6 : 8) ? Array.from({ length: n.len / 2 | 0 }, (_, i) => [st + i * 2, i === (n.len / 2 | 0) - 1 ? n.len - i * 2 : 2, i ? .78 : 1]) : [[st, n.len, 1]];
+          const hits = fight && grit && n.len >= (grit >= 4 ? 4 : grit >= 2 ? 6 : 8) ? Array.from({ length: n.len / 2 | 0 }, (_, i) => [st + i * 2, i === (n.len / 2 | 0) - 1 ? n.len - i * 2 : 2, i ? .78 : 1]) : [[st, n.len, 1]];
           for (const [hs, hl, hv] of hits) {
             add(hs, ['p1', m, hl, hv]);
             if (level >= 2) add(hs, ['p2', m + 12, hl, .55 * hv]);
@@ -2886,24 +2890,24 @@ const Music = (() => {
         else if (S.arp === 'broken8' || S.arp === 'harm') for (let s = 0; s < 16; s += 2) add(b0 + s, ['p2', ch[[0, 2, 1, 2][(s / 2) % 4]], 2, .6]);
         else if (S.arp === 'pad') { add(b0, ['p2', ch[0], 16, .5]); add(b0, ['p3', ch[2], 16, .4]); }
       }
-      const GP = S.boss && !S.once && level >= 1 && grit >= 1 ? GRUNGE[Math.min(3, grit)] : null;
+      const GP = fight && level >= 1 && grit >= 1 ? GRUNGE[Math.min(4, grit + (level >= 2 ? 1 : 0))] : null;
       if (GP) {                                               // the boss groove, plus a palm-muted power-chord chug on every kick
-        const half = bar >= 8 && bar < 12, pat = half ? GP.half : bar % 2 ? GP.B : GP.A, fillBar = bar % 4 === 3, fillFrom = grit >= 2 ? 8 : 12;
+        const half = bar >= 8 && bar < 12, pat = half ? GP.half : bar % 2 ? GP.B : GP.A, fillBar = bar % 4 === 3, fillFrom = [0, 12, 10, 8, 8][grit];
         for (let s = 0; s < 16; s++) {
           if (fillBar && s >= fillFrom) continue;
           if (pat.k[s] === 'x') {                               // the chug follows the kick; the last hit of a bar slides to the flat 2nd or the tritone
             const off = half ? (s >= 8 ? 6 : 0) : s >= 13 ? (bar % 2 ? 6 : 1) : 0;
             add(b0 + s, ['d', 'k', 1, 1]); add(b0 + s, ['chug', rb + 12 + off, half ? 3 : 1, 1]);
           }
-          if (grit >= 2 && (half || (grit >= 3 && bar >= 12))) add(b0 + s, ['p3', rb + 24 + [0, 0, 1, 0][s % 4], 1, .45]);
+          if (grit >= 3 && (half || (grit >= 4 && bar >= 12))) add(b0 + s, ['p3', rb + 24 + [0, 0, 1, 0][s % 4], 1, .45]);
           if (pat.s[s] === 'x') add(b0 + s, ['d', 's', 1, 1]); else if (pat.s[s] === 'g') add(b0 + s, ['d', 's', 1, .32]);
           if (pat.h[s] === 'x') add(b0 + s, ['d', 'h', 1, s % 4 === 0 ? 1 : .7]); else if (pat.h[s] === 'o') add(b0 + s, ['d', 'o', 1, 1]);
         }
         if (fillBar) for (let s = fillFrom; s < 16; s++) {    // a tom fill running down into the next bar, kick under it
           const k = (s - fillFrom) / (16 - fillFrom); add(b0 + s, ['d', k < .5 ? 't' : 'f', 1, .8 + k * .3]); if (s % 2 === 0) add(b0 + s, ['d', 'k', 1, .8]);
-          if (grit >= 3 && s % 2) add(b0 + s, ['d', 's', 1, .5]);
+          if (grit >= 4 && s % 2) add(b0 + s, ['d', 's', 1, .5]);
         }
-        if (bar % (grit >= 2 ? 4 : 8) === 0 || (half && bar === 8)) add(b0, ['d', 'c', 1, 1]);
+        if (bar % (level >= 2 ? 2 : grit >= 2 ? 4 : 8) === 0 || (half && bar === 8)) add(b0, ['d', 'c', 1, 1]);
         continue;
       }
       // drums, with a snare fill closing every eighth bar and crashes when it gets serious
@@ -2936,9 +2940,10 @@ const Music = (() => {
   }
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
   const VOL = { p1: .15, p2: .075, p3: .06, tri: .3 };
-  // Grit (boss themes 1, God Rank 2, Typhon 3) layers the band: a detuned second lead, a picked edge on the bass, a
-  // palm-muted power-chord chug and harder drums. Only God Rank and Typhon get distortion, and only on the chug and the
-  // doubled lead (their own bus, low end cut first), so the drums and bass stay clean and nothing booms.
+  // Grit (1 Low Rank boss, 2 High Rank, 3 God Rank, 4 Typhon) layers the band: a detuned second lead, a picked edge on the
+  // bass, a palm-muted power-chord chug and harder drums. Low Rank is clean. High Rank puts a touch of drive on the chug;
+  // God Rank and Typhon drive the chug and the doubled lead harder. The drive has its own bus with the low end cut first, so
+  // the drums and bass stay clean and nothing booms.
   function layer(ctx, dest, type, m, t, end, vol, detune = 0, lp = 0) {
     const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(hz(m), t); o.detune.value = detune;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .006); g.gain.setValueAtTime(vol, end - .012); g.gain.linearRampToValueAtTime(0, end);
@@ -2950,7 +2955,7 @@ const Music = (() => {
     if (chn === 'd') return drum(ctx, out, m, t, v);
     if (chn === 'chug') {                                    // palm-muted power chord: root, fifth and octave, short and tight
       if (gr < 1) return;
-      const end = t + (steps > 1 ? dur * .9 : .095), bus = out.dirt || out.mix, lp = gr >= 2 ? 2400 : 1800;
+      const end = t + (steps > 1 ? dur * .9 : .095), bus = out.dirt || out.mix, lp = gr >= 3 ? 2400 : gr >= 2 ? 2100 : 1800;
       layer(ctx, bus, 'sawtooth', m, t, end, .045 * v, -6, lp); layer(ctx, bus, 'sawtooth', m + 7, t, end, .034 * v, 6, lp);
       if (gr >= 2) layer(ctx, bus, 'sawtooth', m + 12, t, end, .026 * v, 3, lp);
       return;
@@ -2959,8 +2964,8 @@ const Music = (() => {
       layer(ctx, out.mix, 'square', m + 12, t, t + Math.max(.03, Math.min(dur * .5, .07)), .03 * v, 0, 1400);
     if (gr >= 1 && chn === 'p1') {                           // the lead doubled, slightly out of tune, for weight
       const gate = Math.max(.04, dur * .86);
-      layer(ctx, gr >= 2 && out.dirt ? out.dirt : out.lead, 'sawtooth', m, t, t + gate, (gr >= 2 ? .05 : .035) * v, gr >= 3 ? -14 : -9, 2600);
-      if (gr >= 3) layer(ctx, out.lead, 'sawtooth', m - 12, t, t + gate, .03 * v, 11, 1400);
+      layer(ctx, gr >= 3 && out.dirt ? out.dirt : out.lead, 'sawtooth', m, t, t + gate, [0, .035, .042, .05, .05][gr] * v, gr >= 4 ? -14 : -9, 2600);
+      if (gr >= 4) layer(ctx, out.lead, 'sawtooth', m - 12, t, t + gate, .03 * v, 11, 1400);
     }
     const o = ctx.createOscillator(), g = ctx.createGain(), vol = VOL[chn] * v;
     if (chn === 'tri') o.type = 'triangle'; else o.setPeriodicWave(pulseWave(ctx, chn === 'p1' ? S.duty : chn === 'p2' ? .125 : .25));
@@ -2995,12 +3000,12 @@ const Music = (() => {
   const curves = {};
   function crunch(k) { if (curves[k]) return curves[k]; const n = 2048, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; c[i] = (1 + k) * x / (1 + k * Math.abs(x)); } return curves[k] = c; }
   function chain(ctx, dest, S, stepDur, grit = 0) {
-    const mix = ctx.createGain(); mix.gain.value = [1, 1, .88, .84][grit] || 1; mix.connect(dest);
+    const mix = ctx.createGain(); mix.gain.value = [1, 1, .95, .88, .84][grit] || 1; mix.connect(dest);
     const out = { mix, lead: mix, echo: !!S.echo, grit, dirt: null };
     if (grit >= 2) {                                          // the dirt bus: cut the lows -> drive -> soft clipper -> take the fizz off -> into the mix
       const dirt = ctx.createGain(), hp = ctx.createBiquadFilter(), drive = ctx.createGain(), sh = ctx.createWaveShaper(), lp = ctx.createBiquadFilter(), post = ctx.createGain();
-      hp.type = 'highpass'; hp.frequency.value = 200; drive.gain.value = grit >= 3 ? 3 : 2.4; sh.curve = crunch(grit >= 3 ? 5 : 3.5); sh.oversample = '2x';
-      lp.type = 'lowpass'; lp.frequency.value = 3600; post.gain.value = grit >= 3 ? .42 : .48;
+      hp.type = 'highpass'; hp.frequency.value = 200; drive.gain.value = [0, 0, 1.8, 2.4, 3][grit]; sh.curve = crunch([0, 0, 2, 3.5, 5][grit]); sh.oversample = '2x';
+      lp.type = 'lowpass'; lp.frequency.value = 3600; post.gain.value = [0, 0, .62, .48, .42][grit];
       dirt.connect(hp); hp.connect(drive); drive.connect(sh); sh.connect(lp); lp.connect(post); post.connect(mix); out.dirt = dirt;
     }
     if (S.echo) { const lead = ctx.createGain(), d = ctx.createDelay(1), fb = ctx.createGain(), wet = ctx.createGain(); d.delayTime.value = stepDur * 3; fb.gain.value = .32; wet.gain.value = .35;
@@ -3012,6 +3017,7 @@ const Music = (() => {
   const cache = {};
   const events = (id, lvl, grit = 0) => cache[id + ':' + lvl + ':' + grit] || (cache[id + ':' + lvl + ':' + grit] = build(id, lvl, grit));
   for (const id of Object.keys(SONGS)) if (typeof BOSSES !== 'undefined' && BOSSES[id]) SONGS[id].boss = true;   // god, Titan and Typhon themes
+  for (const id of Object.keys(SONGS)) if (/^hunt_/.test(id)) SONGS[id].hunt = true;
   const M = { want: null, wantLvl: 1, cur: null, out: null, ducked: false, timer: null, songs: SONGS, rankGrit: 0 };
   const speed = lvl => lvl >= 3 ? 1.12 : lvl >= 2 ? 1.07 : 1;
   function audible() { return !!(Settings.data.music !== false && !CG.muted); }      // its own switch, apart from sound effects
@@ -3029,7 +3035,7 @@ const Music = (() => {
     const ctx = Sound.ctx; if (!ctx) return;
     try { c.gain.gain.cancelScheduledValues(ctx.currentTime); c.gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 4); setTimeout(() => c.gain.disconnect(), (fade + .3) * 1000); } catch (e) {}
   }
-  const gritFor = id => SONGS[id].boss ? Math.max(1, Math.min(3, M.rankGrit >= 3 ? 3 : M.rankGrit >= 2 ? 2 : 1)) : /^hunt_/.test(id) && M.rankGrit >= 2 ? 1 : 0;
+  const gritFor = id => { const r = Math.max(0, Math.min(3, M.rankGrit || 0)); return SONGS[id].boss ? [1, 2, 3, 4][r] : SONGS[id].hunt ? [0, 1, 2, 2][r] : 0; };
   function startCur(id, lvl) {
     const ctx = Sound.ctx; if (!ctx || !SONGS[id]) return;
     const S = SONGS[id], gain = ctx.createGain(); gain.gain.value = 0; gain.connect(ensureOut(ctx)); gain.gain.setTargetAtTime(1, ctx.currentTime, .12);
@@ -3040,7 +3046,8 @@ const Music = (() => {
   }
   function tick() {
     const ctx = Sound.ctx; if (!ctx || ctx.state !== 'running') return;
-    if (M.want && (!M.cur || M.cur.id !== M.want)) { stopCur(); startCur(M.want, M.wantLvl); }
+    // a new track, or the same track at a different rank (it restarts with that rank's sound)
+    if (M.want && (!M.cur || M.cur.id !== M.want || M.cur.out.grit !== gritFor(M.want))) { stopCur(); startCur(M.want, M.wantLvl); }
     const c = M.cur; if (!c) return;
     if (c.lvl !== M.wantLvl && !c.S.once) { c.lvl = M.wantLvl; c.ev = events(c.id, c.lvl, c.out.grit); }
     const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4;
