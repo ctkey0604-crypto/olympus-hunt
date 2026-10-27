@@ -2827,6 +2827,10 @@ const Music = (() => {
     const add = (st, e) => { if (st < steps) ev[st].push(e); };
     const prog = S.prog.split(/\s+/).map(Number), progB = (S.progB || S.prog).split(/\s+/).map(Number);
     const chordAt = bar => bar < 8 ? prog[bar % prog.length] : progB[(bar - 8) % progB.length];
+    // A darker mode can turn a chord's perfect fifth into a sour one. Where the original chord had a perfect fifth it keeps
+    // it, so the harmony stays solid and the dark notes are passing colour that resolves.
+    const dark = S !== S0, fifth = (base, root) => { const r = pitch(S, base, root), f = pitch(S, base, root + 4); return dark && f - r !== 7 && pitch(S0, base, root + 4) - pitch(S0, base, root) === 7 ? r + 7 : f; };
+    const chord = (base, root) => { const c = chordTones(S, base, root); c[2] = fifth(base, root); return c; };
     const lead = tonic(S, S.oct), low = tonic(S, 2), mid = tonic(S, 4);
     const A = parse(S.A), E = S.E ? parse(S.E) : null;
     // the theme: bars 0-3 as written, 4-7 again with the ending bar, 8-15 the bridge (16-bar tracks)
@@ -2835,7 +2839,8 @@ const Music = (() => {
       let st = from;
       for (const n of notes) {
         if (!n.rest) {
-          const m = pitch(S, lead, n.deg + 7 * n.oct, n.acc), hm = pitch(S, lead, n.deg + 7 * n.oct - 2, n.acc);
+          const m = pitch(S, lead, n.deg + 7 * n.oct, n.acc); let hm = pitch(S, lead, n.deg + 7 * n.oct - 2, n.acc);
+          if (dark && (m - hm < 3 || m - hm > 4)) hm = m - 5;   // a third that turned sour in the dark mode becomes a solid fourth
           // in a boss fight a long note is hammered out in eighths instead of held: it drives instead of floating
           const hits = fight && grit && n.len >= (grit >= 4 ? 4 : grit >= 2 ? 6 : 8) ? Array.from({ length: n.len / 2 | 0 }, (_, i) => [st + i * 2, i === (n.len / 2 | 0) - 1 ? n.len - i * 2 : 2, i ? .78 : 1]) : [[st, n.len, 1]];
           for (const [hs, hl, hv] of hits) {
@@ -2864,7 +2869,7 @@ const Music = (() => {
       let st = 128, i = 0;
       for (const n of A) {
         if (st >= 192) break;
-        if (!n.rest) { const ch = chordTones(S, lead, chordAt(Math.floor(st / 16))), m = ch[i++ % 3] + (i % 6 > 2 ? 12 : 0); add(st, ['p1', m, n.len, .8]); }
+        if (!n.rest) { const ch = chord(lead, chordAt(Math.floor(st / 16))), m = ch[i++ % 3] + (i % 6 > 2 ? 12 : 0); add(st, ['p1', m, n.len, .8]); }
         st += n.len;
       }
       st = 192;
@@ -2873,7 +2878,7 @@ const Music = (() => {
     // bass, arpeggios and drums, bar by bar
     const dr = DRUMS[level === 0 && S.drums !== 'none' ? 'soft2' : S.drums] || {};
     for (let bar = 0; bar < bars; bar++) {
-      const r = chordAt(bar), b0 = bar * 16, rb = pitch(S, low, r), r5 = pitch(S, low, r + 4), r8 = rb + 12;
+      const r = chordAt(bar), b0 = bar * 16, rb = pitch(S, low, r), r5 = fifth(low, r), r8 = rb + 12;
       const bassPat = {
         drive: [[0, rb, 2], [2, rb, 2], [4, rb, 2], [6, rb, 2], [8, rb, 2], [10, rb, 2], [12, r8, 2], [14, rb, 2]],
         gallop: [[0, rb, 1], [2, rb, 1], [3, rb, 1], [4, rb, 1], [6, rb, 1], [7, rb, 1], [8, rb, 1], [10, rb, 1], [11, rb, 1], [12, r8, 1], [14, rb, 1], [15, rb, 1]],
@@ -2883,7 +2888,7 @@ const Music = (() => {
         doom: [[0, rb, 8], [8, r5, 8]],
       }[S.bass] || [];
       if (!(S.once && bar > 0 && S.bass !== 'doom' && S.bass !== 'pulse')) for (const [o, m, l] of bassPat) add(b0 + o, ['tri', m, l, 1]);
-      const ch = chordTones(S, mid, r), arpOn = bar >= 8 || (S.arp !== 'harm' && level < 2);
+      const ch = chord(mid, r), arpOn = bar >= 8 || (S.arp !== 'harm' && level < 2);
       if (!S.once && arpOn) {
         const a = S.arp === 'up' ? [0, 1, 2, 3] : S.arp === 'updown' ? [0, 1, 2, 3, 2, 1] : null;
         if (a) for (let s = 0; s < 16; s++) add(b0 + s, ['p2', ch[a[s % a.length]], 1, .55]);
@@ -2893,11 +2898,14 @@ const Music = (() => {
       const GP = fight && level >= 1 && grit >= 1 ? GRUNGE[Math.min(4, grit + (level >= 2 ? 1 : 0))] : null;
       if (GP) {                                               // the boss groove, plus a palm-muted power-chord chug on every kick
         const half = bar >= 8 && bar < 12, pat = half ? GP.half : bar % 2 ? GP.B : GP.A, fillBar = bar % 4 === 3, fillFrom = [0, 12, 10, 8, 8][grit];
+        const lastK = pat.k.lastIndexOf('x'), nextRoot = pitch(S, low, chordAt((bar + 1) % bars));
         for (let s = 0; s < 16; s++) {
           if (fillBar && s >= fillFrom) continue;
-          if (pat.k[s] === 'x') {                               // the chug follows the kick; the last hit of a bar slides to the flat 2nd or the tritone
-            const off = half ? (s >= 8 ? 6 : 0) : s >= 13 ? (bar % 2 ? 6 : 1) : 0;
-            add(b0 + s, ['d', 'k', 1, 1]); add(b0 + s, ['chug', rb + 12 + off, half ? 3 : 1, 1]);
+          if (pat.k[s] === 'x') {                               // the chug follows the kick (a tritone stomp in the half-time drop)
+            add(b0 + s, ['d', 'k', 1, 1]);
+            // the last hit of a bar leans on the note a half step above the next chord, then falls into it: tension, then release
+            if (!half && s === lastK && s >= 12) add(b0 + s, ['chug', nextRoot + 13, 1, .9, 1]);
+            else add(b0 + s, ['chug', rb + 12 + (half && s >= 8 ? 6 : 0), half ? 3 : 1, 1]);
           }
           if (grit >= 3 && (half || (grit >= 4 && bar >= 12))) add(b0 + s, ['p3', rb + 24 + [0, 0, 1, 0][s % 4], 1, .45]);
           if (pat.s[s] === 'x') add(b0 + s, ['d', 's', 1, 1]); else if (pat.s[s] === 'g') add(b0 + s, ['d', 's', 1, .32]);
@@ -2956,8 +2964,9 @@ const Music = (() => {
     if (chn === 'chug') {                                    // palm-muted power chord: root, fifth and octave, short and tight
       if (gr < 1) return;
       const end = t + (steps > 1 ? dur * .9 : .095), bus = out.dirt || out.mix, lp = gr >= 3 ? 2400 : gr >= 2 ? 2100 : 1800;
-      layer(ctx, bus, 'sawtooth', m, t, end, .045 * v, -6, lp); layer(ctx, bus, 'sawtooth', m + 7, t, end, .034 * v, 6, lp);
-      if (gr >= 2) layer(ctx, bus, 'sawtooth', m + 12, t, end, .026 * v, 3, lp);
+      layer(ctx, bus, 'sawtooth', m, t, end, .058 * v, -6, lp);
+      if (!e[4]) layer(ctx, bus, 'sawtooth', m + 7, t, end, .044 * v, 6, lp);   // e[4]: a single passing note, no fifth on it
+      if (gr >= 2) layer(ctx, bus, 'sawtooth', m + 12, t, end, .034 * v, 3, lp);
       return;
     }
     if (gr >= 1 && chn === 'tri')                            // a picked edge on the bass, an octave up: bite, not boom
@@ -2987,8 +2996,8 @@ const Music = (() => {
     const hiss = (ft, f, d, vol, q = .8) => { const s = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), ng = ctx.createGain(); s.buffer = noiseBuf(ctx); fl.type = ft; fl.frequency.value = f; fl.Q.value = q;
       ng.gain.setValueAtTime(vol * v, t); ng.gain.exponentialRampToValueAtTime(.001, t + d); s.connect(fl); fl.connect(ng); ng.connect(g); s.start(t, Math.random() * .5); s.stop(t + d + .02); };
     const gr = out.grit || 0;
-    if (k === 'k') { tone('triangle', 170, 42, .13, .6); hiss('lowpass', 900, .02, .12); if (gr >= 1) { tone('sine', 110, 50, .09, .22); hiss('highpass', 3000, .012, .14); } }
-    else if (k === 's') { hiss('bandpass', 1700, .13, .32); tone('triangle', 200, 130, .07, .16); if (gr >= 1) { tone('triangle', 240, 170, .06, .14); hiss('highpass', 5000, .1, .1); } }
+    if (k === 'k') { tone('triangle', 170, 42, .13, .6); hiss('lowpass', 900, .02, .12); if (gr >= 1) { tone('sine', 110, 50, .09, .22); hiss('highpass', 3000, .012, .2); } }
+    else if (k === 's') { hiss('bandpass', 1700, .13, .32); tone('triangle', 200, 130, .07, .16); if (gr >= 1) { tone('triangle', 240, 170, .06, .18); hiss('highpass', 5000, .1, .13); } }
     else if (k === 'h') hiss('highpass', 7200, .035, .09);
     else if (k === 'o') hiss('highpass', 6000, .2, .1, .6);
     else if (k === 'f') tone('triangle', 150, 62, .22, .55);
