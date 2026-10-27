@@ -238,7 +238,22 @@ function refineRow(kind, id) {
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
-function gearVisible(tier, owned, titan = false) { return owned || (tier <= highestTier() + 1 && (!titan || G.save.stairs)); }
+// Gear shows up in the forge once you've cleared hunts that drop every part in its recipe (its monsters, god or Titan,
+// summons included), so the list only holds things you've actually fought for.
+let PART_SRC = null;
+function partSources() {
+  if (PART_SRC) return PART_SRC;
+  PART_SRC = {};
+  const add = (id, qid) => (PART_SRC[id] = PART_SRC[id] || []).push(qid);
+  for (const qd of QUESTS) {
+    for (const id of questParts(qd)) add(id, qd.id);
+    const B = qd.boss && BOSSES[qd.boss];
+    if (B && B.summons) for (const S of B.summons) for (const t of S.types) for (const l of (ENEMIES[t] ? ENEMIES[t].loot : [])) add(rid(l[0], qd.rank), qd.id);
+  }
+  return PART_SRC;
+}
+const partKnown = id => { const src = partSources()[id]; return !src || src.some(qid => G.save.cleared[qid]); };
+function gearVisible(rec, owned) { return owned || !rec || Object.keys(rec.items).every(partKnown); }
 const rankTag = r => r ? `<span class="rk" data-rank="${r}">${RANKS[r].name}</span>` : '';
 // Which gear the forge shows: the chosen rank, and optionally only what you can forge right now or already own.
 function forgeShows(rank, owned, craftable) { return rank === G.forgeRank && (G.forgeFilter === 'all' || (G.forgeFilter === 'owned' ? owned : !owned && craftable)); }
@@ -254,7 +269,7 @@ function renderArmory() {
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
       const owned = s.weapons.includes(id);
       if (!forgeShows(w.rank, owned, w.recipe && canCraft(w.recipe))) continue;
-      if (!gearVisible(w.wt, owned, w.titan)) { if (!w.titan || G.save.stairs) hidden++; continue; }
+      if (!gearVisible(w.recipe, owned)) { hidden++; continue; }
       const eq = s.weapon === id, K = KINDS[w.kind], lv = owned ? refineLevel(id) : 0, dmg = Math.round(w.dmg * (1 + REFINE_GAIN.weapon * lv));
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
@@ -271,7 +286,7 @@ function renderArmory() {
       const ownedAny = SLOTS.some(sl => s.pieces.includes(sid + ':' + sl));
       const craftAny = SLOTS.some(sl => { const P = PIECES[sid + ':' + sl]; return P.recipe && !s.pieces.includes(P.id) && canCraft(P.recipe); });
       if (!forgeShows(set.rank, ownedAny, craftAny)) continue;
-      if (!gearVisible(set.ch, ownedAny, set.titan)) { if (!set.titan || G.save.stairs) hidden++; continue; }
+      if (!gearVisible(set.recipe, ownedAny)) { hidden++; continue; }
       const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
         const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
@@ -299,7 +314,7 @@ function renderArmory() {
     for (const [id, sh] of Object.entries(SHIELDS).sort((a, b) => b[1].ch - a[1].ch)) {
       const owned = s.shields.includes(id);
       if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
-      if (!gearVisible(sh.ch, owned, sh.titan)) { if (!sh.titan || G.save.stairs) hidden++; continue; }
+      if (!gearVisible(sh.recipe, owned)) { hidden++; continue; }
       const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
@@ -313,7 +328,7 @@ function renderArmory() {
     }
   }
   if (!cards) cards = `<div class="empty-note" style="grid-column:1/-1">${G.forgeFilter === 'craft' ? 'Nothing you can forge right now. Bring home more parts.' : G.forgeFilter === 'owned' ? 'You don’t own anything here yet.' : 'Nothing here yet.'}</div>`;
-  return tutForgeNote() + seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here as you hunt higher gods.</p>` : '');
+  return tutForgeNote() + seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here once you’ve fought the monsters and gods that drop its parts.</p>` : '');
 }
 function renderStash() {
   const s = G.save;

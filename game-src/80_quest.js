@@ -18,6 +18,7 @@ const BUDGET = 12;
 function startQuest(id) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !isUnlocked(def))) return;
   G.rebinding = null;
+  Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
   if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
   const A = ARENAS[def.arena], T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
