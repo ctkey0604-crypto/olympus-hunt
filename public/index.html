@@ -7589,7 +7589,6 @@ function drawStairs(S, open, down) {
     if (open > 0) {
       ctx.fillStyle = '#0b0706'; ctx.fillRect(sx, sy, w, h);
       for (let i = 0; i < 6; i++) { const yy = sy + 3 + i * 4.5, sh = Math.round(255 * (1 - i / 6) * .55); ctx.fillStyle = `rgb(${sh},${Math.round(sh * .9)},${Math.round(sh * .8)})`; ctx.fillRect(sx + 3 + i, Math.round(yy), w - 6 - i * 2, 2); }
-      if (Math.floor(G.time * 2) % 2) { ctx.fillStyle = '#b48cff'; ctx.fillRect(sx + w / 2 - 1, sy + h - 6, 2, 2); }
     }
     // the slab slides north as it opens
     const off = Math.round(open * (h + 6)), slabY = sy - off;
