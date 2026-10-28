@@ -130,6 +130,10 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 .title-wrap{max-width:720px;justify-items:center;text-align:center;padding-top:2vh}
 .logo{margin:0;font-family:var(--font-display);font-weight:400;font-size:clamp(64px,15vw,132px);line-height:.82;letter-spacing:.03em;color:var(--clay);text-shadow:4px 4px 0 #000;text-transform:uppercase}
 #titleArt{width:min(720px,100%);height:auto;aspect-ratio:272/44;image-rendering:pixelated;max-width:100%}
+/* the build tag hangs off the bottom-right corner of the logo, in the gap above the art, so it takes no space of its own */
+.logo-box{position:relative}
+.build-tag{position:absolute;right:2px;top:100%;margin-top:2px;white-space:nowrap;font-size:.7rem;line-height:1;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+  color:var(--gold);background:#000;padding:3px 6px 3px 8px;box-shadow:0 0 0 1px #ebc15266}
 .lede{max-width:52ch;margin:0;color:var(--bone-dim);font-size:1.05rem}
 .controls{width:100%;display:flex;flex-wrap:wrap;gap:2px;background:#000;box-shadow:0 0 0 2px var(--line);text-align:left}
 .controls div{flex:1 1 150px;background:var(--glaze-2);padding:10px 12px;display:grid;gap:2px;align-content:start}
@@ -525,7 +529,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   <div class="wrap title-wrap">
     <div class="meander" style="width:100%"></div>
     <p class="eyebrow">A monster-hunting game of the Greek gods</p>
-    <h1 class="logo">Olympus<br>Hunt</h1>
+    <div class="logo-box"><h1 class="logo">Olympus<br>Hunt</h1><span class="build-tag" title="This build of the game">Beta 0.9</span></div>
     <canvas id="titleArt" width="272" height="44" aria-hidden="true"></canvas>
     <div class="title-actions">
       <button class="btn big" id="btnPlay" type="button">Play</button>
