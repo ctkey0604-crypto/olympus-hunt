@@ -39,6 +39,33 @@ for (const [sid, set] of Object.entries(ARMOR_SETS)) {
 // Gods and Titans: how many on-curve sword hits they take to bring down. The real health is worked out per rank.
 for (const b of Object.values(BOSSES)) b.hits = b.hp ? b.hp / tierW(b.tier) : (54 + 2.5 * (b.tier - 1)) * (b.side ? .7 : 1) * (b.titan ? 1.8 : 1);
 
+// Balance from the bot runs (Oct 29): a sword bot and a bow bot fought every god and Titan at each rank, and each fight's
+// health lost was compared to a smooth curve (rising through the gods, Titans harder, each rank harder again, Cronus the
+// hardest Titan). Where a fight was clearly off, its health and damage are nudged per rank: [Low, High, God]. Fights the
+// bots found slow (evasive bosses at God Rank) lose health rather than gain damage, so none of them drags.
+const BOSS_TUNE = {
+  hermes: { hp: [0.92, 0.84, 0.85], dmg: [0.92, 0.84, 0.85] },
+  dionysus: { hp: [0.89, 0.89, 0.87], dmg: [0.89, 0.89, 0.87] },
+  pan: { hp: [1.35, 1.41, 1.31], dmg: [1.25, 1.25, 1.25] },
+  athena: { hp: [1.0, 1.14, 1.0], dmg: [1.0, 1.14, 1.0] },
+  aphrodite: { hp: [1.0, 0.92, 0.77], dmg: [1.0, 0.92, 0.77] },
+  apollo: { hp: [1.17, 1.18, 1.09], dmg: [1.17, 1.18, 1.09] },
+  hecate: { hp: [1.0, 0.72, 0.82], dmg: [1.0, 0.72, 0.82] },
+  poseidon: { hp: [1.0, 1.0, 1.1], dmg: [1.0, 1.0, 1.1] },
+  hera: { hp: [0.92, 1.0, 1.0], dmg: [0.92, 1.0, 1.0] },
+  eris: { hp: [1.0, 0.87, 0.69], dmg: [1.0, 0.87, 0.69] },
+  hephaestus: { hp: [1.29, 1.4, 1.18], dmg: [1.25, 1.25, 1.18] },
+  hades: { hp: [1.1, 1.0, 1.0], dmg: [1.1, 1.0, 1.0] },
+  hypnos: { hp: [0.84, 0.83, 0.85], dmg: [0.84, 0.83, 0.85] },
+  hyperion: { hp: [1.0, 1.0, 0.82], dmg: [1.0, 1.0, 0.82] },
+  oceanus: { hp: [1.0, 0.92, 0.77], dmg: [1.0, 0.92, 0.77] },
+  mnemosyne: { hp: [1.0, 1.0, 0.57], dmg: [1.0, 1.0, 1.0] },   // her echoes replay your swings, so the bots over-rate her damage
+  themis: { hp: [0.87, 1.0, 0.89], dmg: [0.87, 1.0, 0.89] },
+  rhea: { hp: [1.24, 1.25, 1.14], dmg: [1.24, 1.25, 1.14] },
+  cronus: { hp: [0.87, 0.88, 0.75], dmg: [0.87, 0.88, 0.75] },
+};
+for (const [id, t] of Object.entries(BOSS_TUNE)) if (BOSSES[id]) BOSSES[id].tune = t;
+
 // Generated arenas: obstacles and the hidden nook come out the same every time.
 for (const [id, A] of Object.entries(ARENAS)) {
   if (A.obstacles) continue;

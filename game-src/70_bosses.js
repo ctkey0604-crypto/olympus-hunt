@@ -25,9 +25,11 @@ const RANK_MOVES = {
   hypnos:     [{ id: 'vanish', w: 2, p1: { time: 2, dmg: .15 } }, { id: 'wave', w: 1, p1: { dmg: .13, speed: 120, max: 150, col: '#c8b8ff' } }],
 };
 function makeBoss(type, x, y, rank = q ? q.def.rank : 0) {
-  const d = BOSSES[type], fr = SPR[d.sprite][0], R = RANKS[rank] || RANKS[0], tier = d.tier + R.off, hp = Math.round(d.hits * tierW(tier) * R.hp);
+  const d = BOSSES[type], fr = SPR[d.sprite][0], R = RANKS[rank] || RANKS[0], tier = d.tier + R.off;
+  const tune = k => (d.tune && d.tune[k] && d.tune[k][rank]) || 1;          // per-boss, per-rank balance from the bot runs (BOSS_TUNE)
+  const hp = Math.round(d.hits * tierW(tier) * R.hp * tune('hp'));
   return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo, attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
-           dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg * (d.dmgScale || 1), dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1) * (d.dmgScale || 1),
+           dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg * (d.dmgScale || 1) * tune('dmg'), dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1) * (d.dmgScale || 1) * tune('dmg'),
            x, y, r: d.titan ? 15 : d.r, h: d.titan ? fr.h * TITAN_SCALE : fr.h + 4, body: d.titan ? Math.round(fr.h * TITAN_SCALE * .74) : 0, hp, maxHp: hp, vx: 0, vy: 0, kbx: 0, kby: 0,
            state: 'intro', st: 1.6, phase: 1, flash: 0, stun: 0, flip: true, walkT: 0, invuln: 1.6, alpha: 0, orbit: 1, last: null, lastCount: 0,
            dashEnd: null, count: 0, lockAt: .2, summons: 0, kbRes: .06, dead: false, contactCd: 0, face: Math.PI / 2, guard: false, stormT: 3, aim: 0,

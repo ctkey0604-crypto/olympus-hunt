@@ -173,7 +173,7 @@ const ABILITIES = {
   winged_step: { name: 'Winged Step',     cd: 4, desc: 'Dash forward, cutting through everything in your path.' },
   stampede:    { name: 'Stampede Slam',   cd: 6, desc: 'Slam the ground. Stuns and hurls back everything nearby.' },
   volley:      { name: 'Moon Volley',     cd: 6, desc: 'Loose seven arrows in a wide fan.' },
-  frenzy:      { name: 'Frenzy',          cd: 9, desc: 'Attack 60% faster for 5 seconds.' },
+  frenzy:      { name: 'Frenzy',          cd: 9, desc: 'Attack 40% faster for 5 seconds.' },
   aegis:       { name: 'Aegis Ward',      cd: 7, desc: 'Nothing can hurt you for a moment, and arrows and bolts fly back where they came from.' },
   soulsteal:   { name: 'Heartsteal',      cd: 9, desc: 'For 5 seconds, every hit heals you.' },
   sunburst:    { name: 'Sunburst',        cd: 7, desc: 'Fire a ring of sunlight in every direction.' },
@@ -181,7 +181,7 @@ const ABILITIES = {
   tidal:       { name: 'Tidal Wave',      cd: 7, desc: 'A wave rolls out from you and shoves everything far back.' },
   quake:       { name: 'Earthquake',      cd: 8, desc: 'Spikes burst from the ground around you and stun what they hit.' },
   eruption:    { name: 'Eruption',        cd: 8, desc: 'Fire bursts under the five nearest enemies.' },
-  deathmark:   { name: 'Death Mark',      cd: 9, desc: 'Enemies near you take 50% more damage for 6 seconds.' },
+  deathmark:   { name: 'Death Mark',      cd: 9, desc: 'Enemies near you take 30% more damage for 6 seconds.' },
   chain:       { name: 'Chain Lightning', cd: 6, desc: 'Lightning jumps between up to five nearby enemies.' },
 };
 

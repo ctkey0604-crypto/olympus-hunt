@@ -219,7 +219,7 @@ function startAttack(p) {
   else if (Settings.data.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 215); aim = t === null ? aimAssist(p, p.face, K) : t; }
   else aim = aimAssist(p, p.face, K);
   p.face = aim; p.swingSide = -p.swingSide;
-  const fast = (p.fx.frenzy > 0 ? .625 : 1) * (p.fx.killRush > 0 ? .77 : 1);
+  const fast = (p.fx.frenzy > 0 ? .71 : 1) * (p.fx.killRush > 0 ? .77 : 1);
   p.swing = { t: 0, windup: K.windup * fast, active: K.active, aim, fired: false, side: p.swingSide };
   p.atkCd = K.cooldown * fast;
 }
@@ -231,7 +231,7 @@ function releaseAttack(p, s) {
   if (K.melee && p.comboT > 0) dmg *= 1.12;                 // melee follow-up: chained hits land harder
   Sound.play(K.sfx);
   p.strikes++; if (q.onPlayerAct) q.onPlayerAct('attack');
-  if (p.fx.echo > 0) p.echoes.push({ t: .32, aim: s.aim, dmg: dmg * .7 });
+  if (p.fx.echo > 0) p.echoes.push({ t: .32, aim: s.aim, dmg: dmg * .45 });
   if (!K.melee) { spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed, dmg, 'arrow', 'player', { r: 2.5, life: .95, pierce: w.pierce || 0 }); return; }
   const hits = meleeHit(p, s.aim, dmg, riposte);
   if (hits) p.comboT = .8;
@@ -290,13 +290,14 @@ function spinHit(p) {
 }
 function useAbility(p, mv) {
   const w = p.st.weapon, id = w.ability, ab = ABILITIES[id], W = w.dmg * dmgMul(p);
+  const T = w.dmg / KINDS[w.kind].dmgM * dmgMul(p), cast = new Set();   // T: the tier's hit, for spell-like skills; cast: who this use already hit
   p.abilCd = ab.cd * (1 - p.st.abilityCd) * (w.cdMul || 1); Sound.play('ability');
   if (q.onPlayerAct) q.onPlayerAct('skill');
   const aim = () => { const t = Settings.data.autoAim ? autoTarget(p, 240) : null; return t !== null ? t : p.face; };
   const near = (r, n) => q.enemies.filter(e => targetable(e) && edist(p, e) < r).sort((a, b) => edist(p, a) - edist(p, b)).slice(0, n);
   if (id === 'winged_step' || id === 'impale') {
     const a = id === 'impale' ? aim() : (mv.x || mv.y) ? Math.atan2(mv.y, mv.x) : p.face, sp = id === 'impale' ? 340 : 430;
-    p.face = a; p.dvx = Math.cos(a) * sp; p.dvy = Math.sin(a) * sp; p.dashT = id === 'impale' ? .24 : .2; p.dashHit = new Set(); p.swing = null; p.dashMult = id === 'impale' ? 2.4 : 2.6;
+    p.face = a; p.dvx = Math.cos(a) * sp; p.dvy = Math.sin(a) * sp; p.dashT = id === 'impale' ? .24 : .2; p.dashHit = new Set(); p.swing = null; p.dashMult = id === 'impale' ? 2 : 2.6;
     burst(p.x, p.y - 6, 10, id === 'impale' ? ['#ffffff', '#c7ccd1'] : ['#f3e9d4', '#ebc152'], 70);
   } else if (id === 'stampede' || id === 'aegis') {
     const R = id === 'stampede' ? 52 : 40;
@@ -311,13 +312,13 @@ function useAbility(p, mv) {
     if (id === 'aegis') p.aegisT = 1.5;
   } else if (id === 'chain') {
     let from = { x: p.x, y: p.y - 8 }; const targets = near(150, 5);
-    for (const e of targets) { const b = bodyPt(e, from.x, from.y); q.fx.push({ t: 'zap', x0: from.x, y0: from.y, x1: b.x, y1: b.y - 6, life: .3, max: .3, seed: e.id }); damageEnemy(e, W * 1.2, Math.atan2(b.y - from.y, b.x - from.x), 120, true); from = { x: b.x, y: b.y - 6 }; }
+    for (const e of targets) { const b = bodyPt(e, from.x, from.y); q.fx.push({ t: 'zap', x0: from.x, y0: from.y, x1: b.x, y1: b.y - 6, life: .3, max: .3, seed: e.id }); damageEnemy(e, W * 1.5, Math.atan2(b.y - from.y, b.x - from.x), 120, true); from = { x: b.x, y: b.y - 6 }; }
     Sound.play('zap'); G.flash = Math.max(G.flash, .06);
     if (!targets.length) q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 2, r1: 20, life: .25, max: .25, c: '#57c2b0' });
   } else if (id === 'volley') {
     const a0 = aim(); p.face = a0;
     const grp = new Map();
-    for (let i = 0; i < 7; i++) { spawnProj(p.x, p.y, a0 + (i / 6 - .5) * 1.0, 260, W * .8, 'arrow', 'player', { r: 2.5, life: 1, pierce: 1 }); q.projs[q.projs.length - 1].group = grp; }
+    for (let i = 0; i < 7; i++) { spawnProj(p.x, p.y, a0 + (i / 6 - .5) * 1.0, 260, W * .95, 'arrow', 'player', { r: 2.5, life: 1, pierce: 1 }); q.projs[q.projs.length - 1].group = grp; }
     Sound.play('arrow');
   } else if (id === 'sunburst') {
     for (let i = 0; i < 14; i++) spawnProj(p.x, p.y, i / 14 * Math.PI * 2, 210, W * .9, 'sunbolt', 'player', { r: 3, life: .9, pierce: 1 });
@@ -333,7 +334,7 @@ function useAbility(p, mv) {
     [[26, 8, 0], [46, 12, .12], [66, 16, .24]].forEach(([r, n, d]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; q.pspikes.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: -d, dmg: W * 1.1, hit: false }); } });
   } else if (id === 'eruption') {
     const targets = near(150, 5);
-    for (const e of targets) q.pspikes.push({ x: e.x, y: e.y, t: -.35, dmg: W * 1.8, hit: false, fire: true, r: 16 });
+    for (const e of targets) q.pspikes.push({ x: e.x, y: e.y, t: -.35, dmg: T * 2.8, hit: false, fire: true, r: 16, cast });
     if (!targets.length) q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 2, r1: 20, life: .25, max: .25, c: '#ff8a2b' });
     Sound.play('explode');
   } else if (id === 'deathmark') {
@@ -363,7 +364,7 @@ function useAbility(p, mv) {
   else if (id === 'skyfall') {
     const targets = near(200, 6);
     if (!targets.length) targets.push({ x: p.x + Math.cos(p.face) * 40, y: p.y + Math.sin(p.face) * 40 });
-    targets.forEach((e, i) => q.pspikes.push({ x: e.x, y: e.y, t: -.55 - i * .08, dmg: W * 2.2, hit: false, sky: true, r: 18 }));
+    targets.forEach((e, i) => q.pspikes.push({ x: e.x, y: e.y, t: -.55 - i * .08, dmg: T * 4.2, hit: false, sky: true, r: 18, cast }));
     Sound.play('telegraph');
   } else if (id === 'solar_lance') {
     const a = aim(), len = 230, x0 = p.x, y0 = p.y - 6, x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len; p.face = a;
@@ -372,7 +373,7 @@ function useAbility(p, mv) {
   } else if (id === 'riptide') {
     q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 120, r1: 8, life: .35, max: .35, c: '#57c2b0' }); Sound.play('splash');
     for (const e of q.enemies) if (targetable(e) && edist(p, e) < 130 && !e.boss) { const a = Math.atan2(p.y - e.y, p.x - e.x), k = Math.min(380, edist(p, e) * 4.5) * (e.kbRes ?? 1); e.kbx += Math.cos(a) * k; e.kby += Math.sin(a) * k; e.stun = Math.max(e.stun, .6); }
-    q.pspikes.push({ x: p.x, y: p.y, t: -.4, dmg: W * 1.6, hit: false, water: true, r: 46 });
+    q.pspikes.push({ x: p.x, y: p.y, t: -.4, dmg: T * 2.2, hit: false, water: true, r: 46 });
   } else if (id === 'foresight') { p.fx.foresight = 5; p.foresightN = 2; burst(p.x, p.y - 8, 12, ['#e6f2ff', '#5b9bd5'], 60); Sound.play('charm'); }
   else if (id === 'echo') { p.fx.echo = 5; burst(p.x, p.y - 8, 12, ['#c8b8ff', '#ffffff'], 60); Sound.play('charm'); }
   else if (id === 'verdict') {
@@ -382,7 +383,7 @@ function useAbility(p, mv) {
     G.flash = Math.max(G.flash, .08); addShake(4); Sound.play('perfect'); p.recent = [];
     for (const e of q.enemies) if (targetable(e) && edist(p, e) < R + e.r) damageEnemy(e, dmg, eang(p, e), 200, true);
   } else if (id === 'pride') {
-    for (const side of [-1, 1]) spawnProj(p.x + side * 8, p.y, p.face + side * .6, 175, W * 1.4, 'lion', 'player', { r: 6, life: 4, pierce: 2, homing: 5 });
+    for (const side of [-1, 1]) spawnProj(p.x + side * 8, p.y, p.face + side * .6, 175, T * 2.2, 'lion', 'player', { r: 6, life: 4, pierce: 2, homing: 5 });
     Sound.play('roar');
   } else if (id === 'timestop') { q.timeStop = 2.5; G.flash = Math.max(G.flash, .15); Sound.play('blessing'); q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 6, r1: 160, life: .5, max: .5, c: '#e9c04f' }); }
 }
@@ -401,6 +402,7 @@ function updatePSpikes(dt) {
         if (!targetable(e)) continue;
         const d = edist(s, e);
         if (s.ring ? Math.abs(d - R) > 14 + e.r : d > R + e.r) continue;
+        if (s.cast) { if (s.cast.has(e)) continue; s.cast.add(e); }
         damageEnemy(e, s.dmg, eang(s, e), s.water ? 260 : 120, true);
         if (s.fire) e.burnT = 3; else if (!e.boss && !e.dead) e.stun = Math.max(e.stun, s.ring ? .9 : .8);
       }
@@ -543,7 +545,7 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
     if (e.boss) { e.kbx += Math.cos(ang) * 30; e.kby += Math.sin(ang) * 30; return false; }
     dmg *= .15; knock *= .3;
   }
-  if (e.markT > 0) dmg *= 1.5;
+  if (e.markT > 0) dmg *= 1.3;
   if (e.vuln) dmg *= e.vuln;
   if (e.ward) dmg *= e.ward;                                // Typhon, while his serpent heads still live
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
