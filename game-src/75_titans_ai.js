@@ -50,11 +50,11 @@ const LAWS = {
 const TITAN_AI = {
   /* ---- Atlas: holds the sky. Throws it, and is open to punishment while his arms are empty. ---- */
   atlas(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (b.globe === undefined) b.globe = true;
     if (titanCommon(b, dt, 'Atlas buckles', 'The sky falls on its own now')) return;
     if (titanSummon(b, .6, ['earthborn', 'earthborn', 'earthborn', 'earthborn'], 'Atlas calls the earthborn')) return;
-    if (b.phase >= 2) { b.skyT = (b.skyT ?? 3) - dt; if (b.skyT <= 0 && !p.dead) { b.skyT = rand(2.4, 3.4); for (let i = 0; i < 2 + b.rank; i++) addCircleHazard(p.x + rand(-70, 70), p.y + rand(-44, 44), 15, 1.1, D(.15), 'sky'); } }
+    if (b.phase >= 2) { b.skyT = (b.skyT ?? 3) - dt; if (b.skyT <= 0 && !p.dead) { b.skyT = rand(2.4, 3.4); const at = aoeAt(p); for (let i = 0; i < 2 + b.rank; i++) addCircleHazard(at.x + rand(-70, 70), at.y + rand(-44, 44), 15, 1.1, D(.15), 'sky'); } }
     b.flip = c.dx < 0;
     switch (b.state) {
       case 'idle':
@@ -71,7 +71,7 @@ const TITAN_AI = {
         break;
       case 'skyfall':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { rainAround(p, (P2 ? 9 : 6) + 2 * b.rank, 16, 1, D(.17), 'sky'); b.state = 'recover'; b.st = 1; }
+        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 6) + 2 * b.rank, 16, 1, D(.17), 'sky'); b.state = 'recover'; b.st = 1; }
         break;
       case 'stomp':
         titanStill(b); b.st -= dt;
@@ -104,7 +104,7 @@ const TITAN_AI = {
 
   /* ---- Hyperion: sweeping beams, and a flare you can only survive behind an obelisk. ---- */
   hyperion(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (titanCommon(b, dt, 'Hyperion blazes', 'More beams, faster flares')) return;
     if (titanSummon(b, .6, ['sky_harpy', 'sky_harpy', 'earthborn', 'earthborn'], 'Hyperion calls the harpies of dawn')) return;
     b.flip = c.dx < 0; b.frame = null;
@@ -125,7 +125,7 @@ const TITAN_AI = {
         const B = b.beams; B.a += B.dir * B.w * dt;
         for (let i = 0; i < B.n; i++) {
           const a = B.a + i / B.n * Math.PI * 2, len = raycast(b.x, b.y, a, 360, 12) + 12;
-          if (b.beamCd <= 0 && !p.dead && distToSeg(p.x, p.y, b.x, b.y, b.x + Math.cos(a) * len, b.y + Math.sin(a) * len) < 7) { if (hurtPlayer(D(.16), a + Math.PI / 2 * B.dir, 160, { src: b })) b.beamCd = .5; }
+          if (b.beamCd <= 0) { let hit = false; for (const h of q.hunters) if (!h.dead && distToSeg(h.x, h.y, b.x, b.y, b.x + Math.cos(a) * len, b.y + Math.sin(a) * len) < 7) { if (hurtHunter(h, D(.16), a + Math.PI / 2 * B.dir, 160, { src: b })) hit = true; } if (hit) b.beamCd = .5; }
           if (Math.random() < .25) burst(b.x + Math.cos(a) * len, b.y + Math.sin(a) * len - 4, 1, ['#ffd463', '#ffffff'], 40);
         }
         if (b.st <= 0) { b.beams = null; b.state = 'recover'; b.st = .9; }
@@ -135,7 +135,7 @@ const TITAN_AI = {
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
           G.flash = .4; addShake(6); Sound.play('explode');
-          if (!p.dead && hasLOS(b.x, b.y, p.x, p.y)) hurtPlayer(D(.38), Math.atan2(p.y - b.y, p.x - b.x), 260, { unblockable: true, src: b });
+          for (const h of q.hunters) if (!h.dead && hasLOS(b.x, b.y, h.x, h.y)) hurtHunter(h, D(.38), Math.atan2(h.y - b.y, h.x - b.x), 260, { unblockable: true, src: b });
           for (const e of q.enemies) if (!e.boss && !e.dead && e.state !== 'spawn' && hasLOS(b.x, b.y, e.x, e.y)) e.burnT = 2;   // his own minions burn too
           b.state = 'recover'; b.st = 1.6; setVuln(b, 1.2, 1.6);                // the flare leaves him dim for a moment
         }
@@ -160,7 +160,7 @@ const TITAN_AI = {
 
   /* ---- Oceanus: the current never stops. Waves, whirlpools and geysers. ---- */
   oceanus(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (!q.current) q.current = { a: rand(0, Math.PI * 2), s: 26, next: null, t: 6 };
     const C = q.current; C.s = (b.phase >= 2 ? 38 : 26) + 6 * b.rank;
     C.t -= dt;
@@ -193,7 +193,7 @@ const TITAN_AI = {
         break;
       case 'geysers':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { rainAround(p, (P2 ? 9 : 7) + 2 * b.rank, 15, .9, D(.17), 'geyser', 110); b.state = 'recover'; b.st = .9; }
+        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 7) + 2 * b.rank, 15, .9, D(.17), 'geyser', 110); b.state = 'recover'; b.st = .9; }
         break;
       case 'tide': {                                               // walls of water roll across the arena, with gaps
         titanStill(b); b.st -= dt; b.frame = 2;
@@ -216,7 +216,7 @@ const TITAN_AI = {
 
   /* ---- Coeus: aims where you're going. Dodging the same way twice gets read. ---- */
   coeus(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (titanCommon(b, dt, 'Coeus sees everything', 'Longer constellations, sharper predictions')) return;
     if (titanSummon(b, .6, ['chrono_wraith', 'chrono_wraith', 'sky_harpy', 'sky_harpy'], 'Coeus calls the watchers')) return;
     b.flip = c.dx < 0; b.frame = null; b.readT = Math.max(0, (b.readT || 0) - dt);
@@ -265,7 +265,7 @@ const TITAN_AI = {
 
   /* ---- Mnemosyne: remembers your path and your swings, and sends echoes to repeat them. ---- */
   mnemosyne(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (titanCommon(b, dt, 'Mnemosyne remembers more', 'Two echoes at once, and she can call you back')) return;
     if (titanSummon(b, .6, ['chrono_wraith', 'chrono_wraith', 'shade', 'shade'], 'Mnemosyne calls the forgotten')) return;
     b.flip = c.dx < 0; b.frame = null;
@@ -274,9 +274,9 @@ const TITAN_AI = {
         titanWalk(b, c, 120, 36, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, P2 ? ['echo', 'mist', 'orbs', 'echo', 'recall'] : ['echo', 'mist', 'orbs', 'echo']);
-          if (pick === 'echo' && q.mem && q.mem.length > 30) { b.state = 'echo'; b.st = .9; Sound.play('charm'); }
+          if (pick === 'echo' && p.mem && p.mem.length > 30) { b.state = 'echo'; b.st = .9; Sound.play('charm'); }
           else if (pick === 'mist') { b.state = 'mist'; b.st = .5; }
-          else if (pick === 'recall' && q.mem && q.mem.length > 30) { b.state = 'recall'; b.st = 1.15; b.recallFrom = G.time; Sound.play('telegraph'); }
+          else if (pick === 'recall' && p.mem && p.mem.length > 30) { b.state = 'recall'; b.st = 1.15; b.recallFrom = G.time; Sound.play('telegraph'); }
           else { b.state = 'orbs'; b.st = .6; }
         }
         break;
@@ -284,14 +284,15 @@ const TITAN_AI = {
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
           const ago = P2 ? [3, 4.5] : [3]; if (b.rank >= 2) ago.push(6);
-          for (const a of ago) q.ghosts.push({ from: G.time - a, clock: -.6, dur: 3, x: 0, y: 0, face: 0, dmg: D(.12), fired: new Set(), dead: false, cd: 0 });
+          for (const a of ago) q.ghosts.push({ from: G.time - a, clock: -.6, dur: 3, x: 0, y: 0, face: 0, dmg: D(.12), fired: new Set(), dead: false, cd: 0, who: p });   // echoes of the hunter she's after
           b.state = 'recover'; b.st = .8;
         }
         break;
       case 'mist':
         titanStill(b); b.st -= dt;
         if (b.st <= 0) {
-          for (let i = 0; i < (P2 ? 6 : 4) + b.rank; i++) { const a = rand(0, Math.PI * 2), r = i === 0 ? 0 : rand(30, 110); addCircleHazard(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 18, .8 + i * .08, 0, 'lob', { puddle: 'lethe', life: 6, dps: .02, from: { x: b.x, y: b.y - 30 } }); }
+          const at = aoeAt(p);
+          for (let i = 0; i < (P2 ? 6 : 4) + b.rank; i++) { const a = rand(0, Math.PI * 2), r = i === 0 ? 0 : rand(30, 110); addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, 18, .8 + i * .08, 0, 'lob', { puddle: 'lethe', life: 6, dps: .02, from: { x: b.x, y: b.y - 30 } }); }
           Sound.play('swing'); b.state = 'recover'; b.st = .7;
         }
         break;
@@ -302,7 +303,7 @@ const TITAN_AI = {
       case 'recall':                                               // she pulls you back to where you were a moment ago
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
-          const back = memAt(G.time - 2.4);
+          const back = memAt(G.time - 2.4, p);
           if (back && !p.dead) {
             q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 });
             p.x = back.x; p.y = back.y; p.dodgeT = 0; p.dashT = 0; G.flash = .15; Sound.play('charm');
@@ -317,7 +318,7 @@ const TITAN_AI = {
 
   /* ---- Themis: lays down laws. Keep each one and she's left open; break it and judgment falls on you. ---- */
   themis(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (titanCommon(b, dt, 'Themis raises the scales', 'Laws come faster now')) return;
     if (titanSummon(b, .6, ['obsidian_guard', 'obsidian_guard', 'earthborn', 'earthborn'], 'Themis calls her bailiffs')) return;
     b.flip = c.dx < 0; b.frame = null;
@@ -325,7 +326,10 @@ const TITAN_AI = {
     const L = b.law;
     if (L) {
       L.t -= dt;
-      if (L.id === 'motion') { if (p.moving || p.dodgeT > 0) L.still = 0; else { L.still += dt; if (L.still > 1) themisJudge(b); } }
+      if (L.id === 'motion') for (const h of q.hunters) {           // every hunter has to keep moving (key 'still' for you)
+        if (h.dead || !b.law) continue; const k = h.hid ? 'still' + h.hid : 'still';
+        if (h.moving || h.dodgeT > 0) L[k] = 0; else { L[k] = (L[k] || 0) + dt; if (L[k] > 1) themisJudge(b, h); }
+      }
       if (b.law && L.t <= 0) {                                     // the law was kept: her scales favour you
         b.law = null; b.lawT = P2 ? 7 : 9; b.label = null;
         banner('The law is kept', 'Themis is open. Strike her now'); Sound.play('blessing');
@@ -369,7 +373,7 @@ const TITAN_AI = {
         break;
       case 'swords':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { rainAround(p, (P2 ? 8 : 6) + 2 * b.rank, 14, .9, D(.17), 'judgment', 90); b.state = 'recover'; b.st = .9; }
+        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 8 : 6) + 2 * b.rank, 14, .9, D(.17), 'judgment', 90); b.state = 'recover'; b.st = .9; }
         break;
     }
     if (b.law) { const Lw = LAWS[b.law.id]; b.label = `${Lw[0]}: ${Lw[1].toLowerCase()} · ${Math.ceil(b.law.t)}s`; }
@@ -378,7 +382,7 @@ const TITAN_AI = {
 
   /* ---- Rhea: hides among swaddled stones. Find the one that breathes; the others burst. ---- */
   rhea(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (b.state === 'hiding') { rheaHide(b, dt); return; }
     if (titanCommon(b, dt, 'Rhea stops playing', 'More bundles, faster shuffles')) return;
     b.flip = c.dx < 0; b.frame = null;
@@ -405,7 +409,7 @@ const TITAN_AI = {
       case 'quake': titanStill(b); b.st -= dt; if (b.st <= 0) { quakeRings(b, D); b.state = 'recover'; b.st = 1.1; } break;
       case 'stones':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { rainAround(p, (P2 ? 9 : 7) + 2 * b.rank, 15, 1, D(.17), 'stone', 110); b.state = 'recover'; b.st = .9; }
+        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 7) + 2 * b.rank, 15, 1, D(.17), 'stone', 110); b.state = 'recover'; b.st = .9; }
         break;
       case 'dazed': titanStill(b); b.st -= dt; if (b.st <= 0) { b.state = 'idle'; b.st = .5; } break;
     }
@@ -414,7 +418,7 @@ const TITAN_AI = {
 
   /* ---- Cronus: turns back time unless you break his hourglass. A sickle with a long reach. ---- */
   cronus(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
+    const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (titanCommon(b, dt, 'Cronus remembers his throne', 'The hourglass turns more often')) return;
     if (titanSummon(b, .6, ['chrono_wraith', 'chrono_wraith', 'chrono_wraith'], 'Cronus calls the hours')) return;
     b.flip = c.dx < 0; b.frame = null;
@@ -449,9 +453,8 @@ const TITAN_AI = {
         if (b.st > .3) { b.aim = Math.atan2(c.dy, c.dx); b.flip = c.dx < 0; }
         if (b.st <= 0) {
           if (c.d > 64) { const step = Math.min(40, c.d - 48); moveEntity(b, Math.cos(b.aim) * step, Math.sin(b.aim) * step); }   // he steps into it
-          const a = Math.atan2(p.y - b.y, p.x - b.x), d = Math.hypot(p.x - b.x, p.y - b.y);
           q.fx.push({ t: 'sweep', x: b.x, y: b.y - 10, a: b.aim, r: 76, life: .2, max: .2 });
-          if (!p.dead && d < 78 && Math.abs(angDiff(b.aim, a)) < 1.15) hurtPlayer(D(.27), a, 260, { src: b, melee: true });
+          for (const h of q.hunters) { const a = Math.atan2(h.y - b.y, h.x - b.x), d = Math.hypot(h.x - b.x, h.y - b.y); if (!h.dead && d < 78 && Math.abs(angDiff(b.aim, a)) < 1.15) hurtHunter(h, D(.27), a, 260, { src: b, melee: true }); }
           Sound.play('heavy'); addShake(3); b.count--;
           if (b.count > 0) { b.st = .55; } else { b.state = 'recover'; b.st = 1; }
         }
@@ -475,7 +478,7 @@ const TITAN_AI = {
       }
       case 'field':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { for (let i = 0; i < (P2 ? 4 : 3) + b.rank; i++) { const a = rand(0, Math.PI * 2), r = i === 0 ? 10 : rand(40, 100); addPuddle(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 26, 7, 'time', 0); } Sound.play('charm'); b.state = 'recover'; b.st = .7; }
+        if (b.st <= 0) { const at = aoeAt(p); for (let i = 0; i < (P2 ? 4 : 3) + b.rank; i++) { const a = rand(0, Math.PI * 2), r = i === 0 ? 10 : rand(40, 100); addPuddle(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, 26, 7, 'time', 0); } Sound.play('charm'); b.state = 'recover'; b.st = .7; }
         break;
       case 'shattered': titanStill(b); b.st -= dt; if (b.st <= 0) { b.state = 'idle'; b.st = .5; } break;
     }
@@ -484,16 +487,16 @@ const TITAN_AI = {
 };
 
 /* ---- the parts of the Titan fights that run outside their think step ---- */
-function themisJudge(b) {
-  const p = q.player; if (!b.law) return;
+function themisJudge(b, p = b.tgt || q.player) {      // judgment falls on whoever broke the law
+  if (!b.law) return;
   b.law = null; b.lawT = b.phase >= 2 || b.rank >= 1 ? 6 : 8; b.label = null;
   banner('Judgment', 'You broke the law', true); Sound.play('zap');
   const D = pct => tD(b, pct);
   addCircleHazard(p.x, p.y, 22, .5, D(.26), 'judgment');
   addCircleHazard(p.x + rand(-30, 30), p.y + rand(-20, 20), 22, .95, D(.2), 'judgment');
 }
-function memAt(t) {
-  const m = q.mem; if (!m || !m.length || t < m[0].t) return m && m[0];
+function memAt(t, who = q.player) {
+  const m = who.mem; if (!m || !m.length || t < m[0].t) return m && m[0];
   for (let i = m.length - 1; i >= 0; i--) if (m[i].t <= t) { const a = m[i], z = m[i + 1] || a, k = z.t > a.t ? (t - a.t) / (z.t - a.t) : 0; return { x: lerp(a.x, z.x, k), y: lerp(a.y, z.y, k), face: a.face }; }
   return m[0];
 }
@@ -536,25 +539,29 @@ function rheaReveal(b, found) {
   else { b.state = 'quake'; b.st = .5; banner('Rhea rises', 'Too slow'); Sound.play('roar'); }
 }
 // Runs every tick while a Titan fight is on: currents, memories, ghosts, laws.
+// Mnemosyne remembers each hunter's own path and swings (q.mem and q.memAtk are yours).
 function titanTick(b, dt) {
-  const p = q.player;
   if (b.type === 'typhon') typhonTick(b, dt);
-  if (b.type === 'oceanus' && q.current && !p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(q.current.a) * q.current.s * dt, Math.sin(q.current.a) * q.current.s * dt);
+  if (b.type === 'oceanus' && q.current && q.phase === 'boss') for (const p of q.hunters) if (!p.dead && p.dodgeT <= 0 && p.dashT <= 0) moveEntity(p, Math.cos(q.current.a) * q.current.s * dt, Math.sin(q.current.a) * q.current.s * dt);
   if (b.type === 'mnemosyne') {
     q.mem = q.mem || []; q.memAtk = q.memAtk || []; q.ghosts = q.ghosts || [];
+    q.player.mem = q.mem; q.player.memAtk = q.memAtk;
     q.memT = (q.memT || 0) - dt;
-    if (q.memT <= 0) { q.memT = .08; q.mem.push({ t: G.time, x: p.x, y: p.y, face: p.face }); if (q.mem.length > 110) q.mem.shift(); }
-    while (q.memAtk.length && q.memAtk[0].t < G.time - 9) q.memAtk.shift();
+    if (q.memT <= 0) { q.memT = .08; for (const p of q.hunters) { const m = p.mem = p.mem || []; m.push({ t: G.time, x: p.x, y: p.y, face: p.face }); if (m.length > 110) m.shift(); } }
+    for (const p of q.hunters) { const A = p.memAtk = p.memAtk || []; while (A.length && A[0].t < G.time - 9) A.shift(); }
     for (const gh of q.ghosts) {
-      gh.clock += dt; if (gh.clock < 0) { const s = memAt(gh.from); if (s) { gh.x = s.x; gh.y = s.y; gh.face = s.face; } continue; }
-      const s = memAt(gh.from + gh.clock); if (s) { gh.x = s.x; gh.y = s.y; gh.face = s.face; }
+      const who = gh.who || q.player;
+      gh.clock += dt; if (gh.clock < 0) { const s = memAt(gh.from, who); if (s) { gh.x = s.x; gh.y = s.y; gh.face = s.face; } continue; }
+      const s = memAt(gh.from + gh.clock, who); if (s) { gh.x = s.x; gh.y = s.y; gh.face = s.face; }
       gh.cd -= dt;
-      for (const atk of q.memAtk) {
+      for (const atk of who.memAtk) {
         if (gh.fired.has(atk) || atk.t < gh.from || atk.t > gh.from + gh.clock) continue;
         gh.fired.add(atk); if (gh.cd > 0) continue; gh.cd = .3;             // an echo swings at most about three times a second
         q.fx.push({ t: 'slash', x: gh.x, y: gh.y - 5, a: atk.aim, life: .15, max: .15, col: '#c8b8ff' });
-        const a = Math.atan2(p.y - gh.y, p.x - gh.x), d = Math.hypot(p.x - gh.x, p.y - gh.y);
-        if (!p.dead && d < 26 && Math.abs(angDiff(atk.aim, a)) < 1.2) hurtPlayer(gh.dmg, a, 160, {});
+        for (const p of q.hunters) {                                        // it cuts anyone standing there
+          const a = Math.atan2(p.y - gh.y, p.x - gh.x), d = Math.hypot(p.x - gh.x, p.y - gh.y);
+          if (!p.dead && d < 26 && Math.abs(angDiff(atk.aim, a)) < 1.2) hurtHunter(p, gh.dmg, a, 160, {});
+        }
       }
       if (gh.clock >= gh.dur) gh.dead = true;
     }
@@ -569,15 +576,17 @@ function titanTick(b, dt) {
   }
 }
 // What you do, for the Titans that care: Coeus reads your dodges, Mnemosyne remembers your swings, Themis judges both.
-function titanAct(b, kind) {
-  const p = q.player;
+function titanAct(b, kind, p = q.player) {
   if (b.type === 'coeus' && kind === 'dodge') { b.dodges = (b.dodges || []).filter(t => t > G.time - 2.2); b.dodges.push(G.time); if (b.dodges.length >= 2 && !b.readT) { b.readT = 4; addText(b.x, b.y - b.h - 6, '!', '#e6f2ff'); } }
-  if (b.type === 'mnemosyne' && (kind === 'attack' || kind === 'skill')) (q.memAtk = q.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
+  if (b.type === 'mnemosyne' && (kind === 'attack' || kind === 'skill')) {
+    if (p === q.player) (q.memAtk = q.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
+    else (p.memAtk = p.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
+  }
   if (b.type === 'themis' && b.law) {
-    const L = b.law;
-    if (L.id === 'stillness' && kind === 'dodge') themisJudge(b);
-    else if (L.id === 'peace' && (kind === 'attack' || kind === 'skill')) themisJudge(b);
-    else if (L.id === 'measure') { if (kind === 'attack') { L.count++; if (L.count > 3) themisJudge(b); } else L.count = 0; }
+    const L = b.law, k = p.hid ? 'count' + p.hid : 'count';      // each hunter's own strikes in a row
+    if (L.id === 'stillness' && kind === 'dodge') themisJudge(b, p);
+    else if (L.id === 'peace' && (kind === 'attack' || kind === 'skill')) themisJudge(b, p);
+    else if (L.id === 'measure') { if (kind === 'attack') { L[k] = (L[k] || 0) + 1; if (L[k] > 3) themisJudge(b, p); } else L[k] = 0; }
   }
 }
 // Cronus' hourglass counts the damage you deal while it runs.

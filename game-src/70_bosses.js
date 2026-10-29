@@ -27,7 +27,7 @@ const RANK_MOVES = {
 function makeBoss(type, x, y, rank = q ? q.def.rank : 0) {
   const d = BOSSES[type], fr = SPR[d.sprite][0], R = RANKS[rank] || RANKS[0], tier = d.tier + R.off;
   const tune = k => (d.tune && d.tune[k] && d.tune[k][rank]) || 1;          // per-boss, per-rank balance from the bot runs (BOSS_TUNE)
-  const hp = Math.round(d.hits * tierW(tier) * R.hp * tune('hp'));
+  const hp = Math.round(d.hits * tierW(tier) * R.hp * tune('hp') * partyScale().bossHp);
   return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo, attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
            dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg * (d.dmgScale || 1) * tune('dmg'), dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1) * (d.dmgScale || 1) * tune('dmg'),
            x, y, r: d.titan ? 15 : d.r, h: d.titan ? fr.h * TITAN_SCALE : fr.h + 4, body: d.titan ? Math.round(fr.h * TITAN_SCALE * .74) : 0, hp, maxHp: hp, vx: 0, vy: 0, kbx: 0, kby: 0,
@@ -39,7 +39,7 @@ function makeBoss(type, x, y, rank = q ? q.def.rank : 0) {
 function summonFor(b, types) { return b.rank === 0 && b.def.tier <= 3 && types.length > 2 ? types.slice(0, -1) : types; }
 function bossCommon(b, dt) {
   b.invuln = Math.max(0, b.invuln - dt); b.contactCd = Math.max(0, b.contactCd - dt); b.markT = Math.max(0, b.markT - dt);
-  if (b.burnT > 0) { b.burnT -= dt; b.burnAcc += dt * q.player.st.weapon.dmg * .35; if (b.burnAcc >= 4) { const n = Math.floor(b.burnAcc); b.burnAcc -= n; b.hp -= n; q.stats.dealt += n; addText(b.x, b.y - b.h - 2, String(n), '#ff8a2b'); if (b.hp <= 0) { killEnemy(b); return true; } } }
+  if (b.burnT > 0) { const by = b.burnBy || q.player; b.burnT -= dt; b.burnAcc += dt * by.st.weapon.dmg * .35; if (b.burnAcc >= 4) { const n = Math.floor(b.burnAcc); b.burnAcc -= n; b.hp -= n; by.stats.dealt += n; b.lastBy = by; addThreat(b, by, n); addText(b.x, b.y - b.h - 2, String(n), '#ff8a2b'); if (b.hp <= 0) { killEnemy(b); return true; } } }
   if (b.state === 'intro') {
     b.st -= dt; b.alpha = Math.min(1, 1 - b.st / 1.6 + .2);
     if (Math.random() < .5) sc.parts.push({ x: b.x + rand(-12, 12), y: b.y - rand(0, 30), vx: rand(-10, 10), vy: rand(10, 30), g: 0, life: .7, max: .7, c: '#f3e9d4', s: 1 });
@@ -57,9 +57,9 @@ function bossEnrage(b, title, sub) {
   return false;
 }
 function bossContact(b, dmg) {
-  const p = q.player;
   if (b.hidden || b.air || b.state === 'intro') return;
-  if (b.state !== 'dash' && b.state !== 'lunge' && b.contactCd <= 0 && !p.dead && dist(b, p) < b.r + p.r) { if (hurtPlayer(dmg, Math.atan2(p.y - b.y, p.x - b.x), 160, { src: b, melee: true })) b.contactCd = .6; }
+  for (const p of q.hunters)
+    if (b.state !== 'dash' && b.state !== 'lunge' && b.contactCd <= 0 && !p.dead && dist(b, p) < b.r + p.r) { if (hurtHunter(p, dmg, Math.atan2(p.y - b.y, p.x - b.x), 160, { src: b, melee: true })) b.contactCd = .6; }
 }
 function pickAttack(b, opts) {
   let pick = opts[(Math.random() * opts.length) | 0];
@@ -68,6 +68,7 @@ function pickAttack(b, opts) {
   return pick;
 }
 function summonAround(b, types, text, o = {}) {
+  types = partyHelpers(types);                                // a party gets a few more of the small ones
   types.forEach((t, i) => {
     const a = i / types.length * Math.PI * 2;
     const e = makeEnemy(t, clamp(b.x + Math.cos(a) * 26, IPX.minX + 8, IPX.maxX - 8), clamp(b.y + Math.sin(a) * 26, IPX.minY + 8, IPX.maxY - 8));
@@ -76,8 +77,8 @@ function summonAround(b, types, text, o = {}) {
   banner(text, 'Deal with them, or keep your eyes on the god');
 }
 function dashTowardEnd(b, sp, dmg) {
-  const p = q.player, dx = b.dashEnd.x - b.x, dy = b.dashEnd.y - b.y, d = Math.hypot(dx, dy);
-  if (!b.hitDone && dist(b, p) < b.r + p.r + 3) { if (hurtPlayer(dmg, b.aim, 220, { src: b, melee: true })) b.hitDone = true; }
+  const dx = b.dashEnd.x - b.x, dy = b.dashEnd.y - b.y, d = Math.hypot(dx, dy);
+  if (!b.hitDone) { let hit = false; for (const p of q.hunters) if (dist(b, p) < b.r + p.r + 3) { if (hurtHunter(p, dmg, b.aim, 220, { src: b, melee: true })) hit = true; } if (hit) b.hitDone = true; }
   // a wall or a crowd can stop a dash short, and a slow frame can carry it past the end: either way the dash is over
   const moved = b.dashPrev ? Math.hypot(b.x - b.dashPrev.x, b.y - b.dashPrev.y) : 1;
   b.dashStall = moved < .25 ? (b.dashStall || 0) + 1 : 0; b.dashPrev = { x: b.x, y: b.y };
@@ -95,7 +96,7 @@ function farSpot(p) {
 }
 const BOSS_AI = {
   hermes(b, dt, c) {
-    const p = q.player, P2 = b.phase === 2, D = n => n * b.dm;
+    const p = b.tgt, P2 = b.phase === 2, D = n => n * b.dm;
     if (bossCommon(b, dt)) return;
     if (bossEnrage(b, 'Hermes speeds up', 'Double dashes and feather rings')) return;
     const thresholds = [.72, .3];
@@ -166,7 +167,7 @@ const BOSS_AI = {
   },
   // Athena: shield up while she watches you. Lunges with her spear, sends out aegis shockwaves, calls down spears.
   athena(b, dt, c) {
-    const p = q.player, P2 = b.phase === 2, D = n => n * b.dm;
+    const p = b.tgt, P2 = b.phase === 2, D = n => n * b.dm;
     if (bossCommon(b, dt)) return;
     if (bossEnrage(b, 'Athena takes the field', 'Faster turns and a rain of spears')) return;
     const want = Math.atan2(c.dy, c.dx), turn = (P2 ? 3.4 : 2.5) * dt;
@@ -214,9 +215,9 @@ const BOSS_AI = {
       case 'spearsWind':
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st <= 0) {
-          const n = (P2 ? 9 : 5) + 2 * b.rank;
-          addCircleHazard(p.x, p.y, 12, .85, D(20), 'spear');
-          for (let i = 1; i < n; i++) { const a = rand(0, Math.PI * 2), r = rand(20, 70); addCircleHazard(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 12, .85 + i * .05, D(20), 'spear'); }
+          const n = (P2 ? 9 : 5) + 2 * b.rank, at = aoeAt(p);
+          addCircleHazard(at.x, at.y, 12, .85, D(20), 'spear');
+          for (let i = 1; i < n; i++) { const a = rand(0, Math.PI * 2), r = rand(20, 70); addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, 12, .85 + i * .05, D(20), 'spear'); }
           b.state = 'recover'; b.st = 1;
         }
         break;
@@ -230,7 +231,7 @@ const BOSS_AI = {
   },
   // Zeus: lightning strikes on marked ground, thunderbolts that burst, homing storm orbs. Below a fifth of his health he changes form.
   zeus(b, dt, c) {
-    const p = q.player, P2 = b.phase >= 2, P3 = b.phase === 3, D = n => n * b.dm;
+    const p = b.tgt, P2 = b.phase >= 2, P3 = b.phase === 3, D = n => n * b.dm;
     if (bossCommon(b, dt)) return;
     if (bossEnrage(b, 'Zeus unleashes the storm', 'Lightning falls on its own now')) return;
     if (b.phase === 2 && b.hp <= b.maxHp * .22 && b.state !== 'enrage') {
@@ -243,7 +244,7 @@ const BOSS_AI = {
     if (b.summons < thresholds.length && b.hp <= b.maxHp * thresholds[b.summons] && b.state === 'idle') { b.summons++; b.state = 'summon'; b.st = .9; return; }
     if ((P2 || b.rank >= 1) && !p.dead && b.state !== 'ascend') {
       b.stormT -= dt;
-      if (b.stormT <= 0) { b.stormT = P3 ? rand(1.5, 2) : rand(2.2, 3); for (let i = 0; i < (P3 ? 3 : 2) + b.rank; i++) addCircleHazard(p.x + rand(-44, 44), p.y + rand(-32, 32), 13, 1, D(18), 'bolt'); }
+      if (b.stormT <= 0) { b.stormT = P3 ? rand(1.5, 2) : rand(2.2, 3); const at = aoeAt(p); for (let i = 0; i < (P3 ? 3 : 2) + b.rank; i++) addCircleHazard(at.x + rand(-44, 44), at.y + rand(-32, 32), 13, 1, D(18), 'bolt'); }
     }
     b.flip = c.dx < 0;
     switch (b.state) {
@@ -267,9 +268,9 @@ const BOSS_AI = {
       case 'strikesWind':
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st <= 0) {
-          const n = (P3 ? 11 : P2 ? 9 : 6) + 2 * b.rank;
-          addCircleHazard(p.x, p.y, 14, .85, D(24), 'bolt');
-          for (let i = 1; i < n; i++) { const a = rand(0, Math.PI * 2), r = rand(24, 80); addCircleHazard(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 14, .85 + i * .07, D(24), 'bolt'); }
+          const n = (P3 ? 11 : P2 ? 9 : 6) + 2 * b.rank, at = aoeAt(p);
+          addCircleHazard(at.x, at.y, 14, .85, D(24), 'bolt');
+          for (let i = 1; i < n; i++) { const a = rand(0, Math.PI * 2), r = rand(24, 80); addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, 14, .85 + i * .07, D(24), 'bolt'); }
           b.state = 'recover'; b.st = P3 ? .7 : 1;
         }
         break;
@@ -311,7 +312,7 @@ const BOSS_AI = {
   },
   // Every other god: a list of attacks from the library below, tuned per god in BOSSES.
   generic(b, dt, c) {
-    const d = b.def, p = q.player, P2 = b.phase >= 2 || b.rank >= 1, T = b.tier, dm = pct => rawDmg(pct * b.dmgMul, T);
+    const d = b.def, p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, T = b.tier, dm = pct => rawDmg(pct * b.dmgMul, T);
     if (bossCommon(b, dt)) return;
     if (bossEnrage(b, d.phase2.title, d.phase2.sub)) return;
     const S = d.summons || [];
@@ -349,8 +350,9 @@ const BOSS_AI = {
       case 'rain':
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st <= 0) {
-          addCircleHazard(p.x, p.y, P.r, P.delay, dm(P.dmg), P.kind);
-          for (let i = 1; i < P.n; i++) { const a = rand(0, Math.PI * 2), r = rand(22, 85); addCircleHazard(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, P.r, P.delay + i * .06, dm(P.dmg), P.kind); }
+          const at = aoeAt(p);
+          addCircleHazard(at.x, at.y, P.r, P.delay, dm(P.dmg), P.kind);
+          for (let i = 1; i < P.n; i++) { const a = rand(0, Math.PI * 2), r = rand(22, 85); addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, P.r, P.delay + i * .06, dm(P.dmg), P.kind); }
           b.state = 'recover'; b.st = .9;
         }
         break;
@@ -376,7 +378,7 @@ const BOSS_AI = {
         if (b.st <= 0) {
           b.air = false; b.z = 0; addShake(5); Sound.play('thud'); dust(b.x, b.y, 14);
           q.fx.push({ t: 'ring', x: b.x, y: b.y, r0: 4, r1: P.r, life: .3, max: .3, c: '#d8ccb4' });
-          if (dist(b, p) < P.r + p.r) hurtPlayer(dm(P.dmg), Math.atan2(p.y - b.y, p.x - b.x), 240, { unblockable: true, src: b });
+          for (const h of q.hunters) if (dist(b, h) < P.r + h.r) hurtHunter(h, dm(P.dmg), Math.atan2(h.y - b.y, h.x - b.x), 240, { unblockable: true, src: b });
           b.state = 'recover'; b.st = .8;
         }
         break;
@@ -389,9 +391,10 @@ const BOSS_AI = {
       case 'puddles':
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st <= 0) {
+          const at = aoeAt(p);
           for (let i = 0; i < P.n; i++) {
             const a = rand(0, Math.PI * 2), r = i === 0 ? 0 : rand(30, 110);
-            addCircleHazard(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, P.r, .8 + i * .08, 0, 'lob', { puddle: P.kind, life: P.life, dps: P.dmg, from: { x: b.x, y: b.y - 14 } });
+            addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, P.r, .8 + i * .08, 0, 'lob', { puddle: P.kind, life: P.life, dps: P.dmg, from: { x: b.x, y: b.y - 14 } });
           }
           Sound.play('swing'); b.state = 'recover'; b.st = .7;
         }
@@ -400,11 +403,13 @@ const BOSS_AI = {
         b.vx = b.vy = 0; b.st -= dt;
         if (b.st > .3) { b.aim = Math.atan2(c.dy, c.dx); b.flip = c.dx < 0; }
         if (b.st <= 0) {
-          const a = Math.atan2(c.dy, c.dx);
           q.fx.push({ t: 'beamfx', x: b.x, y: b.y - 10, a: b.aim, len: P.range, life: .25, max: .25, c: '#f2a7c0' });
-          if (c.d < P.range && Math.abs(angDiff(b.aim, a)) < .2) {
-            const r = hurtPlayer(dm(P.dmg), b.aim, 40, { src: b });
-            if (r === 1) { p.fx.charm = P.time; p.charmFrom = b; Sound.play('charm'); }
+          for (const h of q.hunters) {                            // everyone standing in the beam
+            const hx = h.x - b.x, hy = h.y - b.y, a = Math.atan2(hy, hx), hd = Math.hypot(hx, hy) || 1;
+            if (hd < P.range && Math.abs(angDiff(b.aim, a)) < .2) {
+              const r = hurtHunter(h, dm(P.dmg), b.aim, 40, { src: b });
+              if (r === 1) { h.fx.charm = P.time; h.charmFrom = b; Sound.play('charm'); }
+            }
           }
           b.state = 'recover'; b.st = .6;
         }
@@ -429,7 +434,7 @@ const BOSS_AI = {
         b.vx = b.vy = 0; b.st -= dt;
         const k = 1 - Math.max(0, b.st / P.time); b.beam.a = b.beam.a0 + b.beam.dir * P.sweep * k;
         const ex = b.x + Math.cos(b.beam.a) * P.len, ey = b.y - 8 + Math.sin(b.beam.a) * P.len;
-        if (!p.dead && distToSeg(p.x, p.y - 4, b.x, b.y - 8, ex, ey) < 6) hurtPlayer(dm(P.dmg), b.beam.a + Math.PI / 2 * b.beam.dir, 140, { src: b });
+        for (const h of q.hunters) if (!h.dead && distToSeg(h.x, h.y - 4, b.x, b.y - 8, ex, ey) < 6) hurtHunter(h, dm(P.dmg), b.beam.a + Math.PI / 2 * b.beam.dir, 140, { src: b });
         if (b.st <= 0) { b.beam = null; b.state = 'recover'; b.st = .8; }
         break;
       }
@@ -492,7 +497,7 @@ const BOSS_AI = {
   },
 };
 function startBossAttack(b, c) {
-  const d = b.def, p = q.player, P2 = b.phase >= 2;
+  const d = b.def, P2 = b.phase >= 2;
   const list = b.attacks || d.attacks, opts = []; for (const A of list) for (let i = 0; i < A.w; i++) opts.push(A.id);
   const id = pickAttack(b, opts), A = list.find(a => a.id === id), P = P2 || b.rank >= 1 ? { ...A.p1, ...(A.p2 || {}) } : A.p1;
   b.cur = A;
@@ -520,7 +525,8 @@ function startBossAttack(b, c) {
 }
 function updateBoss(b, dt) {
   b.flash = Math.max(0, b.flash - dt);
-  const p = q.player, dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;
+  const p = bossTarget(b, dt), dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;   // who it's after (you, alone)
+  b.tgt = p;
   // God Rank: below 30% health every god and Titan goes berserk.
   if (b.rank >= 2 && !b.rage3 && b.hp <= b.maxHp * .3 && b.state !== 'intro') {
     b.rage3 = true; b.tempo *= 1.15; banner(`${b.def.name} goes berserk`, 'Faster, and nothing held back', true); Sound.play('roar'); addShake(5); G.flash = .15;

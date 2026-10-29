@@ -829,7 +829,16 @@ updateTitleSub();
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
-window.OlympusHunt = { Music, Store,
+window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
+  // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
+  setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
+  addBotHunter: wid => {
+    if (!WEAPONS[wid]) return false;
+    const list = G.partyBots = G.partyBots || []; if (list.length >= PARTY_MAX - 1) return false; list.push(wid);
+    if (q && !q.def.prologue) addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[(q.hunters.length - 1) % BOT_NAMES.length] });
+    return true;
+  },
+  clearBots: () => { G.partyBots = []; }, PARTY_SCALE, botLocal: v => { G.botLocal = !!v; },   // botLocal: your own hunter plays itself (for bot parties)
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },

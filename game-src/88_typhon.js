@@ -137,7 +137,7 @@ function drawTyphonWorld(S, b) {
 
 /* ---- the fight ---- */
 TITAN_AI.typhon = function (b, dt, c) {
-  const p = q.player, P2 = b.phase >= 2, P3 = b.phase >= 3, D = pct => tD(b, pct);
+  const p = b.tgt, P2 = b.phase >= 2, P3 = b.phase >= 3, D = pct => tD(b, pct);
   if (titanCommon(b, dt, 'Typhon tears free', 'His serpent heads are waking up')) return;
   // Below a quarter of his health he stops holding back: the mountain erupts around you for the rest of the fight.
   if (b.phase === 2 && b.hp <= b.maxHp * .25) {
@@ -193,8 +193,9 @@ TITAN_AI.typhon = function (b, dt, c) {
       titanStill(b); b.st -= dt; b.frame = 2;
       if (Math.random() < .5) dust(b.x + rand(-24, 24), b.y + rand(-4, 4), 1);
       if (b.st <= 0) {
-        addCircleHazard(p.x, p.y, 34, 1.3, D(.3), 'etna', { then: h => { addPuddle(h.x, h.y, 26, 6, 'lava', .025); addShake(5); burst(h.x, h.y - 6, 18, ['#ff8a2b', '#ffd463', '#5a3e32'], 120); } });
-        for (let i = 0; i < (P2 ? 6 : 4); i++) { const a = rand(0, Math.PI * 2), d = rand(50, 130); addCircleHazard(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * .8, 13, 1 + i * .1, D(.15), 'etna', { small: true }); }
+        const at = aoeAt(p);
+        addCircleHazard(at.x, at.y, 34, 1.3, D(.3), 'etna', { then: h => { addPuddle(h.x, h.y, 26, 6, 'lava', .025); addShake(5); burst(h.x, h.y - 6, 18, ['#ff8a2b', '#ffd463', '#5a3e32'], 120); } });
+        for (let i = 0; i < (P2 ? 6 : 4); i++) { const a = rand(0, Math.PI * 2), d = rand(50, 130); addCircleHazard(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d * .8, 13, 1 + i * .1, D(.15), 'etna', { small: true }); }
         Sound.play('roar'); addShake(3); b.state = 'recover'; b.st = 1.2;
       }
       break;
@@ -233,7 +234,7 @@ TITAN_AI.typhon = function (b, dt, c) {
   bossContact(b, D(.1));
 };
 function typhonErupt(b, D) {
-  const p = q.player; Sound.play('thud'); addShake(3);
+  const p = aoeAt(b.tgt || q.player); Sound.play('thud'); addShake(3);
   for (let i = 0; i < 5; i++) {
     const a = rand(0, Math.PI * 2), d = i === 0 ? rand(0, 16) : rand(40, 150);
     addCircleHazard(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d * .8, 14, 1.1 + i * .12, D(.14), 'etna', { small: true, then: h => addPuddle(h.x, h.y, 14, 3.5, 'lava', .02) });
@@ -242,16 +243,19 @@ function typhonErupt(b, D) {
 function typhonHeadDown(e) {
   const b = e.typhon;
   Sound.play('kill'); burst(e.x, e.y - 6, 18, ['#6b7a4a', '#ff8a2b', '#ffd463'], 110);
-  q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 18, life: .3, max: .3, c: '#ff8a2b' }); q.stats.kills++;
+  q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 18, life: .3, max: .3, c: '#ff8a2b' }); (q.actor || e.lastBy || q.player).stats.kills++;
   if (!b || b.dead || q.enemies.some(o => o.type === 'typhon_head' && !o.dead)) return;
   b.ward = 0; b.label = null; b.state = 'reel'; b.st = 3; b.vx = b.vy = 0; setVuln(b, 1.35, 3); b.headT = b.phase >= 3 ? 14 : 20;
   banner('Typhon reels', 'His heads are down. Hit him now'); Sound.play('break'); addShake(6); G.flash = .12;
 }
 // Runs every step of his fight: the wind from his wings pushes you away from him.
 function typhonTick(b, dt) {
-  const p = q.player, G2 = q.gale;
+  const G2 = q.gale;
   if (!G2) return;
   G2.t -= dt; if (G2.t <= 0) { q.gale = null; return; }
-  G2.a = Math.atan2(p.y - b.y, p.x - b.x);
-  if (!p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(G2.a) * G2.s * dt, Math.sin(G2.a) * G2.s * dt);
+  G2.a = Math.atan2(q.player.y - b.y, q.player.x - b.x);             // the way the wind blows on your screen
+  for (const p of q.hunters) {                                        // it pushes every hunter away from him
+    const a = p === q.player ? G2.a : Math.atan2(p.y - b.y, p.x - b.x);
+    if (!p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(a) * G2.s * dt, Math.sin(a) * G2.s * dt);
+  }
 }

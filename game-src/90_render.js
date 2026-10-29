@@ -117,7 +117,7 @@ function renderQuest() {
   // shadows
   const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.32)'); };
   for (const e of q.enemies) if (e.state !== 'spawn' && !e.hidden && (!e.boss || e.alpha > .3 || e.air)) shadow(e.x, e.y, e.def.titan ? 24 : e.r + 1);
-  if (!q.player.dead) shadow(q.player.x, q.player.y, 5);
+  for (const h of q.hunters) if (!h.dead) shadow(h.x, h.y, 5);
   for (const k of q.pickups) shadow(k.x, k.y, 2);
   // depth-sorted drawables
   const list = [];
@@ -125,7 +125,7 @@ function renderQuest() {
   for (const e of q.enemies) list.push({ y: e.y, draw: () => drawEnemy(e, S) });
   for (const k of q.pickups) list.push({ y: k.y, draw: () => drawPickup(k, S) });
   if (q.chest) list.push({ y: q.chest.y, draw: () => { const [sx, sy] = S(q.chest.x, q.chest.y); drawSpr('chest', q.chest.open ? 1 : 0, sx, sy, false); } });
-  if (!q.player.dead) list.push({ y: q.player.y, draw: () => drawPlayer(q.player, S) });
+  for (const h of q.hunters) { if (!h.dead) list.push({ y: h.y, draw: () => drawPlayer(h, S) }); else if (h.downed) list.push({ y: h.y, draw: () => drawDowned(h, S) }); }
   for (const gh of q.ghosts || []) list.push({ y: gh.y, draw: () => drawGhost(gh, S) });
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
@@ -146,6 +146,7 @@ function renderQuest() {
   for (const pr of q.projs) drawProj(pr, S);
   proDraw(S);
   drawParticlesAndText(S);
+  if (q.hunters.length > 1) drawPartyTags(S);
   // off-screen enemy arrows
   for (const e of q.enemies) {
     if (e.state === 'spawn' || e.hidden) continue;
@@ -182,6 +183,56 @@ function drawBeam(b, S) {
   const P = b.cur.p1, [sx, sy] = S(b.x, b.y - 8), a = b.beam.a, len = P.len, col = P.col || '#ffd463';
   for (let o = -2; o <= 2; o++) { const nx = -Math.sin(a) * o, ny = Math.cos(a) * o; pxLine(sx + nx, sy + ny, sx + nx + Math.cos(a) * len, sy + ny + Math.sin(a) * len, Math.abs(o) === 2 ? col : Math.abs(o) === 1 ? '#fff6d8' : '#ffffff'); }
   if (Math.random() < .6) burst(b.x + Math.cos(a) * rand(20, len), b.y - 8 + Math.sin(a) * rand(20, len), 1, [col, '#ffffff'], 30);
+}
+// Teammates: a name over their head with a small health bar, a revive ring when they're down, and an arrow at the
+// screen edge when they're off screen. Your own hunter gets none of this.
+const GLYPHS = { A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111', F: '111100110100100', G: '011100101101011',
+  H: '101101111101101', I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111', M: '101111111101101', N: '110101101101101',
+  O: '010101101101010', P: '110101110100100', Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111',
+  V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010', Z: '111001010100111', '_': '000000000000111', '.': '000000000000010', ' ': '000000000000000' };
+function drawTag(str, x, y, col) {
+  str = String(str).toUpperCase().slice(0, 14);
+  const w = str.length * 4 - 1, cx = Math.round(x - w / 2); y = Math.round(y);
+  for (const pass of [0, 1]) {
+    ctx.fillStyle = pass ? col : '#140d0b';
+    let ox = cx;
+    for (const ch of str) {
+      const g = GLYPHS[ch] || DIGITS[ch];
+      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
+        const px = ox + (i % 3), py = y + Math.floor(i / 3);
+        if (pass) ctx.fillRect(px, py, 1, 1); else { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
+      }
+      ox += 4;
+    }
+  }
+}
+const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff'];
+// A downed hunter lies flat on the ground, with a ring that fills while a teammate stands next to them.
+function drawDowned(p, S) {
+  const [sx, sy] = S(p.x, p.y), fr = heroFrames(p.look)[0], flip = Math.cos(p.face) < 0;
+  pxEllipse(sx, sy + 1, 9, 3, 'rgba(0,0,0,.32)');
+  ctx.save(); ctx.translate(sx, sy - 2); ctx.rotate(flip ? Math.PI / 2 : -Math.PI / 2); ctx.globalAlpha = .85;
+  ctx.drawImage(flip ? fr.f : fr.n, Math.round(-fr.w / 2), Math.round(-fr.h / 2)); ctx.restore();
+  const k = clamp(p.reviveT / REVIVE_TIME, 0, 1);
+  pxRingFlat(sx, sy - 1, 12, 'rgba(20,13,11,.6)', 2);
+  for (let i = 0; i < 40 * k; i++) { const a = -Math.PI / 2 + i / 40 * Math.PI * 2; ctx.fillStyle = '#9bbb55'; ctx.fillRect(Math.round(sx + Math.cos(a) * 12), Math.round(sy - 1 + Math.sin(a) * 12 * .6), 1, 1); }
+}
+function drawPartyTags(S) {
+  const placed = [];                                             // tags that would overlap stack upward instead
+  for (const h of q.hunters.slice().sort((a, b) => b.y - a.y)) {
+    if (h === q.player) continue;
+    const col = PARTY_COLS[h.hid % PARTY_COLS.length], [sx, sy] = S(h.x, h.y);
+    if (sx < -4 || sx > VIEW_W + 4 || sy < -4 || sy > VIEW_H + 4) {             // off screen: an arrow points the way
+      const ax = clamp(sx, 8, VIEW_W - 8), ay = clamp(sy, 22, VIEW_H - 8);
+      arrowHead(ax, ay, Math.atan2(sy - ay, sx - ax), col); continue;
+    }
+    const txt = h.downed ? 'down' : h.name, w = Math.min(14, txt.length) * 4 + 1;
+    let ty = h.downed ? sy - 18 : sy - 31;
+    for (let n = 0; n < 4 && placed.some(r => Math.abs(r.x - sx) < (r.w + w) / 2 && Math.abs(r.y - ty) < 7); n++) ty -= 7;
+    placed.push({ x: sx, y: ty, w });
+    drawTag(txt, sx, ty, h.downed ? '#ff6b5a' : col);
+    if (!h.dead) { const bw = 14, f = clamp(h.hp / h.st.maxHp, 0, 1), by = ty + 6; ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - bw / 2 - 1, by, bw + 2, 3); ctx.fillStyle = f < .3 ? '#d9493b' : '#9bbb55'; ctx.fillRect(sx - bw / 2, by + 1, Math.round(bw * f), 1); }
+  }
 }
 function drawPlayer(p, S) {
   const [sx, sy] = S(p.x, p.y);
@@ -447,7 +498,7 @@ function drawProj(pr, S) {
     case 'heart': { ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, y - 2, 7, 4); ctx.fillRect(sx - 2, y + 2, 5, 1); ctx.fillRect(sx - 1, y + 3, 3, 1); const [c1] = PROJ_COL.heart; ctx.fillStyle = c1; ctx.fillRect(sx - 2, y - 1, 2, 2); ctx.fillRect(sx + 1, y - 1, 2, 2); ctx.fillRect(sx - 1, y + 1, 3, 1); ctx.fillRect(sx, y + 2, 1, 1); ctx.fillRect(sx, y, 1, 1); break; }
     case 'goat': drawSpr('goat', Math.floor(pr.t * 10) % 2, sx, sy + 1, pr.vx < 0, null); break;
     case 'blade': {
-      const a2 = pr.delay > 0 ? Math.atan2(q.player.y - pr.y, q.player.x - pr.x) : a, c2 = Math.cos(a2), s2 = Math.sin(a2);
+      const tg = pr.delay > 0 ? projTarget(pr) : null, a2 = tg ? Math.atan2(tg.y - pr.y, tg.x - pr.x) : a, c2 = Math.cos(a2), s2 = Math.sin(a2);
       if (pr.delay > 0 && blink(10)) pxRing(sx, y, 4, '#e9c04f', 2);
       pxLine(sx - c2 * 5, y - s2 * 5, sx + c2 * 2, y + s2 * 2, '#d5dbe5'); pxLine(sx - c2 * 5 - s2, y - s2 * 5 + c2, sx - c2 * 3 - s2, y - s2 * 3 + c2, '#e9c04f'); break;
     }

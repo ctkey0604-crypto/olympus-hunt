@@ -112,7 +112,7 @@ function drawTitanTelegraph(b, S, sx, sy) {
       const a2 = a + B.dir * .3; arrowHead(sx + Math.cos(a2) * 34, sy - 6 + Math.sin(a2) * 34, a2 + B.dir * Math.PI / 2, '#ff5a3c'); }
   }
   if (st === 'waves' || st === 'proclaim' || st === 'echo' || st === 'wrap') pxRingFlat(sx, sy, 10 + (Math.sin(G.time * 10) + 1) * 4, blink(16) ? '#ffffff' : b.def.colors[0], 2);
-  if (st === 'recall') { const p = q.player, [px, py] = S(p.x, p.y), k = 1 - b.st / 1.15; pxRingFlat(px, py, 16 - k * 8, blink(12) ? '#ffffff' : '#c8b8ff', 1.5); }
+  if (st === 'recall') { const p = b.tgt || q.player, [px, py] = S(p.x, p.y), k = 1 - b.st / 1.15; pxRingFlat(px, py, 16 - k * 8, blink(12) ? '#ffffff' : '#c8b8ff', 1.5); }
   if (st === 'sweepAim') {
     const locked = b.st < .3, col = locked ? '#ff5a3c' : blink(14) ? '#ebc152' : '#cf6a2f';
     ctx.globalAlpha = .22; for (let r = 8; r < 78; r += 3) for (let k = -1.15; k <= 1.15; k += 6 / r) { ctx.fillStyle = '#d9493b'; ctx.fillRect(Math.round(sx + Math.cos(b.aim + k) * r), Math.round(sy + Math.sin(b.aim + k) * r * .7), 2, 2); }
@@ -161,6 +161,6 @@ function drawTitanWorld(S) {
 }
 function drawGhost(gh, S) {
   const [sx, sy] = S(gh.x, gh.y), a = gh.clock < 0 ? .25 + (gh.clock + .6) / .6 * .25 : .55;
-  drawSpr(heroFrames(q.player.look), Math.floor(G.time * 8) % 2, sx, sy, Math.cos(gh.face) < 0, 'white', a);
+  drawSpr(heroFrames((gh.who || q.player).look), Math.floor(G.time * 8) % 2, sx, sy, Math.cos(gh.face) < 0, 'white', a);
   if (Math.random() < .3) sc.parts.push({ x: gh.x + rand(-4, 4), y: gh.y - rand(2, 14), vx: 0, vy: -14, g: 0, life: .4, max: .4, c: '#c8b8ff', s: 1 });
 }

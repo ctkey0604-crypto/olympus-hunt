@@ -20,7 +20,9 @@ function startQuest(id) {
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
   if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
-  const A = ARENAS[def.arena], T = THEMES[A.theme];
+  // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
+  const bots = def.prologue ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = 1 + bots.length;
+  const A = partyArena(def.arena, ARENAS[def.arena], PARTY_SCALE[n].arena), T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
   const layers = genLayers(A.theme, A.secret, { seed: def.arena });
@@ -32,9 +34,13 @@ function startQuest(id) {
         chest: s ? { x: tc(s.chest[0]), y: tc(s.chest[1]) + 4, open: false } : null, chestMoney: 0, chestFound: false,
         waveIdx: -1, pending: [], spawnT: 0, phase: 'intro', timer: 1.6, elapsed: 0, loot: {}, boss: null, endT: 0, nextIsBoss: false, flashT: rand(4, 8),
         tokUse: { melee: 0, ranged: 0 }, blessed: !!G.save.blessing, usedBlessing: false, seenBones: false,
-        stats: { kills: 0, dealt: 0, taken: 0, perfect: 0 }, timeStop: 0, ghosts: [], mem: null, current: null, onPlayerAct: null };
+        stats: { kills: 0, dealt: 0, taken: 0, perfect: 0 }, timeStop: 0, ghosts: [], mem: null, current: null, onPlayerAct: null,
+        hunters: [], partyN: n, actor: null, faints: PARTY_FAINTS };
   sc = q;
-  q.player = makePlayer();
+  q.player = makeHunter({ local: true, name: Store.user || 'You' });
+  q.player.stats = q.stats; q.player.loot = q.loot; q.player.tok = q.tokUse;    // your numbers are the quest's numbers
+  q.hunters.push(q.player);
+  bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.mode = 'quest'; G.paused = false; G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0; G.dialog = null;
@@ -49,23 +55,23 @@ function startQuest(id) {
 }
 function startWave(i) {
   q.waveIdx = i; const w = q.def.waves[i], light = [], heavy = [];
-  for (const [t, n] of Object.entries(w)) for (let k = 0; k < n; k++) (ENEMIES[t].cls === 'heavy' ? heavy : light).push(t);
+  const counts = Object.entries(w).map(([t, n]) => [t, partyCount(t, n)]);      // more of them in a party
+  for (const [t, n] of counts) for (let k = 0; k < n; k++) (ENEMIES[t].cls === 'heavy' ? heavy : light).push(t);
   shuffle(light);
   // a heavy shows up a little way into the wave, once the first rush is moving
   const list = light.slice(); heavy.forEach(t => list.splice(Math.min(list.length, 3 + Math.floor(Math.random() * 3)), 0, t));
   q.pending = list.map(type => ({ type })); q.spawnT = .2;
   q.phase = 'fight';
-  if (q.def.prologue) proWaveBanner(i); else banner(`Wave ${i + 1}`, Object.entries(w).map(([t, n]) => monsterCount(t, n)).join(' · ')); Sound.play('wave');
+  if (q.def.prologue) proWaveBanner(i); else banner(`Wave ${i + 1}`, counts.map(([t, n]) => monsterCount(t, n)).join(' · ')); Sound.play('wave');
 }
 function pickSpawnPoint() {
-  const p = q.player;
   const all = spawnTiles().map(([tx, ty]) => ({ x: tc(tx), y: tc(ty) }));
-  const pts = all.filter(s => Math.hypot(s.x - p.x, s.y - p.y) > 110 && !pointBlocked(s.x, s.y));
+  const pts = all.filter(s => q.hunters.every(p => p.dead || Math.hypot(s.x - p.x, s.y - p.y) > 110) && !pointBlocked(s.x, s.y));
   const list = pts.length ? pts : all;
   return list[(Math.random() * list.length) | 0];
 }
 function aliveWeight() { let n = 0; for (const e of q.enemies) if (!e.dead && !e.boss) n += WEIGHT[e.def.cls] || 1; return n; }
-const budget = () => BUDGET + 2 * (q.def.rank || 0);
+const budget = () => Math.round((BUDGET + 2 * (q.def.rank || 0)) * partyScale().budget);
 function startBoss() {
   q.phase = 'boss';
   if (q.def.titan) Music.level(1); else if (Music.songs[q.def.god]) Music.play(q.def.god, 1);
@@ -74,11 +80,11 @@ function startBoss() {
   q.boss = makeBoss(q.def.boss, spot.x, spot.y);
   q.enemies.push(q.boss);
   const d = BOSSES[q.def.boss];
-  if (d.titan) { q.onPlayerAct = k => { if (q.boss && !q.boss.dead) titanAct(q.boss, k); }; q.mem = []; q.memAtk = []; q.ghosts = []; }
+  if (d.titan) { q.onPlayerAct = (k, h) => { if (q.boss && !q.boss.dead) titanAct(q.boss, k, h); }; q.mem = []; q.memAtk = []; q.ghosts = []; }
   banner(d.name, d.title, true); Sound.play('roar'); addShake(d.titan ? 7 : 4);
   $('bossName').textContent = d.name; $('bossTitle').textContent = d.title; $('bossBar').hidden = false;
   $('bossBar').classList.toggle('titan', !!d.titan); $('bossBar').dataset.rank = q.def.rank;
-  for (let i = 0; i < (d.arrivalHeals || 0); i++) spawnPickup(p.x + rand(-24, 24), p.y + rand(-14, 14), '@heal');
+  for (const h of q.hunters) for (let i = 0; i < (d.arrivalHeals || 0); i++) spawnPickup(h.x + rand(-24, 24), h.y + rand(-14, 14), '@heal');
 }
 function bossDefeated(b) {
   G.slowmo = .25; q.hazards = []; q.gale = null;
@@ -96,14 +102,14 @@ function questVictory() {
   if (q.phase === 'victory' || q.phase === 'defeat') return;
   q.phase = 'victory'; q.endT = 2.8; Sound.play('win'); Music.sting('win'); q.timeStop = 0;
   if (q.def.boss && !G.save.cleared[q.def.id]) CG.happy();
-  q.hazards = []; q.player.fx.charm = q.player.fx.confuse = q.player.fx.sleep = 0;
+  q.hazards = []; for (const h of q.hunters) h.fx.charm = h.fx.confuse = h.fx.sleep = 0;
   banner('Quest complete', `Reward: ${fmtMoney(q.def.reward)} drachmae`);
 }
-function playerDie() {
+function playerDie(p = q.player) {
   if (q.phase === 'victory') return;
-  const p = q.player; p.dead = true; q.phase = 'defeat'; Music.sting('lose'); q.endT = 2.6; G.slowmo = .35;
+  p.dead = true; q.phase = 'defeat'; Music.sting('lose'); q.endT = 2.6; G.slowmo = .35;
   Sound.play('lose'); burst(p.x, p.y - 6, 20, ['#c0412e', '#e9c04f', '#f3e9d4'], 100);
-  banner('You fell', 'Quest failed');
+  if (q.hunters.length > 1) banner('Your party fell', 'Quest failed'); else banner('You fell', 'Quest failed');
 }
 // Hidden chest rewards are tied to the quest's pay and its parts: a big first find, a small restock after that.
 function chestReward(qd, first) {
@@ -142,20 +148,19 @@ function updateQuestFlow(dt) {
         q.pending.shift();
         const pt = pickSpawnPoint();
         q.enemies.push(makeEnemy(next.type, clamp(pt.x + rand(-10, 10), IPX.minX + 8, IPX.maxX - 8), clamp(pt.y + rand(-8, 8), IPX.minY + 8, IPX.maxY - 8)));
-        q.spawnT = .38;
+        q.spawnT = .38 / partyScale().spawn;
       } else q.spawnT = .25;
     }
   }
   if (q.phase === 'fight' && !q.pending.length && q.enemies.every(e => e.dead)) {
-    const p = q.player;
-    if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
+    if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
     else if (q.def.boss) { q.phase = 'between'; q.timer = 2.4; q.nextIsBoss = true; banner('The air goes still', 'Something is coming'); }
     else if (q.def.prologue) proWalkout();
     else questVictory();
   }
   if (q.phase === 'between') { q.timer -= dt; if (q.timer <= 0) { if (q.nextIsBoss) startBoss(); else startWave(q.waveIdx + 1); } }
   if (q.phase === 'victory' || q.phase === 'defeat') { q.endT -= dt; if (q.endT <= 0) { finishQuest(q.phase === 'victory'); return; } }
-  if (q.chest && !q.chest.open && !q.player.dead && dist(q.player, q.chest) < 13) openChest();
+  if (q.chest && !q.chest.open && q.hunters.some(p => !p.dead && dist(p, q.chest) < 13)) openChest();
 }
 function tickParticles(dt) {
   for (const pt of sc.parts) { pt.life -= dt; pt.vy += (pt.g || 0) * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= .96; }
@@ -185,13 +190,13 @@ function tick(dt) {
   G.slowmo = Math.min(1, G.slowmo + dt * (q.phase !== 'victory' && q.phase !== 'defeat' ? 1.5 : .35));
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
-  updatePlayer(sdt); tutHunt(sdt);
+  updateHunters(sdt); tutHunt(sdt);
   { const p = q.player, low = !p.dead && p.hp / p.st.maxHp < .3 && q.phase !== 'victory';   // a heartbeat when you're nearly down
     if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0; }
   if (q.boss && q.boss.def.titan && !q.boss.dead) titanTick(q.boss, sdt);
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
-  q.tokUse.melee = q.tokUse.ranged = 0;
-  for (const e of q.enemies) { if (e.tok && TOK_STATES.has(e.state) && !e.dead) q.tokUse[e.tok]++; else e.tok = null; }
+  for (const h of q.hunters) h.tok.melee = h.tok.ranged = 0;       // attack turns are counted per hunter (q.tokUse is yours)
+  for (const e of q.enemies) { if (e.tok && TOK_STATES.has(e.state) && !e.dead) (e.tokH || q.player).tok[e.tok]++; else e.tok = null; }
   for (const e of q.enemies) if (!e.dead) { if (e.boss) updateBoss(e, sdt); else if (!frozen) updateEnemy(e, sdt); else e.flash = 0; }
   q.enemies = q.enemies.filter(e => !e.dead);
   updateProjs(sdt); if (!frozen) updateHazards(sdt); updatePSpikes(sdt); updatePickups(sdt);
