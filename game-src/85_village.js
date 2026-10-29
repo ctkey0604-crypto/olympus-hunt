@@ -25,6 +25,7 @@ const PANEL_INFO = {
   stash:   { title: 'Storehouse' },
   options: { title: 'Your Home' },
   shrine:  { title: 'Hestia’s Hearth' },
+  oracle:  { title: 'The Oracle' },
 };
 // Rank progress. A rank is done when every god (side gods too) and every Titan has been hunted on it.
 const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].every(id => save.cleared[rid(id, r)]);
@@ -79,6 +80,9 @@ function npcLines(n) {
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
     case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
     case 'oracle': {
+      if (oracleOnline()) return ['I see other hunters, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
+      if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between hunters are cut. Check your connection, then ask me again.'];
+      G.oracleHints = false;
       const unfound = QUESTS.filter(qd => isUnlocked(qd) && !s.chests[qd.id]);
       if (!unfound.length) return [QUESTS.every(qd => s.chests[qd.id]) ? 'Every hidden cache I can see has been opened. You have sharp eyes.' : 'I see no unopened caches on the paths you can walk. Unlock new hunts and ask me again.'];
       const pick = unfound[G.oracleIdx++ % unfound.length], A = ARENAS[pick.arena];
@@ -198,8 +202,9 @@ function resumeVillage() {
   hideScreens(); $('stage').hidden = false; $('pause').hidden = true; resize();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();
-  hudMode('village'); tutGoal();
+  hudMode('village'); tutGoal(); netSendInfo();
 }
+const oracleOnline = () => !!(Store.api && navigator.onLine !== false && !G.oracleHints);
 function interactPressed() { return Input.hit('guard') || Input.hit('attack') || Input.enter; }
 function nearestInteract(p) {
   let best = null, bd = 22;
@@ -212,7 +217,7 @@ function startInteract(t) {
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
-    const after = ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
@@ -267,9 +272,10 @@ function tickVillage(dt) {
     villageMove(p, dt);
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
+    else if (!V.target && Input.enter && netOn() && netEnterKey()) {}   // Enter: ready up, or depart as host
     else if (p.y > IPX.maxY + 6 && V.id === 'temple') { Sound.play('door'); fadeTo(() => enterPlace('village', 'temple')); Input.endFrame(); return; }
   }
-  updateNpcs(dt);
+  updateNpcs(dt); netTownTick(dt);
   if (V.id === 'hall' && Math.random() < .25) V.parts.push({ x: tc(20) - 8 + rand(-18, 18), y: IPX.maxY + rand(10, 44), vx: rand(-3, 3), vy: rand(-16, -7), g: 0, life: 1.4, max: 1.4, c: Math.random() < .5 ? '#b48cff' : '#8a5ad8', s: 1 });   // Tartarus' light drifting up from the gate
   if (V.id === 'village') {
     V.smokeT -= dt;

@@ -305,7 +305,8 @@ const TITAN_AI = {
         if (b.st <= 0) {
           const back = memAt(G.time - 2.4, p);
           if (back && !p.dead) {
-            q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 });
+            q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 });
+            if (p.remote) netTo(p, 'rc', [r1(back.x), r1(back.y)]);
             p.x = back.x; p.y = back.y; p.dodgeT = 0; p.dashT = 0; G.flash = .15; Sound.play('charm');
             addCircleHazard(p.x, p.y, 22, .75, D(.2), 'memory');
           }
@@ -576,11 +577,11 @@ function titanTick(b, dt) {
   }
 }
 // What you do, for the Titans that care: Coeus reads your dodges, Mnemosyne remembers your swings, Themis judges both.
-function titanAct(b, kind, p = q.player) {
+function titanAct(b, kind, p = q.player, aim) {
   if (b.type === 'coeus' && kind === 'dodge') { b.dodges = (b.dodges || []).filter(t => t > G.time - 2.2); b.dodges.push(G.time); if (b.dodges.length >= 2 && !b.readT) { b.readT = 4; addText(b.x, b.y - b.h - 6, '!', '#e6f2ff'); } }
   if (b.type === 'mnemosyne' && (kind === 'attack' || kind === 'skill')) {
     if (p === q.player) (q.memAtk = q.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
-    else (p.memAtk = p.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
+    else (p.memAtk = p.memAtk || []).push({ t: G.time, aim: aim ?? (p.swing ? p.swing.aim : p.face) });
   }
   if (b.type === 'themis' && b.law) {
     const L = b.law, k = p.hid ? 'count' + p.hid : 'count';      // each hunter's own strikes in a row

@@ -283,7 +283,7 @@ function weaponTint(id) {
 }
 function drawWeapon(p, hx, hy) {
   if (p.dodgeT > 0) return;
-  const w = p.st.weapon, fullId = G.save.weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
+  const w = p.st.weapon, fullId = (p.save || G.save).weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
   let ang = p.face, ext = 0, trail = null;
   if (p.swing) {
     const s = p.swing, tt = clamp((s.t - s.windup) / s.active, 0, 1);
@@ -571,9 +571,12 @@ function renderVillage() {
     if (n.id === 'herald' && heraldNews()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
   list.push({ y: V.player.y, draw: () => drawPlayer(V.player, S) });
+  const peers = townPeers();                                    // the others in your room, if you're in one
+  for (const o of peers) list.push({ y: o.y, draw: () => drawPlayer(o, S) });
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
   drawParticlesAndText(S);
+  for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
   if (t && !G.dialog && !G.cutscene) {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
@@ -656,6 +659,7 @@ function hudMode(m) {
   const st = G.save ? playerStats() : null;
   $('tAbil').hidden = m === 'village' || !(st && st.weapon.ability);
   $('tGuard').hidden = m === 'village' || !(st && st.shield);
+  netUi();
 }
 function hudReset() {
   $('lootFeed').innerHTML = ''; $('bossBar').hidden = true;
@@ -726,6 +730,7 @@ function updateVillageHud() {
 }
 let bannerTimer = 0;
 function banner(main, sub = '', boss = false) {
+  if (!NET.personal) netRec(['n', main, sub, boss ? 1 : 0]);
   const b = $('banner'); b.hidden = true; void b.offsetWidth;
   $('bannerMain').textContent = main; $('bannerSub').textContent = sub; b.classList.toggle('boss', boss); b.hidden = false;
   clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { b.hidden = true; }, 2200);

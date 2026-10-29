@@ -146,7 +146,7 @@ function slotCard(n, s) {
 
 function renderHub() {
   const s = G.save, info = PANEL_INFO[G.panel] || PANEL_INFO.quests;
-  $('hubTitle').textContent = G.panelTitle || info.title;
+  $('hubTitle').textContent = G.panelTitle || (G.panel === 'quests' && netOn() ? 'Multiplayer quests' : info.title);
   $('hubMoney').textContent = fmtMoney(s.money);
   const eqBox = $('hubEquip');
   eqBox.hidden = G.panel !== 'armory';
@@ -167,6 +167,7 @@ function renderHub() {
   else if (G.panel === 'options') body.innerHTML = renderOptions();
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
   else if (G.panel === 'market') body.innerHTML = renderMarket();
+  else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -219,7 +220,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">Depart</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netHost() ? ' disabled' : ''}>${netOn() ? (netHost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -475,7 +476,7 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.forgerank) { G.forgeRank = +t.dataset.forgerank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
-  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; fadeTo(() => startQuest(id)); return; }
+  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { if (netHost()) netPost(id); return; } fadeTo(() => startQuest(id)); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.part) {
     const id = t.dataset.part, cost = partCost(id); if (s.money < cost) return;
@@ -549,7 +550,8 @@ $('scrHub').addEventListener('click', ev => {
 });
 
 function finishQuest(win) {
-  const s = G.save, d = q.def;
+  const s = G.save, d = q.def, wasNet = q.net;
+  if (q.net === 'host') netHostEnd(win); else if (q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netSend({ t: 'leave' });
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
   const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady(), typhonWas = typhonReady();
   G.lastQuest = d.id; CG.gameplay(false); tutEnd(win);
@@ -585,11 +587,48 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again';
+  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   G.mode = 'results'; q = null;
   show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
 }
+
+/* ---- the Oracle: hunting with others ---- */
+function renderOracle() {
+  if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
+  if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
+  const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
+  if (R) return `<div class="opt"><h3>Room ${esc(R.code)}</h3><p>${R.members.map(m => esc(m.name) + (m.id === R.host ? ' (host)' : '')).join(' · ')} · ${R.members.length}/4</p>
+    <p class="muted">Friends join with the code ${esc(R.code)}. ${netHost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
+    <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
+  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 hunters. Hunts grow tougher with more of you.</p>
+      <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
+    <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
+    <div class="opt wide"><h3>Open rooms</h3><div id="orList" class="muted">Looking…</div><button class="btn ghost small" type="button" data-or="refresh">Refresh</button></div>
+    <div class="opt"><h3>Hidden caches</h3><p>She still sees where the hunting grounds hide their caches.</p><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>`;
+}
+async function orLoad() {
+  const box = $('orList'); if (!box) return;
+  try {
+    const d = await Store.call('GET', 'rooms'), rooms = d.rooms || [];
+    if (!$('orList')) return;
+    $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.host)}</b><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
+    for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(() => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (el) el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
+  } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other hunters. Check your connection.'; }
+}
+async function orDo(a, code) {
+  G.orMsg = '';
+  try {
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast(`Room ${NET.code} is open. Friends join with that code.`); }
+    else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
+    else if (a === 'leave') { netLeave(); renderHub(); }
+    else if (a === 'refresh') orLoad();
+    else if (a === 'hints') { G.oracleHints = true; closePanel(); const n = V && V.npcs.find(x => x.id === 'oracle'); if (n) startInteract({ kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y }); }
+  } catch (e) { G.orMsg = e.message; if (G.panel === 'oracle') renderHub(); }
+}
+document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code); } });
+document.addEventListener('submit', ev => { const f = ev.target.closest('[data-orjoin]'); if (!f) return; ev.preventDefault(); orDo('join', f.elements.code.value); });
+$('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
 
 /* ---- pause ---- */
 function setPaused(v) {
@@ -798,9 +837,10 @@ const DEBUG = { speed: 1 };
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.1, (now - last) / 1000); last = now;
+  netFrame(dt);
   CG.gameplay((G.mode === 'quest' || G.mode === 'village') && !G.paused && !document.hidden);
   if (G.mode === 'quest' && q) {
-    if (!G.paused) { acc += dt * DEBUG.speed; let n = 0; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; tick(STEP); n++; if (G.mode !== 'quest') break; } }
+    if (!G.paused || q.net) { acc += dt * DEBUG.speed; let n = 0; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
     if (G.mode === 'quest' && q) { renderQuest(); updateHud(); }
   } else if (G.mode === 'village' && V) {
     if (!G.paused) { acc += dt; let n = 0; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
@@ -830,6 +870,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
 window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {

@@ -15,13 +15,15 @@ function questParts(qd) {
 const WEIGHT = { fodder: 1, medium: 2, heavy: 4 };
 const BUDGET = 12;
 
-function startQuest(id) {
-  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !isUnlocked(def))) return;
+function startQuest(id, opts = {}) {
+  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
   if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
-  const bots = def.prologue ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = 1 + bots.length;
+  // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
+  const roster = opts.guest || (G.netParty && netHost() ? G.netParty : null); G.netParty = null;
+  const bots = def.prologue || roster ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = roster ? roster.length : 1 + bots.length;
   const A = partyArena(def.arena, ARENAS[def.arena], PARTY_SCALE[n].arena), T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
@@ -37,9 +39,11 @@ function startQuest(id) {
         stats: { kills: 0, dealt: 0, taken: 0, perfect: 0 }, timeStop: 0, ghosts: [], mem: null, current: null, onPlayerAct: null,
         hunters: [], partyN: n, actor: null, faints: PARTY_FAINTS };
   sc = q;
-  q.player = makeHunter({ local: true, name: Store.user || 'You' });
+  const mine = roster ? roster.find(r => r.id === NET.me) : null;
+  q.player = makeHunter({ local: true, name: Store.user || 'You', hid: mine ? mine.hid : 0 });
   q.player.stats = q.stats; q.player.loot = q.loot; q.player.tok = q.tokUse;    // your numbers are the quest's numbers
-  q.hunters.push(q.player);
+  if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
+  else q.hunters.push(q.player);
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
@@ -52,6 +56,8 @@ function startQuest(id) {
   tutStart();
   if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
+  if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
+  netUi();
 }
 function startWave(i) {
   q.waveIdx = i; const w = q.def.waves[i], light = [], heavy = [];
@@ -80,7 +86,7 @@ function startBoss() {
   q.boss = makeBoss(q.def.boss, spot.x, spot.y);
   q.enemies.push(q.boss);
   const d = BOSSES[q.def.boss];
-  if (d.titan) { q.onPlayerAct = (k, h) => { if (q.boss && !q.boss.dead) titanAct(q.boss, k, h); }; q.mem = []; q.memAtk = []; q.ghosts = []; }
+  if (d.titan) { q.onPlayerAct = (k, h, aim) => { if (q.boss && !q.boss.dead) titanAct(q.boss, k, h, aim); }; q.mem = []; q.memAtk = []; q.ghosts = []; }
   banner(d.name, d.title, true); Sound.play('roar'); addShake(d.titan ? 7 : 4);
   $('bossName').textContent = d.name; $('bossTitle').textContent = d.title; $('bossBar').hidden = false;
   $('bossBar').classList.toggle('titan', !!d.titan); $('bossBar').dataset.rank = q.def.rank;
@@ -128,7 +134,7 @@ function chestReward(qd, first) {
 }
 function openChest() {
   const c = q.chest; if (!c || c.open) return;
-  c.open = true; q.chestFound = true;
+  c.open = true; q.chestFound = true; netRec(['C']);
   const first = !G.save.chests[q.def.id], rw = chestReward(q.def, first);
   q.chestMoney += rw.money;
   rw.items.forEach(id => spawnPickup(c.x, c.y - 4, id)); spawnPickup(c.x, c.y - 4, '@heal');
@@ -186,7 +192,7 @@ function tick(dt) {
   G.time += dt;
   if (G.save) G.save.playtime += dt;
   G.flash = Math.max(0, G.flash - dt);
-  if (G.hitstop > 0) { G.hitstop -= dt; return; }
+  if (G.hitstop > 0) { G.hitstop -= dt; if (!q.net) return; }   // online, hitstop never freezes everyone else's game
   G.slowmo = Math.min(1, G.slowmo + dt * (q.phase !== 'victory' && q.phase !== 'defeat' ? 1.5 : .35));
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
@@ -209,6 +215,7 @@ function tick(dt) {
   if (!q) { Input.endFrame(); return; }      // the quest just ended
   followCam(q.player, dt);
   G.shake = Math.max(0, G.shake - dt * 18);
+  if (q.net === 'host') netHostTick(dt);
   Input.endFrame();
 }
 

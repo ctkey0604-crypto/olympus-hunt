@@ -443,4 +443,21 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   .feed{animation:none}
   .bar.low>i,.btn.listening{animation:none}
 }
+/* online co-op: the room box (top left) and the Oracle's room list */
+#mpBox{position:absolute;left:calc(var(--px)*6);top:calc(var(--px)*19);display:grid;gap:calc(var(--px)*2);font-size:.85em;max-width:48%;pointer-events:auto;z-index:2}
+#mpBox.q{top:calc(var(--px)*44)}
+.mp-tag{display:flex;gap:calc(var(--px)*3);align-items:baseline;background:#000b;padding:0 calc(var(--px)*3);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;width:max-content}
+.mp-tag b{color:var(--aegean);letter-spacing:.12em;text-transform:uppercase;font-size:.85em}
+.mp-tag span{color:var(--bone-dim)}
+.mp-card{background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);display:grid;gap:calc(var(--px)*1.5);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line)}
+.mp-q{display:flex;gap:calc(var(--px)*3);align-items:baseline}.mp-q b{color:var(--gold)}
+.mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
+.mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
+.mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
+.mp-btns button.hot{background:var(--clay);color:#160e0b}
+.mp-btns kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}
+.mp-warn{color:#ff8a7a}
+.or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+@media (max-width:560px){.or-row{grid-template-columns:1fr auto auto}}
+
 </style>

@@ -78,6 +78,7 @@ function autoTarget(p, range) {
 }
 const tierNow = () => q ? q.def.mt : 1;
 function healHunter(p, n, show = true) {
+  if (p.remote) { netTo(p, 'heal', n); return n; }
   const before = p.hp; p.hp = Math.min(p.st.maxHp, p.hp + n);
   const got = Math.round(p.hp - before);
   if (show && got > 0) addText(p.x, p.y - 18, '+' + got, '#9bbb55');
@@ -97,7 +98,7 @@ function updateHunter(p, dt) {
   if (p.dead) return;
   if (st.perks.ward && p.wardT > 0) { p.wardT -= dt; if (p.wardT <= 0) { burst(p.x, p.y - 8, 8, ['#e6f2ff', '#5b9bd5'], 50); Sound.play('block'); } }
   // Echo: a ghost of you repeats each swing a moment later. Flurry: a quick run of stabs.
-  for (const ec of p.echoes) { ec.t -= dt; if (ec.t <= 0) { meleeHit(p, ec.aim, ec.dmg, false, true); q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(ec.aim) < 0, x: p.x - Math.cos(ec.aim) * 4, y: p.y, life: .3, max: .3 }); } }
+  for (const ec of p.echoes) { ec.t -= dt; if (ec.t <= 0) { meleeHit(p, ec.aim, ec.dmg, false, true); q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(ec.aim) < 0, x: p.x - Math.cos(ec.aim) * 4, y: p.y, life: .3, max: .3 }); } }
   p.echoes = p.echoes.filter(ec => ec.t > 0);
   if (p.flurryT > 0) {
     p.flurryT -= dt; p.flurryAcc += dt;
@@ -134,7 +135,7 @@ function updateHunter(p, dt) {
   if (p.dashT > 0) {
     p.dashT -= dt; moveEntity(p, p.dvx * dt, p.dvy * dt);
     dashCuts(p, p.dashMult || 2.6);
-    q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .22, max: .22 });
+    q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .22, max: .22 });
     if (Math.random() < .5) q.parts.push({ x: p.x + rand(-4, 4), y: p.y - rand(2, 12), vx: rand(-20, 20), vy: rand(-30, 0), life: .5, max: .5, c: '#f3e9d4', s: 1 });
     return;
   }
@@ -416,13 +417,18 @@ function updatePSpikes(dt) {
 }
 
 // Damage to you. o.proj: a projectile; o.unblockable: ground attacks your shield can't stop; o.src: who hit you.
+// A guest's hunter on the host's screen: the hit goes to that guest, whose own game decides what it does.
 function hurtHunter(p, dmg, ang, knock = 140, o = {}) {
+  if (p.remote) { if (p.dead || q.phase === 'victory') return 0; netHurtRemote(p, dmg, ang, knock, o); return 1; }
+  NET.personal++; try { return hurtHunter0(p, dmg, ang, knock, o); } finally { NET.personal--; }
+}
+function hurtHunter0(p, dmg, ang, knock, o) {
   const st = p.st, me = isLocal(p);
   if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
-    q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .3, max: .3 });
+    q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .3, max: .3 });
     moveEntity(p, Math.cos(a) * 20, Math.sin(a) * 20); Sound.play('dodge'); addText(p.x, p.y - 20, '0', '#e6f2ff');
     return 2;
   }
@@ -527,6 +533,7 @@ function downed(p = q.player) {
     banner('Hestia’s blessing', 'You rise again');
     return;
   }
+  if (q.net === 'guest') { knockDown(p); return; }               // the host decides when the whole party is down
   if (q.hunters.length > 1 && q.hunters.some(h => h !== p && !h.dead) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
   playerDie(p);
 }
@@ -537,6 +544,7 @@ function shieldBlocks(e, ang) {
   return Math.abs(angDiff(e.face, ang + Math.PI)) < 1.15;
 }
 function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true) {
+  if (q.net === 'guest') return netGuestHit(e, dmg, ang, knock, unblockable, fromPlayer);   // a guest's hits are applied by the host
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.state === 'bones') { if (fromPlayer) finishBones(e); return true; }
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
@@ -563,8 +571,8 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
   if (!blocked) {                                           // sparks fly the way the hit went; big hits get more, and a beat of hitstop
-    const big = fromPlayer && dmg >= p.st.weapon.dmg * 1.6, n = big ? 9 : 5, hy = e.y - Math.min(e.h * .5, e.body ? 30 : 8);
-    for (let i = 0; i < n; i++) { const a = ang + rand(-.7, .7), sp = rand(70, big ? 190 : 140); sc.parts.push({ x: e.x, y: hy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 120, life: rand(.12, .26), max: .26, c: i % 3 ? '#ffd463' : '#fff6d8', s: i % 4 ? 1 : 2 }); }
+    const big = fromPlayer && dmg >= p.st.weapon.dmg * 1.6, hy = e.y - Math.min(e.h * .5, e.body ? 30 : 8);
+    hitSparks(e.x, hy, ang, big);
     if (big) { if (isLocal(p)) G.hitstop = Math.max(G.hitstop, .04); q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 10, life: .15, max: .15, c: '#ffd463' }); }
   }
   p.stats.dealt += dmg; e.lastBy = p;
@@ -630,6 +638,7 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
                  pierce: o.pierce || 0, homing: o.homing || 0, split: o.split || null, charm: o.charm || 0, knock: o.knock || 90, src: o.src || null, hit: new Set(), t: 0, dead: false,
                  ghost: !!o.ghost, bounce: o.bounce || 0, big: o.big || 0, delay: o.delay || 0, launch: o.launch || 0, boom: o.boom || null,
                  owner: team === 'player' ? o.owner || q.actor || q.player : null });
+  if (q.net === 'guest' && team === 'player') netOwnShot(q.projs[q.projs.length - 1]);
 }
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
@@ -675,7 +684,7 @@ function updateProjs(dt) {
     if ((pr.kind === 'goat' || pr.kind === 'wave') && (pr.x < IPX.minX - 20 || pr.x > IPX.maxX + 20 || pr.y < IPX.minY - 20 || pr.y > IPX.maxY + 20)) { pr.dead = true; continue; }
     if (pr.team === 'enemy') {
       for (const h of q.hunters) {                                // every hunter it touches (just you, alone)
-        if (h.dead) continue;
+        if (h.dead || h.remote) continue;                         // a guest judges shots at its own hunter
         const d = Math.hypot(pr.x - h.x, pr.y - h.y);
         if (h.aegisT > 0 && d < pr.r + h.r + 9) { reflectProj(pr, h); break; }
         if (d < pr.r + h.r + 1) {
@@ -685,7 +694,7 @@ function updateProjs(dt) {
           if (pr.team !== 'enemy') break;                          // a perfect block just sent it back
         }
       }
-    } else {
+    } else if (!pr.vis) {                                        // vis: a guest's shot, only for show here
       q.actor = pr.owner || q.player;
       for (const e of q.enemies) {
         if (!targetable(e) || pr.hit.has(e.id)) continue;
@@ -725,17 +734,20 @@ const PUDDLE = {
 };
 // Hazards hurt every hunter in them. acc: the damage-over-time counter, one per hunter (key 'acc' for you).
 const accKey = p => p.hid ? 'acc' + p.hid : 'acc';
+// Who this game judges ground marks for: everyone alone, not the guests' hunters on the host, only your own on a guest.
+const hazHunters = () => q.net === 'guest' ? [q.player] : q.net === 'host' ? q.hunters.filter(h => !h.remote) : q.hunters;
 function updateHazards(dt) {
   for (const h of q.hazards) {
     h.t += dt;
     if (h.type === 'circle') {
       if (!h.fired && h.t >= h.delay) {
         h.fired = true;
-        for (const p of q.hunters) {
+        for (const p of hazHunters()) {
           const inside = !p.dead && Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r;
           if (inside && h.dmg) hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 150, { unblockable: true });
         }
-        if (h.kind === 'bolt') { q.fx.push({ t: 'bolt', x: h.x, y: h.y, life: .25, max: .25, seed: (h.x * 7 + h.y) | 0 }); G.flash = Math.max(G.flash, .08); Sound.play('zap'); addShake(2); }
+        if (q.net === 'guest') {}                                 // a guest gets the host's effects instead
+        else if (h.kind === 'bolt') { q.fx.push({ t: 'bolt', x: h.x, y: h.y, life: .25, max: .25, seed: (h.x * 7 + h.y) | 0 }); G.flash = Math.max(G.flash, .08); Sound.play('zap'); addShake(2); }
         else if (h.kind === 'spear' || h.kind === 'arrow' || h.kind === 'sunfire') { q.fx.push({ t: 'spear', x: h.x, y: h.y, life: .5, max: .5, col: h.kind === 'sunfire' ? '#ffd463' : null }); dust(h.x, h.y, 6); Sound.play('thud'); }
         else if (h.kind === 'geyser') { burst(h.x, h.y - 8, 16, ['#e6f2ff', '#5aa3c0', '#ffffff'], 120); Sound.play('splash'); }
         else if (h.kind === 'lob') { burst(h.x, h.y - 4, 10, [PUDDLE[h.puddle].hi, PUDDLE[h.puddle].col], 70); Sound.play('splash'); addPuddle(h.x, h.y, h.r, h.life || 5, h.puddle, h.dps || 0); }
@@ -746,12 +758,12 @@ function updateHazards(dt) {
         else if (h.kind === 'stone' || h.kind === 'etna') { dust(h.x, h.y, 10); burst(h.x, h.y - 6, 10, ['#c9bda4', '#8f846c'], 90); Sound.play('thud'); addShake(2); }
         else if (h.kind === 'shadow') { burst(h.x, h.y - 8, 18, ['#2a1f3a', '#7fe08a', '#140d0b'], 110); Sound.play('swing'); q.fx.push({ t: 'ring', x: h.x, y: h.y, r0: 4, r1: h.r, life: .25, max: .25, c: '#7fe08a' }); }
         else { burst(h.x, h.y - 6, 12, [hazardCol(h.kind), '#fff6d8'], 90); Sound.play('thud'); }
-        if (h.then) h.then(h);
+        if (h.then && q.net !== 'guest') h.then(h);
       }
       if (h.fired && h.t > h.delay + .05) h.dead = true;
     } else if (h.type === 'ring') {
       h.r += h.speed * dt;
-      for (const p of q.hunters) {                                 // each hunter can be caught by a ring once
+      for (const p of hazHunters()) {                                 // each hunter can be caught by a ring once
         if (h.hits && h.hits.has(p)) continue;
         if (!p.dead && Math.abs(Math.hypot(p.x - h.x, p.y - h.y) - h.r) < 6) {
           const r = hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 220, { unblockable: !h.blockable });
@@ -761,7 +773,7 @@ function updateHazards(dt) {
       if (h.r > h.max) h.dead = true;
     } else if (h.type === 'puddle') {
       h.life -= dt; if (h.life <= 0) { h.dead = true; continue; }
-      for (const p of q.hunters) {
+      for (const p of hazHunters()) {
         if (p.dead) continue;
         if (Math.hypot(p.x - h.x, (p.y - h.y) * 1.6) < h.r + 2) {
           const P = PUDDLE[h.kind], ak = accKey(p);
@@ -775,7 +787,7 @@ function updateHazards(dt) {
     } else if (h.type === 'whirl') {                             // Oceanus' whirlpool pulls you toward its middle
       if (h.t < h.delay) continue;
       h.life -= dt; if (h.life <= 0) { h.dead = true; continue; }
-      for (const p of q.hunters) {
+      for (const p of hazHunters()) {
         if (p.dead || p.dodgeT > 0 || p.dashT > 0) continue;
         const d = Math.hypot(p.x - h.x, p.y - h.y);
         if (d < h.r) {
@@ -791,8 +803,8 @@ function updateHazards(dt) {
         const sp = h.speed || 210;
         if (h.kind === 'bolt') {
           q.fx.push({ t: 'laneBolt', x0: h.x0, y0: h.y0, x1: h.x1, y1: h.y1, life: .3, max: .3, seed: (h.y0 + h.x0) | 0, col: h.col }); Sound.play('zap'); G.flash = Math.max(G.flash, .08);
-          for (const p of q.hunters) if (!p.dead && distToSeg(p.x, p.y, h.x0, h.y0, h.x1, h.y1) < 9) hurtHunter(p, h.dmg, Math.atan2(h.y1 - h.y0, h.x1 - h.x0) + Math.PI / 2, 150, { unblockable: true });
-        } else {
+          for (const p of hazHunters()) if (!p.dead && distToSeg(p.x, p.y, h.x0, h.y0, h.x1, h.y1) < 9) hurtHunter(p, h.dmg, Math.atan2(h.y1 - h.y0, h.x1 - h.x0) + Math.PI / 2, 150, { unblockable: true });
+        } else if (q.net !== 'guest') {
           const a = Math.atan2(h.y1 - h.y0, h.x1 - h.x0);
           spawnProj(h.x0, h.y0, a, sp, h.dmg, h.kind === 'wave' ? 'wave' : 'goat', 'enemy', { r: h.kind === 'wave' ? 8 : 5, life: 6, knock: h.kind === 'wave' ? 260 : 200 });
           Sound.play(h.kind === 'wave' ? 'splash' : 'pounce');
@@ -844,16 +856,22 @@ function collect(k, p = q.player) {
     return;
   }
   for (const h of SHARED_LOOT ? q.hunters : [p]) h.loot[k.item] = (h.loot[k.item] || 0) + 1;   // each hunter's own haul (q.loot is yours)
-  Sound.play('pickup'); if (SHARED_LOOT || isLocal(p)) feed(k.item);
+  netRec(['L', k.item]); Sound.play('pickup'); if (SHARED_LOOT || isLocal(p)) feed(k.item);
 }
 function burst(x, y, n, colors, speed) {
+  netRec(['b', r1(x), r1(y), n, colors, speed]);
   for (let i = 0; i < n; i++) {
     const a = rand(0, Math.PI * 2), s = rand(speed * .3, speed);
     sc.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, g: 140, life: rand(.25, .6), max: .6, c: colors[i % colors.length], s: Math.random() < .3 ? 2 : 1 });
   }
 }
-function dust(x, y, n) { for (let i = 0; i < n; i++) sc.parts.push({ x: x + rand(-3, 3), y: y + rand(-1, 1), vx: rand(-25, 25), vy: rand(-18, -2), g: 0, life: rand(.25, .5), max: .5, c: Math.random() < .5 ? '#c9b48e' : '#a08b68', s: Math.random() < .4 ? 2 : 1 }); }
-function addText(x, y, s, c) { sc.texts.push({ x, y, s, c, life: .7, max: .7 }); }
-function addShake(n) { G.shake = Math.max(G.shake, n); }
+function dust(x, y, n) { netRec(['d', r1(x), r1(y), n]); for (let i = 0; i < n; i++) sc.parts.push({ x: x + rand(-3, 3), y: y + rand(-1, 1), vx: rand(-25, 25), vy: rand(-18, -2), g: 0, life: rand(.25, .5), max: .5, c: Math.random() < .5 ? '#c9b48e' : '#a08b68', s: Math.random() < .4 ? 2 : 1 }); }
+function addText(x, y, s, c) { netRec(['t', r1(x), r1(y), s, c]); sc.texts.push({ x, y, s, c, life: .7, max: .7 }); }
+// Hit sparks fly the way the hit went.
+function hitSparks(x, y, ang, big) {
+  netRec(['s', r1(x), r1(y), r2(ang), big ? 1 : 0]);
+  for (let i = 0, n = big ? 9 : 5; i < n; i++) { const a = ang + rand(-.7, .7), sp = rand(70, big ? 190 : 140); sc.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 120, life: rand(.12, .26), max: .26, c: i % 3 ? '#ffd463' : '#fff6d8', s: i % 4 ? 1 : 2 }); }
+}
+function addShake(n) { if (!NET.personal) netRec(['k', n]); G.shake = Math.max(G.shake, n); }
 
 

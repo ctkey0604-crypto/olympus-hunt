@@ -35,6 +35,7 @@ function nearestHunter(x, y, pred) {
 function blankInput() { return { mx: 0, my: 0, atk: false, atkHeld: false, mouseAtk: false, mouseHeld: false, dodge: false, abil: false, guard: false, guardHeld: false, pots: [], wx: 0, wy: 0, autoAim: true }; }
 // Your controls this step, read once from the keyboard, mouse, touch stick and buttons.
 function localInput() {
+  if (G.paused) return blankInput();                         // paused in an online hunt: the game goes on without you
   const mv = moveVector(), pots = [];
   for (const [id, P] of Object.entries(POTIONS)) if (Input.hit(P.key)) pots.push(id);
   return { mx: mv.x, my: mv.y, atk: Input.hit('attack'), atkHeld: Input.is('attack'), mouseAtk: Input.mouseAttack, mouseHeld: Input.mouse.held,
@@ -155,10 +156,13 @@ function knockDown(p) {
   if (isLocal(p)) banner('You’re down', 'A teammate can get you back up'); else addText(p.x, p.y - 22, '!', '#ff6b5a');
 }
 function reviveHunter(p) {
+  if (p.remote) { netTo(p, 'rev', 1); p.reviveHold = performance.now() + 1500; }
+  NET.personal++;
   p.dead = false; p.downed = false; p.reviveT = 0; p.hp = Math.round(p.st.maxHp * .4); p.invuln = 2; p.fx.poison = p.fx.burn = p.fx.sleep = p.fx.confuse = 0;
   burst(p.x, p.y - 8, 16, ['#ffd463', '#9bbb55', '#fff6d8'], 90); Sound.play('blessing');
   q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 4, r1: 26, life: .4, max: .4, c: '#9bbb55' });
   if (isLocal(p)) banner('Back on your feet', 'Your party pulled you up');
+  NET.personal--;
 }
 function updateRevives(dt) {
   if (q.phase === 'victory' || q.phase === 'defeat') return;
@@ -235,8 +239,10 @@ function botThink(p, dt) {
 // Runs every hunter for one step: you from the keyboard, bots from their brains, others from the network later.
 function updateHunters(dt) {
   for (const p of q.hunters) {
+    if (p.remote) { q.actor = p; netRemoteStep(p, dt); q.actor = null; continue; }             // a guest's hunter: its own game moves it
+    if (p.mirror) continue;
     p.in = p.local ? (G.botLocal ? botThink(p, dt) : localInput()) : p.bot ? botThink(p, dt) : (p.netIn || blankInput());
-    q.actor = p; updateHunter(p, dt); q.actor = null;
+    NET.personal++; q.actor = p; updateHunter(p, dt); q.actor = null; NET.personal--;
   }
   if (q.hunters.length > 1) updateRevives(dt);
 }
