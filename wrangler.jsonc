@@ -4,6 +4,9 @@
   "main": "src/index.js",
   "compatibility_date": "2025-10-01",
   "assets": { "directory": "./public", "binding": "ASSETS" },
+  // Multiplayer: one Room object per room (relays messages, never runs the game) and one Lobby holding the public room list.
+  "durable_objects": { "bindings": [ { "name": "ROOMS", "class_name": "Room" }, { "name": "LOBBY", "class_name": "Lobby" } ] },
+  "migrations": [ { "tag": "v1", "new_sqlite_classes": ["Room", "Lobby"] } ],
   "d1_databases": [
     {
       "binding": "DB",
