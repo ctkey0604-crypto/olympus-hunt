@@ -452,6 +452,23 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   .feed{animation:none}
   .bar.low>i,.btn.listening{animation:none}
 }
+/* online co-op: the room box (top left) and the Oracle's room list */
+#mpBox{position:absolute;left:calc(var(--px)*6);top:calc(var(--px)*19);display:grid;gap:calc(var(--px)*2);font-size:.85em;max-width:48%;pointer-events:auto;z-index:2}
+#mpBox.q{top:calc(var(--px)*44)}
+.mp-tag{display:flex;gap:calc(var(--px)*3);align-items:baseline;background:#000b;padding:0 calc(var(--px)*3);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;width:max-content}
+.mp-tag b{color:var(--aegean);letter-spacing:.12em;text-transform:uppercase;font-size:.85em}
+.mp-tag span{color:var(--bone-dim)}
+.mp-card{background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);display:grid;gap:calc(var(--px)*1.5);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line)}
+.mp-q{display:flex;gap:calc(var(--px)*3);align-items:baseline}.mp-q b{color:var(--gold)}
+.mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
+.mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
+.mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
+.mp-btns button.hot{background:var(--clay);color:#160e0b}
+.mp-btns kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}
+.mp-warn{color:#ff8a7a}
+.or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+@media (max-width:560px){.or-row{grid-template-columns:1fr auto auto}}
+
 </style>
 
 </head>
@@ -482,6 +499,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
         </div>
       </div>
       <div id="vhud" hidden><span class="place" id="vPlace">Akros</span><span class="vright"><span class="rank-tag" id="vRank" hidden></span><span class="money"><b id="vMoney">0</b> drachmae</span></span></div>
+      <div id="mpBox" hidden></div>
       <div id="goal" hidden><span class="goal-tag">Goal</span><span id="goalText"></span><button type="button" id="goalHide">Hide tips</button></div>
       <div id="hint" hidden></div>
       <div id="prompt" hidden></div>
@@ -3880,6 +3898,7 @@ function nearestHunter(x, y, pred) {
 function blankInput() { return { mx: 0, my: 0, atk: false, atkHeld: false, mouseAtk: false, mouseHeld: false, dodge: false, abil: false, guard: false, guardHeld: false, pots: [], wx: 0, wy: 0, autoAim: true }; }
 // Your controls this step, read once from the keyboard, mouse, touch stick and buttons.
 function localInput() {
+  if (G.paused) return blankInput();                         // paused in an online hunt: the game goes on without you
   const mv = moveVector(), pots = [];
   for (const [id, P] of Object.entries(POTIONS)) if (Input.hit(P.key)) pots.push(id);
   return { mx: mv.x, my: mv.y, atk: Input.hit('attack'), atkHeld: Input.is('attack'), mouseAtk: Input.mouseAttack, mouseHeld: Input.mouse.held,
@@ -4000,10 +4019,13 @@ function knockDown(p) {
   if (isLocal(p)) banner('You’re down', 'A teammate can get you back up'); else addText(p.x, p.y - 22, '!', '#ff6b5a');
 }
 function reviveHunter(p) {
+  if (p.remote) { netTo(p, 'rev', 1); p.reviveHold = performance.now() + 1500; }
+  NET.personal++;
   p.dead = false; p.downed = false; p.reviveT = 0; p.hp = Math.round(p.st.maxHp * .4); p.invuln = 2; p.fx.poison = p.fx.burn = p.fx.sleep = p.fx.confuse = 0;
   burst(p.x, p.y - 8, 16, ['#ffd463', '#9bbb55', '#fff6d8'], 90); Sound.play('blessing');
   q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 4, r1: 26, life: .4, max: .4, c: '#9bbb55' });
   if (isLocal(p)) banner('Back on your feet', 'Your party pulled you up');
+  NET.personal--;
 }
 function updateRevives(dt) {
   if (q.phase === 'victory' || q.phase === 'defeat') return;
@@ -4080,10 +4102,570 @@ function botThink(p, dt) {
 // Runs every hunter for one step: you from the keyboard, bots from their brains, others from the network later.
 function updateHunters(dt) {
   for (const p of q.hunters) {
+    if (p.remote) { q.actor = p; netRemoteStep(p, dt); q.actor = null; continue; }             // a guest's hunter: its own game moves it
+    if (p.mirror) continue;
     p.in = p.local ? (G.botLocal ? botThink(p, dt) : localInput()) : p.bot ? botThink(p, dt) : (p.netIn || blankInput());
-    q.actor = p; updateHunter(p, dt); q.actor = null;
+    NET.personal++; q.actor = p; updateHunter(p, dt); q.actor = null; NET.personal--;
   }
   if (q.hunters.length > 1) updateRevives(dt);
+}
+/* ============================== ONLINE CO-OP ============================= */
+// Rooms live on the server (src/index.js): a Room object passes messages between the players' browsers and a Lobby
+// keeps the public room list. In a hunt the host's browser runs everything. Who decides what:
+//   the host:     monsters, gods and Titans, marked ground appearing, shots flying, pickups, waves, victory, revives,
+//                 and monster melee hitting a guest (judged where the host last saw them)
+//   each guest:   its own hunter (moving, swinging, dashing, skills, potions). It tells the host what it hit.
+//                 Shots and marked ground are judged on the guest's own screen: if you dodged there, you dodged.
+// Messages (JSON, small): guest -> host 'up' (20 a second): its hunter, actions, hits, claims, shots, visuals.
+// host -> everyone 'down' (15 a second): changes to monsters, shots, ground marks, pickups, hunters, plus visual events.
+// host -> one guest 'self': damage taken, heals, revives and effects meant only for that guest's hunter.
+const NET = { ws: null, room: null, me: 0, code: '', ping: 0, pingAt: 0, peers: {}, peerObj: {},
+              rec: null, replay: false, personal: 0, townT: 0, townLast: '', upT: 0, downT: 0, seq: 0, sent: null,
+              out: null, uiT: 0, pingT: 0, infoKey: '' };
+const netOn = () => !!(NET.ws && NET.room);
+const netHost = () => netOn() && NET.room.host === NET.room.me;
+const netMember = id => NET.room && NET.room.members.find(m => m.id === id);
+let NID = 1;                                                       // ids for shots, ground marks and pickups (monsters keep EID)
+const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
+function netSend(o) { const ws = NET.ws; if (ws && ws.readyState === 1) ws.send(typeof o === 'string' ? o : JSON.stringify(o)); }
+function netRec(ev) { if (NET.rec && !NET.replay) NET.rec.push(ev); }
+
+/* ---- joining and leaving rooms ---- */
+async function netHostRoom(pub) {
+  const d = await Store.call('POST', 'rooms', { public: !!pub, rank: G.save.rank });
+  await netConnect(d.code, d.ticket);
+}
+async function netJoinRoom(code) {
+  code = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z]{5}$/.test(code)) throw new Error('Room codes are 5 letters.');
+  const d = await Store.call('POST', `rooms/${code}/ticket`);
+  await netConnect(code, d.ticket);
+}
+function netConnect(code, ticket) {
+  netLeave(true);
+  return new Promise((res, rej) => {
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/rooms/${code}/ws?ticket=${encodeURIComponent(ticket)}`);
+    let done = false;
+    const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { ws.close(); } catch (e) {} rej(new Error(msg)); };
+    const timer = setTimeout(() => fail('The room didn’t answer. Check your connection.'), 8000);
+    ws.onopen = () => { if (done) return; done = true; clearTimeout(timer); NET.ws = ws; NET.code = code; NET.peers = {}; NET.peerObj = {}; NET.infoKey = ''; netSendInfo(); netPing(); res(); };
+    ws.onmessage = ev => { if (ws === NET.ws) netMessage(ev.data); };
+    ws.onclose = ev => { if (!done) fail('Couldn’t join that room. It may be full or closed.'); else if (ws === NET.ws) netClosed(ev); };
+  });
+}
+function netLeave(quiet) {
+  const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0;
+  if (ws) try { ws.close(1000, 'left'); } catch (e) {}
+  if (!quiet) netUi();
+}
+function netClosed(ev) {
+  const had = !!NET.room; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {};
+  if (q && q.net) netHuntLost(q.net === 'guest' ? 'Lost the connection to the room' : null);
+  if (had) toast(ev && ev.code === 4001 ? 'You joined that room from another tab.' : 'You’re no longer in the room. Check your connection.');
+  netUi();
+}
+function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
+// What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
+function myGear(s = G.save) {
+  const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
+  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref };
+}
+function netSendInfo() {
+  if (!NET.ws || !G.save) return;
+  const gear = myGear(), key = JSON.stringify(gear) + G.save.rank;
+  if (key === NET.infoKey) return; NET.infoKey = key;
+  netSend({ t: 'info', gear, rank: G.save.rank });
+}
+// Turns someone's gear message into something playerStats() and drawPlayer() can use. Anything unknown falls back to the basics.
+function gearSave(g) {
+  g = g || {}; const look = {};
+  for (const sl of SLOTS) look[sl] = g.look && ARMOR_SETS[g.look[sl]] && PIECES[g.look[sl] + ':' + sl] ? g.look[sl] : 'traveler';
+  const weapon = WEAPONS[g.weapon] ? g.weapon : 'bronze_sword', shield = g.shield && SHIELDS[g.shield] ? g.shield : null, refine = {};
+  if (g.refine) for (const [k, v] of Object.entries(g.refine)) refine[k] = clamp(Math.floor(+v || 0), 0, 5);
+  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 } };
+}
+
+/* ---- messages in ---- */
+function netMessage(data) {
+  if (data === 'q') { NET.ping = Math.round(performance.now() - NET.pingAt); return; }
+  let m; try { m = JSON.parse(data); } catch (e) { return; }
+  switch (m.t) {
+    case 'room': netRoom(m); break;
+    case 'town': netTownIn(m); break;
+    case 'depart': netDepart(m); break;
+    case 'down': if (q && q.net === 'guest') netDown(m); break;
+    case 'self': if (q && q.net === 'guest') netSelf(m); break;
+    case 'up': if (q && q.net === 'host') netUp(m); break;
+    case 'gone': if (q && q.net === 'host') netGone(m.from); break;
+    case 'hostleft': if (q && q.net === 'guest') netHuntLost('The host left the room'); else toast('The host left. ' + (netHost() ? 'You’re the host now.' : '')); break;
+  }
+}
+function netRoom(m) {
+  const was = NET.room; NET.room = m; NET.me = m.me;
+  for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
+  if (was && was.host !== m.host && m.host === m.me && !(q && q.net)) toast('You’re the host now');
+  if (was && was.quest && !m.quest && m.phase === 'town' && !(q && q.net)) NET.confirm = false;
+  netUi();
+}
+
+/* ---- the shared town ---- */
+function netTownIn(m) {
+  const [place, x, y, face, mv, dash] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
+  Object.assign(pe, { place, tx: +x, ty: +y, face: +face, moving: mv === '1', dash: dash === '1', at: performance.now() });
+}
+function peerHunter(id) {                                         // a hunter object to draw someone else in town
+  const mem = netMember(id); if (!mem) return null;
+  const key = JSON.stringify(mem.gear || {}); let o = NET.peerObj[id];
+  if (!o || o.key !== key) { const s = gearSave(mem.gear); o = NET.peerObj[id] = makePlayer(s); o.save = s; o.key = key; }
+  o.name = mem.name; return o;
+}
+function netTownTick(dt) {
+  if (!netOn() || !V || !V.player) return;
+  const p = V.player; NET.townT -= dt;
+  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0].join(',');
+  if ((s !== NET.townLast && NET.townT <= 0) || NET.townT < -1) { NET.townLast = s; NET.townT = .1; netSend({ t: 'town', s }); }
+}
+function netPeersTick(dt) {
+  const k = Math.min(1, dt * 12);
+  for (const pe of Object.values(NET.peers)) {
+    if (Math.hypot(pe.tx - pe.x, pe.ty - pe.y) > 60) { pe.x = pe.tx; pe.y = pe.ty; }
+    pe.x += (pe.tx - pe.x) * k; pe.y += (pe.ty - pe.y) * k; if (pe.moving) pe.walkT += dt;
+  }
+}
+// Everyone else standing in the same place as you, for renderVillage.
+function townPeers() {
+  if (!netOn() || !V) return [];
+  const out = [], now = performance.now();
+  for (const [id, pe] of Object.entries(NET.peers)) {
+    if (pe.place !== V.id || now - pe.at > 4000) continue;
+    const o = peerHunter(+id); if (!o) continue;
+    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4 });
+    out.push(o);
+  }
+  return out;
+}
+// Runs every animation frame: ping, the town heartbeat, the room box.
+function netFrame(dt) {
+  if (!NET.ws) return;
+  NET.pingT -= dt; if (NET.pingT <= 0) { NET.pingT = 2; netPing(); }
+  if (G.mode === 'panel' && V && V.player) netTownTick(dt);
+  netPeersTick(dt);
+  NET.uiT -= dt; if (NET.uiT <= 0) { NET.uiT = .5; netUiPing(); }
+}
+
+/* ---- the room box (top left): tag, ping, the posted quest and its ready check ---- */
+function netUi() {
+  const box = $('mpBox'); if (!box) return;
+  const on = netOn() && (G.mode === 'village' || G.mode === 'quest');
+  box.hidden = !on; box.classList.toggle('q', G.mode === 'quest');
+  if (!on) return;
+  const R = NET.room, host = netHost(), qd = R.quest && QUEST_BY_ID[R.quest.id];
+  let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span></div>`;
+  if (G.mode === 'village') {
+    if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}.</span></div>`;
+    else if (R.quest) {
+      const me = R.members.find(m => m.id === R.me), all = R.members.every(m => m.ready || m.id === R.host);
+      html += `<div class="mp-card"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
+        <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === R.host ? 'ok' : ''}">${m.ready || m.id === R.host ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
+        ${host ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
+          : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
+          : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button></div>`}
+      </div>`;
+    } else if (host) html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it to the room.' : 'Waiting for hunters. Room code ' + esc(R.code) + '.'}</span></div>`;
+    else html += `<div class="mp-card"><span class="muted">Waiting for the host to post a hunt.</span></div>`;
+  }
+  box.innerHTML = html;
+}
+function netUiPing() { const el = $('mpPing'); if (el) el.textContent = NET.ping ? NET.ping + ' ms' : ''; }
+function netBannerAction(a) {
+  const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
+  if (a === 'ready') { const me = R.members.find(m => m.id === R.me); netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
+  else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
+  else if (a === 'wait') { NET.confirm = false; netUi(); }
+  else if (a === 'depart' || a === 'go') {
+    const all = R.members.every(m => m.ready || m.id === R.host);
+    if (!all && a !== 'go') { NET.confirm = true; netUi(); return; }
+    NET.confirm = false; G.save && persist(true); netSend({ t: 'depart' }); Sound.play('click');
+  }
+}
+// Enter in town with nothing to talk to: ready up (guests) or depart (host).
+function netEnterKey() { const R = NET.room; if (!R || !R.quest || R.phase !== 'town') return false; netBannerAction(netHost() ? (NET.confirm ? 'go' : 'depart') : 'ready'); return true; }
+function netPost(id) {
+  const qd = QUEST_BY_ID[id]; if (!qd || !netHost()) return;
+  netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
+  closePanel(); toast('Hunt posted. Everyone readies up in the top left.');
+}
+// The host departed: everyone who readied up starts the same hunt.
+function netDepart(m) {
+  const host = m.from, order = [host, ...m.ids.filter(i => i !== host)];
+  const roster = order.map((id, hid) => { const mem = netMember(id) || {}; return { id, hid, name: mem.name || 'Hunter', gear: mem.gear || null }; });
+  if (!order.includes(NET.me)) { toast('The party set off without you. They’ll be back.'); return; }
+  if (q) return;
+  closeDialog();
+  if (NET.me === host) { G.netParty = roster; fadeTo(() => startQuest(m.quest.id)); }
+  else fadeTo(() => startQuest(m.quest.id, { guest: roster }));
+}
+
+/* ---- a hunt as host ---- */
+// Snapshot fields: everything a guest needs to draw a monster or a shot. Anything that's only for thinking stays home.
+const NET_SKIP_E = new Set(['def', 'tgt', 'tgtT', 'tok', 'tokH', 'threat', 'lastBy', 'burnBy', 'burnAcc', 'cd', 'spdMul', 'strafe', 'kbx', 'kby', 'vx', 'vy', 'dmg', 'dm', 'dmgMul',
+  'tempo', 'kbRes', 'hitDone', 'trampled', 'dashHit', 'owner', 'rhea', 'typhon', 'decoys', 'onDeath', 'combo', 'shots', 'trailD', 'dashPrev', 'dashStall', 'attacks', 'contactCd',
+  'walkT', 'summonTypes', 'orbit', 'last', 'lastCount', 'fireT', 'boltT', 'headT', 'eruptT', 'skyT', 'lawT', 'hgT', 'beamCd', 'readT', 'dodges', 'stormT', '_tx', '_ty', '_b']);
+const NET_SKIP_P = new Set(['hit', 'src', 'owner', 'group', 'px', 'py', 'boom', 'homing', 't', 'life', 'nid', 'fall', 'mine', 'lgone']);
+const NET_SKIP_K = new Set(['vx', 'vy', 'vz', 't', 'to', 'nid', 'home']);
+const netRound = (k, v) => typeof v === 'number' ? r2(v) : v && typeof v === 'object' && (v.def || v.st || v.save || v instanceof Map || v instanceof Set || typeof v === 'function') ? undefined : v;
+function netSer(o, skip) {
+  const r = {};
+  for (const k in o) {
+    if (skip.has(k)) continue;
+    const v = o[k], t = typeof v;
+    if (v === null || v === undefined) r[k] = null;
+    else if (t === 'number') r[k] = r2(v);
+    else if (t === 'string' || t === 'boolean') r[k] = v;
+    else if (t === 'object' && !(v.def || v.st || v.save || v instanceof Map || v instanceof Set)) { try { r[k + '~'] = JSON.stringify(v, netRound); } catch (e) {} }
+  }
+  return r;
+}
+// Sends only what changed since the last snapshot (WebSocket messages arrive in order, so this stays in step).
+function netDelta(snap, key, list, sent, ser, idOf) {
+  const seen = new Set(), out = [];
+  for (const o of list) {
+    if (o.dead) continue;
+    const id = idOf(o); seen.add(id);
+    const cur = ser(o), prev = sent.get(id);
+    if (!prev) { out.push([id, cur]); sent.set(id, cur); continue; }
+    let d = null; for (const k in cur) if (cur[k] !== prev[k]) { (d = d || {})[k] = cur[k]; prev[k] = cur[k]; }
+    if (d) out.push([id, d]);
+  }
+  const gone = []; for (const id of sent.keys()) if (!seen.has(id)) { gone.push(id); sent.delete(id); }
+  if (out.length) snap[key] = out; if (gone.length) snap[key + 'x'] = gone;
+}
+// One hunter's state as a short array: where, which way, health, what it's doing (the same for snapshots and guest reports).
+function netHunterState(p) {
+  const F = p.fx, fx = (F.charm > 0 ? 1 : 0) | (F.confuse > 0 ? 2 : 0) | (F.sleep > 0 ? 4 : 0) | (F.str > 0 ? 8 : 0) | (F.spd > 0 ? 16 : 0) | (F.frenzy > 0 ? 32 : 0) | (F.heart > 0 ? 64 : 0) | (F.riposte > 0 ? 128 : 0) | (F.slow > 0 ? 256 : 0);
+  const fl = (p.moving ? 1 : 0) | (p.dead ? 2 : 0) | (p.downed ? 4 : 0) | (p.dodgeT > 0 ? 8 : 0) | (p.dashT > 0 ? 16 : 0) | (p.guarding ? 32 : 0) | (p.invuln > 0 ? 64 : 0) | (p.left ? 128 : 0) | (p.aegisT > 0 ? 256 : 0) | (p.guardBreak > 0 ? 512 : 0);
+  const s = p.swing;
+  return [p.hid, r1(p.x), r1(p.y), r1(p.vx), r1(p.vy), r2(p.face), Math.max(0, Math.round(p.hp)), p.st.maxHp, fl, fx, r2(p.walkT % 64), r2(p.shieldT), r2(p.flash), r2(p.bashT), r2(p.blockKick), r2(p.guardFlash), r2(p.reviveT || 0),
+          s ? [r2(s.aim), r2(s.t), r2(s.windup), r2(s.active), s.side, s.fired ? 1 : 0] : 0, r1(p.dvx || 0), r1(p.dvy || 0)];
+}
+function netApplyHunter(p, a, now) {
+  p.rep = { x: a[1], y: a[2], vx: a[3], vy: a[4], at: now };
+  p.vx = a[3]; p.vy = a[4]; p.face = a[5]; p.hp = a[6];
+  const fl = a[8], fx = a[9];
+  p.moving = !!(fl & 1);
+  if (!(p.reviveHold > performance.now())) { p.dead = !!(fl & 2); p.downed = !!(fl & 4); }
+  p.dodgeT = fl & 8 ? .1 : 0; p.dashT = fl & 16 ? .1 : 0; p.guarding = !!(fl & 32); p.invuln = fl & 64 ? .1 : 0; p.left = !!(fl & 128); p.aegisT = fl & 256 ? .1 : 0; p.guardBreak = fl & 512 ? .1 : 0;
+  const F = p.fx; F.charm = fx & 1 ? 1 : 0; F.confuse = fx & 2 ? 1 : 0; F.sleep = fx & 4 ? 1 : 0; F.str = fx & 8 ? 1 : 0; F.spd = fx & 16 ? 1 : 0; F.frenzy = fx & 32 ? 1 : 0; F.heart = fx & 64 ? 1 : 0; F.riposte = fx & 128 ? 1 : 0; F.slow = fx & 256 ? 1 : 0;
+  p.walkT = a[10]; p.shieldT = a[11]; p.flash = a[12]; p.bashT = a[13]; p.blockKick = a[14]; p.guardFlash = a[15]; if (q && q.net === 'guest') p.reviveT = a[16];
+  const s = a[17]; p.swing = s ? { aim: s[0], t: s[1], windup: s[2], active: s[3], side: s[4], fired: !!s[5] } : null;
+  p.dvx = a[18] || 0; p.dvy = a[19] || 0;
+}
+// Smoothly follows a hunter someone else controls (a guest on the host's screen, anyone else on a guest's).
+function netFollow(p, dt) {
+  const R = p.rep; if (!R) return;
+  const age = Math.min(.12, (performance.now() - R.at) / 1000), tx = R.x + R.vx * age, ty = R.y + R.vy * age;
+  if (Math.hypot(tx - p.x, ty - p.y) > 48) { p.x = tx; p.y = ty; }
+  else { const k = Math.min(1, dt * 14); p.x += (tx - p.x) * k; p.y += (ty - p.y) * k; }
+  if (p.swing) p.swing.t += dt;
+  p.flash = Math.max(0, p.flash - dt);
+}
+function netStartHost() {
+  NET.sent = { e: new Map(), p: new Map(), k: new Map(), z: new Set() }; NET.seq = 0; NET.downT = 0; NET.rec = []; NET.fwd = []; NET.flash = 0;
+  for (const p of q.hunters) if (p.remote) { p.netQ = []; p.patch = {}; p.stats0 = { kills: 0, dealt: 0 }; }
+}
+function netHunter(memberId) { return q && q.hunters.find(h => h.remote === memberId || h.mirror === memberId); }
+// A guest's report: where its hunter is and what it did. Hits and claims wait for the next step.
+function netUp(m) {
+  const p = netHunter(m.from); if (!p || p.left) return;
+  if (m.h) netApplyHunter(p, m.h, performance.now());
+  if (m.q) for (const a of m.q) p.netQ.push(a);
+  if (m.v) { NET.replay = true; for (const ev of m.v) { netPlayEvent(ev); NET.fwd.push([p.hid, ev]); } NET.replay = false; }
+}
+function netGone(id) {
+  const p = netHunter(id); if (!p) return;
+  p.left = true; p.dead = true; p.downed = false;
+  banner(`${p.name} left the hunt`, '');
+}
+// Host, every step for each guest's hunter: follow its reports and apply what it did, in order.
+function netRemoteStep(p, dt) {
+  if (p.left) return;
+  netFollow(p, dt);
+  if (p.moving) p.walkT += dt;
+  const Q = p.netQ.splice(0);
+  for (const a of Q) {
+    const k = a[0];
+    if (k === 'h') { const e = q.enemies.find(x => x.id === a[1]); if (e) damageEnemy(e, a[2], a[3], a[4], !!a[5], a[6] !== 0); }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
+    else if (k === 'c') {                                        // something its skills did to a monster
+      const e = q.enemies.find(x => x.id === a[1]); if (!e || e.dead) continue;
+      if (a[2] === 'stun' && !e.boss) e.stun = Math.max(e.stun, a[3]);
+      else if (a[2] === 'mark') e.markT = Math.max(e.markT || 0, a[3]);
+      else if (a[2] === 'burn') { e.burnT = Math.max(e.burnT || 0, a[3]); e.burnBy = p; }
+      else if (a[2] === 'kb') { e.kbx += a[3] * (e.kbRes ?? 1); e.kby += a[4] * (e.kbRes ?? 1); }
+      else if (a[2] === 'move' && !e.boss && e.state !== 'spawn') e.state = 'move';
+    }
+    else if (k === 'ts') q.timeStop = Math.max(q.timeStop, a[1]);
+    else if (k === 'act') { if (q.onPlayerAct) q.onPlayerAct(a[1], p, a[2]); }
+    else if (k === 'ph') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') killProj(pr); }   // a shot hit it on its screen
+    else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
+    else if (k === 'pj') {                                       // one of its shots, for everyone else to see (it does no damage here)
+      spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p });
+      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid;
+    }
+  }
+}
+// Things the host's game did to a guest's hunter go to that guest: damage, heals, effects, revives.
+function netTo(p, k, v) { const P = p.patch || (p.patch = {}); if (k === 'hurt') (P.hurt = P.hurt || []).push(v); else if (k === 'heal') P.heal = (P.heal || 0) + v; else P[k] = v; }
+function netHurtRemote(p, dmg, ang, knock, o) {
+  const f = (o.proj ? 1 : 0) | (o.unblockable ? 2 : 0) | (o.melee ? 4 : 0);
+  netTo(p, 'hurt', [Math.round(dmg), r2(ang), Math.round(knock), f, o.src && o.src.id ? o.src.id : 0]);
+}
+// After each host step: send what changed. Snapshots go out 15 times a second.
+function netHostTick(dt) {
+  if (!q || q.net !== 'host') return;
+  for (const f of q.fx) if (!f._n) { f._n = 1; netRec(['f', netFxOut(f)]); }
+  if (G.flash > NET.flash + .02) netRec(['l', r2(G.flash)]); NET.flash = G.flash;
+  // remote hunters: effects the game put on them here (charm, frenzy...) go to their owner
+  for (const p of q.hunters) {
+    if (!p.remote || p.left) continue;
+    const F = p.fx, out = {};
+    for (const k of ['charm', 'confuse', 'killRush', 'sleep', 'slow']) if (F[k] > (p.fxRep ? p.fxRep[k] || 0 : 0) + .05) out[k] = r2(F[k]);
+    if (out.charm && p.charmFrom) out.from = p.charmFrom.id || 0;
+    if (Object.keys(out).length) netTo(p, 'fx', out);
+    p.fxRep = { ...F };
+  }
+  // everyone down (some of them on other screens): the hunt is lost
+  if (q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead)) playerDie(q.player);
+  NET.downT -= dt; if (NET.downT > 0) return; NET.downT = 1 / 15;
+  const snap = { t: 'down', s: ++NET.seq, g: netGlobals(), h: q.hunters.map(netHunterState) };
+  netDelta(snap, 'e', q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
+  netDelta(snap, 'p', q.projs, NET.sent.p, pr => netSer(pr, NET_SKIP_P), pr => pr.nid || (pr.nid = NID++));
+  netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K), k => k.nid || (k.nid = NID++));
+  const zs = [], zid = new Set();                               // ground marks: sent once when they appear, then only their removal
+  for (const h of q.hazards) { const id = h.nid || (h.nid = NID++); zid.add(id); if (!NET.sent.z.has(id)) { NET.sent.z.add(id); zs.push([id, netSer(h, new Set(['nid', 'then', 'hits']))]); } }
+  const zx = []; for (const id of NET.sent.z) if (!zid.has(id)) { zx.push(id); NET.sent.z.delete(id); }
+  if (zs.length) snap.z = zs; if (zx.length) snap.zx = zx;
+  const ev = NET.rec.splice(0).map(e => [0, e]).concat(NET.fwd.splice(0));
+  if (ev.length) snap.v = ev;
+  netSend(snap);
+  for (const p of q.hunters) {
+    if (!p.remote || p.left) continue;
+    const P = p.patch || {}, kl = p.stats.kills - p.stats0.kills, dl = Math.round(p.stats.dealt - p.stats0.dealt);
+    if (kl) P.kl = kl; if (dl) P.dl = dl; p.stats0 = { kills: p.stats.kills, dealt: p.stats.dealt };
+    if (Object.keys(P).length) { P.t = 'self'; netSend({ t: 'to', id: p.remote, m: P }); }
+    p.patch = {};
+  }
+}
+function netGlobals() {
+  const g = { ph: q.phase, w: q.waveIdx, el: r1(q.elapsed), ts: r2(q.timeStop), et: r2(q.endT), b: q.boss && !q.boss.dead ? q.boss.id : 0, ch: q.chest && q.chest.open ? 1 : 0 };
+  if (q.current) g.cu = [r2(q.current.a), r1(q.current.s), q.current.next === null ? null : r2(q.current.next), r2(q.current.t)];
+  if (q.gale) g.ga = [r2(q.gale.t), r1(q.gale.s), r2(q.gale.a)];
+  if (q.ghosts && q.ghosts.length) g.gh = q.ghosts.map(gh => [r1(gh.x), r1(gh.y), r2(gh.face), r2(gh.clock), (gh.who || q.player).hid]);
+  return g;
+}
+// Effects (rings, slashes, after-images...) as plain data. Hero after-images carry the armor they show.
+function netFxOut(f) { const o = {}; for (const k in f) { if (k === 'frames' || k === '_n') continue; const v = f[k]; o[k] = typeof v === 'number' ? r2(v) : v; } return o; }
+function netFxIn(o) { if (o.look) o.frames = heroFrames(o.look); o._n = 1; return o; }
+// Plays one visual event from someone else's game: particles, damage numbers, sounds, banners, music, shakes.
+function netPlayEvent(ev) {
+  const k = ev[0];
+  if (k === 'b') burst(ev[1], ev[2], ev[3], ev[4], ev[5]);
+  else if (k === 'd') dust(ev[1], ev[2], ev[3]);
+  else if (k === 't') addText(ev[1], ev[2], ev[3], ev[4]);
+  else if (k === 's') hitSparks(ev[1], ev[2], ev[3], !!ev[4]);
+  else if (k === 'f') q.fx.push(netFxIn(ev[1]));
+  else if (k === 'a') Sound.play(ev[1]);
+  else if (k === 'n') banner(ev[1], ev[2], !!ev[3]);
+  else if (k === 'k') addShake(ev[1]);
+  else if (k === 'l') G.flash = Math.max(G.flash, ev[1]);
+  else if (k === 'm') { if (Music[ev[1]]) Music[ev[1]](...ev[2]); }
+  else if (k === 'L') { if (q && q.net === 'guest') { q.loot[ev[1]] = (q.loot[ev[1]] || 0) + 1; feed(ev[1]); } }
+  else if (k === 'C') { if (q && q.net === 'guest' && !q.chestFound) { q.chestFound = true; q.chestMoney += chestReward(q.def, !G.save.chests[q.def.id]).money; } }
+  else if (k === 'Q') { if (q && q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netHuntLost('The host ended the hunt'); }
+}
+// The host's hunt ended (results): tell the room, so everyone's back in town.
+function netHostEnd(win) {
+  if (!q || q.net !== 'host') return;
+  netRec(['Q', win ? 1 : 0]); NET.downT = 0; netHostTick(0);
+  netSend({ t: 'end' }); NET.rec = null; NET.sent = null;
+}
+
+/* ---- a hunt as guest ---- */
+function netStartGuest() {
+  NET.out = { q: [], v: [] }; NET.upT = 0; NET.rec = []; NET.lastSeq = 0;
+  q.onPlayerAct = (k, p, aim) => { if (p === q.player) NET.out.q.push(['act', k, r2(p.swing ? p.swing.aim : p.face)]); };
+}
+// A hit your hunter landed: the host applies it (blocks, marks, the real number). You see the flash right away.
+function netGuestHit(e, dmg, ang, knock, ub, fp) {
+  if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
+  if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
+  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0]);
+  e.flash = .12;
+  return true;
+}
+// A snapshot from the host.
+function netDown(m) {
+  const now = performance.now(), mine = q.player.hid;
+  if (m.g) netGlobalsIn(m.g);
+  if (m.h) for (const a of m.h) { if (a[0] === mine) continue; const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now); }
+  netMirror(m.e, m.ex, q.enemies, (id, d) => {
+    const def = d.boss ? BOSSES[d.type] : ENEMIES[d.type]; if (!def) return null;
+    const e = { def, kbx: 0, kby: 0, vx: 0, vy: 0, walkT: 0, mirror: true }; return e;
+  }, true);
+  netMirror(m.p, m.px, q.projs, () => ({ mirror: true, hit: new Set(), t: 0, life: 9 }), false, pr => pr.oh === mine && pr.team === 'player');
+  netMirror(m.k, m.kx, q.pickups, () => ({ mirror: true, vx: 0, vy: 0, vz: 0, t: 1 }));
+  if (m.z) for (const [id, d] of m.z) { const h = netApplyFields({ nid: id, mirror: true }, d); if (h.type === 'ring' || h.type === 'circle' || h.type === 'puddle' || h.type === 'whirl' || h.type === 'lane') q.hazards.push(h); }
+  if (m.zx) { const gone = new Set(m.zx); q.hazards = q.hazards.filter(h => !gone.has(h.nid)); }
+  if (m.v) { NET.replay = true; for (const [o, ev] of m.v) if (o !== mine) netPlayEvent(ev); NET.replay = false; }
+}
+function netApplyFields(o, d) {
+  for (const k in d) { if (k.endsWith('~')) { try { o[k.slice(0, -1)] = JSON.parse(d[k]); } catch (e) {} } else o[k] = d[k]; }
+  return o;
+}
+// Keeps a local list in step with the host's: new ones made, changed fields copied, gone ones removed.
+// Monsters and pickups glide to their new spot; shots carry on in a straight line between snapshots.
+function netMirror(list, gone, arr, make, smooth = false, skipNew = null) {
+  if (list) for (const [id, d] of list) {
+    const key = arr === q.enemies ? 'id' : 'nid';
+    let o = arr.find(x => x[key] === id);
+    if (!o) {
+      o = make(id, d); if (!o) continue;
+      o[key] = id; netApplyFields(o, d);
+      if (skipNew && skipNew(o)) continue;
+      arr.push(o);
+      if (arr === q.enemies && o.boss) netBossIn(o);
+      continue;
+    }
+    const x0 = o.x, y0 = o.y; netApplyFields(o, d);
+    if (smooth && d.x !== undefined || smooth && d.y !== undefined) { o._tx = o.x; o._ty = o.y; o.x = x0; o.y = y0; if (Math.hypot(o._tx - x0, o._ty - y0) > 60) { o.x = o._tx; o.y = o._ty; } }
+  }
+  if (gone) {
+    const g = new Set(gone), key = arr === q.enemies ? 'id' : 'nid';
+    for (const o of arr) if (g.has(o[key])) o.netGone = true;
+    const keep = arr.filter(o => !o.netGone || o.mine);
+    arr.length = 0; arr.push(...keep);
+  }
+}
+function netBossIn(b) {
+  q.boss = b; b.def = BOSSES[b.type];
+  $('bossName').textContent = b.def.name; $('bossTitle').textContent = b.def.title; $('bossBar').hidden = false;
+  $('bossBar').classList.toggle('titan', !!b.def.titan); $('bossBar').dataset.rank = q.def.rank;
+}
+function netGlobalsIn(g) {
+  const was = q.phase;
+  q.phase = g.ph; q.waveIdx = g.w; q.elapsed = g.el; q.timeStop = g.ts;
+  if ((g.ph === 'victory' || g.ph === 'defeat') && was !== g.ph) { q.endT = g.et; q.hazards = []; }
+  if (g.ph === 'defeat' && was !== 'defeat') { G.slowmo = .35; if (!q.player.dead) q.player.dead = true; }
+  if (g.ph === 'victory' && was !== 'victory') { G.slowmo = .25; for (const h of [q.player]) h.fx.charm = h.fx.confuse = h.fx.sleep = 0; }
+  if (q.chest && g.ch) q.chest.open = true;
+  q.current = g.cu ? { a: g.cu[0], s: g.cu[1], next: g.cu[2], t: g.cu[3] } : null;
+  q.gale = g.ga ? { t: g.ga[0], s: g.ga[1], a: g.ga[2] } : null;
+  q.ghosts = (g.gh || []).map(a => ({ x: a[0], y: a[1], face: a[2], clock: a[3], who: q.hunters[a[4]] || q.player }));
+  if (g.b && (!q.boss || q.boss.id !== g.b)) { const b = q.enemies.find(e => e.id === g.b); if (b) netBossIn(b); }
+}
+// Messages meant only for your hunter: damage the host judged, heals, effects, a revive, a pull.
+function netSelf(m) {
+  const p = q.player;
+  if (m.hurt) for (const [dmg, ang, knock, f, src] of m.hurt) hurtHunter(p, dmg, ang, knock, { proj: !!(f & 1), unblockable: !!(f & 2), melee: !!(f & 4), src: src ? q.enemies.find(e => e.id === src) : null });
+  if (m.heal) healHunter(p, m.heal);
+  if (m.fx) { for (const k of ['charm', 'confuse', 'killRush', 'sleep', 'slow']) if (m.fx[k]) p.fx[k] = Math.max(p.fx[k], m.fx[k]); if (m.fx.from) p.charmFrom = q.enemies.find(e => e.id === m.fx.from) || p.charmFrom; }
+  if (m.rev && p.downed) reviveHunter(p);
+  if (m.rc && !p.dead) { q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 }); p.x = m.rc[0]; p.y = m.rc[1]; p.dodgeT = 0; p.dashT = 0; G.flash = .15; }
+  if (m.kl) p.stats.kills += m.kl;
+  if (m.dl) p.stats.dealt += m.dl;
+}
+// What your skills did to monsters besides damage (stuns, marks, burns, shoves) goes to the host as claims.
+const CLAIM_KEYS = [['stun', 'stun'], ['markT', 'mark'], ['burnT', 'burn']];
+function netClaimsBefore() { for (const e of q.enemies) e._b = [e.stun || 0, e.markT || 0, e.burnT || 0, e.state]; NET.ts0 = q.timeStop; }
+function netClaimsAfter() {
+  for (const e of q.enemies) {
+    const b = e._b; if (!b) continue;
+    CLAIM_KEYS.forEach(([f, n], i) => { if ((e[f] || 0) > b[i] + .01) NET.out.q.push(['c', e.id, n, r2(e[f])]); });
+    if (e.kbx || e.kby) { NET.out.q.push(['c', e.id, 'kb', r1(e.kbx), r1(e.kby)]); e.kbx = e.kby = 0; }
+    if (e.state !== b[3] && e.state === 'move') { NET.out.q.push(['c', e.id, 'move']); e.state = b[3]; }
+  }
+  if (q.timeStop > NET.ts0 + .01) NET.out.q.push(['ts', r2(q.timeStop)]);
+}
+// Shots on a guest's screen: yours fly and hit for real (hits go to the host); the host's carry on in a straight line
+// and are checked against your hunter here (if you dodged on your screen, you dodged).
+function guestProjs(dt) {
+  const mine = [], others = [];
+  for (const pr of q.projs) (pr.mine ? mine : others).push(pr);
+  q.projs = mine; updateProjs(dt); const mineAfter = q.projs;
+  const p = q.player;
+  for (const pr of others) {
+    if (pr.lgone) continue;
+    if (pr.delay > 0) { pr.delay -= dt; pr.t += dt; continue; }
+    pr.t += dt; pr.x += pr.vx * dt; pr.y += pr.vy * dt;
+    if (pr.team !== 'enemy' || p.dead || (q.timeStop > 0)) continue;
+    const d = Math.hypot(pr.x - p.x, pr.y - p.y);
+    if (p.aegisT > 0 && d < pr.r + p.r + 9) { NET.out.q.push(['rf', pr.nid]); pr.lgone = true; Sound.play('block'); continue; }
+    if (d < pr.r + p.r + 1) {
+      const r = hurtHunter(p, pr.dmg, Math.atan2(pr.vy, pr.vx), pr.knock, { proj: pr.kind !== 'goat' && pr.kind !== 'wave', projObj: null, src: pr.si ? q.enemies.find(e => e.id === pr.si) : null, unblockable: pr.kind === 'globe' });
+      if (r === 1 && pr.charm) { p.fx.charm = pr.charm; p.charmFrom = (pr.si && q.enemies.find(e => e.id === pr.si)) || { x: pr.x - pr.vx, y: pr.y - pr.vy }; Sound.play('charm'); }
+      if (r && pr.kind !== 'goat' && pr.kind !== 'wave' && pr.kind !== 'globe' && pr.kind !== 'sickle' && pr.kind !== 'godweapon') { pr.lgone = true; NET.out.q.push(['ph', pr.nid]); }
+    }
+  }
+  q.projs = others.filter(pr => !pr.lgone).concat(mineAfter);
+}
+// Your hunter's own new shots also go to the host, so everyone else sees them.
+function netOwnShot(pr) { pr.mine = true; NET.out.q.push(['pj', r1(pr.x), r1(pr.y), r1(pr.vx), r1(pr.vy), pr.kind, pr.r, r2(pr.life)]); }
+// One guest step: your hunter runs for real, everything else follows the host.
+function guestTick(dt) {
+  G.time += dt; if (G.save) G.save.playtime += dt;
+  G.flash = Math.max(0, G.flash - dt); G.hitstop = Math.max(0, G.hitstop - dt);
+  const p = q.player, done = q.phase === 'victory' || q.phase === 'defeat';
+  if (!done) {
+    netClaimsBefore();
+    p.in = G.botLocal ? botThink(p, dt) : localInput();
+    q.actor = p; NET.rec = NET.out.v; updateHunter(p, dt); q.actor = null;
+    guestProjs(dt); updatePSpikes(dt);
+    NET.rec = null;
+    netClaimsAfter();
+    updateHazards(dt);                                            // ground marks: timers run here, damage judged on your hunter
+    if (q.current && q.boss && q.boss.type === 'oceanus' && !p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(q.current.a) * q.current.s * dt, Math.sin(q.current.a) * q.current.s * dt);
+    if (q.gale && q.boss && !p.dead && p.dodgeT <= 0 && p.dashT <= 0) { const a = Math.atan2(p.y - q.boss.y, p.x - q.boss.x); moveEntity(p, Math.cos(a) * q.gale.s * dt, Math.sin(a) * q.gale.s * dt); }
+    const low = !p.dead && p.hp / p.st.maxHp < .3;
+    if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0;
+  }
+  // everyone else glides toward where the host last saw them
+  const k = Math.min(1, dt * 15);
+  for (const e of q.enemies) {
+    if (e._tx !== undefined) { const ox = e.x; e.x += (e._tx - e.x) * k; e.y += (e._ty - e.y) * k; if (Math.abs(e.x - ox) > .05) e.walkT += dt; }
+    e.st = (e.st || 0) - dt; e.flash = Math.max(0, (e.flash || 0) - dt);
+  }
+  for (const h of q.hunters) if (h !== p) { netFollow(h, dt); if (h.moving) h.walkT += dt; }
+  for (const k2 of q.pickups) if (k2._tx !== undefined) { k2.x += (k2._tx - k2.x) * k; k2.y += (k2._ty - k2.y) * k; }
+  tickParticles(dt);
+  if (done) { q.endT -= dt; if (q.endT <= 0) { finishQuest(q.phase === 'victory'); return; } }
+  followCam(p, dt);
+  G.shake = Math.max(0, G.shake - dt * 18);
+  NET.upT -= dt;
+  if (NET.upT <= 0) {
+    NET.upT = 1 / 20;
+    const O = NET.out, m = { t: 'up', h: netHunterState(p) };
+    if (O.q.length) m.q = O.q.splice(0);
+    if (O.v.length) m.v = O.v.splice(0).slice(-60);
+    for (const f of q.fx) if (!f._n) { f._n = 1; (m.v = m.v || []).push(['f', netFxOut(f)]); }
+    netSend(m);
+  }
+  Input.endFrame();
+}
+// The hunt can't go on: the host left, or you lost the connection. You keep what you picked up.
+function netHuntLost(why) {
+  if (!q || !q.net) return;
+  if (q.net === 'host') {                                        // the host carries on alone
+    for (const h of q.hunters) if (h.remote) { h.left = true; h.dead = true; h.downed = false; }
+    q.net = null; NET.rec = null; if (why) toast(why);
+    return;
+  }
+  if (why) toast(why);
+  finishQuest(false);
+}
+// Sound and music on the host also play on the guests' screens.
+{
+  const sp = Sound.play.bind(Sound);
+  Sound.play = name => { if (NET.rec && !NET.replay && q && q.net && G.mode === 'quest') NET.rec.push(['a', name]); return sp(name); };
+  for (const k of ['play', 'level', 'sting']) { const f = Music[k].bind(Music); Music[k] = (...a) => { if (NET.rec && !NET.replay && q && q.net === 'host') NET.rec.push(['m', k, a]); return f(...a); }; }
 }
 /* ============================== COMBAT =================================== */
 // Everything your gear adds up to: four armor pieces, their set bonuses, weapon and shield.
@@ -4165,6 +4747,7 @@ function autoTarget(p, range) {
 }
 const tierNow = () => q ? q.def.mt : 1;
 function healHunter(p, n, show = true) {
+  if (p.remote) { netTo(p, 'heal', n); return n; }
   const before = p.hp; p.hp = Math.min(p.st.maxHp, p.hp + n);
   const got = Math.round(p.hp - before);
   if (show && got > 0) addText(p.x, p.y - 18, '+' + got, '#9bbb55');
@@ -4184,7 +4767,7 @@ function updateHunter(p, dt) {
   if (p.dead) return;
   if (st.perks.ward && p.wardT > 0) { p.wardT -= dt; if (p.wardT <= 0) { burst(p.x, p.y - 8, 8, ['#e6f2ff', '#5b9bd5'], 50); Sound.play('block'); } }
   // Echo: a ghost of you repeats each swing a moment later. Flurry: a quick run of stabs.
-  for (const ec of p.echoes) { ec.t -= dt; if (ec.t <= 0) { meleeHit(p, ec.aim, ec.dmg, false, true); q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(ec.aim) < 0, x: p.x - Math.cos(ec.aim) * 4, y: p.y, life: .3, max: .3 }); } }
+  for (const ec of p.echoes) { ec.t -= dt; if (ec.t <= 0) { meleeHit(p, ec.aim, ec.dmg, false, true); q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(ec.aim) < 0, x: p.x - Math.cos(ec.aim) * 4, y: p.y, life: .3, max: .3 }); } }
   p.echoes = p.echoes.filter(ec => ec.t > 0);
   if (p.flurryT > 0) {
     p.flurryT -= dt; p.flurryAcc += dt;
@@ -4221,7 +4804,7 @@ function updateHunter(p, dt) {
   if (p.dashT > 0) {
     p.dashT -= dt; moveEntity(p, p.dvx * dt, p.dvy * dt);
     dashCuts(p, p.dashMult || 2.6);
-    q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .22, max: .22 });
+    q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .22, max: .22 });
     if (Math.random() < .5) q.parts.push({ x: p.x + rand(-4, 4), y: p.y - rand(2, 12), vx: rand(-20, 20), vy: rand(-30, 0), life: .5, max: .5, c: '#f3e9d4', s: 1 });
     return;
   }
@@ -4503,13 +5086,18 @@ function updatePSpikes(dt) {
 }
 
 // Damage to you. o.proj: a projectile; o.unblockable: ground attacks your shield can't stop; o.src: who hit you.
+// A guest's hunter on the host's screen: the hit goes to that guest, whose own game decides what it does.
 function hurtHunter(p, dmg, ang, knock = 140, o = {}) {
+  if (p.remote) { if (p.dead || q.phase === 'victory') return 0; netHurtRemote(p, dmg, ang, knock, o); return 1; }
+  NET.personal++; try { return hurtHunter0(p, dmg, ang, knock, o); } finally { NET.personal--; }
+}
+function hurtHunter0(p, dmg, ang, knock, o) {
   const st = p.st, me = isLocal(p);
   if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
-    q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .3, max: .3 });
+    q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .3, max: .3 });
     moveEntity(p, Math.cos(a) * 20, Math.sin(a) * 20); Sound.play('dodge'); addText(p.x, p.y - 20, '0', '#e6f2ff');
     return 2;
   }
@@ -4614,6 +5202,7 @@ function downed(p = q.player) {
     banner('Hestia’s blessing', 'You rise again');
     return;
   }
+  if (q.net === 'guest') { knockDown(p); return; }               // the host decides when the whole party is down
   if (q.hunters.length > 1 && q.hunters.some(h => h !== p && !h.dead) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
   playerDie(p);
 }
@@ -4624,6 +5213,7 @@ function shieldBlocks(e, ang) {
   return Math.abs(angDiff(e.face, ang + Math.PI)) < 1.15;
 }
 function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true) {
+  if (q.net === 'guest') return netGuestHit(e, dmg, ang, knock, unblockable, fromPlayer);   // a guest's hits are applied by the host
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.state === 'bones') { if (fromPlayer) finishBones(e); return true; }
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
@@ -4650,8 +5240,8 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
   if (!blocked) {                                           // sparks fly the way the hit went; big hits get more, and a beat of hitstop
-    const big = fromPlayer && dmg >= p.st.weapon.dmg * 1.6, n = big ? 9 : 5, hy = e.y - Math.min(e.h * .5, e.body ? 30 : 8);
-    for (let i = 0; i < n; i++) { const a = ang + rand(-.7, .7), sp = rand(70, big ? 190 : 140); sc.parts.push({ x: e.x, y: hy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 120, life: rand(.12, .26), max: .26, c: i % 3 ? '#ffd463' : '#fff6d8', s: i % 4 ? 1 : 2 }); }
+    const big = fromPlayer && dmg >= p.st.weapon.dmg * 1.6, hy = e.y - Math.min(e.h * .5, e.body ? 30 : 8);
+    hitSparks(e.x, hy, ang, big);
     if (big) { if (isLocal(p)) G.hitstop = Math.max(G.hitstop, .04); q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 10, life: .15, max: .15, c: '#ffd463' }); }
   }
   p.stats.dealt += dmg; e.lastBy = p;
@@ -4717,6 +5307,7 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
                  pierce: o.pierce || 0, homing: o.homing || 0, split: o.split || null, charm: o.charm || 0, knock: o.knock || 90, src: o.src || null, hit: new Set(), t: 0, dead: false,
                  ghost: !!o.ghost, bounce: o.bounce || 0, big: o.big || 0, delay: o.delay || 0, launch: o.launch || 0, boom: o.boom || null,
                  owner: team === 'player' ? o.owner || q.actor || q.player : null });
+  if (q.net === 'guest' && team === 'player') netOwnShot(q.projs[q.projs.length - 1]);
 }
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
@@ -4762,7 +5353,7 @@ function updateProjs(dt) {
     if ((pr.kind === 'goat' || pr.kind === 'wave') && (pr.x < IPX.minX - 20 || pr.x > IPX.maxX + 20 || pr.y < IPX.minY - 20 || pr.y > IPX.maxY + 20)) { pr.dead = true; continue; }
     if (pr.team === 'enemy') {
       for (const h of q.hunters) {                                // every hunter it touches (just you, alone)
-        if (h.dead) continue;
+        if (h.dead || h.remote) continue;                         // a guest judges shots at its own hunter
         const d = Math.hypot(pr.x - h.x, pr.y - h.y);
         if (h.aegisT > 0 && d < pr.r + h.r + 9) { reflectProj(pr, h); break; }
         if (d < pr.r + h.r + 1) {
@@ -4772,7 +5363,7 @@ function updateProjs(dt) {
           if (pr.team !== 'enemy') break;                          // a perfect block just sent it back
         }
       }
-    } else {
+    } else if (!pr.vis) {                                        // vis: a guest's shot, only for show here
       q.actor = pr.owner || q.player;
       for (const e of q.enemies) {
         if (!targetable(e) || pr.hit.has(e.id)) continue;
@@ -4812,17 +5403,20 @@ const PUDDLE = {
 };
 // Hazards hurt every hunter in them. acc: the damage-over-time counter, one per hunter (key 'acc' for you).
 const accKey = p => p.hid ? 'acc' + p.hid : 'acc';
+// Who this game judges ground marks for: everyone alone, not the guests' hunters on the host, only your own on a guest.
+const hazHunters = () => q.net === 'guest' ? [q.player] : q.net === 'host' ? q.hunters.filter(h => !h.remote) : q.hunters;
 function updateHazards(dt) {
   for (const h of q.hazards) {
     h.t += dt;
     if (h.type === 'circle') {
       if (!h.fired && h.t >= h.delay) {
         h.fired = true;
-        for (const p of q.hunters) {
+        for (const p of hazHunters()) {
           const inside = !p.dead && Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r;
           if (inside && h.dmg) hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 150, { unblockable: true });
         }
-        if (h.kind === 'bolt') { q.fx.push({ t: 'bolt', x: h.x, y: h.y, life: .25, max: .25, seed: (h.x * 7 + h.y) | 0 }); G.flash = Math.max(G.flash, .08); Sound.play('zap'); addShake(2); }
+        if (q.net === 'guest') {}                                 // a guest gets the host's effects instead
+        else if (h.kind === 'bolt') { q.fx.push({ t: 'bolt', x: h.x, y: h.y, life: .25, max: .25, seed: (h.x * 7 + h.y) | 0 }); G.flash = Math.max(G.flash, .08); Sound.play('zap'); addShake(2); }
         else if (h.kind === 'spear' || h.kind === 'arrow' || h.kind === 'sunfire') { q.fx.push({ t: 'spear', x: h.x, y: h.y, life: .5, max: .5, col: h.kind === 'sunfire' ? '#ffd463' : null }); dust(h.x, h.y, 6); Sound.play('thud'); }
         else if (h.kind === 'geyser') { burst(h.x, h.y - 8, 16, ['#e6f2ff', '#5aa3c0', '#ffffff'], 120); Sound.play('splash'); }
         else if (h.kind === 'lob') { burst(h.x, h.y - 4, 10, [PUDDLE[h.puddle].hi, PUDDLE[h.puddle].col], 70); Sound.play('splash'); addPuddle(h.x, h.y, h.r, h.life || 5, h.puddle, h.dps || 0); }
@@ -4833,12 +5427,12 @@ function updateHazards(dt) {
         else if (h.kind === 'stone' || h.kind === 'etna') { dust(h.x, h.y, 10); burst(h.x, h.y - 6, 10, ['#c9bda4', '#8f846c'], 90); Sound.play('thud'); addShake(2); }
         else if (h.kind === 'shadow') { burst(h.x, h.y - 8, 18, ['#2a1f3a', '#7fe08a', '#140d0b'], 110); Sound.play('swing'); q.fx.push({ t: 'ring', x: h.x, y: h.y, r0: 4, r1: h.r, life: .25, max: .25, c: '#7fe08a' }); }
         else { burst(h.x, h.y - 6, 12, [hazardCol(h.kind), '#fff6d8'], 90); Sound.play('thud'); }
-        if (h.then) h.then(h);
+        if (h.then && q.net !== 'guest') h.then(h);
       }
       if (h.fired && h.t > h.delay + .05) h.dead = true;
     } else if (h.type === 'ring') {
       h.r += h.speed * dt;
-      for (const p of q.hunters) {                                 // each hunter can be caught by a ring once
+      for (const p of hazHunters()) {                                 // each hunter can be caught by a ring once
         if (h.hits && h.hits.has(p)) continue;
         if (!p.dead && Math.abs(Math.hypot(p.x - h.x, p.y - h.y) - h.r) < 6) {
           const r = hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 220, { unblockable: !h.blockable });
@@ -4848,7 +5442,7 @@ function updateHazards(dt) {
       if (h.r > h.max) h.dead = true;
     } else if (h.type === 'puddle') {
       h.life -= dt; if (h.life <= 0) { h.dead = true; continue; }
-      for (const p of q.hunters) {
+      for (const p of hazHunters()) {
         if (p.dead) continue;
         if (Math.hypot(p.x - h.x, (p.y - h.y) * 1.6) < h.r + 2) {
           const P = PUDDLE[h.kind], ak = accKey(p);
@@ -4862,7 +5456,7 @@ function updateHazards(dt) {
     } else if (h.type === 'whirl') {                             // Oceanus' whirlpool pulls you toward its middle
       if (h.t < h.delay) continue;
       h.life -= dt; if (h.life <= 0) { h.dead = true; continue; }
-      for (const p of q.hunters) {
+      for (const p of hazHunters()) {
         if (p.dead || p.dodgeT > 0 || p.dashT > 0) continue;
         const d = Math.hypot(p.x - h.x, p.y - h.y);
         if (d < h.r) {
@@ -4878,8 +5472,8 @@ function updateHazards(dt) {
         const sp = h.speed || 210;
         if (h.kind === 'bolt') {
           q.fx.push({ t: 'laneBolt', x0: h.x0, y0: h.y0, x1: h.x1, y1: h.y1, life: .3, max: .3, seed: (h.y0 + h.x0) | 0, col: h.col }); Sound.play('zap'); G.flash = Math.max(G.flash, .08);
-          for (const p of q.hunters) if (!p.dead && distToSeg(p.x, p.y, h.x0, h.y0, h.x1, h.y1) < 9) hurtHunter(p, h.dmg, Math.atan2(h.y1 - h.y0, h.x1 - h.x0) + Math.PI / 2, 150, { unblockable: true });
-        } else {
+          for (const p of hazHunters()) if (!p.dead && distToSeg(p.x, p.y, h.x0, h.y0, h.x1, h.y1) < 9) hurtHunter(p, h.dmg, Math.atan2(h.y1 - h.y0, h.x1 - h.x0) + Math.PI / 2, 150, { unblockable: true });
+        } else if (q.net !== 'guest') {
           const a = Math.atan2(h.y1 - h.y0, h.x1 - h.x0);
           spawnProj(h.x0, h.y0, a, sp, h.dmg, h.kind === 'wave' ? 'wave' : 'goat', 'enemy', { r: h.kind === 'wave' ? 8 : 5, life: 6, knock: h.kind === 'wave' ? 260 : 200 });
           Sound.play(h.kind === 'wave' ? 'splash' : 'pounce');
@@ -4931,17 +5525,23 @@ function collect(k, p = q.player) {
     return;
   }
   for (const h of SHARED_LOOT ? q.hunters : [p]) h.loot[k.item] = (h.loot[k.item] || 0) + 1;   // each hunter's own haul (q.loot is yours)
-  Sound.play('pickup'); if (SHARED_LOOT || isLocal(p)) feed(k.item);
+  netRec(['L', k.item]); Sound.play('pickup'); if (SHARED_LOOT || isLocal(p)) feed(k.item);
 }
 function burst(x, y, n, colors, speed) {
+  netRec(['b', r1(x), r1(y), n, colors, speed]);
   for (let i = 0; i < n; i++) {
     const a = rand(0, Math.PI * 2), s = rand(speed * .3, speed);
     sc.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, g: 140, life: rand(.25, .6), max: .6, c: colors[i % colors.length], s: Math.random() < .3 ? 2 : 1 });
   }
 }
-function dust(x, y, n) { for (let i = 0; i < n; i++) sc.parts.push({ x: x + rand(-3, 3), y: y + rand(-1, 1), vx: rand(-25, 25), vy: rand(-18, -2), g: 0, life: rand(.25, .5), max: .5, c: Math.random() < .5 ? '#c9b48e' : '#a08b68', s: Math.random() < .4 ? 2 : 1 }); }
-function addText(x, y, s, c) { sc.texts.push({ x, y, s, c, life: .7, max: .7 }); }
-function addShake(n) { G.shake = Math.max(G.shake, n); }
+function dust(x, y, n) { netRec(['d', r1(x), r1(y), n]); for (let i = 0; i < n; i++) sc.parts.push({ x: x + rand(-3, 3), y: y + rand(-1, 1), vx: rand(-25, 25), vy: rand(-18, -2), g: 0, life: rand(.25, .5), max: .5, c: Math.random() < .5 ? '#c9b48e' : '#a08b68', s: Math.random() < .4 ? 2 : 1 }); }
+function addText(x, y, s, c) { netRec(['t', r1(x), r1(y), s, c]); sc.texts.push({ x, y, s, c, life: .7, max: .7 }); }
+// Hit sparks fly the way the hit went.
+function hitSparks(x, y, ang, big) {
+  netRec(['s', r1(x), r1(y), r2(ang), big ? 1 : 0]);
+  for (let i = 0, n = big ? 9 : 5; i < n; i++) { const a = ang + rand(-.7, .7), sp = rand(70, big ? 190 : 140); sc.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 10, g: 120, life: rand(.12, .26), max: .26, c: i % 3 ? '#ffd463' : '#fff6d8', s: i % 4 ? 1 : 2 }); }
+}
+function addShake(n) { if (!NET.personal) netRec(['k', n]); G.shake = Math.max(G.shake, n); }
 
 
 /* ============================== ENEMIES ================================== */
@@ -6168,7 +6768,8 @@ const TITAN_AI = {
         if (b.st <= 0) {
           const back = memAt(G.time - 2.4, p);
           if (back && !p.dead) {
-            q.fx.push({ t: 'after', frames: heroFrames(p.look), flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 });
+            q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 });
+            if (p.remote) netTo(p, 'rc', [r1(back.x), r1(back.y)]);
             p.x = back.x; p.y = back.y; p.dodgeT = 0; p.dashT = 0; G.flash = .15; Sound.play('charm');
             addCircleHazard(p.x, p.y, 22, .75, D(.2), 'memory');
           }
@@ -6439,11 +7040,11 @@ function titanTick(b, dt) {
   }
 }
 // What you do, for the Titans that care: Coeus reads your dodges, Mnemosyne remembers your swings, Themis judges both.
-function titanAct(b, kind, p = q.player) {
+function titanAct(b, kind, p = q.player, aim) {
   if (b.type === 'coeus' && kind === 'dodge') { b.dodges = (b.dodges || []).filter(t => t > G.time - 2.2); b.dodges.push(G.time); if (b.dodges.length >= 2 && !b.readT) { b.readT = 4; addText(b.x, b.y - b.h - 6, '!', '#e6f2ff'); } }
   if (b.type === 'mnemosyne' && (kind === 'attack' || kind === 'skill')) {
     if (p === q.player) (q.memAtk = q.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
-    else (p.memAtk = p.memAtk || []).push({ t: G.time, aim: p.swing ? p.swing.aim : p.face });
+    else (p.memAtk = p.memAtk || []).push({ t: G.time, aim: aim ?? (p.swing ? p.swing.aim : p.face) });
   }
   if (b.type === 'themis' && b.law) {
     const L = b.law, k = p.hid ? 'count' + p.hid : 'count';      // each hunter's own strikes in a row
@@ -6481,13 +7082,15 @@ function questParts(qd) {
 const WEIGHT = { fodder: 1, medium: 2, heavy: 4 };
 const BUDGET = 12;
 
-function startQuest(id) {
-  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !isUnlocked(def))) return;
+function startQuest(id, opts = {}) {
+  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
   if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
-  const bots = def.prologue ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = 1 + bots.length;
+  // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
+  const roster = opts.guest || (G.netParty && netHost() ? G.netParty : null); G.netParty = null;
+  const bots = def.prologue || roster ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = roster ? roster.length : 1 + bots.length;
   const A = partyArena(def.arena, ARENAS[def.arena], PARTY_SCALE[n].arena), T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
@@ -6503,9 +7106,11 @@ function startQuest(id) {
         stats: { kills: 0, dealt: 0, taken: 0, perfect: 0 }, timeStop: 0, ghosts: [], mem: null, current: null, onPlayerAct: null,
         hunters: [], partyN: n, actor: null, faints: PARTY_FAINTS };
   sc = q;
-  q.player = makeHunter({ local: true, name: Store.user || 'You' });
+  const mine = roster ? roster.find(r => r.id === NET.me) : null;
+  q.player = makeHunter({ local: true, name: Store.user || 'You', hid: mine ? mine.hid : 0 });
   q.player.stats = q.stats; q.player.loot = q.loot; q.player.tok = q.tokUse;    // your numbers are the quest's numbers
-  q.hunters.push(q.player);
+  if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
+  else q.hunters.push(q.player);
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
@@ -6518,6 +7123,8 @@ function startQuest(id) {
   tutStart();
   if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
+  if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
+  netUi();
 }
 function startWave(i) {
   q.waveIdx = i; const w = q.def.waves[i], light = [], heavy = [];
@@ -6546,7 +7153,7 @@ function startBoss() {
   q.boss = makeBoss(q.def.boss, spot.x, spot.y);
   q.enemies.push(q.boss);
   const d = BOSSES[q.def.boss];
-  if (d.titan) { q.onPlayerAct = (k, h) => { if (q.boss && !q.boss.dead) titanAct(q.boss, k, h); }; q.mem = []; q.memAtk = []; q.ghosts = []; }
+  if (d.titan) { q.onPlayerAct = (k, h, aim) => { if (q.boss && !q.boss.dead) titanAct(q.boss, k, h, aim); }; q.mem = []; q.memAtk = []; q.ghosts = []; }
   banner(d.name, d.title, true); Sound.play('roar'); addShake(d.titan ? 7 : 4);
   $('bossName').textContent = d.name; $('bossTitle').textContent = d.title; $('bossBar').hidden = false;
   $('bossBar').classList.toggle('titan', !!d.titan); $('bossBar').dataset.rank = q.def.rank;
@@ -6594,7 +7201,7 @@ function chestReward(qd, first) {
 }
 function openChest() {
   const c = q.chest; if (!c || c.open) return;
-  c.open = true; q.chestFound = true;
+  c.open = true; q.chestFound = true; netRec(['C']);
   const first = !G.save.chests[q.def.id], rw = chestReward(q.def, first);
   q.chestMoney += rw.money;
   rw.items.forEach(id => spawnPickup(c.x, c.y - 4, id)); spawnPickup(c.x, c.y - 4, '@heal');
@@ -6652,7 +7259,7 @@ function tick(dt) {
   G.time += dt;
   if (G.save) G.save.playtime += dt;
   G.flash = Math.max(0, G.flash - dt);
-  if (G.hitstop > 0) { G.hitstop -= dt; return; }
+  if (G.hitstop > 0) { G.hitstop -= dt; if (!q.net) return; }   // online, hitstop never freezes everyone else's game
   G.slowmo = Math.min(1, G.slowmo + dt * (q.phase !== 'victory' && q.phase !== 'defeat' ? 1.5 : .35));
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
@@ -6675,6 +7282,7 @@ function tick(dt) {
   if (!q) { Input.endFrame(); return; }      // the quest just ended
   followCam(q.player, dt);
   G.shake = Math.max(0, G.shake - dt * 18);
+  if (q.net === 'host') netHostTick(dt);
   Input.endFrame();
 }
 
@@ -6706,6 +7314,7 @@ const PANEL_INFO = {
   stash:   { title: 'Storehouse' },
   options: { title: 'Your Home' },
   shrine:  { title: 'Hestia’s Hearth' },
+  oracle:  { title: 'The Oracle' },
 };
 // Rank progress. A rank is done when every god (side gods too) and every Titan has been hunted on it.
 const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].every(id => save.cleared[rid(id, r)]);
@@ -6760,6 +7369,9 @@ function npcLines(n) {
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
     case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
     case 'oracle': {
+      if (oracleOnline()) return ['I see other hunters, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
+      if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between hunters are cut. Check your connection, then ask me again.'];
+      G.oracleHints = false;
       const unfound = QUESTS.filter(qd => isUnlocked(qd) && !s.chests[qd.id]);
       if (!unfound.length) return [QUESTS.every(qd => s.chests[qd.id]) ? 'Every hidden cache I can see has been opened. You have sharp eyes.' : 'I see no unopened caches on the paths you can walk. Unlock new hunts and ask me again.'];
       const pick = unfound[G.oracleIdx++ % unfound.length], A = ARENAS[pick.arena];
@@ -6879,8 +7491,9 @@ function resumeVillage() {
   hideScreens(); $('stage').hidden = false; $('pause').hidden = true; resize();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();
-  hudMode('village'); tutGoal();
+  hudMode('village'); tutGoal(); netSendInfo();
 }
+const oracleOnline = () => !!(Store.api && navigator.onLine !== false && !G.oracleHints);
 function interactPressed() { return Input.hit('guard') || Input.hit('attack') || Input.enter; }
 function nearestInteract(p) {
   let best = null, bd = 22;
@@ -6893,7 +7506,7 @@ function startInteract(t) {
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
-    const after = ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
@@ -6948,9 +7561,10 @@ function tickVillage(dt) {
     villageMove(p, dt);
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
+    else if (!V.target && Input.enter && netOn() && netEnterKey()) {}   // Enter: ready up, or depart as host
     else if (p.y > IPX.maxY + 6 && V.id === 'temple') { Sound.play('door'); fadeTo(() => enterPlace('village', 'temple')); Input.endFrame(); return; }
   }
-  updateNpcs(dt);
+  updateNpcs(dt); netTownTick(dt);
   if (V.id === 'hall' && Math.random() < .25) V.parts.push({ x: tc(20) - 8 + rand(-18, 18), y: IPX.maxY + rand(10, 44), vx: rand(-3, 3), vy: rand(-16, -7), g: 0, life: 1.4, max: 1.4, c: Math.random() < .5 ? '#b48cff' : '#8a5ad8', s: 1 });   // Tartarus' light drifting up from the gate
   if (V.id === 'village') {
     V.smokeT -= dt;
@@ -7759,7 +8373,7 @@ function weaponTint(id) {
 }
 function drawWeapon(p, hx, hy) {
   if (p.dodgeT > 0) return;
-  const w = p.st.weapon, fullId = G.save.weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
+  const w = p.st.weapon, fullId = (p.save || G.save).weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
   let ang = p.face, ext = 0, trail = null;
   if (p.swing) {
     const s = p.swing, tt = clamp((s.t - s.windup) / s.active, 0, 1);
@@ -8047,9 +8661,12 @@ function renderVillage() {
     if (n.id === 'herald' && heraldNews()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
   list.push({ y: V.player.y, draw: () => drawPlayer(V.player, S) });
+  const peers = townPeers();                                    // the others in your room, if you're in one
+  for (const o of peers) list.push({ y: o.y, draw: () => drawPlayer(o, S) });
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
   drawParticlesAndText(S);
+  for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
   if (t && !G.dialog && !G.cutscene) {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
@@ -8132,6 +8749,7 @@ function hudMode(m) {
   const st = G.save ? playerStats() : null;
   $('tAbil').hidden = m === 'village' || !(st && st.weapon.ability);
   $('tGuard').hidden = m === 'village' || !(st && st.shield);
+  netUi();
 }
 function hudReset() {
   $('lootFeed').innerHTML = ''; $('bossBar').hidden = true;
@@ -8202,6 +8820,7 @@ function updateVillageHud() {
 }
 let bannerTimer = 0;
 function banner(main, sub = '', boss = false) {
+  if (!NET.personal) netRec(['n', main, sub, boss ? 1 : 0]);
   const b = $('banner'); b.hidden = true; void b.offsetWidth;
   $('bannerMain').textContent = main; $('bannerSub').textContent = sub; b.classList.toggle('boss', boss); b.hidden = false;
   clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { b.hidden = true; }, 2200);
@@ -8535,7 +9154,7 @@ function slotCard(n, s) {
 
 function renderHub() {
   const s = G.save, info = PANEL_INFO[G.panel] || PANEL_INFO.quests;
-  $('hubTitle').textContent = G.panelTitle || info.title;
+  $('hubTitle').textContent = G.panelTitle || (G.panel === 'quests' && netOn() ? 'Multiplayer quests' : info.title);
   $('hubMoney').textContent = fmtMoney(s.money);
   const eqBox = $('hubEquip');
   eqBox.hidden = G.panel !== 'armory';
@@ -8556,6 +9175,7 @@ function renderHub() {
   else if (G.panel === 'options') body.innerHTML = renderOptions();
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
   else if (G.panel === 'market') body.innerHTML = renderMarket();
+  else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -8608,7 +9228,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">Depart</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netHost() ? ' disabled' : ''}>${netOn() ? (netHost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -8864,7 +9484,7 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.forgerank) { G.forgeRank = +t.dataset.forgerank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
-  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; fadeTo(() => startQuest(id)); return; }
+  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { if (netHost()) netPost(id); return; } fadeTo(() => startQuest(id)); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.part) {
     const id = t.dataset.part, cost = partCost(id); if (s.money < cost) return;
@@ -8938,7 +9558,8 @@ $('scrHub').addEventListener('click', ev => {
 });
 
 function finishQuest(win) {
-  const s = G.save, d = q.def;
+  const s = G.save, d = q.def, wasNet = q.net;
+  if (q.net === 'host') netHostEnd(win); else if (q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netSend({ t: 'leave' });
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
   const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady(), typhonWas = typhonReady();
   G.lastQuest = d.id; CG.gameplay(false); tutEnd(win);
@@ -8974,11 +9595,48 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again';
+  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   G.mode = 'results'; q = null;
   show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
 }
+
+/* ---- the Oracle: hunting with others ---- */
+function renderOracle() {
+  if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
+  if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
+  const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
+  if (R) return `<div class="opt"><h3>Room ${esc(R.code)}</h3><p>${R.members.map(m => esc(m.name) + (m.id === R.host ? ' (host)' : '')).join(' · ')} · ${R.members.length}/4</p>
+    <p class="muted">Friends join with the code ${esc(R.code)}. ${netHost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
+    <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
+  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 hunters. Hunts grow tougher with more of you.</p>
+      <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
+    <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
+    <div class="opt wide"><h3>Open rooms</h3><div id="orList" class="muted">Looking…</div><button class="btn ghost small" type="button" data-or="refresh">Refresh</button></div>
+    <div class="opt"><h3>Hidden caches</h3><p>She still sees where the hunting grounds hide their caches.</p><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>`;
+}
+async function orLoad() {
+  const box = $('orList'); if (!box) return;
+  try {
+    const d = await Store.call('GET', 'rooms'), rooms = d.rooms || [];
+    if (!$('orList')) return;
+    $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.host)}</b><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
+    for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(() => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (el) el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
+  } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other hunters. Check your connection.'; }
+}
+async function orDo(a, code) {
+  G.orMsg = '';
+  try {
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast(`Room ${NET.code} is open. Friends join with that code.`); }
+    else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
+    else if (a === 'leave') { netLeave(); renderHub(); }
+    else if (a === 'refresh') orLoad();
+    else if (a === 'hints') { G.oracleHints = true; closePanel(); const n = V && V.npcs.find(x => x.id === 'oracle'); if (n) startInteract({ kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y }); }
+  } catch (e) { G.orMsg = e.message; if (G.panel === 'oracle') renderHub(); }
+}
+document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code); } });
+document.addEventListener('submit', ev => { const f = ev.target.closest('[data-orjoin]'); if (!f) return; ev.preventDefault(); orDo('join', f.elements.code.value); });
+$('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
 
 /* ---- pause ---- */
 function setPaused(v) {
@@ -9187,9 +9845,10 @@ const DEBUG = { speed: 1 };
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.1, (now - last) / 1000); last = now;
+  netFrame(dt);
   CG.gameplay((G.mode === 'quest' || G.mode === 'village') && !G.paused && !document.hidden);
   if (G.mode === 'quest' && q) {
-    if (!G.paused) { acc += dt * DEBUG.speed; let n = 0; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; tick(STEP); n++; if (G.mode !== 'quest') break; } }
+    if (!G.paused || q.net) { acc += dt * DEBUG.speed; let n = 0; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
     if (G.mode === 'quest' && q) { renderQuest(); updateHud(); }
   } else if (G.mode === 'village' && V) {
     if (!G.paused) { acc += dt; let n = 0; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
@@ -9219,6 +9878,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
 window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
