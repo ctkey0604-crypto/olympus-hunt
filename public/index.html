@@ -806,7 +806,7 @@ const ABILITIES = {
 
 // wt = power tier (matches TIER_W). Damage is worked out from it, so every weapon stays in line with the curve.
 const WEAPONS = {
-  bronze_sword:    { name: 'Bronze Sword',          kind: 'sword',   wt: 1,    recipe: null, desc: 'Standard issue for a new hunter.' },
+  bronze_sword:    { name: 'Bronze Sword',          kind: 'sword',   wt: 1,    recipe: null, desc: 'Standard issue for every new arrival.' },
   bandit_spear:    { name: 'Brigand’s Spear',  kind: 'spear',   wt: 1.5,  recipe: { items: { bandit_cloth: 5, stolen_ring: 1 }, cost: 120 }, desc: 'A long road spear, re-wrapped with stolen wool.' },
   hill_bow:        { name: 'Hill Bow',              kind: 'bow',     wt: 1.5,  pierce: 1, recipe: { items: { sling_cord: 4, smooth_stone: 3 }, cost: 150 }, desc: 'Strung with sling cord. Shots punch through one extra enemy.' },
   bull_maul:       { name: 'Bull Maul',             kind: 'hammer',  wt: 1.8,  ability: 'stampede', recipe: { items: { cattle_hide: 5, golden_horn: 1 }, cost: 300 }, desc: 'A horn-capped maul with the weight of a charging bull.' },
@@ -4081,8 +4081,8 @@ function botThink(p, dt) {
   // danger: marked ground about to go off under you, shots about to land, a god lining up a dash at you
   let fx = 0, fy = 0, threat = false;
   for (const h of q.hazards) {
-    if (h.type === 'circle' && !h.fired && h.dmg && h.delay - h.t < .5 && Math.hypot(p.x - h.x, p.y - h.y) < h.r + 8) { const a = Math.atan2(p.y - h.y, p.x - h.x); fx += Math.cos(a); fy += Math.sin(a); threat = true; }
-    else if (h.type === 'ring' && !(h.hits && h.hits.has(p)) && Math.abs(Math.hypot(p.x - h.x, p.y - h.y) - h.r) < 18 && Math.hypot(p.x - h.x, p.y - h.y) > h.r) threat = true;
+    if (h.type === 'circle' && !h.fired && h.dmg && h.delay - h.t < .5 && Math.hypot(p.x - h.x, (p.y - h.y) / .6) < h.r + 8) { const a = Math.atan2(p.y - h.y, p.x - h.x); fx += Math.cos(a); fy += Math.sin(a); threat = true; }
+    else if (h.type === 'ring' && !(h.hits && h.hits.has(p)) && Math.abs(Math.hypot(p.x - h.x, (p.y - h.y) / .6) - h.r) < 18 && Math.hypot(p.x - h.x, (p.y - h.y) / .6) > h.r) threat = true;
   }
   for (const pr of q.projs) {
     if (pr.team !== 'enemy' || pr.dead || pr.delay > 0) continue;
@@ -4125,6 +4125,8 @@ const NET = { ws: null, room: null, me: 0, code: '', ping: 0, pingAt: 0, peers: 
 const netOn = () => !!(NET.ws && NET.room);
 const netHost = () => netOn() && NET.room.host === NET.room.me;
 const netMember = id => NET.room && NET.room.members.find(m => m.id === id);
+const netPoster = R => R.quest && R.quest.by != null ? R.quest.by : R.host;   // who posted the quest: they depart, and their game runs the hunt
+const netCanPost = () => netOn() && (netHost() || NET.room.v >= 2);          // newer rooms let anyone post
 let NID = 1;                                                       // ids for shots, ground marks and pickups (monsters keep EID)
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 function netSend(o) { const ws = NET.ws; if (ws && ws.readyState === 1) ws.send(typeof o === 'string' ? o : JSON.stringify(o)); }
@@ -4165,6 +4167,7 @@ function netClosed(ev) {
   netUi();
 }
 function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
+setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a hidden tab draws no frames: keep telling the room you're there
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
@@ -4175,6 +4178,26 @@ function netSendInfo() {
   const gear = myGear(), key = JSON.stringify(gear) + G.save.rank;
   if (key === NET.infoKey) return; NET.infoKey = key;
   netSend({ t: 'info', gear, rank: G.save.rank });
+  // changed into gear the posted quest doesn't allow: you're not ready any more
+  const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
+  if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+}
+// Online, everyone plays at the quest's rank: you need that rank, the quests before it in your own line,
+// and no gear from a higher rank. Returns why you can't take it, or null.
+function gearRank(s = G.save) {
+  let r = 0;
+  for (const id of [s.weapon, s.shield, ...Object.values(s.equip || {})]) if (id) r = Math.max(r, rankOf(id), ((WEAPONS[id] || SHIELDS[id] || ARMOR_SETS[id] || {}).rank) || 0);
+  return r;
+}
+function netWhyNot(qd) {
+  const s = G.save, qr = qd.rank || 0; if (!s) return null;
+  if ((s.rank || 0) < qr) return `You haven’t reached ${RANKS[qr].name} yet.`;
+  if (qd.titan && !s.stairs) return 'The stairway under the temple hasn’t opened for you yet.';
+  const miss = (qd.requires || []).filter(r => !s.cleared[r]);
+  if (miss.length) return `Finish ${QUEST_BY_ID[miss[0]] ? QUEST_BY_ID[miss[0]].name : 'the quests before it'} first.`;
+  const gr = gearRank(s);
+  if (gr > qr) return `This is a ${RANKS[qr].name} quest. Swap out your ${RANKS[gr].name} gear first.`;
+  return null;
 }
 // Turns someone's gear message into something playerStats() and drawPlayer() can use. Anything unknown falls back to the basics.
 function gearSave(g) {
@@ -4264,14 +4287,15 @@ function netUi() {
   if (G.mode === 'village') {
     if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}.</span></div>`;
     else if (R.quest) {
-      const me = R.members.find(m => m.id === R.me), all = R.members.every(m => m.ready || m.id === R.host);
+      const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
       html += `<div class="mp-card"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
-        <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === R.host ? 'ok' : ''}">${m.ready || m.id === R.host ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
-        ${host ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
+        <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === poster ? 'ok' : ''}">${m.ready || m.id === poster ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
+        ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
+        ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
-          : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button></div>`}
+          : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready || why ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
-    } else if (host) html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it to the room.' : 'Waiting for hunters. Room code ' + esc(R.code) + '.'}</span></div>`;
+    } else if (netCanPost()) html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it to the room.' : 'Waiting for players. Room code ' + esc(R.code) + '.'}</span></div>`;
     else html += `<div class="mp-card"><span class="muted">Waiting for the host to post a hunt.</span></div>`;
   }
   box.innerHTML = html;
@@ -4279,26 +4303,29 @@ function netUi() {
 function netUiPing() { const el = $('mpPing'); if (el) el.textContent = NET.ping ? NET.ping + ' ms' : ''; }
 function netBannerAction(a) {
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
-  if (a === 'ready') { const me = R.members.find(m => m.id === R.me); netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
+  if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
   else if (a === 'wait') { NET.confirm = false; netUi(); }
   else if (a === 'depart' || a === 'go') {
-    const all = R.members.every(m => m.ready || m.id === R.host);
+    const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why); return; }
+    const poster = netPoster(R), all = R.members.every(m => m.ready || m.id === poster);
     if (!all && a !== 'go') { NET.confirm = true; netUi(); return; }
     NET.confirm = false; G.save && persist(true); netSend({ t: 'depart' }); Sound.play('click');
   }
 }
 // Enter in town with nothing to talk to: ready up (guests) or depart (host).
-function netEnterKey() { const R = NET.room; if (!R || !R.quest || R.phase !== 'town') return false; netBannerAction(netHost() ? (NET.confirm ? 'go' : 'depart') : 'ready'); return true; }
+function netEnterKey() { const R = NET.room; if (!R || !R.quest || R.phase !== 'town') return false; netBannerAction(netPoster(R) === R.me ? (NET.confirm ? 'go' : 'depart') : 'ready'); return true; }
 function netPost(id) {
-  const qd = QUEST_BY_ID[id]; if (!qd || !netHost()) return;
+  const qd = QUEST_BY_ID[id], R = NET.room; if (!qd || !netCanPost()) return;
+  if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
+  const why = netWhyNot(qd); if (why) { toast(why); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
   closePanel(); toast('Hunt posted. Everyone readies up in the top left.');
 }
 // The host departed: everyone who readied up starts the same hunt.
 function netDepart(m) {
   const host = m.from, order = [host, ...m.ids.filter(i => i !== host)];
-  const roster = order.map((id, hid) => { const mem = netMember(id) || {}; return { id, hid, name: mem.name || 'Hunter', gear: mem.gear || null }; });
+  const roster = order.map((id, hid) => { const mem = netMember(id) || {}; return { id, hid, name: mem.name || 'Player', gear: mem.gear || null }; });
   if (!order.includes(NET.me)) { toast('The party set off without you. They’ll be back.'); return; }
   if (q) return;
   closeDialog();
@@ -4387,6 +4414,13 @@ function netGone(id) {
   banner(`${p.name} left the hunt`, '');
 }
 // Host, every step for each guest's hunter: follow its reports and apply what it did, in order.
+// A guest's game says how hard it hit. Keep that believable: no hit over 20x its weapon, no more than 80x its weapon a second.
+function netCap(p, dmg) {
+  const st = p.st || {}, base = ((st.weapon && st.weapon.dmg) || 40) * (st.mul || 1), now = q.elapsed;
+  dmg = Math.min(Math.max(0, +dmg || 0), base * 20);
+  if (!(now - p.capT <= 1)) { p.capT = now; p.capSum = 0; }
+  dmg = Math.min(dmg, Math.max(0, base * 80 - p.capSum)); p.capSum += dmg; return dmg;
+}
 function netRemoteStep(p, dt) {
   if (p.left) return;
   netFollow(p, dt);
@@ -4394,7 +4428,7 @@ function netRemoteStep(p, dt) {
   const Q = p.netQ.splice(0);
   for (const a of Q) {
     const k = a[0];
-    if (k === 'h') { const e = q.enemies.find(x => x.id === a[1]); if (e) damageEnemy(e, a[2], a[3], a[4], !!a[5], a[6] !== 0); }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
+    if (k === 'h') { const e = q.enemies.find(x => x.id === a[1]); if (e) damageEnemy(e, netCap(p, a[2]), a[3], a[4], !!a[5], a[6] !== 0); }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
     else if (k === 'c') {                                        // something its skills did to a monster
       const e = q.enemies.find(x => x.id === a[1]); if (!e || e.dead) continue;
       if (a[2] === 'stun' && !e.boss) e.stun = Math.max(e.stun, a[3]);
@@ -5412,7 +5446,7 @@ function updateHazards(dt) {
       if (!h.fired && h.t >= h.delay) {
         h.fired = true;
         for (const p of hazHunters()) {
-          const inside = !p.dead && Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r;
+          const inside = !p.dead && Math.hypot(p.x - h.x, (p.y - h.y) / .6) < h.r + p.r;   // ground marks are drawn 60% as tall as wide: hit what's drawn
           if (inside && h.dmg) hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 150, { unblockable: true });
         }
         if (q.net === 'guest') {}                                 // a guest gets the host's effects instead
@@ -5434,7 +5468,7 @@ function updateHazards(dt) {
       h.r += h.speed * dt;
       for (const p of hazHunters()) {                                 // each hunter can be caught by a ring once
         if (h.hits && h.hits.has(p)) continue;
-        if (!p.dead && Math.abs(Math.hypot(p.x - h.x, p.y - h.y) - h.r) < 6) {
+        if (!p.dead && Math.abs(Math.hypot(p.x - h.x, (p.y - h.y) / .6) - h.r) < 6) {   // the drawn ring is flat (60% tall), so is its edge
           const r = hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 220, { unblockable: !h.blockable });
           if (r) { h.hit = true; (h.hits = h.hits || new Set()).add(p); if (h.confuse && r === 1) { p.fx.confuse = h.confuse; Sound.play('charm'); } }
         }
@@ -7089,7 +7123,7 @@ function startQuest(id, opts = {}) {
   if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
-  const roster = opts.guest || (G.netParty && netHost() ? G.netParty : null); G.netParty = null;
+  const roster = opts.guest || (G.netParty || null); G.netParty = null;
   const bots = def.prologue || roster ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = roster ? roster.length : 1 + bots.length;
   const A = partyArena(def.arena, ARENAS[def.arena], PARTY_SCALE[n].arena), T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);
@@ -7342,19 +7376,19 @@ function npcLines(n) {
   switch (n.id) {
     case 'herald': {
       const ready = rankReady();
-      if (ready === 1) return ['Hunter. Sit down a moment.', 'You’ve beaten every god on Olympus and every Titan under it. Word got around, and not the good kind.',
+      if (ready === 1) return ['Sit down a moment.', 'You’ve beaten every god on Olympus and every Titan under it. Word got around, and not the good kind.',
         'The gods are back, and they’re angry. Faster, meaner, hitting harder. Their beasts too.', 'High Rank is open. Every hunt on the board starts over, and none of it will go easy.'];
       if (ready === 2) return ['You did it again. Every god and every Titan, even the angry ones.', 'There’s one thing left. Until now the gods held back. Not anymore.',
         'God Rank is open. Good luck. I mean that.'];
-      if (typhonReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank. I thought that was the end of it.',
+      if (typhonReady()) return ['Every god and every Titan, on every rank. Even God Rank. I thought that was the end of it.',
         'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
         'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
       if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
-        'Congratulations, hunter. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
+        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
       if (s.cleared[TYPHON_Q]) return ['They’re still singing about how you slew Typhon. The board still has work, and the smith says your gear can always be sharper.'];
       if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
-      if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
+      if (!c.road_bandits) return ['You’re new here? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
       if (s.rank > 0) return [`${RANKS[s.rank].name} work’s on the board. Everything out there hits harder now.`];
@@ -7369,8 +7403,8 @@ function npcLines(n) {
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
     case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
     case 'oracle': {
-      if (oracleOnline()) return ['I see other hunters, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
-      if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between hunters are cut. Check your connection, then ask me again.'];
+      if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
+      if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between players are cut. Check your connection, then ask me again.'];
       G.oracleHints = false;
       const unfound = QUESTS.filter(qd => isUnlocked(qd) && !s.chests[qd.id]);
       if (!unfound.length) return [QUESTS.every(qd => s.chests[qd.id]) ? 'Every hidden cache I can see has been opened. You have sharp eyes.' : 'I see no unopened caches on the paths you can walk. Unlock new hunts and ask me again.'];
@@ -8621,7 +8655,7 @@ function drawBuilding(b, sx, sy) {
     for (let i = 0; i < 8; i++) { const cx = sx + 8 + i * ((W - 16) / 7); if (i === 3 || i === 4) continue; ctx.fillStyle = '#1a1210'; ctx.fillRect(cx - 4, sy + RH - 2, 8, F); ctx.fillStyle = '#efe7d4'; ctx.fillRect(cx - 3, sy + RH - 1, 6, F - 2); ctx.fillStyle = '#c9bda4'; ctx.fillRect(cx + 1, sy + RH - 1, 2, F - 2); }
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 4); ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 1);
     // a glint for every god you've beaten: gold, diamond or amethyst
-    GODS.forEach((g, i) => { const r = godRank(g.id); ctx.fillStyle = r < 0 ? '#8f8470' : ['#e9c04f', '#cdeeff', '#b48cff'][r]; ctx.fillRect(sx + 10 + i * ((W - 20) / 11) | 0, sy + 3, 2, 2); });
+    GODS.forEach((g, i) => { const r = godRank(g.id), gx = sx + 10 + i * ((W - 20) / 11) | 0; ctx.fillStyle = '#1a1210'; ctx.fillRect(gx - 1, sy + 1, 4, 4); ctx.fillStyle = r < 0 ? '#5e5647' : ['#e9c04f', '#cdeeff', '#b48cff'][r]; ctx.fillRect(gx, sy + 2, 2, 2); if (r >= 0) { ctx.fillStyle = '#fff6dc'; ctx.fillRect(gx, sy + 2, 1, 1); } });
     return;
   }
   const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : ['#e6d9bd', '#cbbd9f'];
@@ -9138,7 +9172,7 @@ function slotCard(n, s) {
     el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
-    el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new hunter here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
+    el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
   }
   el.addEventListener('click', async ev => {
     const btn = ev.target.closest('button'); if (!btn) return;
@@ -9162,7 +9196,7 @@ function renderHub() {
     const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null;
     const bonus = st.bonuses.map(b => { const set = ARMOR_SETS[b.set], perks = b.n === 4 ? set.four : set.two; return `${set.name} ${b.n}: ${Object.entries(perks).map(([k, v]) => PERK_TEXT[k](v)).join(', ')}`; });
     eqBox.innerHTML = `
-      <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your hunter"></canvas>
+      <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your character"></canvas>
         <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
       <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
@@ -9228,7 +9262,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netHost() ? ' disabled' : ''}>${netOn() ? (netHost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netCanPost() ? ' disabled' : ''}>${netOn() ? (netCanPost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -9484,7 +9518,7 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.forgerank) { G.forgeRank = +t.dataset.forgerank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
-  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { if (netHost()) netPost(id); return; } fadeTo(() => startQuest(id)); return; }
+  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { netPost(id); return; } fadeTo(() => startQuest(id)); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.part) {
     const id = t.dataset.part, cost = partCost(id); if (s.money < cost) return;
@@ -9607,7 +9641,7 @@ function renderOracle() {
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
   if (R) return `<div class="opt"><h3>Room ${esc(R.code)}</h3><p>${R.members.map(m => esc(m.name) + (m.id === R.host ? ' (host)' : '')).join(' · ')} · ${R.members.length}/4</p>
-    <p class="muted">Friends join with the code ${esc(R.code)}. ${netHost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
+    <p class="muted">Friends join with the code ${esc(R.code)}. ${netCanPost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
   return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 hunters. Hunts grow tougher with more of you.</p>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
@@ -9621,8 +9655,8 @@ async function orLoad() {
     const d = await Store.call('GET', 'rooms'), rooms = d.rooms || [];
     if (!$('orList')) return;
     $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.host)}</b><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
-    for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(() => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (el) el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
-  } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other hunters. Check your connection.'; }
+    for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(x => x.json()).then(d => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (!el) return; if (d && d.open === false) { el.closest('.or-row').remove(); return; } el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
+  } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other players. Check your connection.'; }
 }
 async function orDo(a, code) {
   G.orMsg = '';
@@ -9877,7 +9911,8 @@ updateTitleSub();
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
-window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
+// only on a local copy: the live site keeps its insides to itself
+if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
