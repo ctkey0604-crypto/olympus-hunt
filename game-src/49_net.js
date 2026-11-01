@@ -10,7 +10,7 @@
 // host -> one guest 'self': damage taken, heals, revives and effects meant only for that guest's hunter.
 const NET = { ws: null, room: null, me: 0, code: '', ping: 0, pingAt: 0, peers: {}, peerObj: {},
               rec: null, replay: false, personal: 0, townT: 0, townLast: '', upT: 0, downT: 0, seq: 0, sent: null,
-              out: null, uiT: 0, pingT: 0, infoKey: '' };
+              out: null, uiT: 0, pingT: 0, infoKey: '', chat: [], chatOpen: false, gone: new Set() };
 const netOn = () => !!(NET.ws && NET.room);
 const netHost = () => netOn() && NET.room.host === NET.room.me;
 const netMember = id => NET.room && NET.room.members.find(m => m.id === id);
@@ -39,7 +39,7 @@ function netConnect(code, ticket) {
     let done = false;
     const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { ws.close(); } catch (e) {} rej(new Error(msg)); };
     const timer = setTimeout(() => fail('The room didn’t answer. Check your connection.'), 8000);
-    ws.onopen = () => { if (done) return; done = true; clearTimeout(timer); NET.ws = ws; NET.code = code; NET.peers = {}; NET.peerObj = {}; NET.infoKey = ''; netSendInfo(); netPing(); res(); };
+    ws.onopen = () => { if (done) return; done = true; clearTimeout(timer); NET.ws = ws; NET.code = code; NET.peers = {}; NET.peerObj = {}; NET.infoKey = ''; NET.chat = []; NET.gone.clear(); netChatRender(); netSendInfo(); netPing(); res(); };
     ws.onmessage = ev => { if (ws === NET.ws) netMessage(ev.data); };
     ws.onclose = ev => { if (!done) fail('Couldn’t join that room. It may be full or closed.'); else if (ws === NET.ws) netClosed(ev); };
   });
@@ -47,13 +47,15 @@ function netConnect(code, ticket) {
 function netLeave(quiet) {
   const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0;
   if (ws) try { ws.close(1000, 'left'); } catch (e) {}
+  netChatClose();
   if (!quiet) netUi();
 }
 function netClosed(ev) {
   const had = !!NET.room; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {};
   if (q && q.net) netHuntLost(q.net === 'guest' ? 'Lost the connection to the room' : null);
-  if (had) toast(ev && ev.code === 4001 ? 'You joined that room from another tab.' : 'You’re no longer in the room. Check your connection.');
-  netUi();
+  if (had) toast(ev && ev.code === 4001 ? 'You joined that room from another tab.' : ev && ev.code === 4002 ? 'The host removed you from the room.' : 'You’re no longer in the room. Check your connection.');
+  netChatClose(); netUi();
+  if (G.mode === 'panel' && G.panel === 'oracle') renderHub();
 }
 function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
 setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a hidden tab draws no frames: keep telling the room you're there
@@ -65,11 +67,13 @@ function myGear(s = G.save) {
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
   const gear = myGear(), key = JSON.stringify(gear) + G.save.rank;
-  if (key === NET.infoKey) return; NET.infoKey = key;
-  netSend({ t: 'info', gear, rank: G.save.rank });
-  // changed into gear the posted quest doesn't allow: you're not ready any more
-  const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
-  if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+  if (key !== NET.infoKey) {
+    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank });
+    // changed into gear the posted quest doesn't allow: you're not ready any more
+    const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
+    if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+  }
+  netUi();                                                           // back in town: the room box shows again, with any gear warning up to date
 }
 // Online, everyone plays at the quest's rank: you need that rank, the quests before it in your own line,
 // and no gear from a higher rank. Returns why you can't take it, or null.
@@ -109,14 +113,21 @@ function netMessage(data) {
     case 'self': if (q && q.net === 'guest') netSelf(m); break;
     case 'up': if (q && q.net === 'host') netUp(m); break;
     case 'gone': if (q && q.net === 'host') netGone(m.from); break;
-    case 'hostleft': if (q && q.net === 'guest') netHuntLost('The host left the room'); else toast('The host left. ' + (netHost() ? 'You’re the host now.' : '')); break;
+    case 'hostleft': if (q && q.net === 'guest') netHuntLost('The party leader left the room'); else toast('The party leader left.'); break;
+    case 'chat': netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('click'); break;
+    case 'kick': NET.gone.add(m.id); netChatAdd({ sys: `${m.name} was removed from the room.` }); break;
   }
 }
 function netRoom(m) {
   const was = NET.room; NET.room = m; NET.me = m.me;
+  if (was) {                                                         // who came and went, for the chat
+    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) netChatAdd({ sys: `${x.name} joined.` });
+    for (const y of was.members) if (!m.members.some(x => x.id === y.id) && !NET.gone.delete(y.id)) netChatAdd({ sys: `${y.name} left.` });
+  }
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
   if (was && was.host !== m.host && m.host === m.me && !(q && q.net)) toast('You’re the host now');
   if (was && was.quest && !m.quest && m.phase === 'town' && !(q && q.net)) NET.confirm = false;
+  if (G.mode === 'panel' && G.panel === 'oracle' && was && was.members.length !== m.members.length) renderHub();   // the Oracle's player list
   netUi();
 }
 
@@ -170,27 +181,73 @@ function netUi() {
   const box = $('mpBox'); if (!box) return;
   const on = netOn() && (G.mode === 'village' || G.mode === 'quest');
   box.hidden = !on; box.classList.toggle('q', G.mode === 'quest');
-  if (!on) return;
-  const R = NET.room, host = netHost(), qd = R.quest && QUEST_BY_ID[R.quest.id];
-  let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span></div>`;
+  if (!on) { if (NET.chatOpen) netChatClose(); return; }
+  const R = NET.room, host = netHost(), qd = R.quest && QUEST_BY_ID[R.quest.id], min = Settings.data.mpMin;
+  box.classList.toggle('min', min);
+  const key = k => touchMode ? '' : ` <kbd>${k}</kbd>`;
+  let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span>`
+    + (netChatOk() ? `<button type="button" data-mp="chat" class="mp-chatbtn">Chat${NET.unread ? `<i class="mp-unread">${NET.unread}</i>` : ''}${key('T')}</button>` : '')
+    + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
   if (G.mode === 'village') {
     if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}.</span></div>`;
     else if (R.quest) {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
-      html += `<div class="mp-card"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
+      html += `<div class="mp-card mp-post"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
         <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === poster ? 'ok' : ''}">${m.ready || m.id === poster ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
           : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready || why ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
-    } else if (netCanPost()) html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it to the room.' : 'Waiting for players. Room code ' + esc(R.code) + '.'}</span></div>`;
-    else html += `<div class="mp-card"><span class="muted">Waiting for the host to post a hunt.</span></div>`;
+    } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it.' : 'Waiting for players to join.'}</span></div>`;
   }
-  box.innerHTML = html;
+  $('mpRoom').innerHTML = html;
 }
 function netUiPing() { const el = $('mpPing'); if (el) el.textContent = NET.ping ? NET.ping + ' ms' : ''; }
+
+/* ---- room chat (under the room box): T or the Chat button to type, Enter sends, Esc closes ---- */
+const CHAT_MAX = 120, CHAT_KEEP = 40, CHAT_SHOW = 5, CHAT_FADE = 9000;
+const netChatOk = () => netOn() && NET.room.v >= 3;                // older servers don't pass chat along
+function netChatAdd(line) {
+  line.at = performance.now(); NET.chat.push(line);
+  if (NET.chat.length > CHAT_KEEP) NET.chat.splice(0, NET.chat.length - CHAT_KEEP);
+  if (Settings.data.mpMin && !NET.chatOpen && !line.sys && line.from !== NET.me) { NET.unread = Math.min(99, (NET.unread || 0) + 1); netUi(); }   // hidden: count it on the Chat button
+  netChatRender();
+}
+function netChatRender() {
+  const log = $('mpLog'); if (!log) return;
+  const now = performance.now(), lines = NET.chatOpen ? NET.chat : Settings.data.mpMin ? [] : NET.chat.slice(-CHAT_SHOW).filter(l => now - l.at < CHAT_FADE);
+  log.innerHTML = lines.map(l => { const fade = NET.chatOpen ? '' : ` style="animation-delay:${Math.round(CHAT_FADE - 1500 - (now - l.at))}ms"`;   // fades over its last 1.5 s
+    return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 4}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
+  log.hidden = !lines.length; log.classList.toggle('open', NET.chatOpen);
+  if (NET.chatOpen) log.scrollTop = log.scrollHeight;
+}
+function netChatOpen() {
+  if (!netChatOk() || G.paused) return;
+  const inp = $('mpInput');
+  if (!NET.chatOpen) {
+    NET.chatOpen = true; Input.down.clear(); Input.stick.x = Input.stick.y = 0; Input.virt = {};
+    if (NET.unread) { NET.unread = 0; netUi(); }
+    $('mpForm').hidden = false; inp.value = ''; netChatRender();
+  }
+  inp.focus();                                                       // already open (you clicked the game): back to typing
+}
+function netChatClose() {
+  if (!NET.chatOpen) { netChatRender(); return; }
+  NET.chatOpen = false; $('mpForm').hidden = true;
+  const inp = $('mpInput'); if (document.activeElement === inp) inp.blur();
+  netChatRender();
+}
+function netChatSend() {
+  const inp = $('mpInput'), text = inp.value.replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+  if (text) netSend({ t: 'chat', text });
+  netChatClose();
+}
+setInterval(() => { if (NET.chat.length && !NET.chatOpen) netChatRender(); }, 1000);   // let old lines fade out
+function netKick(id) { if (netHost() && id !== NET.me) netSend({ t: 'kick', id }); }
 function netBannerAction(a) {
+  if (a === 'chat') { NET.chatOpen ? netChatClose() : netChatOpen(); return; }
+  if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
   if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
@@ -209,7 +266,7 @@ function netPost(id) {
   if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
   const why = netWhyNot(qd); if (why) { toast(why); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
-  closePanel(); toast('Hunt posted. Everyone readies up in the top left.');
+  closePanel(); toast('Hunt posted.');
 }
 // The host departed: everyone who readied up starts the same hunt.
 function netDepart(m) {

@@ -220,7 +220,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netCanPost() ? ' disabled' : ''}>${netOn() ? (netCanPost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -420,7 +420,7 @@ function renderOptions() {
       ${volRow('sfxVol', 'Sound effects volume')}
       <div class="toggle"><span>Music</span><button class="btn ghost small" type="button" data-opt="music">${Settings.data.music !== false ? 'On' : 'Off'}</button></div>
       ${volRow('musicVol', 'Music volume')}
-      <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
+      <div class="toggle"><span>Tips for new players</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
     <div class="opt"><h3>Your save</h3><p>${where}</p>
@@ -598,10 +598,13 @@ function renderOracle() {
   if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
-  if (R) return `<div class="opt"><h3>Room ${esc(R.code)}</h3><p>${R.members.map(m => esc(m.name) + (m.id === R.host ? ' (host)' : '')).join(' · ')} · ${R.members.length}/4</p>
-    <p class="muted">Friends join with the code ${esc(R.code)}. ${netCanPost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
+  if (R) return `<div class="opt"><h3>Room ${esc(R.code)} <span class="muted">${R.members.length}/4</span></h3>
+    <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
+      ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
+        : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
+    <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
-  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 hunters. Hunts grow tougher with more of you.</p>
+  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 players. Hunts grow tougher with more of you.</p>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
     <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
     <div class="opt wide"><h3>Open rooms</h3><div id="orList" class="muted">Looking…</div><button class="btn ghost small" type="button" data-or="refresh">Refresh</button></div>
@@ -616,19 +619,25 @@ async function orLoad() {
     for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(x => x.json()).then(d => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (!el) return; if (d && d.open === false) { el.closest('.or-row').remove(); return; } el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
   } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other players. Check your connection.'; }
 }
-async function orDo(a, code) {
+async function orDo(a, code, id) {
   G.orMsg = '';
   try {
-    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast(`Room ${NET.code} is open. Friends join with that code.`); }
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast('Room open. The code is in the top left.'); }
     else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
     else if (a === 'leave') { netLeave(); renderHub(); }
+    else if (a === 'armkick' || a === 'nokick') { G.kickArm = a === 'armkick' ? +id : 0; renderHub(); }
+    else if (a === 'kick') { G.kickArm = 0; netKick(+id); renderHub(); }
     else if (a === 'refresh') orLoad();
     else if (a === 'hints') { G.oracleHints = true; closePanel(); const n = V && V.npcs.find(x => x.id === 'oracle'); if (n) startInteract({ kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y }); }
   } catch (e) { G.orMsg = e.message; if (G.panel === 'oracle') renderHub(); }
 }
-document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code); } });
+document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code, b.dataset.id); } });
 document.addEventListener('submit', ev => { const f = ev.target.closest('[data-orjoin]'); if (!f) return; ev.preventDefault(); orDo('join', f.elements.code.value); });
 $('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
+$('mpForm').addEventListener('submit', ev => { ev.preventDefault(); netChatSend(); });
+$('mpInput').addEventListener('keydown', ev => { if (ev.code === 'Escape') { ev.preventDefault(); ev.stopPropagation(); netChatClose(); } });
+// clicked back into the game with nothing typed: put the chat line away (late enough that a tap on Send still counts)
+$('mpInput').addEventListener('blur', () => setTimeout(() => { if (NET.chatOpen && document.activeElement !== $('mpInput') && !$('mpInput').value.trim()) netChatClose(); }, 200));
 
 /* ---- pause ---- */
 function setPaused(v) {
@@ -760,6 +769,8 @@ addEventListener('keydown', e => {
     setPaused(!G.paused); return;
   }
   if (G.paused) return;
+  if ((e.code === 'KeyT' && !GAME_KEYS.has('KeyT') || e.code === 'Slash') && !e.repeat && netChatOk()) { e.preventDefault(); netChatOpen(); return; }
+  if (e.code === 'KeyH' && !GAME_KEYS.has('KeyH') && !e.repeat && netOn()) { e.preventDefault(); netBannerAction('min'); return; }
   if ((e.code === 'Enter' || e.code === 'NumpadEnter') && G.mode === 'village') { e.preventDefault(); if (!e.repeat) Input.enter = true; return; }
   if (GAME_KEYS.has(e.code)) {
     e.preventDefault();
@@ -786,7 +797,7 @@ cv.addEventListener('contextmenu', ev => ev.preventDefault());
 // Touch controls only appear once you actually touch the screen, and hide again when you use
 // the keyboard or touchpad. That keeps them out of the way on touchscreen Chromebooks.
 let touchMode = false;
-function setTouchMode(v) { if (touchMode === v) return; touchMode = v; $('touch').hidden = !v; $('stage').classList.toggle('touch', v); document.body.classList.toggle('touch', v); renderTitleControls(); hudCache.prompt = null; if (!v) { Input.stick.x = Input.stick.y = 0; Input.virt = {}; } }
+function setTouchMode(v) { if (touchMode === v) return; touchMode = v; $('touch').hidden = !v; $('stage').classList.toggle('touch', v); document.body.classList.toggle('touch', v); renderTitleControls(); hudCache.prompt = null; netUi(); if (!v) { Input.stick.x = Input.stick.y = 0; Input.virt = {}; } }
 if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) setTouchMode(true);
 addEventListener('pointerdown', ev => { if (ev.pointerType === 'touch') setTouchMode(true); else if (ev.pointerType === 'mouse') setTouchMode(false); }, true);
 {
@@ -871,7 +882,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost,
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {

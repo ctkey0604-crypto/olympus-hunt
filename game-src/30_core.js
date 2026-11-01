@@ -392,12 +392,12 @@ function sanitize(s) {
 }
 
 const Settings = {
-  data: { sound: true, music: true, sfxVol: 1, musicVol: 1, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
+  data: { sound: true, music: true, sfxVol: 1, musicVol: 1, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true, mpMin: false },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
-        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse', 'mpMin']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
         for (const k of ['sfxVol', 'musicVol']) if (typeof s[k] === 'number' && s[k] >= 0 && s[k] <= 1) this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {
