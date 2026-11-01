@@ -51,6 +51,9 @@ const Music = (() => {
   const T = (o) => Object.assign({ key: 'C', mode: 'aeo', bpm: 120, oct: 4, bass: 'drive', drums: 'rock', arp: 'up', duty: .25 }, o);
   // ---------------------------------------------------------------- the tracks
   const SONGS = {
+    // the menus (title, saves, What's new): calm and a little heroic, a lyre-like arpeggio under a slow tune
+    menu:   T({ key: 'F', mode: 'lyd', bpm: 84, prog: '1 5 6 4 1 5 2 5', progB: '4 5 6 6 4 5 1 1', bass: 'walk', drums: 'soft', arp: 'broken8', duty: .125,
+                A: '5:6 6:2 5:4 3:4 | 2:4 3:2 5:2 1:8 | 6:6 7:2 1\':4 7:2 6:2 | 5:12 -:4', E: '3:4 2:4 1:8' }),
     title:  T({ key: 'D', mode: 'aeo', bpm: 120, prog: '1 7 6 7 1 7 4 5', progB: '6 7 1 1 6 7 5 5', arp: 'updown',
                 A: '1:4 5:4 4:2 3:2 2:2 3:2 | 1:6 7,:2 1:8 | 3:4 4:2 5:2 6:4 5:4 | 4:3 3:1 2:4 7,:8', E: '5:4 4:2 3:2 2:8' }),
     akros:  T({ key: 'G', mode: 'ion', bpm: 96, prog: '1 4 1 5 6 4 2 5', progB: '4 5 3 6 4 5 1 1', bass: 'walk', drums: 'soft', arp: 'broken8', duty: .125,

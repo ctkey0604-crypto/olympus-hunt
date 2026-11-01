@@ -27,13 +27,13 @@ const ROOMS = {
     props: [['counter', 11.5, 4.4, 'tavern'], ['fireplace', 4.8, 3.2], ['barrel', 17.6, 3.4], ['barrel', 19.2, 3.4], ['barrel', 19.2, 4.6],
             ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
             ['amphora', 3.4, 10.4], ['amphora', 20, 10.4]],
-    npcs: [{ id: 'keeper', name: 'Phaedra', sprite: 'keeper', x: 192, y: 62, opens: 'tavern', behind: true }],
+    npcs: [{ id: 'keeper', name: 'Phaedra', sprite: 'keeper', x: 192, y: 67, opens: 'tavern', behind: true }],
     seats: [[83, 131, 0], [125, 131, Math.PI], [259, 131, 0], [301, 131, Math.PI]],
     rugs: [[128, 108, 128, 44, '#8f2e1e', '#e9c04f']] },
   market: { name: 'Melita’s Market', theme: 'marketroom', sub: 'Potions, and parts from hunts you’ve cleared',
     props: [['counter', 11.5, 4.4, 'market'], ['shelf', 5.4, 3.2, 'potions'], ['shelf', 17.6, 3.2, 'jars'], ['amphora', 3.6, 7.6], ['amphora', 4.4, 8.4],
             ['crate', 19.4, 7.8], ['barrel', 18.4, 9.6], ['crate', 19.6, 10.2]],
-    npcs: [{ id: 'merchant', name: 'Melita the Trader', sprite: 'merchant', x: 192, y: 62, opens: 'market', behind: true }],
+    npcs: [{ id: 'merchant', name: 'Melita the Trader', sprite: 'merchant', x: 192, y: 67, opens: 'market', behind: true }],
     rugs: [[136, 112, 112, 40, '#2b4f7a', '#e9c04f']] },
   home: { name: 'Your Home', theme: 'homeroom', sub: 'Everything you bring home goes in your chest',
     props: [['bed', 4.8, 4.2], ['chestbox', 8, 3.6], ['fireplace', 12.5, 3.2], ['shelf', 18.4, 3.2, 'jars'], ['table', 16.5, 7.6], ['stool', 15.2, 7.8], ['stool', 17.8, 7.8],
@@ -51,7 +51,7 @@ function buildRoom(id) {
   for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
   const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
   const spots = (D.spots || []).map(s => ({ ...s }));
-  for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 34 });
+  for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
   return { id, name: D.name, theme: D.theme, sub: D.sub, music: 'akros', exitTo: 'village',
            world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: 11, y: 12, w: 2, h: 2 }]),
@@ -70,6 +70,19 @@ function sitAt(seat) {
 }
 
 /* ---- the furniture ---- */
+// A potion bottle and a mug standing on a surface at y (their bottom edge).
+function drawBottle(x, y, col) {
+  ctx.fillStyle = col[1]; ctx.fillRect(x, y - 4, 4, 4);                         // the body, its shaded side
+  ctx.fillStyle = col[0]; ctx.fillRect(x, y - 4, 3, 3);
+  ctx.fillStyle = col[2] || '#ffffff'; ctx.fillRect(x, y - 4, 1, 1);           // a glint
+  ctx.fillStyle = '#d8d2c4'; ctx.fillRect(x + 1, y - 6, 2, 2);                 // the neck
+  ctx.fillStyle = '#8a5a34'; ctx.fillRect(x + 1, y - 7, 2, 1);                 // the cork
+}
+function drawMug(x, y) {
+  ctx.fillStyle = '#6b7078'; ctx.fillRect(x, y - 5, 5, 5); ctx.fillRect(x + 5, y - 4, 1, 3);   // the mug and its handle
+  ctx.fillStyle = '#9aa0a6'; ctx.fillRect(x, y - 5, 4, 4);
+  ctx.fillStyle = '#f3e9d4'; ctx.fillRect(x, y - 6, 5, 2); ctx.fillRect(x + 1, y - 7, 2, 1);   // foam over the top
+}
 const PROP_ART = {
   counter(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 38, 3, 'rgba(0,0,0,.3)');
@@ -77,19 +90,17 @@ const PROP_ART = {
     ctx.fillStyle = '#6b4528'; ctx.fillRect(sx - 36, sy - 13, 72, 13);
     ctx.fillStyle = '#5a3a22'; for (let x = sx - 34; x < sx + 36; x += 8) ctx.fillRect(x, sy - 13, 1, 13);
     ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 36, sy - 18, 72, 5); ctx.fillStyle = '#c09a63'; ctx.fillRect(sx - 36, sy - 18, 72, 1);
-    if (o.variant === 'market') {
-      Object.values(POTIONS).forEach((P, i) => { for (let k = 0; k < 2; k++) { const bx = sx - 28 + i * 20 + k * 6; ctx.fillStyle = K; ctx.fillRect(bx - 1, sy - 25, 5, 8); ctx.fillStyle = P.col[0]; ctx.fillRect(bx, sy - 23, 3, 5); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(bx + 1, sy - 25, 1, 2); } });
-    } else for (const mx of [sx - 26, sx - 4, sx + 18]) {                    // mugs of something foamy
-      ctx.fillStyle = K; ctx.fillRect(mx - 1, sy - 24, 7, 7); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(mx, sy - 22, 5, 5); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(mx, sy - 23, 5, 2); ctx.fillStyle = K; ctx.fillRect(mx + 5, sy - 21, 2, 3);
-    }
+    // what's on the counter, drawn to its own shape (edges in a darker shade of its colour, no box around it)
+    if (o.variant === 'market') Object.values(POTIONS).forEach((P, i) => { for (let k = 0; k < 2; k++) drawBottle(sx - 28 + i * 20 + k * 6, sy - 18, P.col); });
+    else for (const mx of [sx - 26, sx - 4, sx + 18]) drawMug(mx, sy - 18);
   },
   table(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 14, 3, 'rgba(0,0,0,.3)');
     ctx.fillStyle = K; ctx.fillRect(sx - 10, sy - 6, 3, 7); ctx.fillRect(sx + 7, sy - 6, 3, 7);
     ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 9, sy - 6, 1, 6); ctx.fillRect(sx + 8, sy - 6, 1, 6);
     ctx.fillStyle = K; ctx.fillRect(sx - 14, sy - 14, 28, 9); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 13, sy - 13, 26, 7); ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 13, sy - 13, 26, 2);
-    const R = mulberry(o.seed); if (R() < .7) { ctx.fillStyle = K; ctx.fillRect(sx - 6, sy - 17, 5, 5); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(sx - 5, sy - 16, 3, 3); }
-    ctx.fillStyle = K; ctx.fillRect(sx + 1, sy - 15, 8, 4); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(sx + 2, sy - 14, 6, 2); ctx.fillStyle = '#c35f2a'; ctx.fillRect(sx + 4, sy - 14, 2, 1);
+    const R = mulberry(o.seed); if (R() < .7) drawMug(sx - 7, sy - 13);
+    ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx + 1, sy - 14, 8, 2); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(sx + 2, sy - 15, 6, 2); ctx.fillStyle = '#c35f2a'; ctx.fillRect(sx + 4, sy - 15, 2, 1);   // a plate with something on it
   },
   stool(o, sx, sy) { pxEllipse(sx, sy, 5, 2, 'rgba(0,0,0,.3)'); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 4, sy - 6, 8, 6); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 3, sy - 5, 6, 2); ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 3, sy - 3, 1, 3); ctx.fillRect(sx + 2, sy - 3, 1, 3); },
   barrel(o, sx, sy) {

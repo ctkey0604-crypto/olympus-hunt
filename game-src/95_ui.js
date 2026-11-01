@@ -1,6 +1,7 @@
 /* ============================== MENUS ==================================== */
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
-function show(id) { if (id === 'scrTitle' || id === 'scrSlots') Music.play('title'); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
+// The menus have their own theme; the town's plays only in town (What's new opened from Options keeps the place's music).
+function show(id) { if (id === 'scrTitle' || id === 'scrSlots' || (id === 'scrNews' && G.mode === 'news')) Music.play('menu'); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
 let toastTimer = 0;
 function toast(msg, ms = 2200) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
 function persist(urgent = false) { if (G.save) Store.save(G.slot, G.save, urgent); }
@@ -916,6 +917,7 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
+Music.play('menu');                                  // starts with the first click or key (browsers keep audio off until then)
 // On CrazyGames players land straight in the game: no title screen, no save list.
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
