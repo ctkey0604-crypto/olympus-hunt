@@ -487,6 +487,14 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 #mpInput{flex:1;min-width:0;font:inherit;color:var(--bone);background:#0009;border:0;outline:0;padding:calc(var(--px)*.8) calc(var(--px)*2)}
 #mpInput::placeholder{color:var(--bone-dim)}
 #mpForm button{font:inherit;font-weight:600;border:0;padding:0 calc(var(--px)*4);background:var(--clay);color:#160e0b;cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}
+/* What's new */
+.news-wrap{display:grid;gap:14px}
+.news .news-head{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between}
+.news h3{margin:0}
+.news.latest{box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold)}
+.news .sub{margin:6px 0 0}
+.news-list{margin:0;padding-left:1.2em;display:grid;gap:5px;color:var(--bone)}
+.news-list li::marker{color:var(--clay)}
 .or-members{display:grid;gap:4px;margin:6px 0 10px}
 .or-mem{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
 .or-mem b{min-width:8em}
@@ -578,6 +586,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
     <div class="title-actions">
       <button class="btn big" id="btnPlay" type="button">Play</button>
       <button class="btn ghost" id="btnSaves" type="button">Saves</button>
+      <button class="btn ghost" id="btnNews" type="button">What’s new</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
     <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
@@ -594,6 +603,13 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
     <div class="acct" id="acctBox" hidden></div>
     <p class="muted" id="saveStatus" style="margin:0">Loading saves…</p>
     <div class="slots" id="slotList"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrNews" hidden>
+  <div class="wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnNewsBack">Back</button><h2>What’s new</h2></div>
+    <div class="news-wrap" id="newsBody"></div>
   </div>
 </section>
 
@@ -2534,7 +2550,7 @@ const Store = {
         body: body === undefined ? undefined : JSON.stringify(body) });
       let data = null; try { data = await res.json(); } catch (e) {}
       if (res.status === 401 && this.token && path !== 'login') this.forget();
-      if (!res.ok) throw new Error((data && data.error) || `The server said no (${res.status}).`);
+      if (!res.ok) { const err = new Error((data && data.error) || `The server said no (${res.status}).`); err.status = res.status; err.check = !!(data && data.check); throw err; }
       return data;
     } catch (e) {
       if (e.name === 'AbortError') throw new Error('The server took too long. Check your connection.');
@@ -2586,8 +2602,13 @@ const Store = {
     clearTimeout(this.timers[n]); this.timers[n] = null;
     const data = this.pending[n]; if (!data || !this.user) return Promise.resolve();
     delete this.pending[n];
-    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(() => { if (!this.pending[n]) this.pending[n] = data; });
+    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(e => {
+      if (e && e.check) { this.refused(e.message); return; }      // the server's save checks said no: sending it again won't help
+      if (!this.pending[n]) this.pending[n] = data;
+    });
   },
+  // Said once per reason: the save stays on this device, the account keeps its last good copy.
+  refused(msg) { if (this.refusedMsg === msg) return; this.refusedMsg = msg; if (typeof toast === 'function') toast(msg + ' It’s still saved on this device.', 7000); },
   flush(keepalive = false) { return Promise.all(Object.keys(this.pending).map(n => this.push(n, keepalive))); },
   /* ---- Claude artifact cloud ---- */
   ref(n) { return this.cloud.doc('data/users/' + this.uid + '/slot' + n); },
@@ -9243,11 +9264,53 @@ function drawGhost(gh, S) {
   drawSpr(heroFrames((gh.who || q.player).look), Math.floor(G.time * 8) % 2, sx, sy, Math.cos(gh.face) < 0, 'white', a);
   if (Math.random() < .3) sc.parts.push({ x: gh.x + rand(-4, 4), y: gh.y - rand(2, 14), vx: 0, vy: -14, g: 0, life: .4, max: .4, c: '#c8b8ff', s: 1 });
 }
+/* ============================== WHAT'S NEW ============================== */
+// Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
+// top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
+const NEWS = [
+  { v: '1.0', date: 'November 2026', title: 'The full release',
+    new: [
+      'The Endless Hunt: once Typhon is slain, Etna keeps sending monsters. Every wave is bigger and stronger, a god turns up every fifth wave, and each wave cleared pays. Your best wave and your last run show on the quest board.',
+      'Room chat: in a room, press T (or tap Chat) to talk to everyone. H (or Hide) shrinks the room box when it’s in the way.',
+      'The room’s host can kick a player from the Oracle’s room panel. A kicked player can’t rejoin that room.',
+      'Anyone in a room can post a hunt now, and whoever posts it leads the party out.',
+      'Gods and Titans fight smarter in a party: a mark shows who they’re after, a raised shield up close pulls them onto you, and they stop chasing someone far away while someone else hits them up close.',
+      'This What’s new list.',
+    ],
+    changed: [
+      'Online hunts need the rank and the earlier quests for them, and no gear from a higher rank.',
+      'Online saves are checked by the server. A save that couldn’t come from real play isn’t stored online (it stays on your device).',
+      'Shorter, clearer multiplayer messages. The room code shows in one place.',
+      '“Hunter” is now “Player” in menus and messages.',
+      'The progress gems are gone from the temple roofs.',
+      'The Armory’s shield card has a Take off button.',
+    ],
+    fixed: [
+      'Ground rings and warning circles now hit exactly where they’re drawn, not above or below them.',
+      'Rooms with a player whose connection died (a sleeping PC) clear out, and old duplicate rooms no longer stay in the list.',
+      'The room box shows again right after you leave a menu, and gear warnings update straight away.',
+      'A guest’s game can’t report impossible damage to the host.',
+    ] },
+  { v: 'Beta 0.9', date: 'October 2026', title: 'Online co-op and the last hunt',
+    new: [
+      'Online co-op for up to four players. Host or join a room at the Oracle in Akros.',
+      'Typhon, the father of monsters: the last hunt on God Rank, with his own gear and the credits after.',
+    ],
+    changed: [
+      'A balance pass on the gods and Titans, from hundreds of test fights.',
+    ] },
+];
+function renderNews() {
+  const list = (head, items) => items && items.length ? `<p class="sub">${head}</p><ul class="news-list">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '';
+  return NEWS.map((n, i) => `<article class="opt news${i ? '' : ' latest'}">
+    <div class="news-head"><h3>${esc(n.title)}</h3><span class="muted">${esc(n.v)} · ${esc(n.date)}</span></div>
+    ${list('New', n.new)}${list('Changed', n.changed)}${list('Fixed', n.fixed)}</article>`).join('');
+}
 /* ============================== MENUS ==================================== */
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
 function show(id) { if (id === 'scrTitle' || id === 'scrSlots') Music.play('title'); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
 let toastTimer = 0;
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200); }
+function toast(msg, ms = 2200) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
 function persist(urgent = false) { if (G.save) Store.save(G.slot, G.save, urgent); }
 // A short fade to black between places, hunts and menus.
 let fading = false;
@@ -9684,7 +9747,7 @@ function renderOptions() {
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
     </div>
-    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
+    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ?'<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
   </div>`;
 }
 function encodeSave(s) { return 'OH1.' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
@@ -9787,6 +9850,7 @@ $('scrHub').addEventListener('click', ev => {
   else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
   else if (o === 'credits') { showCredits(() => { enterVillage('road'); openPanel('options'); }); }
+  else if (o === 'news') openNews('scrHub');
   else if (o === 'title') { persist(true); G.mode = 'slots'; q = null; show('scrSlots'); renderSlots(); }
   else if (o === 'export') { $('importBox').hidden = true; $('codeBox').hidden = false; $('saveCode').value = encodeSave(G.save); }
   else if (o === 'copy') {
@@ -9956,6 +10020,12 @@ document.addEventListener('fullscreenchange', () => {
 $('btnPlay').onclick = () => { Sound.init(); Sound.play('click'); playNow(); };
 $('btnSaves').onclick = () => { Sound.init(); Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('btnSlotsBack').onclick = () => { Sound.play('click'); G.mode = 'title'; show('scrTitle'); };
+// What's new: from the title screen, or from Options in a game (Back returns to whichever it was)
+let newsBack = 'scrTitle';
+function openNews(from) { newsBack = from; $('newsBody').innerHTML = renderNews(); if (from === 'scrTitle') G.mode = 'news'; show('scrNews'); }
+function closeNews() { Sound.play('click'); if (newsBack === 'scrTitle') G.mode = 'title'; show(newsBack); }
+$('btnNews').onclick = () => { Sound.init(); Sound.play('click'); openNews('scrTitle'); };
+$('btnNewsBack').onclick = closeNews;
 $('btnResContinue').onclick = () => {
   Sound.play('click');
   // Typhon just fell for the first time: roll the credits before going home
@@ -10027,7 +10097,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM' && !e.repeat) { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); if (G.mode === 'quest' || G.mode === 'village') toast(Settings.data.sound ? 'Sound on' : 'Sound off'); }
   if (e.code === 'KeyF' && !e.repeat) { e.preventDefault(); toggleFullscreen(); return; }
   if (G.mode === 'credits') { if ((e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); endCredits(); } return; }
-  if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closePanel(); } return; }
+  if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
+  if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();
