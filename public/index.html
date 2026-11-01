@@ -467,6 +467,30 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .mp-btns button.hot{background:var(--clay);color:#160e0b}
 .mp-btns kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}
 .mp-warn{color:#ff8a7a}
+#mpRoom{display:grid;gap:calc(var(--px)*2)}
+.mp-chatbtn{font:inherit;font-size:.9em;border:0;padding:0 0 0 calc(var(--px)*2);margin-left:calc(var(--px)*1);background:none;color:var(--gold);cursor:pointer;box-shadow:-1px 0 0 var(--line)}
+.mp-chatbtn:hover{color:var(--bone)}
+.mp-unread{font-style:normal;font-weight:700;background:var(--clay);color:#160e0b;padding:0 .35em;margin-left:.3em}
+#mpBox.min .mp-card:not(.mp-post){display:none}
+.mp-tag kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}
+/* room chat: recent lines fade away; T opens the full log and a line to type in */
+#mpChat{display:grid;gap:calc(var(--px)*1.5);width:calc(var(--px)*150);max-width:100%}
+#mpLog{display:grid;gap:calc(var(--px)*.8);align-content:end}
+#mpLog p{margin:0;width:fit-content;max-width:100%;background:#000a;padding:0 calc(var(--px)*2.5);color:var(--bone);overflow-wrap:anywhere;animation:mpFade 1.5s linear forwards}
+#mpLog p b{font-weight:700;margin-right:.25em}
+#mpLog .c0{color:var(--aegean)}#mpLog .c1{color:var(--gold)}#mpLog .c2{color:var(--olive)}#mpLog .c3{color:var(--clay)}
+#mpLog p.sys{color:var(--bone-dim);font-style:italic}
+#mpLog.open{max-height:calc(var(--px)*46);overflow-y:auto;background:#000c;padding:calc(var(--px)*2) calc(var(--px)*3);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line);align-content:start}
+#mpLog.open p{background:none;padding:0;animation:none}
+@keyframes mpFade{to{opacity:0}}
+#mpForm{display:flex;gap:calc(var(--px)*2);background:#000c;padding:calc(var(--px)*1.5);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--gold)}
+#mpInput{flex:1;min-width:0;font:inherit;color:var(--bone);background:#0009;border:0;outline:0;padding:calc(var(--px)*.8) calc(var(--px)*2)}
+#mpInput::placeholder{color:var(--bone-dim)}
+#mpForm button{font:inherit;font-weight:600;border:0;padding:0 calc(var(--px)*4);background:var(--clay);color:#160e0b;cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}
+.or-members{display:grid;gap:4px;margin:6px 0 10px}
+.or-mem{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
+.or-mem b{min-width:8em}
+@media (prefers-reduced-motion:reduce){#mpLog p{animation-duration:.01s}}
 .or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
 @media (max-width:560px){.or-row{grid-template-columns:1fr auto auto}}
 
@@ -500,7 +524,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
         </div>
       </div>
       <div id="vhud" hidden><span class="place" id="vPlace">Akros</span><span class="vright"><span class="rank-tag" id="vRank" hidden></span><span class="money"><b id="vMoney">0</b> drachmae</span></span></div>
-      <div id="mpBox" hidden></div>
+      <div id="mpBox" hidden>
+        <div id="mpRoom"></div>
+        <div id="mpChat"><div id="mpLog" hidden aria-live="polite"></div><form id="mpForm" hidden autocomplete="off"><input id="mpInput" maxlength="120" placeholder="Say something to the room" enterkeyhint="send" spellcheck="false" aria-label="Chat message"><button type="submit">Send</button></form></div>
+      </div>
       <div id="goal" hidden><span class="goal-tag">Goal</span><span id="goalText"></span><button type="button" id="goalHide">Hide tips</button></div>
       <div id="hint" hidden></div>
       <div id="prompt" hidden></div>
@@ -557,7 +584,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
     <div class="controls" id="titleControls" aria-label="Controls"></div>
     <p class="tip keys-only" id="titleTip"></p>
     <div class="meander" style="width:100%"></div>
-    <p class="build-tag">Beta 0.9</p>
+    <p class="build-tag">Version 1.0</p>
   </div>
 </section>
 
@@ -2672,12 +2699,12 @@ function sanitize(s) {
 }
 
 const Settings = {
-  data: { sound: true, music: true, sfxVol: 1, musicVol: 1, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true },
+  data: { sound: true, music: true, sfxVol: 1, musicVol: 1, shake: !matchMedia('(prefers-reduced-motion: reduce)').matches, autoAim: true, mouse: true, binds: null, lastSlot: 0, tips: true, mpMin: false },
   load() {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
-        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse', 'mpMin']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
         for (const k of ['sfxVol', 'musicVol']) if (typeof s[k] === 'number' && s[k] >= 0 && s[k] <= 1) this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {
@@ -4122,7 +4149,7 @@ function updateHunters(dt) {
 // host -> one guest 'self': damage taken, heals, revives and effects meant only for that guest's hunter.
 const NET = { ws: null, room: null, me: 0, code: '', ping: 0, pingAt: 0, peers: {}, peerObj: {},
               rec: null, replay: false, personal: 0, townT: 0, townLast: '', upT: 0, downT: 0, seq: 0, sent: null,
-              out: null, uiT: 0, pingT: 0, infoKey: '' };
+              out: null, uiT: 0, pingT: 0, infoKey: '', chat: [], chatOpen: false, gone: new Set() };
 const netOn = () => !!(NET.ws && NET.room);
 const netHost = () => netOn() && NET.room.host === NET.room.me;
 const netMember = id => NET.room && NET.room.members.find(m => m.id === id);
@@ -4151,7 +4178,7 @@ function netConnect(code, ticket) {
     let done = false;
     const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { ws.close(); } catch (e) {} rej(new Error(msg)); };
     const timer = setTimeout(() => fail('The room didn’t answer. Check your connection.'), 8000);
-    ws.onopen = () => { if (done) return; done = true; clearTimeout(timer); NET.ws = ws; NET.code = code; NET.peers = {}; NET.peerObj = {}; NET.infoKey = ''; netSendInfo(); netPing(); res(); };
+    ws.onopen = () => { if (done) return; done = true; clearTimeout(timer); NET.ws = ws; NET.code = code; NET.peers = {}; NET.peerObj = {}; NET.infoKey = ''; NET.chat = []; NET.gone.clear(); netChatRender(); netSendInfo(); netPing(); res(); };
     ws.onmessage = ev => { if (ws === NET.ws) netMessage(ev.data); };
     ws.onclose = ev => { if (!done) fail('Couldn’t join that room. It may be full or closed.'); else if (ws === NET.ws) netClosed(ev); };
   });
@@ -4159,13 +4186,15 @@ function netConnect(code, ticket) {
 function netLeave(quiet) {
   const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0;
   if (ws) try { ws.close(1000, 'left'); } catch (e) {}
+  netChatClose();
   if (!quiet) netUi();
 }
 function netClosed(ev) {
   const had = !!NET.room; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {};
   if (q && q.net) netHuntLost(q.net === 'guest' ? 'Lost the connection to the room' : null);
-  if (had) toast(ev && ev.code === 4001 ? 'You joined that room from another tab.' : 'You’re no longer in the room. Check your connection.');
-  netUi();
+  if (had) toast(ev && ev.code === 4001 ? 'You joined that room from another tab.' : ev && ev.code === 4002 ? 'The host removed you from the room.' : 'You’re no longer in the room. Check your connection.');
+  netChatClose(); netUi();
+  if (G.mode === 'panel' && G.panel === 'oracle') renderHub();
 }
 function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
 setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a hidden tab draws no frames: keep telling the room you're there
@@ -4177,11 +4206,13 @@ function myGear(s = G.save) {
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
   const gear = myGear(), key = JSON.stringify(gear) + G.save.rank;
-  if (key === NET.infoKey) return; NET.infoKey = key;
-  netSend({ t: 'info', gear, rank: G.save.rank });
-  // changed into gear the posted quest doesn't allow: you're not ready any more
-  const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
-  if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+  if (key !== NET.infoKey) {
+    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank });
+    // changed into gear the posted quest doesn't allow: you're not ready any more
+    const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
+    if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+  }
+  netUi();                                                           // back in town: the room box shows again, with any gear warning up to date
 }
 // Online, everyone plays at the quest's rank: you need that rank, the quests before it in your own line,
 // and no gear from a higher rank. Returns why you can't take it, or null.
@@ -4221,14 +4252,21 @@ function netMessage(data) {
     case 'self': if (q && q.net === 'guest') netSelf(m); break;
     case 'up': if (q && q.net === 'host') netUp(m); break;
     case 'gone': if (q && q.net === 'host') netGone(m.from); break;
-    case 'hostleft': if (q && q.net === 'guest') netHuntLost('The host left the room'); else toast('The host left. ' + (netHost() ? 'You’re the host now.' : '')); break;
+    case 'hostleft': if (q && q.net === 'guest') netHuntLost('The party leader left the room'); else toast('The party leader left.'); break;
+    case 'chat': netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('click'); break;
+    case 'kick': NET.gone.add(m.id); netChatAdd({ sys: `${m.name} was removed from the room.` }); break;
   }
 }
 function netRoom(m) {
   const was = NET.room; NET.room = m; NET.me = m.me;
+  if (was) {                                                         // who came and went, for the chat
+    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) netChatAdd({ sys: `${x.name} joined.` });
+    for (const y of was.members) if (!m.members.some(x => x.id === y.id) && !NET.gone.delete(y.id)) netChatAdd({ sys: `${y.name} left.` });
+  }
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
   if (was && was.host !== m.host && m.host === m.me && !(q && q.net)) toast('You’re the host now');
   if (was && was.quest && !m.quest && m.phase === 'town' && !(q && q.net)) NET.confirm = false;
+  if (G.mode === 'panel' && G.panel === 'oracle' && was && was.members.length !== m.members.length) renderHub();   // the Oracle's player list
   netUi();
 }
 
@@ -4282,27 +4320,73 @@ function netUi() {
   const box = $('mpBox'); if (!box) return;
   const on = netOn() && (G.mode === 'village' || G.mode === 'quest');
   box.hidden = !on; box.classList.toggle('q', G.mode === 'quest');
-  if (!on) return;
-  const R = NET.room, host = netHost(), qd = R.quest && QUEST_BY_ID[R.quest.id];
-  let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span></div>`;
+  if (!on) { if (NET.chatOpen) netChatClose(); return; }
+  const R = NET.room, host = netHost(), qd = R.quest && QUEST_BY_ID[R.quest.id], min = Settings.data.mpMin;
+  box.classList.toggle('min', min);
+  const key = k => touchMode ? '' : ` <kbd>${k}</kbd>`;
+  let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span>`
+    + (netChatOk() ? `<button type="button" data-mp="chat" class="mp-chatbtn">Chat${NET.unread ? `<i class="mp-unread">${NET.unread}</i>` : ''}${key('T')}</button>` : '')
+    + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
   if (G.mode === 'village') {
     if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}.</span></div>`;
     else if (R.quest) {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
-      html += `<div class="mp-card"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
+      html += `<div class="mp-card mp-post"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
         <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === poster ? 'ok' : ''}">${m.ready || m.id === poster ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
           : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready || why ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
-    } else if (netCanPost()) html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it to the room.' : 'Waiting for players. Room code ' + esc(R.code) + '.'}</span></div>`;
-    else html += `<div class="mp-card"><span class="muted">Waiting for the host to post a hunt.</span></div>`;
+    } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it.' : 'Waiting for players to join.'}</span></div>`;
   }
-  box.innerHTML = html;
+  $('mpRoom').innerHTML = html;
 }
 function netUiPing() { const el = $('mpPing'); if (el) el.textContent = NET.ping ? NET.ping + ' ms' : ''; }
+
+/* ---- room chat (under the room box): T or the Chat button to type, Enter sends, Esc closes ---- */
+const CHAT_MAX = 120, CHAT_KEEP = 40, CHAT_SHOW = 5, CHAT_FADE = 9000;
+const netChatOk = () => netOn() && NET.room.v >= 3;                // older servers don't pass chat along
+function netChatAdd(line) {
+  line.at = performance.now(); NET.chat.push(line);
+  if (NET.chat.length > CHAT_KEEP) NET.chat.splice(0, NET.chat.length - CHAT_KEEP);
+  if (Settings.data.mpMin && !NET.chatOpen && !line.sys && line.from !== NET.me) { NET.unread = Math.min(99, (NET.unread || 0) + 1); netUi(); }   // hidden: count it on the Chat button
+  netChatRender();
+}
+function netChatRender() {
+  const log = $('mpLog'); if (!log) return;
+  const now = performance.now(), lines = NET.chatOpen ? NET.chat : Settings.data.mpMin ? [] : NET.chat.slice(-CHAT_SHOW).filter(l => now - l.at < CHAT_FADE);
+  log.innerHTML = lines.map(l => { const fade = NET.chatOpen ? '' : ` style="animation-delay:${Math.round(CHAT_FADE - 1500 - (now - l.at))}ms"`;   // fades over its last 1.5 s
+    return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 4}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
+  log.hidden = !lines.length; log.classList.toggle('open', NET.chatOpen);
+  if (NET.chatOpen) log.scrollTop = log.scrollHeight;
+}
+function netChatOpen() {
+  if (!netChatOk() || G.paused) return;
+  const inp = $('mpInput');
+  if (!NET.chatOpen) {
+    NET.chatOpen = true; Input.down.clear(); Input.stick.x = Input.stick.y = 0; Input.virt = {};
+    if (NET.unread) { NET.unread = 0; netUi(); }
+    $('mpForm').hidden = false; inp.value = ''; netChatRender();
+  }
+  inp.focus();                                                       // already open (you clicked the game): back to typing
+}
+function netChatClose() {
+  if (!NET.chatOpen) { netChatRender(); return; }
+  NET.chatOpen = false; $('mpForm').hidden = true;
+  const inp = $('mpInput'); if (document.activeElement === inp) inp.blur();
+  netChatRender();
+}
+function netChatSend() {
+  const inp = $('mpInput'), text = inp.value.replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+  if (text) netSend({ t: 'chat', text });
+  netChatClose();
+}
+setInterval(() => { if (NET.chat.length && !NET.chatOpen) netChatRender(); }, 1000);   // let old lines fade out
+function netKick(id) { if (netHost() && id !== NET.me) netSend({ t: 'kick', id }); }
 function netBannerAction(a) {
+  if (a === 'chat') { NET.chatOpen ? netChatClose() : netChatOpen(); return; }
+  if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
   if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
@@ -4321,7 +4405,7 @@ function netPost(id) {
   if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
   const why = netWhyNot(qd); if (why) { toast(why); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
-  closePanel(); toast('Hunt posted. Everyone readies up in the top left.');
+  closePanel(); toast('Hunt posted.');
 }
 // The host departed: everyone who readied up starts the same hunt.
 function netDepart(m) {
@@ -9261,7 +9345,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netCanPost() ? ' disabled' : ''}>${netOn() ? (netCanPost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -9461,7 +9545,7 @@ function renderOptions() {
       ${volRow('sfxVol', 'Sound effects volume')}
       <div class="toggle"><span>Music</span><button class="btn ghost small" type="button" data-opt="music">${Settings.data.music !== false ? 'On' : 'Off'}</button></div>
       ${volRow('musicVol', 'Music volume')}
-      <div class="toggle"><span>Tips for new hunters</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
+      <div class="toggle"><span>Tips for new players</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
     <div class="opt"><h3>Your save</h3><p>${where}</p>
@@ -9639,10 +9723,13 @@ function renderOracle() {
   if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
-  if (R) return `<div class="opt"><h3>Room ${esc(R.code)}</h3><p>${R.members.map(m => esc(m.name) + (m.id === R.host ? ' (host)' : '')).join(' · ')} · ${R.members.length}/4</p>
-    <p class="muted">Friends join with the code ${esc(R.code)}. ${netCanPost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
+  if (R) return `<div class="opt"><h3>Room ${esc(R.code)} <span class="muted">${R.members.length}/4</span></h3>
+    <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
+      ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
+        : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
+    <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
-  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 hunters. Hunts grow tougher with more of you.</p>
+  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 players. Hunts grow tougher with more of you.</p>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
     <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
     <div class="opt wide"><h3>Open rooms</h3><div id="orList" class="muted">Looking…</div><button class="btn ghost small" type="button" data-or="refresh">Refresh</button></div>
@@ -9657,19 +9744,25 @@ async function orLoad() {
     for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(x => x.json()).then(d => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (!el) return; if (d && d.open === false) { el.closest('.or-row').remove(); return; } el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
   } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other players. Check your connection.'; }
 }
-async function orDo(a, code) {
+async function orDo(a, code, id) {
   G.orMsg = '';
   try {
-    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast(`Room ${NET.code} is open. Friends join with that code.`); }
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast('Room open. The code is in the top left.'); }
     else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
     else if (a === 'leave') { netLeave(); renderHub(); }
+    else if (a === 'armkick' || a === 'nokick') { G.kickArm = a === 'armkick' ? +id : 0; renderHub(); }
+    else if (a === 'kick') { G.kickArm = 0; netKick(+id); renderHub(); }
     else if (a === 'refresh') orLoad();
     else if (a === 'hints') { G.oracleHints = true; closePanel(); const n = V && V.npcs.find(x => x.id === 'oracle'); if (n) startInteract({ kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y }); }
   } catch (e) { G.orMsg = e.message; if (G.panel === 'oracle') renderHub(); }
 }
-document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code); } });
+document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code, b.dataset.id); } });
 document.addEventListener('submit', ev => { const f = ev.target.closest('[data-orjoin]'); if (!f) return; ev.preventDefault(); orDo('join', f.elements.code.value); });
 $('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
+$('mpForm').addEventListener('submit', ev => { ev.preventDefault(); netChatSend(); });
+$('mpInput').addEventListener('keydown', ev => { if (ev.code === 'Escape') { ev.preventDefault(); ev.stopPropagation(); netChatClose(); } });
+// clicked back into the game with nothing typed: put the chat line away (late enough that a tap on Send still counts)
+$('mpInput').addEventListener('blur', () => setTimeout(() => { if (NET.chatOpen && document.activeElement !== $('mpInput') && !$('mpInput').value.trim()) netChatClose(); }, 200));
 
 /* ---- pause ---- */
 function setPaused(v) {
@@ -9801,6 +9894,8 @@ addEventListener('keydown', e => {
     setPaused(!G.paused); return;
   }
   if (G.paused) return;
+  if ((e.code === 'KeyT' && !GAME_KEYS.has('KeyT') || e.code === 'Slash') && !e.repeat && netChatOk()) { e.preventDefault(); netChatOpen(); return; }
+  if (e.code === 'KeyH' && !GAME_KEYS.has('KeyH') && !e.repeat && netOn()) { e.preventDefault(); netBannerAction('min'); return; }
   if ((e.code === 'Enter' || e.code === 'NumpadEnter') && G.mode === 'village') { e.preventDefault(); if (!e.repeat) Input.enter = true; return; }
   if (GAME_KEYS.has(e.code)) {
     e.preventDefault();
@@ -9827,7 +9922,7 @@ cv.addEventListener('contextmenu', ev => ev.preventDefault());
 // Touch controls only appear once you actually touch the screen, and hide again when you use
 // the keyboard or touchpad. That keeps them out of the way on touchscreen Chromebooks.
 let touchMode = false;
-function setTouchMode(v) { if (touchMode === v) return; touchMode = v; $('touch').hidden = !v; $('stage').classList.toggle('touch', v); document.body.classList.toggle('touch', v); renderTitleControls(); hudCache.prompt = null; if (!v) { Input.stick.x = Input.stick.y = 0; Input.virt = {}; } }
+function setTouchMode(v) { if (touchMode === v) return; touchMode = v; $('touch').hidden = !v; $('stage').classList.toggle('touch', v); document.body.classList.toggle('touch', v); renderTitleControls(); hudCache.prompt = null; netUi(); if (!v) { Input.stick.x = Input.stick.y = 0; Input.virt = {}; } }
 if (matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches) setTouchMode(true);
 addEventListener('pointerdown', ev => { if (ev.pointerType === 'touch') setTouchMode(true); else if (ev.pointerType === 'mouse') setTouchMode(false); }, true);
 {
@@ -9912,7 +10007,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost,
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
