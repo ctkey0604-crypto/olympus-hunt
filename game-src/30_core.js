@@ -227,7 +227,7 @@ const Store = {
         body: body === undefined ? undefined : JSON.stringify(body) });
       let data = null; try { data = await res.json(); } catch (e) {}
       if (res.status === 401 && this.token && path !== 'login') this.forget();
-      if (!res.ok) throw new Error((data && data.error) || `The server said no (${res.status}).`);
+      if (!res.ok) { const err = new Error((data && data.error) || `The server said no (${res.status}).`); err.status = res.status; err.check = !!(data && data.check); throw err; }
       return data;
     } catch (e) {
       if (e.name === 'AbortError') throw new Error('The server took too long. Check your connection.');
@@ -279,8 +279,13 @@ const Store = {
     clearTimeout(this.timers[n]); this.timers[n] = null;
     const data = this.pending[n]; if (!data || !this.user) return Promise.resolve();
     delete this.pending[n];
-    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(() => { if (!this.pending[n]) this.pending[n] = data; });
+    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(e => {
+      if (e && e.check) { this.refused(e.message); return; }      // the server's save checks said no: sending it again won't help
+      if (!this.pending[n]) this.pending[n] = data;
+    });
   },
+  // Said once per reason: the save stays on this device, the account keeps its last good copy.
+  refused(msg) { if (this.refusedMsg === msg) return; this.refusedMsg = msg; if (typeof toast === 'function') toast(msg + ' It’s still saved on this device.', 7000); },
   flush(keepalive = false) { return Promise.all(Object.keys(this.pending).map(n => this.push(n, keepalive))); },
   /* ---- Claude artifact cloud ---- */
   ref(n) { return this.cloud.doc('data/users/' + this.uid + '/slot' + n); },

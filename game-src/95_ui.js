@@ -2,7 +2,7 @@
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
 function show(id) { if (id === 'scrTitle' || id === 'scrSlots') Music.play('title'); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
 let toastTimer = 0;
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200); }
+function toast(msg, ms = 2200) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
 function persist(urgent = false) { if (G.save) Store.save(G.slot, G.save, urgent); }
 // A short fade to black between places, hunts and menus.
 let fading = false;
@@ -439,7 +439,7 @@ function renderOptions() {
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
     </div>
-    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
+    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ?'<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
   </div>`;
 }
 function encodeSave(s) { return 'OH1.' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
@@ -542,6 +542,7 @@ $('scrHub').addEventListener('click', ev => {
   else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
   else if (o === 'credits') { showCredits(() => { enterVillage('road'); openPanel('options'); }); }
+  else if (o === 'news') openNews('scrHub');
   else if (o === 'title') { persist(true); G.mode = 'slots'; q = null; show('scrSlots'); renderSlots(); }
   else if (o === 'export') { $('importBox').hidden = true; $('codeBox').hidden = false; $('saveCode').value = encodeSave(G.save); }
   else if (o === 'copy') {
@@ -711,6 +712,12 @@ document.addEventListener('fullscreenchange', () => {
 $('btnPlay').onclick = () => { Sound.init(); Sound.play('click'); playNow(); };
 $('btnSaves').onclick = () => { Sound.init(); Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('btnSlotsBack').onclick = () => { Sound.play('click'); G.mode = 'title'; show('scrTitle'); };
+// What's new: from the title screen, or from Options in a game (Back returns to whichever it was)
+let newsBack = 'scrTitle';
+function openNews(from) { newsBack = from; $('newsBody').innerHTML = renderNews(); if (from === 'scrTitle') G.mode = 'news'; show('scrNews'); }
+function closeNews() { Sound.play('click'); if (newsBack === 'scrTitle') G.mode = 'title'; show(newsBack); }
+$('btnNews').onclick = () => { Sound.init(); Sound.play('click'); openNews('scrTitle'); };
+$('btnNewsBack').onclick = closeNews;
 $('btnResContinue').onclick = () => {
   Sound.play('click');
   // Typhon just fell for the first time: roll the credits before going home
@@ -782,7 +789,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM' && !e.repeat) { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); if (G.mode === 'quest' || G.mode === 'village') toast(Settings.data.sound ? 'Sound on' : 'Sound off'); }
   if (e.code === 'KeyF' && !e.repeat) { e.preventDefault(); toggleFullscreen(); return; }
   if (G.mode === 'credits') { if ((e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); endCredits(); } return; }
-  if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closePanel(); } return; }
+  if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
+  if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();
