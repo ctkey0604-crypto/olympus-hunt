@@ -2649,7 +2649,8 @@ function newSave() {
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
-           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false };
+           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
+           endless: { best: 0, last: 0 } };                         // the Endless Hunt: best wave reached, and the last run's
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -2689,6 +2690,7 @@ function sanitize(s) {
   out.tut = typeof s.tut === 'number' ? clamp(Math.floor(s.tut), 0, 6) : Object.keys(out.cleared).length ? 6 : 0;
   out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
+  if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }
@@ -3978,8 +3980,12 @@ function flankSteer(e, c) {
   const f = (((e.id * .618) % 1) - .5) * 2.2 * clamp((c.d - 36) / 80, 0, 1), cs = Math.cos(f), sn = Math.sin(f);
   const vx = e.vx * cs - e.vy * sn, vy = e.vx * sn + e.vy * cs; e.vx = vx; e.vy = vy;
 }
-// Gods and Titans keep a threat table: damage dealt to them (as a share of their health), fading over time, plus a
-// little for standing close. They pick a new target every 5-8 s, or sooner when someone else is clearly the bigger threat.
+// Gods and Titans keep a threat table: damage dealt to them (as a share of their health), fading over time, plus some
+// for standing close. They pick a new target every 5-8 s, or sooner when someone else is clearly the bigger threat.
+//  - A raised shield up close taunts: guarding within reach builds threat, so a shield hunter can pull a god off a friend.
+//  - Leash: a god won't spend its whole turn chasing someone across the arena while another hunter hits it up close.
+//  - When its target goes down it stops to roar before turning on the next one, so the rest get a moment to react.
+const TAUNT_R = 70, TAUNT_RATE = .02, LEASH_FAR = 190, LEASH_NEAR = 60;
 function addThreat(b, p, dmg) {
   if (!p || q.hunters.length === 1) return;
   b.threat = b.threat || new Map(); b.threat.set(p, (b.threat.get(p) || 0) + dmg / b.maxHp);
@@ -3989,17 +3995,24 @@ function bossTarget(b, dt) {
   if (H.length === 1) return H[0];
   b.threat = b.threat || new Map();
   const fade = Math.pow(.5, dt / 6); for (const [h, v] of b.threat) b.threat.set(h, v * fade);
+  for (const h of H) if (!h.dead && h.guarding && Math.hypot(h.x - b.x, h.y - b.y) < TAUNT_R) b.threat.set(h, (b.threat.get(h) || 0) + TAUNT_RATE * dt);
   if (b.tgtT === undefined) b.tgtT = rand(5, 8);
   b.tgtT -= dt;
-  const cur = b.tgt && !b.tgt.dead && H.includes(b.tgt) ? b.tgt : null;
+  const was = b.tgt, cur = was && !was.dead && H.includes(was) ? was : null;
   if (cur && b.state !== 'idle') return cur;                      // never mid-attack
+  if (cur && Math.hypot(cur.x - b.x, cur.y - b.y) > LEASH_FAR && H.some(h => h !== cur && !h.dead && Math.hypot(h.x - b.x, h.y - b.y) < LEASH_NEAR)) b.tgtT -= dt * 2;
   const due = !cur || b.tgtT <= 0;
   // when it's time to switch, whoever it's on now counts for half, so it usually moves on unless they're far ahead
-  const score = h => ((b.threat.get(h) || 0) + Math.max(0, 1 - Math.hypot(h.x - b.x, h.y - b.y) / 160) * .02) * (due && h === cur ? .5 : 1);
+  const near = h => Math.max(0, 1 - Math.hypot(h.x - b.x, h.y - b.y) / 160) * .03;
+  const score = h => ((b.threat.get(h) || 0) + near(h)) * (due && h === cur ? .5 : 1);
   let best = null, bs = -1;
   for (const h of H) { if (h.dead) continue; const s = score(h); if (s > bs) { bs = s; best = h; } }
-  if (!best) return cur || b.tgt || H[0];                         // everyone is down
-  if (due || (best !== cur && bs > score(cur) * 1.5 + .03)) { b.tgt = best; b.tgtT = rand(5, 8); }
+  if (!best) return cur || was || H[0];                           // everyone is down
+  if (due || (best !== cur && bs > score(cur) * 1.5 + .03)) {
+    // its target just went down: a short roar, then it turns on the next one
+    if (was && was.dead && !b.def.titan && b.state === 'idle' && !b.hidden && !b.air) { b.st = Math.max(b.st || 0, .6); b.vx = b.vy = 0; addText(b.x, b.y - b.h - 4, '!', b.def.colors[0]); }
+    b.tgt = best; b.tgtT = rand(5, 8);
+  }
   return b.tgt;
 }
 // Big ground attacks land where hunters bunch up: the middle of the group around the target, if two or more stand close.
@@ -4579,6 +4592,7 @@ function netGlobals() {
   if (q.current) g.cu = [r2(q.current.a), r1(q.current.s), q.current.next === null ? null : r2(q.current.next), r2(q.current.t)];
   if (q.gale) g.ga = [r2(q.gale.t), r1(q.gale.s), r2(q.gale.a)];
   if (q.ghosts && q.ghosts.length) g.gh = q.ghosts.map(gh => [r1(gh.x), r1(gh.y), r2(gh.face), r2(gh.clock), (gh.who || q.player).hid]);
+  if (q.def.endless) g.en = [q.endCleared || 0, q.endPay || 0];   // the Endless Hunt: waves cleared and pay so far
   return g;
 }
 // Effects (rings, slashes, after-images...) as plain data. Hero after-images carry the armor they show.
@@ -4680,6 +4694,7 @@ function netGlobalsIn(g) {
   q.gale = g.ga ? { t: g.ga[0], s: g.ga[1], a: g.ga[2] } : null;
   q.ghosts = (g.gh || []).map(a => ({ x: a[0], y: a[1], face: a[2], clock: a[3], who: q.hunters[a[4]] || q.player }));
   if (g.b && (!q.boss || q.boss.id !== g.b)) { const b = q.enemies.find(e => e.id === g.b); if (b) netBossIn(b); }
+  if (g.en) { q.endCleared = g.en[0]; q.endPay = g.en[1]; if (!g.b && q.boss) { q.boss = null; $('bossBar').hidden = true; } }   // a god down mid-run
 }
 // Messages meant only for your hunter: damage the host judged, heals, effects, a revive, a pull.
 function netSelf(m) {
@@ -4864,7 +4879,7 @@ function autoTarget(p, range) {
   }
   return best;
 }
-const tierNow = () => q ? q.def.mt : 1;
+const tierNow = () => q ? q.endMt || q.def.mt : 1;                 // endMt: the Endless Hunt's strength for this wave
 function healHunter(p, n, show = true) {
   if (p.remote) { netTo(p, 'heal', n); return n; }
   const before = p.hp; p.hp = Math.min(p.st.maxHp, p.hp + n);
@@ -6558,7 +6573,7 @@ function startBossAttack(b, c) {
 function updateBoss(b, dt) {
   b.flash = Math.max(0, b.flash - dt);
   const p = bossTarget(b, dt), dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;   // who it's after (you, alone)
-  b.tgt = p;
+  b.tgt = p; if (q.hunters.length > 1) b.tgtHid = p.hid;            // online, everyone's screen marks who it's after
   // God Rank: below 30% health every god and Titan goes berserk.
   if (b.rank >= 2 && !b.rage3 && b.hp <= b.maxHp * .3 && b.state !== 'intro') {
     b.rage3 = true; b.tempo *= 1.15; banner(`${b.def.name} goes berserk`, 'Faster, and nothing held back', true); Sound.play('roar'); addShake(5); G.flash = .15;
@@ -7205,7 +7220,7 @@ function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
-  if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
+  if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
   const roster = opts.guest || (G.netParty || null); G.netParty = null;
@@ -7246,7 +7261,7 @@ function startQuest(id, opts = {}) {
   netUi();
 }
 function startWave(i) {
-  q.waveIdx = i; const w = q.def.waves[i], light = [], heavy = [];
+  q.waveIdx = i; const w = q.def.endless ? endlessWave(i) : q.def.waves[i], light = [], heavy = [];
   const counts = Object.entries(w).map(([t, n]) => [t, partyCount(t, n)]);      // more of them in a party
   for (const [t, n] of counts) for (let k = 0; k < n; k++) (ENEMIES[t].cls === 'heavy' ? heavy : light).push(t);
   shuffle(light);
@@ -7255,6 +7270,7 @@ function startWave(i) {
   q.pending = list.map(type => ({ type })); q.spawnT = .2;
   q.phase = 'fight';
   if (q.def.prologue) proWaveBanner(i); else banner(`Wave ${i + 1}`, counts.map(([t, n]) => monsterCount(t, n)).join(' · ')); Sound.play('wave');
+  if (q.endBossNext) endlessBoss();                                  // the Endless Hunt: a god every fifth wave
 }
 function pickSpawnPoint() {
   const all = spawnTiles().map(([tx, ty]) => ({ x: tc(tx), y: tc(ty) }));
@@ -7263,7 +7279,7 @@ function pickSpawnPoint() {
   return list[(Math.random() * list.length) | 0];
 }
 function aliveWeight() { let n = 0; for (const e of q.enemies) if (!e.dead && !e.boss) n += WEIGHT[e.def.cls] || 1; return n; }
-const budget = () => Math.round((BUDGET + 2 * (q.def.rank || 0)) * partyScale().budget);
+const budget = () => Math.round((BUDGET + 2 * (q.def.rank || 0) + (q.endBudget || 0)) * partyScale().budget);
 function startBoss() {
   q.phase = 'boss';
   if (q.def.titan) Music.level(1); else if (Music.songs[q.def.god]) Music.play(q.def.god, 1);
@@ -7279,6 +7295,7 @@ function startBoss() {
   for (const h of q.hunters) for (let i = 0; i < (d.arrivalHeals || 0); i++) spawnPickup(h.x + rand(-24, 24), h.y + rand(-14, 14), '@heal');
 }
 function bossDefeated(b) {
+  if (q.def.endless) { endlessBossDown(b); return; }               // the run goes on
   G.slowmo = .25; q.hazards = []; q.gale = null;
   if (b) {                                                   // a god or Titan going down shakes the whole arena
     G.flash = Math.max(G.flash, b.def.final ? .5 : .3); addShake(b.def.final ? 10 : 7); Sound.play('roar'); Sound.play('thud');
@@ -7339,13 +7356,16 @@ function updateQuestFlow(dt) {
       if (alive === 0 || alive + w <= budget()) {
         q.pending.shift();
         const pt = pickSpawnPoint();
-        q.enemies.push(makeEnemy(next.type, clamp(pt.x + rand(-10, 10), IPX.minX + 8, IPX.maxX - 8), clamp(pt.y + rand(-8, 8), IPX.minY + 8, IPX.maxY - 8)));
+        const e = makeEnemy(next.type, clamp(pt.x + rand(-10, 10), IPX.minX + 8, IPX.maxX - 8), clamp(pt.y + rand(-8, 8), IPX.minY + 8, IPX.maxY - 8));
+        if (q.endTempo) e.tempo *= q.endTempo;                       // deep in the Endless Hunt they attack sooner too
+        q.enemies.push(e);
         q.spawnT = .38 / partyScale().spawn;
       } else q.spawnT = .25;
     }
   }
   if (q.phase === 'fight' && !q.pending.length && q.enemies.every(e => e.dead)) {
-    if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
+    if (q.def.endless) { q.phase = 'between'; q.timer = 2.2; q.nextIsBoss = false; endlessCleared(); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
+    else if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
     else if (q.def.boss) { q.phase = 'between'; q.timer = 2.4; q.nextIsBoss = true; banner('The air goes still', 'Something is coming'); }
     else if (q.def.prologue) proWalkout();
     else questVictory();
@@ -7469,8 +7489,9 @@ function npcLines(n) {
         'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
         'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
       if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
-        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
-      if (s.cleared[TYPHON_Q]) return ['They’re still singing about how you slew Typhon. The board still has work, and the smith says your gear can always be sharper.'];
+        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.',
+        'One more thing. Etna hasn’t gone quiet: monsters keep crawling out of the fire. The Endless Hunt is on the board. See how deep you can go.'];
+      if (s.cleared[TYPHON_Q]) return [s.endless && s.endless.best ? `They’re still singing about how you slew Typhon. Your deepest run into Etna reached wave ${s.endless.best}. Think you can beat it?` : 'They’re still singing about how you slew Typhon. And Etna keeps spitting out monsters: the Endless Hunt is on the board.'];
       if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re new here? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
@@ -8207,6 +8228,91 @@ function typhonTick(b, dt) {
     if (!p.dead && p.dodgeT <= 0 && p.dashT <= 0 && q.phase === 'boss') moveEntity(p, Math.cos(a) * G2.s * dt, Math.sin(a) * G2.s * dt);
   }
 }
+/* ============================== THE ENDLESS HUNT ============================== */
+// God Rank, once Typhon has fallen: the fire under Etna keeps spitting out monsters. Wave after wave, each one bigger and
+// stronger than the last, with a god every fifth wave, until the whole party is down. It pays for every wave cleared
+// (more the deeper you get). The save keeps the best wave reached and the last run's (save.endless).
+// Hooks: startQuest (music), startWave, the spawner and the wave-cleared step (80_quest.js), bossDefeated, tierNow
+// (50_combat.js, so everything spawned in a run, a god's helpers too, gets stronger), the HUD, the board and finishQuest.
+const ENDLESS_Q = 'gr_endless_hunt', ENDLESS_BOSS_EVERY = 5;
+// Per wave past the first: monster strength (tiers on the balance curve), extra room for monsters at once, faster attacks.
+const ENDLESS_TIER = .55, ENDLESS_TEMPO = .012, ENDLESS_TEMPO_MAX = 1.3;
+{
+  const ty = QUEST_BY_ID[TYPHON_Q];
+  // every monster that turns up in a God Rank hunt, by class
+  const pool = { fodder: [], medium: [], heavy: [] }, seen = new Set();
+  for (const qd of QUESTS) if (qd.rank === 2 && !qd.prologue) for (const w of qd.waves) for (const t of Object.keys(w))
+    if (!seen.has(t) && ENEMIES[t] && pool[ENEMIES[t].cls] && ENEMIES[t].speed !== 0) { seen.add(t); pool[ENEMIES[t].cls].push(t); }
+  // the gods it can send: every god and side god with a God Rank hunt of their own (no Titans)
+  const gods = [...new Set(QUESTS.filter(qd => qd.rank === 2 && qd.boss && !qd.titan && !qd.final).map(qd => qd.boss))].filter(b => BOSSES[b] && !BOSSES[b].titan);
+  // it starts a little gentler than Typhon's own waves and passes them around wave 6
+  const def = { id: ENDLESS_Q, base: 'endless_hunt', god: 'typhon', endless: true, rank: 2, tier: ty.tier, mt: ty.tier - 3, boss: null, stars: 10, urgent: false,
+    name: 'The Endless Hunt', arena: 'etna', requires: [TYPHON_Q], pool, gods,
+    desc: 'Typhon is gone, but the fire under Etna keeps spitting out monsters. Hold out as long as you can: every wave is bigger and stronger than the last, and a god comes for you every fifth wave. Each wave you clear pays, and the deeper you go the more it pays.',
+    waves: [Object.fromEntries([...seen].map(t => [t, 1]))] };          // only used to list its monsters and parts
+  def.perWave = Math.round(huntPay(Math.floor(def.tier)) * .08 / 10) * 10;
+  def.reward = def.perWave * 10;                                           // what the hidden cache in here is worth
+  QUESTS.push(def); QUEST_BY_ID[ENDLESS_Q] = def;
+}
+const endlessPay = (n, boss) => Math.round(QUEST_BY_ID[ENDLESS_Q].perWave * (1 + .06 * (n - 1)) * (boss ? 4 : 1) / 10) * 10;
+const endlessBossWave = n => n % ENDLESS_BOSS_EVERY === 0;
+// Music grows with the run: Typhon's theme, quiet at first, full from wave 10, all-out from wave 20.
+const endlessLevel = n => n >= 20 ? 2 : n >= 10 ? 1 : 0;
+
+// Wave n (1, 2, 3...): its monsters, and the strength everything spawned from now on gets.
+function endlessWave(i) {
+  const D = q.def, n = i + 1, L = i, R = Math.random, pick = a => a[(R() * a.length) | 0];
+  q.endMt = D.mt + L * ENDLESS_TIER;
+  q.endBudget = Math.min(16, Math.floor(L / 2));
+  q.endTempo = Math.min(ENDLESS_TEMPO_MAX, 1 + L * ENDLESS_TEMPO);
+  const boss = endlessBossWave(n);
+  // a few kinds per wave, more as it goes on; big ones from wave 3, more of them later
+  const kinds = [], want = Math.min(5, 2 + Math.floor(n / 4));
+  const take = cls => { const t = pick(D.pool[cls]); if (t && !kinds.includes(t)) kinds.push(t); };
+  take('fodder'); take('medium'); if (n >= 3) take('heavy');
+  for (let k = 0; kinds.length < want && k < 20; k++) take(R() < .5 ? 'fodder' : R() < .7 ? 'medium' : n >= 3 ? 'heavy' : 'medium');
+  let weight = (12 + 3 * L) * (boss ? .5 : 1);
+  const w = {};
+  while (weight > 0) { const t = pick(kinds); w[t] = (w[t] || 0) + 1; weight -= WEIGHT[ENEMIES[t].cls] || 1; }
+  if (boss) q.endBossNext = true;
+  Music.level(endlessLevel(n));
+  return w;
+}
+// The god for a boss wave: none twice until every one has had a turn. Scaled from their own God Rank strength up to
+// this wave's, so each one takes about as many hits as their usual fight with matching gear.
+function endlessBoss() {
+  q.endBossNext = false;
+  const D = q.def;
+  if (!q.endBag || !q.endBag.length) { q.endBag = D.gods.slice(); shuffle(q.endBag); }
+  const type = q.endBag.pop(), p = q.player;
+  const top = { x: WORLD_W / 2, y: IPX.minY + 50 }, bottom = { x: WORLD_W / 2, y: IPX.maxY - 30 };
+  const spot = Math.hypot(top.x - p.x, top.y - p.y) > Math.hypot(bottom.x - p.x, bottom.y - p.y) ? top : bottom;
+  const b = makeBoss(type, spot.x, spot.y), t = q.endMt;
+  const hpF = tierW(t) / tierW(b.tier), dmF = rawDmg(1, t) / rawDmg(1, b.tier);
+  b.hp = b.maxHp = Math.round(b.maxHp * Math.max(1, hpF)); b.dm *= Math.max(1, dmF); b.dmgMul *= Math.max(1, dmF);
+  q.boss = b; q.enemies.push(b);
+  if (Music.songs[type]) Music.play(type, 1); else Music.level(Math.max(1, endlessLevel(q.waveIdx + 1)));
+  const d = BOSSES[type];
+  banner(d.name, `${d.title} · wave ${q.waveIdx + 1}`, true); Sound.play('roar'); addShake(4);
+  $('bossName').textContent = d.name; $('bossTitle').textContent = d.title; $('bossBar').hidden = false;
+  $('bossBar').classList.remove('titan'); $('bossBar').dataset.rank = D.rank;
+}
+// A god down mid-run: the same send-off as a normal hunt, then the run goes on (its helpers stay to be cleaned up).
+function endlessBossDown(b) {
+  G.slowmo = .5; G.flash = Math.max(G.flash, .25); addShake(6); Sound.play('roar'); Sound.play('thud');
+  [[.35, 50], [.55, 80], [.8, 115]].forEach(([life, r]) => q.fx.push({ t: 'ring', x: b.x, y: b.y, r0: 4, r1: r, life, max: life, c: b.def.colors[0] }));
+  burst(b.x, b.y - 12, 36, [...b.def.colors, '#ffffff'], 150);
+  for (const pr of q.projs) if (pr.team === 'enemy') pr.dead = true;
+  q.hazards = []; q.boss = null; $('bossBar').hidden = true;
+  Music.play('typhon', endlessLevel(q.waveIdx + 1));
+  banner(`${b.def.name} falls`, 'The fire keeps burning');
+}
+// A wave cleared: count it and pay for it.
+function endlessCleared() {
+  const n = q.waveIdx + 1, pay = endlessPay(n, endlessBossWave(n));
+  q.endCleared = n; q.endPay = (q.endPay || 0) + pay;
+  banner(`Wave ${n} cleared`, `+${fmtMoney(pay)} drachmae · wave ${n + 1}${endlessBossWave(n + 1) ? ' brings a god' : ' is coming'}`);
+}
 /* ============================== RENDER =================================== */
 let vignette = null;
 let lowVignette = null;
@@ -8427,7 +8533,7 @@ function drawDowned(p, S) {
   for (let i = 0; i < 40 * k; i++) { const a = -Math.PI / 2 + i / 40 * Math.PI * 2; ctx.fillStyle = '#9bbb55'; ctx.fillRect(Math.round(sx + Math.cos(a) * 12), Math.round(sy - 1 + Math.sin(a) * 12 * .6), 1, 1); }
 }
 function drawPartyTags(S) {
-  const placed = [];                                             // tags that would overlap stack upward instead
+  const placed = [], top = new Map();                            // tags that would overlap stack upward instead
   for (const h of q.hunters.slice().sort((a, b) => b.y - a.y)) {
     if (h === q.player) continue;
     const col = PARTY_COLS[h.hid % PARTY_COLS.length], [sx, sy] = S(h.x, h.y);
@@ -8438,9 +8544,22 @@ function drawPartyTags(S) {
     const txt = h.downed ? 'down' : h.name, w = Math.min(14, txt.length) * 4 + 1;
     let ty = h.downed ? sy - 18 : sy - 31;
     for (let n = 0; n < 4 && placed.some(r => Math.abs(r.x - sx) < (r.w + w) / 2 && Math.abs(r.y - ty) < 7); n++) ty -= 7;
-    placed.push({ x: sx, y: ty, w });
+    placed.push({ x: sx, y: ty, w }); top.set(h, ty - 5);
     drawTag(txt, sx, ty, h.downed ? '#ff6b5a' : col);
     if (!h.dead) { const bw = 14, f = clamp(h.hp / h.st.maxHp, 0, 1), by = ty + 6; ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - bw / 2 - 1, by, bw + 2, 3); ctx.fillStyle = f < .3 ? '#d9493b' : '#9bbb55'; ctx.fillRect(sx - bw / 2, by + 1, Math.round(bw * f), 1); }
+  }
+  // who the god or Titan is after: a small mark in its colour over their head, flashing while it lines up an attack
+  const b = q.boss;
+  if (b && !b.dead && b.state !== 'intro' && !b.hidden && b.tgtHid !== undefined) {
+    const h = q.hunters.find(x => x.hid === b.tgtHid);
+    if (h && !h.dead) {
+      const [sx, sy] = S(h.x, h.y), my = Math.round((top.get(h) ?? sy - 26) + Math.sin(G.time * 6) * 1), winding = BOT_DANGER.has(b.state);
+      if (sx >= 0 && sx <= VIEW_W && my >= 2 && (!winding || blink(10))) {
+        const c = b.def.colors[0];
+        ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, my - 3, 7, 1); ctx.fillRect(sx - 2, my - 2, 5, 1); ctx.fillRect(sx - 1, my - 1, 3, 1); ctx.fillRect(sx, my, 1, 1);
+        ctx.fillStyle = winding ? '#ffffff' : c; ctx.fillRect(sx - 2, my - 3, 5, 1); ctx.fillRect(sx - 1, my - 2, 3, 1); ctx.fillRect(sx, my - 1, 1, 1);
+      }
+    }
   }
 }
 function drawPlayer(p, S) {
@@ -8910,6 +9029,7 @@ function updateHud() {
   if (q.phase === 'boss') wave = '';
   else if (q.phase === 'victory') wave = 'Victory';
   else if (q.phase === 'defeat') wave = 'Defeated';
+  else if (q.waveIdx >= 0 && q.def.endless) wave = `Wave ${q.waveIdx + 1}`;
   else if (q.waveIdx >= 0) wave = `Wave ${Math.min(q.waveIdx + 1, q.def.waves.length)} / ${q.def.waves.length}` + (q.def.boss ? ' + boss' : '');
   else wave = q.def.name;
   setText('hudWave', wave);
@@ -9297,7 +9417,7 @@ function renderHub() {
 }
 function questCard(qd) {
   const s = G.save, un = isUnlocked(qd), done = s.cleared[qd.id];
-  const status = !un ? `<span class="chip">Locked</span>` : done ? `<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
+  const status = !un ? `<span class="chip">Locked</span>` : qd.endless ? (s.endless.best ? `<span class="chip done">Best wave ${s.endless.best}</span>` : `<span class="chip urgent">Endless</span>`) : done ?`<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
   return `<button type="button" class="qcard ${qd.id === G.selQuest ? 'sel' : ''} ${un ? '' : 'locked'}" data-quest="${qd.id}" data-rank="${qd.rank}">
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
@@ -9332,12 +9452,23 @@ function renderBoard() {
   // Typhon: God Rank only, once every god and Titan on it has fallen
   if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
   else if (fin && s.stairs) html += `<div class="qlock">Something older than the Titans is stirring · hunt every god and Titan on God Rank first</div>`;
+  // the Endless Hunt: only once Typhon is down
+  const endQ = mine.find(qd => qd.endless);
+  if (endQ && isUnlocked(endQ)) html += `<p class="rank titans final">Beyond the last hunt</p>` + questCard(endQ);
   const qd = QUEST_BY_ID[G.selQuest], un = isUnlocked(qd);
+  const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
+  if (qd.endless) return `${tabs}<div class="board"><div class="qlist">${html}</div>
+    <div class="qdetail">
+      <div><p class="eyebrow"><span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · Endless · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
+      <p>${esc(qd.desc)}</p>
+      <div class="facts"><div><span>Best wave</span><b class="${s.endless.best ? 'gold' : ''}">${s.endless.best || '—'}</b></div><div><span>Last run</span><b>${s.endless.last ? 'Wave ' + s.endless.last : '—'}</b></div><div><span>Pay</span><b class="gold">${fmtMoney(qd.perWave)}+ dr a wave</b></div><div><span>Gods</span><b>Every ${ENDLESS_BOSS_EVERY}th wave</b></div></div>
+      <div><p class="sub">Monsters</p><p class="muted" style="margin:0">Every monster from God Rank, more and stronger each wave. Gods turn up in a random order, no repeats until each has had a turn.</p></div>
+      <div class="row">${un ? `<button class="btn" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">Slay Typhon first.</span>`}</div>
+    </div></div>`;
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
   const needs = qd.requires.filter(x => !s.cleared[x]).map(x => QUEST_BY_ID[x].name);
   const needText = qd.final ? 'every god and Titan on God Rank' : needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
-  const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
   return `${tabs}<div class="board"><div class="qlist">${html}</div>
     <div class="qdetail">
       <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.final ? 'The last hunt' : qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
@@ -9690,11 +9821,20 @@ function finishQuest(win) {
     s.money += d.reward; s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
     const t = Math.max(1, Math.round(q.elapsed)); if (!s.best[d.id] || t < s.best[d.id]) { best = !!s.best[d.id]; s.best[d.id] = t; }
   }
+  // the Endless Hunt only ends in a fall (or leaving): it pays for the waves cleared and keeps the record
+  let run = null;
+  if (d.endless) {
+    const E = s.endless, reached = Math.max(0, q.waveIdx + 1), pay = q.endPay || 0;
+    run = { reached, cleared: q.endCleared || 0, pay, record: reached > E.best && E.best > 0 };
+    s.money += pay; E.last = reached; if (reached > E.best) E.best = reached;
+    if (reached) s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
+  }
   persist(true);
   const unlocked = QUESTS.filter(x => isUnlocked(x) && !before.has(x.id));
-  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
-  const title = $('resTitle'); title.textContent = win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win ? 'win' : 'lose');
-  $('resStats').innerHTML = `<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
+  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
+  const title = $('resTitle'); title.textContent = run ? (run.record ? 'A new record' : 'The hunt is over') : win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win || (run && run.record) ? 'win' : 'lose');
+  if (run) $('resStats').innerHTML = `<div><span>Wave reached</span><b>${run.reached}${run.record ? ' ★' : ''}</b></div><div><span>Best wave</span><b>${s.endless.best}</b></div><div><span>Pay</span><b style="color:var(--gold)">${fmtMoney(run.pay)} dr</b></div><div><span>Time</span><b>${fmtTime(q.elapsed)}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>`;
+  else $('resStats').innerHTML =`<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
   const notes = [];
   if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue in the ${d.titan ? 'Hall of the Titans' : 'Temple of the Gods'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
   if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
@@ -9707,12 +9847,13 @@ function finishQuest(win) {
   else notes.push(`${unlocked.length} new quests on the board.`);
   $('resUnlock').innerHTML = notes.map(n => `<div class="unlock">${esc(n)}</div>`).join('');
   // a lost hunt: point at the two things that make the next try easier
-  if (!win && Settings.data.tips !== false && ((s.potions.health || 0) < POTION_MAX || !s.blessing))
+  if (!win && !run && Settings.data.tips !== false && ((s.potions.health || 0) < POTION_MAX || !s.blessing))
     $('resUnlock').innerHTML += `<p class="tutnote">Tough one? <b>Melita the Trader</b> sells health potions (${touchMode ? 'tap one in the corner' : 'press ' + esc(codeLabel(Input.bind.potion1[0]))} during a hunt to drink it). An offering at <b>Hestia’s hearth</b> in the temple gets you back on your feet once if you fall. Better armor from the forge helps too.</p>`;
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
-  $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
+  $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
+    : win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+  $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   G.mode = 'results'; q = null;
   show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
@@ -10008,6 +10149,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
+  renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
