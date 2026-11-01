@@ -69,6 +69,11 @@ async function route(req, env, url) {
       let body; try { body = JSON.parse(text); } catch { return json({ error: 'Bad save data.' }, 400); }
       const save = body && body.save;
       if (!save || typeof save !== 'object' || Array.isArray(save)) return json({ error: 'Bad save data.' }, 400);
+      const now = Date.now(), old = await env.DB.prepare('SELECT data FROM saves WHERE name = ? AND slot = ?').bind(user.name, slot).first();
+      let prev = null; try { prev = old ? JSON.parse(old.data) : null; } catch {}
+      const why = checkSave(save, prev, now);
+      if (why) return json({ error: `The server couldn’t store this save: ${why}.`, check: true }, 422);
+      save._at = now;                                              // when the server took it (the next check measures from here)
       const savedAt = Number.isFinite(save.savedAt) ? Math.floor(save.savedAt) : Date.now();
       // Keep whichever copy is newer, so an old tab can't overwrite newer progress.
       const r = await env.DB.prepare(`INSERT INTO saves (name, slot, data, saved_at) VALUES (?, ?, ?, ?)
@@ -148,6 +153,38 @@ async function pbkdf2(password, saltHex, iterations) {
   return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256));
 }
 function safeEqual(a, b) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
+
+/* ---------- save checks ---------- */
+// The game runs in the player's browser, so a save can be edited before it's sent. These checks turn away saves that
+// can't come from real play. They're generous on purpose: a real player's save must never be refused.
+const SAVE_RATE = 1200;     // drachmae one second of play may earn: about 3x the best real rate (a fast Typhon kill)
+const SAVE_SLACK = 150000;  // on top of that per save: hidden caches, a long hunt's pay landing at once, rounding
+const PLAY_SLACK = 300;     // seconds of play a save may claim beyond the real time since the server's last copy
+const idRank = id => typeof id !== 'string' ? 0 : id.startsWith('gr_') ? 2 : id.startsWith('hr_') ? 1 : 0;
+const TYPHON_GEAR = new Set(['typhon_fang', 'typhonic']);      // God Rank gear without the gr_ prefix, forged from his heart
+function checkSave(s, prev, now) {
+  const okNum = (v, max) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max;
+  const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {}, arr = v => Array.isArray(v) ? v : [];
+  if (!okNum(s.money, 1e12) || (s.playtime !== undefined && !okNum(s.playtime, 1e8))) return 'it has numbers the game can’t make';
+  const rank = s.rank === undefined ? 0 : s.rank;
+  if (![0, 1, 2].includes(rank)) return 'it has a rank that doesn’t exist';
+  if (Object.values(obj(s.inv)).some(v => !okNum(v, 1e6)) || Object.values(obj(s.potions)).some(v => !okNum(v, 99)) || Object.values(obj(s.refine)).some(v => !okNum(v, 10)))
+    return 'it holds more of something than the game allows';
+  // nothing from a rank you haven't reached
+  const cleared = obj(s.cleared);
+  const ids = [...arr(s.weapons), ...arr(s.shields), ...arr(s.pieces).map(p => String(p).split(':')[0]), ...Object.values(obj(s.equip)), s.weapon, s.shield,
+               ...Object.keys(obj(s.inv)), ...Object.keys(cleared), ...Object.keys(obj(s.refine))];
+  if (ids.some(id => idRank(id) > rank)) return 'it has gear or hunts from a rank it hasn’t reached';
+  if (!cleared.gr_typhon_hunt && ids.some(id => TYPHON_GEAR.has(id))) return 'it has Typhon’s gear without Typhon slain';
+  // progress since the server's last copy of this same game (a new game in the slot starts fresh)
+  const play = s.playtime || 0, p = prev && prev.createdAt === s.createdAt && typeof prev._at === 'number' ? prev : null;
+  if (p) {
+    const dPlay = play - (p.playtime || 0), dReal = (now - p._at) / 1000;
+    if (dPlay > dReal + PLAY_SLACK) return 'it claims more play time than has passed';
+    if (s.money - (p.money || 0) > Math.max(0, dPlay) * SAVE_RATE + SAVE_SLACK) return 'its drachmae went up faster than hunting pays';
+  } else if (s.money > play * SAVE_RATE + SAVE_SLACK) return 'it has more drachmae than its play time could earn';
+  return null;
+}
 
 /* ---------- multiplayer rooms ---------- */
 // Room codes: 5 letters, no I or O so nobody mixes them up with 1 and 0.
