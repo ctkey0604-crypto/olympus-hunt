@@ -191,7 +191,9 @@ function clampInt(v, a, b) { v = Math.floor(Number(v) || 0); return v < a ? a : 
 // Messages are small JSON objects with a type t. From players:
 //   info {gear, rank}   town {..}   post {quest}   ready {v}   cancel   depart {ids, cfg}   end   leave
 //   up {..} (a guest's own hunter, hits, claims: goes to the host)   down {..} / to {id, m} (the host's snapshots and events)
-// To players: room {..} on every change, the relayed messages with from = sender's id, err {msg}.
+//   chat {text}   kick {id} (host only: that player is removed and can't rejoin this room)
+// To players: room {..} on every change, the relayed messages with from = sender's id, chat {from, name, text},
+// kick {id, name} (to the others), err {msg}. A kicked player's connection closes with code 4002.
 export class Room extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -213,6 +215,7 @@ export class Room extends DurableObject {
   }
   async ticket(who) {
     if (!this.meta) return { error: 'That room doesn’t exist (or it closed).', status: 404 };
+    if ((this.meta.banned || []).includes(who.key)) return { error: 'The host removed you from that room.', status: 403 };
     const others = this.members().filter(m => m.key !== who.key);
     if (others.length >= ROOM_MAX) return { error: 'That room is full.', status: 409 };
     const now = Date.now(), t = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -245,7 +248,7 @@ export class Room extends DurableObject {
 
   roomMsg(forId) {
     const M = this.meta;
-    return JSON.stringify({ t: 'room', v: 2, code: M.code, host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
+    return JSON.stringify({ t: 'room', v: 3, code: M.code, host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
       members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear })) });
   }
   broadcastRoom() { for (const ws of this.sockets()) { const a = ws.deserializeAttachment(); try { ws.send(this.roomMsg(a.id)); } catch {} } }
@@ -301,6 +304,23 @@ export class Room extends DurableObject {
       case 'leave': me.hunt = false; ws.serializeAttachment(me); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
       case 'end': if (runs) await this.endHunt(); return;
       case 'pub': if (isHost) { M.pub = !!m.v; await this.save(); this.broadcastRoom(); await this.toLobby(); } return;
+      case 'chat': {                                                 // room chat: to everyone, the sender included, so all see the same order
+        if (typeof m.text !== 'string') return;
+        const text = m.text.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120), now = Date.now();
+        if (!text || now - (me.chatAt || 0) < 600) return;
+        me.chatAt = now; ws.serializeAttachment(me);
+        const s = JSON.stringify({ t: 'chat', from: me.id, name: me.name, text });
+        for (const o of this.sockets()) this.send(o, s);
+        return;
+      }
+      case 'kick': {                                                 // the host removes a player, who can't come back to this room
+        if (!isHost || m.id === me.id) return;
+        const o = this.byId(m.id); if (!o) return;
+        const a = o.deserializeAttachment();
+        M.banned = [...(M.banned || []), a.key].slice(-20);
+        for (const x of this.sockets()) if (x !== o) this.send(x, { t: 'kick', id: a.id, name: a.name });
+        await this.dropped(o, 4002, 'Removed by the host'); return;
+      }
     }
   }
   async endHunt() {
@@ -310,9 +330,9 @@ export class Room extends DurableObject {
   }
   async webSocketClose(ws, code) { await this.dropped(ws); }
   async webSocketError(ws) { await this.dropped(ws); }
-  async dropped(ws) {
+  async dropped(ws, code = 1000, reason = 'bye') {
     const me = ws.deserializeAttachment(); if (!me || !this.meta) return;
-    try { ws.serializeAttachment(null); } catch {} try { ws.close(1000, 'bye'); } catch {}
+    try { ws.serializeAttachment(null); } catch {} try { ws.close(code, reason); } catch {}
     const M = this.meta, left = this.members();
     if (!left.length) { await this.closeRoom(); return; }
     const runner = M.runner ?? M.host;
