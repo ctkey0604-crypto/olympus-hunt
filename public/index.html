@@ -487,6 +487,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 #mpInput{flex:1;min-width:0;font:inherit;color:var(--bone);background:#0009;border:0;outline:0;padding:calc(var(--px)*.8) calc(var(--px)*2)}
 #mpInput::placeholder{color:var(--bone-dim)}
 #mpForm button{font:inherit;font-weight:600;border:0;padding:0 calc(var(--px)*4);background:var(--clay);color:#160e0b;cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}
+.gear.meal-on{box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold)}
 /* What's new */
 .news-wrap{display:grid;gap:14px}
 .news .news-head{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between}
@@ -2671,7 +2672,8 @@ function newSave() {
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
            rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
-           endless: { best: 0, last: 0 } };                         // the Endless Hunt: best wave reached, and the last run's
+           endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
+           meal: null };                                            // a Tavern meal waiting for the next hunt
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -2712,6 +2714,7 @@ function sanitize(s) {
   out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
   if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
+  out.meal = typeof s.meal === 'string' && MEALS[s.meal] ? s.meal : null;
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }
@@ -3399,6 +3402,14 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
       let px = R() * W, py = R() * H;
       for (let k = 0; k < 40; k++) { dot(px - 1, py, '#2c1a14', 3, 1); dot(px, py, R() < .2 ? '#ffd463' : '#ff7a2b'); px += R() * 2 - .4; py += R() * 2 - 1; }
     }
+  } else if (T.floor === 'planks') {                      // indoors: boards running across the room, joints staggered
+    x.fillStyle = T.base; x.fillRect(0, 0, W, H);
+    for (let py = 0; py < H; py += 6) for (let px = -((R() * 40) | 0); px < W;) {
+      const len = 28 + ((R() * 36) | 0);
+      dot(px, py, pick(T.planks), len, 5); dot(px, py + 5, T.seam, len, 1); dot(px + len - 1, py, T.seam, 1, 5);
+      for (let k = 0; k < 3; k++) dot(px + R() * len, py + 1 + R() * 3, T.grain, 2, 1);
+      px += len;
+    }
   } else if (T.floor === 'marble') {
     for (let ty = 0; ty < H / TILE; ty++) for (let tx = 0; tx < W / TILE; tx++) {
       const X = tx * TILE, Y = ty * TILE;
@@ -3908,6 +3919,7 @@ function drawObstacle(o, sx, sy) {
       ctx.fillStyle = '#f3e9d4'; ctx.fillRect(sx - 7, sy - 15, 5, 6); ctx.fillRect(sx - 1, sy - 16, 4, 5); ctx.fillRect(sx + 4, sy - 14, 4, 6);
       ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 5, sy - 15, 1, 1); ctx.fillRect(sx + 1, sy - 16, 1, 1); ctx.fillRect(sx + 6, sy - 14, 1, 1);
       break;
+    default: if (PROP_ART[o.kind]) PROP_ART[o.kind](o, sx, sy);   // the furniture inside the buildings (85_rooms.js)
   }
 }
 
@@ -4235,7 +4247,7 @@ setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a 
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
-  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref };
+  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null };
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
@@ -4271,7 +4283,7 @@ function gearSave(g) {
   for (const sl of SLOTS) look[sl] = g.look && ARMOR_SETS[g.look[sl]] && PIECES[g.look[sl] + ':' + sl] ? g.look[sl] : 'traveler';
   const weapon = WEAPONS[g.weapon] ? g.weapon : 'bronze_sword', shield = g.shield && SHIELDS[g.shield] ? g.shield : null, refine = {};
   if (g.refine) for (const [k, v] of Object.entries(g.refine)) refine[k] = clamp(Math.floor(+v || 0), 0, 5);
-  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 } };
+  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 }, meal: g.meal && MEALS[g.meal] ? g.meal : null };
 }
 
 /* ---- messages in ---- */
@@ -4844,7 +4856,7 @@ function playerStats(save = G.save) {
   def += perks.def || 0; hp += perks.hp || 0;
   const sh0 = save.shield && K.oneHand ? SHIELDS[save.shield] : null, shl = sh0 ? refineLevel(save.shield, save) : 0;
   const shield = shl ? { ...sh0, meter: Math.round(sh0.meter * (1 + REFINE_GAIN.shield * shl)), block: Math.min(.97, sh0.block + .01 * shl) } : sh0;
-  return {
+  const st = {
     weapon: w, kind: K, shield, perks, bonuses, maxHp: 100 + hp, def, doubleDash: PIECES[eq.feet + ':feet'].perk === 'doubleDash',
     mul: 1 + (perks.dmg || 0) + (w.kind === 'bow' ? perks.bowDmg || 0 : 0),
     projRes: Math.min(.6, perks.projRes || 0), kbRes: perks.unflinching ? 1 : Math.min(.6, perks.kbRes || 0),
@@ -4853,6 +4865,16 @@ function playerStats(save = G.save) {
     dodgeDist: 1 + (perks.dodgeDist || 0), abilityCd: Math.min(.5, perks.abilityCd || 0),
     guardMax: shield ? shield.meter * 10 * (1 + (perks.guard || 0)) : 0,
   };
+  // a Tavern meal (85_rooms.js), until the hunt it was eaten for is over
+  const M = save.meal && MEALS[save.meal];
+  if (M) {
+    if (M.hp) st.maxHp = Math.round(st.maxHp * (1 + M.hp));
+    if (M.dmg) st.mul += M.dmg;
+    if (M.def) st.def = Math.max(st.def + 1, Math.round(st.def * (1 + M.def)));   // at least +1, even in starting clothes
+    if (M.dash) st.dodgeCd *= 1 - M.dash;
+    if (M.skill) st.abilityCd = Math.min(.5, st.abilityCd + M.skill);
+  }
+  return st;
 }
 function makePlayer(save = G.save) {
   const st = playerStats(save);
@@ -7267,6 +7289,7 @@ function startQuest(id, opts = {}) {
   if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
   else q.hunters.push(q.player);
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
+  if (G.save.meal && !def.prologue) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.mode = 'quest'; G.paused = false; G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0; G.dialog = null;
@@ -7447,32 +7470,208 @@ function tick(dt) {
 }
 
 
+/* ============================== INSIDE THE BUILDINGS ============================== */
+// The Forge, the Tavern, Melita's Market and your home are rooms you walk into, one screen each (the Temple has its own
+// builder in 85_village.js). A room is data: its floor and walls (a theme), furniture (props), who works there (npcs),
+// seats you can sit at, and rugs painted on the floor. Leave through the doorway at the bottom.
+// Someone behind a counter is talked to from in front of it.
+Object.assign(THEMES, {
+  tavernroom: { floor: 'planks', base: '#6e4a2c', planks: ['#86593a', '#7a5232', '#8f6342'], seam: '#3e2716', grain: '#6a4428',
+                border: 'wall', wallBase: '#2e2018', wall: ['#c9b48f', '#bba57f'], wallHi: '#e0cfa8', frieze: '#8a5a34' },
+  homeroom:   { floor: 'planks', base: '#7a5a3a', planks: ['#94704a', '#8a6642', '#9c7852'], seam: '#4a321e', grain: '#7a5a38',
+                border: 'wall', wallBase: '#2e2018', wall: ['#e6d9bd', '#d8caac'], wallHi: '#f3ecdb', frieze: '#c35f2a' },
+  marketroom: { floor: 'planks', base: '#8a6642', planks: ['#a37a50', '#97704a', '#ab845a'], seam: '#5a3e24', grain: '#8a6642',
+                border: 'wall', wallBase: '#2e2018', wall: ['#e6d9bd', '#d8caac'], wallHi: '#f3ecdb', frieze: '#5b8fc9' },
+  forgeroom:  { floor: 'marble', light: '#5a5048', dark: '#4e4540', fleck: ['#625850', '#463e38'], grout: '#2e2824', crack: '#2a221e', cracks: .2,
+                border: 'wall', wallBase: '#1c1410', wall: ['#6f685b', '#5f594e'], wallHi: '#8f8470', frieze: '#cf6a2f' },
+});
+// soft: you can walk over it (stools)
+Object.assign(OBST, {
+  counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
+  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 },
+});
+const ROOMS = {
+  forge: { name: 'The Forge', theme: 'forgeroom', sub: 'Dion makes your gear at the anvil',
+    props: [['furnace', 11.5, 3.3], ['anvil', 11.5, 6.6], ['rack', 5, 3.5], ['rack', 7, 3.5], ['armorstand', 16.5, 3.7, 'bronze'], ['armorstand', 18.5, 3.7, 'iron'],
+            ['barrel', 5, 9.4, 'water'], ['crate', 19.2, 9.4], ['crate', 18.2, 10.2]],
+    npcs: [{ id: 'smith', name: 'Dion the Smith', sprite: 'smith', x: 216, y: 114, flip: true, opens: 'armory' }] },
+  tavern: { name: 'The Tavern', theme: 'tavernroom', sub: 'Sit down and order something for the road',
+    props: [['counter', 11.5, 4.4, 'tavern'], ['fireplace', 4.8, 3.2], ['barrel', 17.6, 3.4], ['barrel', 19.2, 3.4], ['barrel', 19.2, 4.6],
+            ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
+            ['amphora', 3.4, 10.4], ['amphora', 20, 10.4]],
+    npcs: [{ id: 'keeper', name: 'Phaedra', sprite: 'keeper', x: 192, y: 62, opens: 'tavern', behind: true }],
+    seats: [[83, 131, 0], [125, 131, Math.PI], [259, 131, 0], [301, 131, Math.PI]],
+    rugs: [[128, 108, 128, 44, '#8f2e1e', '#e9c04f']] },
+  market: { name: 'Melita’s Market', theme: 'marketroom', sub: 'Potions, and parts from hunts you’ve cleared',
+    props: [['counter', 11.5, 4.4, 'market'], ['shelf', 5.4, 3.2, 'potions'], ['shelf', 17.6, 3.2, 'jars'], ['amphora', 3.6, 7.6], ['amphora', 4.4, 8.4],
+            ['crate', 19.4, 7.8], ['barrel', 18.4, 9.6], ['crate', 19.6, 10.2]],
+    npcs: [{ id: 'merchant', name: 'Melita the Trader', sprite: 'merchant', x: 192, y: 62, opens: 'market', behind: true }],
+    rugs: [[136, 112, 112, 40, '#2b4f7a', '#e9c04f']] },
+  home: { name: 'Your Home', theme: 'homeroom', sub: 'Everything you bring home goes in your chest',
+    props: [['bed', 4.8, 4.2], ['chestbox', 8, 3.6], ['fireplace', 12.5, 3.2], ['shelf', 18.4, 3.2, 'jars'], ['table', 16.5, 7.6], ['stool', 15.2, 7.8], ['stool', 17.8, 7.8],
+            ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
+    spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
+    rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
+};
+for (const R of Object.values(ROOMS)) { R.wt = 24; R.ht = 15; }
+
+function buildRoom(id) {
+  const D = ROOMS[id];
+  const props = D.props.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
+  const layers = genLayers(D.theme, null, { gate: { x: 11, y: 12, w: 2 }, seed: id, axis: WORLD_W / 2 });
+  const gx = layers.ground.getContext('2d');
+  for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
+  paintRug(gx, WORLD_W / 2 - 14, IPX.maxY - 10, 28, 9, '#6b4528', '#a3713f');               // a mat inside the door
+  const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
+  const spots = (D.spots || []).map(s => ({ ...s }));
+  for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 34 });
+  (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
+  return { id, name: D.name, theme: D.theme, sub: D.sub, music: 'akros', exitTo: 'village',
+           world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: 11, y: 12, w: 2, h: 2 }]),
+           ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
+}
+function paintRug(x, rx, ry, w, h, c1, c2) {
+  x.fillStyle = '#1a1210'; x.fillRect(rx - 1, ry - 1, w + 2, h + 2);
+  x.fillStyle = c1; x.fillRect(rx, ry, w, h);
+  x.fillStyle = c2; x.fillRect(rx + 2, ry + 2, w - 4, 1); x.fillRect(rx + 2, ry + h - 3, w - 4, 1); x.fillRect(rx + 2, ry + 2, 1, h - 4); x.fillRect(rx + w - 3, ry + 2, 1, h - 4);
+  for (let px = rx + 6; px < rx + w - 6; px += 8) { x.fillRect(px, ry + Math.floor(h / 2) - 1, 3, 1); x.fillRect(px + 1, ry + Math.floor(h / 2) - 2, 1, 3); }
+}
+// Sitting down at a tavern table: you take the seat, then Phaedra brings the menu.
+function sitAt(seat) {
+  const p = V.player; p.x = seat.x; p.y = seat.y; p.face = seat.face; p.moving = false;
+  openPanel('tavern');
+}
+
+/* ---- the furniture ---- */
+const PROP_ART = {
+  counter(o, sx, sy) {
+    const K = OUTLINE; pxEllipse(sx, sy + 1, 38, 3, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 37, sy - 19, 74, 20);
+    ctx.fillStyle = '#6b4528'; ctx.fillRect(sx - 36, sy - 13, 72, 13);
+    ctx.fillStyle = '#5a3a22'; for (let x = sx - 34; x < sx + 36; x += 8) ctx.fillRect(x, sy - 13, 1, 13);
+    ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 36, sy - 18, 72, 5); ctx.fillStyle = '#c09a63'; ctx.fillRect(sx - 36, sy - 18, 72, 1);
+    if (o.variant === 'market') {
+      Object.values(POTIONS).forEach((P, i) => { for (let k = 0; k < 2; k++) { const bx = sx - 28 + i * 20 + k * 6; ctx.fillStyle = K; ctx.fillRect(bx - 1, sy - 25, 5, 8); ctx.fillStyle = P.col[0]; ctx.fillRect(bx, sy - 23, 3, 5); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(bx + 1, sy - 25, 1, 2); } });
+    } else for (const mx of [sx - 26, sx - 4, sx + 18]) {                    // mugs of something foamy
+      ctx.fillStyle = K; ctx.fillRect(mx - 1, sy - 24, 7, 7); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(mx, sy - 22, 5, 5); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(mx, sy - 23, 5, 2); ctx.fillStyle = K; ctx.fillRect(mx + 5, sy - 21, 2, 3);
+    }
+  },
+  table(o, sx, sy) {
+    const K = OUTLINE; pxEllipse(sx, sy + 1, 14, 3, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 10, sy - 6, 3, 7); ctx.fillRect(sx + 7, sy - 6, 3, 7);
+    ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 9, sy - 6, 1, 6); ctx.fillRect(sx + 8, sy - 6, 1, 6);
+    ctx.fillStyle = K; ctx.fillRect(sx - 14, sy - 14, 28, 9); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 13, sy - 13, 26, 7); ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 13, sy - 13, 26, 2);
+    const R = mulberry(o.seed); if (R() < .7) { ctx.fillStyle = K; ctx.fillRect(sx - 6, sy - 17, 5, 5); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(sx - 5, sy - 16, 3, 3); }
+    ctx.fillStyle = K; ctx.fillRect(sx + 1, sy - 15, 8, 4); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(sx + 2, sy - 14, 6, 2); ctx.fillStyle = '#c35f2a'; ctx.fillRect(sx + 4, sy - 14, 2, 1);
+  },
+  stool(o, sx, sy) { pxEllipse(sx, sy, 5, 2, 'rgba(0,0,0,.3)'); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 4, sy - 6, 8, 6); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 3, sy - 5, 6, 2); ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 3, sy - 3, 1, 3); ctx.fillRect(sx + 2, sy - 3, 1, 3); },
+  barrel(o, sx, sy) {
+    const K = OUTLINE, water = o.variant === 'water'; pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 7, sy - 14, 14, 15); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 6, sy - 13, 12, 13); ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 6, sy - 13, 3, 13);
+    ctx.fillStyle = '#4b4f57'; ctx.fillRect(sx - 6, sy - 11, 12, 1); ctx.fillRect(sx - 6, sy - 4, 12, 1);
+    ctx.fillStyle = water ? '#3f6ea8' : '#5a3a22'; ctx.fillRect(sx - 5, sy - 14, 10, 2); if (water) { ctx.fillStyle = '#7fb0e0'; ctx.fillRect(sx - 3, sy - 14, 3, 1); }
+  },
+  bed(o, sx, sy) {
+    const K = OUTLINE; pxEllipse(sx + 2, sy + 1, 11, 3, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 11, sy - 34, 22, 35); ctx.fillStyle = '#6b4528'; ctx.fillRect(sx - 10, sy - 33, 20, 33);
+    ctx.fillStyle = '#e8dfca'; ctx.fillRect(sx - 9, sy - 31, 18, 29); ctx.fillStyle = '#f3ecdb'; ctx.fillRect(sx - 7, sy - 30, 14, 6);
+    ctx.fillStyle = '#4f7fb5'; ctx.fillRect(sx - 9, sy - 20, 18, 18); ctx.fillStyle = '#6f9fd5'; ctx.fillRect(sx - 9, sy - 20, 18, 2); ctx.fillStyle = '#e9c04f'; ctx.fillRect(sx - 9, sy - 12, 18, 1);
+    ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 10, sy - 2, 20, 2);
+  },
+  chestbox(o, sx, sy) { pxEllipse(sx, sy + 1, 9, 2, 'rgba(0,0,0,.3)'); drawSpr('chest', 0, sx, sy, false); },
+  furnace(o, sx, sy) {
+    const K = OUTLINE; pxEllipse(sx, sy + 1, 24, 3, 'rgba(0,0,0,.35)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 23, sy - 30, 46, 31); ctx.fillRect(sx - 7, sy - 44, 14, 15);
+    ctx.fillStyle = '#6f685b'; ctx.fillRect(sx - 22, sy - 29, 44, 29); ctx.fillRect(sx - 6, sy - 43, 12, 14);
+    ctx.fillStyle = '#5f594e'; for (let y = sy - 27; y < sy; y += 6) for (let x = sx - 22 + ((y - sy) / 6 % 2 ? 0 : 5); x < sx + 22; x += 10) ctx.fillRect(x, y, 9, 1);
+    ctx.fillStyle = '#8f8470'; ctx.fillRect(sx - 22, sy - 29, 44, 1);
+    ctx.fillStyle = K; ctx.fillRect(sx - 11, sy - 18, 22, 15); ctx.fillStyle = '#2a120a'; ctx.fillRect(sx - 10, sy - 17, 20, 14);
+    ctx.fillStyle = Math.floor(G.time * 6) % 2 ? '#ff8a2b' : '#ffd463'; ctx.fillRect(sx - 9, sy - 5, 18, 2);
+    flame(sx, sy - 5, 16, 8, o.seed);
+    if (sc && Math.random() < .2) sc.parts.push({ x: o.x + rand(-3, 3), y: o.y - 46, vx: rand(-3, 3), vy: rand(-14, -8), g: 0, life: 1.6, max: 1.6, c: Math.random() < .5 ? '#8f8a82' : '#6f6a62', s: 2 });
+  },
+  armorstand(o, sx, sy) {
+    const K = OUTLINE, metal = o.variant === 'iron' ? ['#8a909a', '#5a5e66', '#c7ccd1'] : ['#c9a032', '#8f6a1c', '#f3d77a'];
+    pxEllipse(sx, sy + 1, 6, 2, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 1, sy - 22, 3, 23); ctx.fillRect(sx - 5, sy - 2, 11, 3); ctx.fillStyle = '#6b4528'; ctx.fillRect(sx, sy - 21, 1, 21);
+    ctx.fillStyle = K; ctx.fillRect(sx - 6, sy - 22, 13, 13); ctx.fillStyle = metal[0]; ctx.fillRect(sx - 5, sy - 21, 11, 11); ctx.fillStyle = metal[1]; ctx.fillRect(sx + 2, sy - 21, 4, 11); ctx.fillStyle = metal[2]; ctx.fillRect(sx - 5, sy - 21, 11, 1);
+    ctx.fillStyle = K; ctx.fillRect(sx - 4, sy - 30, 9, 8); ctx.fillStyle = metal[0]; ctx.fillRect(sx - 3, sy - 29, 7, 6); ctx.fillStyle = K; ctx.fillRect(sx - 2, sy - 26, 5, 1);
+    ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 1, sy - 33, 3, 3);
+  },
+  shelf(o, sx, sy) {
+    const K = OUTLINE; ctx.fillStyle = K; ctx.fillRect(sx - 21, sy - 30, 42, 31); ctx.fillStyle = '#6b4528'; ctx.fillRect(sx - 20, sy - 29, 40, 29);
+    ctx.fillStyle = '#3e2716'; ctx.fillRect(sx - 18, sy - 27, 36, 9); ctx.fillRect(sx - 18, sy - 15, 36, 9);
+    ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 20, sy - 18, 40, 2); ctx.fillRect(sx - 20, sy - 6, 40, 2);
+    const R = mulberry(o.seed), cols = o.variant === 'potions' ? Object.values(POTIONS).map(P => P.col[0]) : ['#c35f2a', '#e9c04f', '#7fa548', '#d8ccb4', '#8a5a34'];
+    for (const row of [sy - 25, sy - 13]) for (let x = sx - 17; x < sx + 16; x += 5) { if (R() < .2) continue; const c = cols[(R() * cols.length) | 0]; ctx.fillStyle = c; ctx.fillRect(x, row + 1, 3, 6); ctx.fillStyle = '#ffffff55'; ctx.fillRect(x, row + 1, 1, 2); }
+  },
+  fireplace(o, sx, sy) {
+    const K = OUTLINE; pxEllipse(sx, sy + 1, 18, 3, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 17, sy - 24, 34, 25); ctx.fillStyle = '#a99d86'; ctx.fillRect(sx - 16, sy - 23, 32, 23);
+    ctx.fillStyle = '#8f8470'; for (let y = sy - 20; y < sy; y += 5) ctx.fillRect(sx - 16, y, 32, 1);
+    ctx.fillStyle = '#c9bda4'; ctx.fillRect(sx - 17, sy - 25, 34, 3);
+    ctx.fillStyle = K; ctx.fillRect(sx - 9, sy - 15, 18, 15); ctx.fillStyle = '#2a120a'; ctx.fillRect(sx - 8, sy - 14, 16, 14);
+    ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 6, sy - 3, 12, 2);
+    flame(sx, sy - 3, 10, 7, o.seed);
+  },
+};
+
+/* ---- the Tavern: a meal before a hunt ---- */
+// One meal at a time. It lasts your next hunt (online too) and is used up when that hunt starts. Small on purpose:
+// about what one more refine level or a set bonus gives, so no monster needs to be any stronger for it.
+const MEALS = {
+  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  price: 120, desc: '+10% health on your next hunt.', hp: .10 },
+  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
+  bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, price: 120, desc: '+10% defense on your next hunt.', def: .10 },
+  wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
+  barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
+};
+function mealCost(id) { return rankPrice(MEALS[id].price); }
+function orderMeal(id) {
+  const s = G.save, M = MEALS[id]; if (!M || s.meal === id) return;
+  const cost = mealCost(id); if (s.money < cost) return;
+  s.money -= cost; s.meal = id; persist(true); Sound.play('pickup'); netSendInfo(); renderHub(); toast(`Phaedra brings you the ${M.name}`);
+}
+function renderTavern() {
+  const s = G.save, cur = s.meal && MEALS[s.meal];
+  const card = ([id, M]) => {
+    const cost = mealCost(id), mine = s.meal === id;
+    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b><span>${M.food ? 'Food' : 'Drink'}</span></div></div>
+      <p class="desc">${esc(M.desc)}</p>
+      <div class="stats"><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
+      <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${mine || s.money < cost ? 'disabled' : ''}>${mine ? 'Ordered' : cur ? 'Have this instead' : 'Order'}</button></div></article>`;
+  };
+  const list = Object.entries(MEALS);
+  return `<p class="muted" style="margin:0 0 12px">A meal lasts your next hunt, then it’s used up. One at a time: ordering another replaces it.</p>
+    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve had the ${esc(cur.name)}. ${esc(cur.desc)}</div>` : ''}
+    <p class="sub">Food</p><div class="grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
+    <p class="sub" style="margin-top:14px">Drinks</p><div class="grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
+}
 /* ============================== VILLAGE ================================== */
-// Two walkable places: the village of Akros, and the Temple of the Gods inside it.
+// The village of Akros and the Temple of the Gods inside it. The Forge, the Tavern, Melita's Market and your home
+// are rooms you walk into (85_rooms.js); Kleon hands out the hunts in the square, with his notice board beside him.
 const BUILDINGS = [
   { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
-  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, opens: 'armory' },
-  { id: 'hall',   name: 'Herald’s Hall',   kind: 'hall',   x: 29, y: 8, w: 7,  h: 5, opens: 'quests' },
-  { id: 'store',  name: 'Storehouse',           kind: 'store',  x: 4,  y: 16, w: 6, h: 4, opens: 'stash' },
-  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 30, y: 16, w: 6, h: 4, opens: 'options' },
+  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, goes: 'forge' },
+  { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 29, y: 8, w: 7,  h: 5, goes: 'tavern' },
+  { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 4,  y: 16, w: 6, h: 4, goes: 'market' },
+  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 30, y: 16, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
-  ['fountain', 20, 14], ['anvil', 12, 11], ['board', 35, 14], ['stall', 14, 18], ['stall', 26, 18], ['crate', 11, 17], ['amphora', 12, 17],
+  ['fountain', 20, 14], ['board', 26, 12], ['stall', 14, 18], ['stall', 26, 18], ['crate', 11, 17], ['amphora', 12, 17],
   ['amphora', 28, 20], ['crate', 29, 21], ['olive', 5, 5], ['olive', 35, 5], ['olive', 13, 21], ['olive', 27, 22], ['olive', 6, 22], ['olive', 34, 22],
 ];
 const NPCS = [
-  { id: 'smith',  name: 'Dion the Smith',   sprite: 'smith',  tx: 12, ty: 13, opens: 'armory' },
   { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 28, ty: 13, opens: 'quests' },
-  { id: 'keeper', name: 'Phaedra',          sprite: 'keeper', tx: 11, ty: 19, opens: 'stash' },
   { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 22, ty: 10 },
-  { id: 'merchant', name: 'Melita the Trader', sprite: 'merchant', tx: 14, ty: 19.4, opens: 'market' },
 ];
 const PANEL_INFO = {
   quests:  { title: 'Quests' },
-  market:  { title: 'Market' },
+  market:  { title: 'Melita’s Market' },
   armory:  { title: 'The Forge' },
-  stash:   { title: 'Storehouse' },
-  options: { title: 'Your Home' },
+  stash:   { title: 'Your Chest' },
+  tavern:  { title: 'The Tavern' },
+  options: { title: 'Options' },
   shrine:  { title: 'Hestia’s Hearth' },
   oracle:  { title: 'The Oracle' },
 };
@@ -7527,8 +7726,8 @@ function npcLines(n) {
       return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
-    case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
-    case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
+    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Want something else instead?` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
+    case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.'];
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
       if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between players are cut. Check your connection, then ask me again.'];
@@ -7563,11 +7762,8 @@ function buildVillage() {
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
-    const door = { id: b.id + '_door', name: b.goes ? 'the ' + b.name : b.name, kind: 'door', x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 };
-    if (b.opens) door.opens = b.opens; if (b.goes) door.goes = b.goes;
-    spots.push(door);
+    spots.push({ id: b.id + '_door', name: /^(The |Your |\S+’s )/.test(b.name) ? b.name : 'the ' + b.name, kind: 'door', goes: b.goes, ...doorAt(b) });
   }
-  for (const o of props) if (o.kind === 'board') spots.push({ id: 'board', name: 'the notice board', kind: 'board', opens: 'quests', x: o.x, y: o.y + 8 });
   return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
@@ -7610,21 +7806,24 @@ function paintTartarusGate(x, R, x0, x1, yTop, yBot) {
   const mid = Math.round((x0 + x1) / 2); dot(mid - 1, by - 1, '#0a090c', 2, 10); dot(mid - 1, by + 1, '#8a5ad8', 2, 6); dot(mid - 1, by + 3, '#b48cff', 2, 2);   // the seam, lit from below
   for (const px of [x0 + 8, x0 + 16, x1 - 10, x1 - 18]) { dot(px, by + 3, '#140d0b', 2, 2); dot(px, by + 3, '#e9c04f'); }
 }
+// Where a building's door is, out in the square.
+function doorAt(b) { return { x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 }; }
 function enterPlace(id, from) {
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
-  setWorldSize(40, 26);
+  const room = ROOMS[id];
+  setWorldSize(room ? room.wt : 40, room ? room.ht : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
-  if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : buildVillage();
+  if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = [];
-  Music.play(id === 'village' ? 'akros' : id);
-  const p = makePlayer();
+  Music.play(V.music || (id === 'village' ? 'akros' : id));
+  const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
-  else if (id === 'temple') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
+  else if (id === 'temple' || room) { p.x = room ? WORLD_W / 2 : tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
   else if (from === 'gate' || from === 'road') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
-  else if (from === 'temple') { p.x = tc(20); p.y = 8 * TILE + 14; p.face = Math.PI / 2; }
+  else if (outOf) { const d = doorAt(outOf); p.x = d.x; p.y = d.y + 8; p.face = Math.PI / 2; }      // stepping out of a door
   else { p.x = tc(20); p.y = tc(17); }
   V.player = p;
   G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
@@ -7643,6 +7842,7 @@ function enterPlace(id, from) {
     if (!G.save.seenHall) { G.save.seenHall = true; persist(); banner('Hall of the Titans', 'Their hunts start at the gate at the far end'); }
     else banner('Hall of the Titans', '');
   }
+  if (room) banner(V.name, V.sub);
 }
 function enterVillage(from) { enterPlace('village', from); }
 function resumeVillage() {
@@ -7669,7 +7869,8 @@ function startInteract(t) {
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
     const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
-  } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
+  } else if (t.kind === 'seat') sitAt(t);
+  else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
   else if (t.opens) openPanel(t.opens);
@@ -7723,7 +7924,7 @@ function tickVillage(dt) {
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
     else if (!V.target && Input.enter && netOn() && netEnterKey()) {}   // Enter: ready up, or depart as host
-    else if (p.y > IPX.maxY + 6 && V.id === 'temple') { Sound.play('door'); fadeTo(() => enterPlace('village', 'temple')); Input.endFrame(); return; }
+    else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id; fadeTo(() => enterPlace('village', from)); Input.endFrame(); return; }
   }
   updateNpcs(dt); netTownTick(dt);
   if (V.id === 'hall' && Math.random() < .25) V.parts.push({ x: tc(20) - 8 + rand(-18, 18), y: IPX.maxY + rand(10, 44), vx: rand(-3, 3), vy: rand(-16, -7), g: 0, life: 1.4, max: 1.4, c: Math.random() < .5 ? '#b48cff' : '#8a5ad8', s: 1 });   // Tartarus' light drifting up from the gate
@@ -7919,11 +8120,13 @@ function tutGoal() {
   $('goalText').textContent = s.tut === TUT.TALK ? 'Talk to Kleon the Herald'
     : s.tut === TUT.FORGE ? 'Forge new gear at Dion the Smith'
     : s.tut === TUT.NEXT ? 'Take your next hunt from Kleon'
-    : 'Pick a hunt from Kleon or the notice board';
+    : 'Pick a hunt from Kleon the Herald';
 }
+// Who the arrow points at: Kleon, or for new gear the Forge's door (and Dion, once you're inside).
 function tutTargetNpc() {
-  if (!tutOn() || G.save.tut < TUT.TALK || !V || V.id !== 'village') return null;
-  return V.npcs.find(n => n.id === (G.save.tut === TUT.FORGE ? 'smith' : 'herald')) || null;
+  if (!tutOn() || G.save.tut < TUT.TALK || !V) return null;
+  if (G.save.tut === TUT.FORGE) return V.id === 'forge' ? V.npcs.find(n => n.id === 'smith') || null : V.id === 'village' ? V.spots.find(s => s.id === 'forge_door') || null : null;
+  return V.id === 'village' ? V.npcs.find(n => n.id === 'herald') || null : null;
 }
 // A bobbing gold arrow over a spot, or on the edge of the screen pointing its way when it's off screen.
 function drawPointer(S, x, y, lift) {
@@ -8881,7 +9084,7 @@ function drawBuilding(b, sx, sy) {
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 4); ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 1);
     return;
   }
-  const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : ['#e6d9bd', '#cbbd9f'];
+  const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : b.kind === 'tavern' ? ['#c9b48f', '#a8926c'] : ['#e6d9bd', '#cbbd9f'];
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
   ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
   for (let y = sy + 3; y < sy + RH; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
@@ -8895,10 +9098,17 @@ function drawBuilding(b, sx, sy) {
   ctx.fillStyle = '#5a3a22'; ctx.fillRect(dx, sy + H - 18, 12, 18); ctx.fillStyle = '#6b4528'; ctx.fillRect(dx + 3, sy + H - 18, 1, 18); ctx.fillRect(dx + 8, sy + H - 18, 1, 18);
   ctx.fillStyle = '#e9c04f'; ctx.fillRect(dx + 9, sy + H - 10, 1, 1);
   for (const wx of [sx + 8, sx + W - 18]) { if (Math.abs(wx - dx) < 16) continue; ctx.fillStyle = '#1a1210'; ctx.fillRect(wx, sy + RH + 6, 10, 9); ctx.fillStyle = '#2b3d55'; ctx.fillRect(wx + 1, sy + RH + 7, 8, 7); ctx.fillStyle = '#8a5a34'; ctx.fillRect(wx + 1, sy + RH + 10, 8, 1); if (b.kind === 'home') { ctx.fillStyle = '#7fa548'; ctx.fillRect(wx, sy + RH + 15, 10, 2); ctx.fillStyle = '#d9493b'; ctx.fillRect(wx + 2, sy + RH + 14, 1, 1); ctx.fillRect(wx + 6, sy + RH + 14, 1, 1); } }
-  const signIcon = { forge: 'bronze_sword', hall: 'herald_token', store: 'cattle_hide', home: null }[b.kind];
+  const signIcon = { forge: 'bronze_sword', market: 'potion:health', home: null }[b.kind];
   if (signIcon) { ctx.fillStyle = '#1a1210'; ctx.fillRect(dx - 1, sy + RH + 1, 14, 10); ctx.fillStyle = '#c09a63'; ctx.fillRect(dx, sy + RH + 2, 12, 8); const ic = iconCanvas(signIcon); ctx.drawImage(ic, dx + 1, sy + RH + 1, 10, 10 * ic.height / ic.width); }
   if (b.kind === 'forge') { ctx.fillStyle = '#1a1210'; ctx.fillRect(sx + W - 22, sy - 8, 10, 12); ctx.fillStyle = '#6f685b'; ctx.fillRect(sx + W - 21, sy - 7, 8, 10); ctx.fillStyle = Math.floor(t * 8) % 2 ? '#ff8a2b' : '#ffd463'; ctx.fillRect(sx + W - 19, sy - 7, 4, 2); }
-  if (b.kind === 'hall') for (const bx2 of [sx + 3, sx + W - 8]) { ctx.fillStyle = '#1a1210'; ctx.fillRect(bx2 - 1, sy + RH - 1, 7, 18); ctx.fillStyle = '#4f8fc7'; ctx.fillRect(bx2, sy + RH, 5, 16); ctx.fillStyle = '#e9c04f'; ctx.fillRect(bx2 + 2, sy + RH + 5, 1, 5); }
+  if (b.kind === 'tavern') {
+    // a hanging sign with a foaming mug, and warm light in the windows
+    ctx.fillStyle = '#1a1210'; ctx.fillRect(dx - 1, sy + RH + 1, 14, 10); ctx.fillStyle = '#c09a63'; ctx.fillRect(dx, sy + RH + 2, 12, 8);
+    ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 3, sy + RH + 3, 6, 6); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(dx + 4, sy + RH + 5, 4, 3); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(dx + 4, sy + RH + 4, 4, 1); ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 9, sy + RH + 5, 1, 2);
+    const glow = Math.floor(t * 2) % 2 ? '#e9a030' : '#d98a2b';
+    for (const wx of [sx + 8, sx + W - 18]) if (Math.abs(wx - dx) >= 16) { ctx.fillStyle = glow; ctx.fillRect(wx + 1, sy + RH + 7, 8, 3); }
+  }
+  if (b.kind === 'market') for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? '#f3e9d4' : '#4f7fb5'; ctx.fillRect(sx + 2 + i * Math.floor((W - 4) / 6), sy + RH - 2, Math.floor((W - 4) / 6), 4); }   // a striped awning
 }
 function renderVillage() {
   const [cx, cy] = camOffset();
@@ -9043,6 +9253,7 @@ function updateHud() {
   if (F.frenzy > 0) tags.push(['good', 'Frenzy']); if (F.heart > 0) tags.push(['good', 'Heartsteal']); if (F.killRush > 0) tags.push(['good', 'Revel']);
   if (F.echo > 0) tags.push(['good', 'Echo']); if (F.foresight > 0 && p.foresightN > 0) tags.push(['good', `Foresight ${p.foresightN}`]); if (q.timeStop > 0) tags.push(['good', 'Time stopped']);
   if (p.st.perks.ward && p.wardT <= 0) tags.push(['good', 'Warded']);
+  if (q.meal && MEALS[q.meal]) tags.push(['good', MEALS[q.meal].short]);     // the Tavern meal you set out with
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
   updatePotionBar(p);
@@ -9070,7 +9281,7 @@ function updateVillageHud() {
   tickHint();
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
-    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' ? 'Open' : 'Enter';
+    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
     const html = `${touchMode ? '' : kbd(Input.bind.guard[0]) + ' '}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
     pr.hidden = false;
@@ -9268,6 +9479,17 @@ function drawGhost(gh, S) {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1', date: 'November 2026', title: 'Akros opens its doors',
+    new: [
+      'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
+      'The Tavern: take a seat or order at the counter. A meal or a drink gives you a small boost for your next hunt: more health, damage or defense, or faster dashes or skills.',
+      'Your home has a chest that holds everything you bring back from your hunts.',
+    ],
+    changed: [
+      'Dion works inside the Forge now, Phaedra runs the Tavern, and Melita has her own shop.',
+      'Kleon hands out the hunts, with his notice board right beside him.',
+      'Options moved to the pause menu (Esc).',
+    ] },
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
       'The Endless Hunt: once Typhon is slain, Etna keeps sending monsters. Every wave is bigger and stronger, a god turns up every fifth wave, and each wave cleared pays. Your best wave and your last run show on the quest board.',
@@ -9475,6 +9697,7 @@ function renderHub() {
   else if (G.panel === 'options') body.innerHTML = renderOptions();
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
   else if (G.panel === 'market') body.innerHTML = renderMarket();
+  else if (G.panel === 'tavern') body.innerHTML = renderTavern();
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else body.innerHTML = renderBoard();
 }
@@ -9806,6 +10029,7 @@ $('scrHub').addEventListener('click', ev => {
     if ((s.potions[id] || 0) >= POTION_MAX || s.money < cost) return;
     s.money -= cost; s.potions[id] = (s.potions[id] || 0) + 1; Sound.play('pickup'); persist(); renderHub(); toast(`Bought a ${POTIONS[id].name}`); return;
   }
+  if (t.dataset.meal) { orderMeal(t.dataset.meal); return; }
   if (t.dataset.offer) {
     const cost = offeringCost(); if (s.blessing || s.money < cost) return;
     s.money -= cost; s.blessing = true; Sound.play('blessing'); persist(); renderHub(); toast('Hestia will watch over you'); return;
@@ -9916,7 +10140,7 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
-    : win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+    : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   G.mode = 'results'; q = null;
   show('scrResults');
@@ -10221,6 +10445,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
+  renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
