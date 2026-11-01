@@ -922,7 +922,18 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
-Music.play('menu');                                  // starts with the first click or key (browsers keep audio off until then)
+Music.play('menu');
+// The menu theme from the moment the page loads. Browsers only allow sound before the first click, tap or key press on
+// sites people use a lot (Chrome remembers), so try right away; otherwise the very first input anywhere switches it on,
+// and a small note on the title screen says so until then.
+{
+  const evs = ['pointerdown', 'keydown', 'touchstart'], on = () => !!(Sound.ctx && Sound.ctx.state === 'running');
+  const hint = () => { $('soundHint').hidden = on() || G.mode !== 'title'; };
+  const wake = () => { Sound.init(); Sound.resume(); setTimeout(hint, 150); if (on()) for (const t of evs) removeEventListener(t, wake, true); };
+  for (const t of evs) addEventListener(t, wake, true);
+  Sound.init(); Sound.resume();                       // allowed straight away on sites the browser trusts
+  setTimeout(hint, 900);
+}
 // On CrazyGames players land straight in the game: no title screen, no save list.
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 

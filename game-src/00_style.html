@@ -524,6 +524,9 @@ input[type=range]{accent-color:var(--clay)}
 .pause-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--bone-dim);margin-top:2px}
 .pause-keys span{white-space:nowrap}
 .pause-keys kbd{margin-left:2px}
+.sound-hint{margin:-6px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);animation:soundHint 2.4s ease-in-out infinite}
+@keyframes soundHint{50%{color:var(--gold)}}
+@media (prefers-reduced-motion:reduce){.sound-hint{animation:none}}
 /* the tip after a lost hunt */
 .tutnote ul{margin:6px 0 0;padding-left:1.2em;display:grid;gap:3px}
 </style>
