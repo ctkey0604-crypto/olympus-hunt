@@ -494,4 +494,36 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
 @media (max-width:560px){.or-row{grid-template-columns:1fr auto auto}}
 
+/* ---- finish: softer corners, smoother feedback, quieter scrollbars ---- */
+:root{--rad:6px;--rad-sm:4px}
+.btn,.seg,.slot,.equip-card,.qcard,.qdetail,.facts,.gear,.mat,.empty-note,.opt,.res-stats,.res-item,.unlock,.tutnote,.pause-card,#toast,.news,.keycap,textarea{border-radius:var(--rad)}
+.chip,kbd,.rank-tag,.gear .rk,.mp-unread{border-radius:var(--rad-sm)}
+.facts,.res-stats,.seg{overflow:hidden}
+#dialog{border-radius:calc(var(--px)*2)}
+.mp-tag,.mp-card,#mpForm,#mpLog.open,#mpLog p,#mpInput{border-radius:calc(var(--px)*1.2)}
+.btn{transition:background .12s,box-shadow .12s,transform .06s,color .12s}
+.qcard{transition:background .12s,box-shadow .12s}
+.qcard:not(.sel):hover{background:#241914}
+html,.screen{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px;border:2px solid var(--glaze)}
+::-webkit-scrollbar-thumb:hover{background:var(--clay-lo)}
+input[type=range]{accent-color:var(--clay)}
+.empty-note{background:transparent;box-shadow:none;border:2px dashed var(--line);color:var(--bone-mute)}
+/* Options: the key bindings fold away; saving and leaving share one card */
+.fold>summary{list-style:none;display:flex;align-items:baseline;gap:10px;cursor:pointer}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary::before{content:"▸";color:var(--clay);display:inline-block;transition:transform .15s}
+.fold[open]>summary::before{transform:rotate(90deg)}
+.fold>summary h3{margin:0}
+.fold[open]>summary{margin-bottom:6px}
+.opt-split{height:2px;background:var(--line);margin:4px 0;border-radius:2px}
+/* the pause menu */
+.pause-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pause-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--bone-dim);margin-top:2px}
+.pause-keys span{white-space:nowrap}
+.pause-keys kbd{margin-left:2px}
+/* the tip after a lost hunt */
+.tutnote ul{margin:6px 0 0;padding-left:1.2em;display:grid;gap:3px}
 </style>

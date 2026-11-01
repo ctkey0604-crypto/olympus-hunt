@@ -309,6 +309,9 @@ function tickCutscene(dt) {
 function openPanel(kind, title = null) {
   closeDialog();
   G.panel = kind; G.panelTitle = title; G.mode = 'panel'; G.rebinding = null; bindNote = '';
+  // the back button says where it goes: the square, or the room you're standing in
+  const n = V ? V.name.replace(/^The /, 'the ') : '';
+  $('btnPanelBack').textContent = !V || V.id === 'village' ? 'Back to the village' : V.id === 'home' ? 'Back home' : 'Back to ' + (/^(the |\S+’s )/.test(n) ? n : 'the ' + n);
   Sound.play('door');
   show('scrHub'); tutPanel(kind); renderHub();
 }

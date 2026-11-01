@@ -57,7 +57,7 @@ async function renderSlots() {
     : CG.data ? 'CrazyGames keeps your saves. Sign in to CrazyGames and they follow you to any device.'
     : Store.cloud ? 'Saves sync to your Claude account and also stay in this browser.'
     : Store.api && Store.localOk ? 'Saves stay in this browser on this device until you sign in.'
-    : Store.localOk ? 'Saves stay in this browser on this device. To move a save, use Show save code at your home in the village.'
+    : Store.localOk ? 'Saves stay in this browser on this device. To move a save, press Esc in the village and use Show save code in Options.'
     : 'This browser is blocking storage, so progress is lost when you close the page. Copy your save code from your home in the village to keep it.';
   const saves = [];
   for (let n = 1; n <= 3; n++) saves.push(await Store.load(n));
@@ -419,14 +419,8 @@ function renderShrine() {
 const volRow = (k, label) => { const v = Math.round((Settings.data[k] ?? 1) * 100); return `<div class="vol"><input type="range" min="0" max="100" step="5" value="${v}" data-vol="${k}" aria-label="${label}"><b>${v}%</b></div>`; };
 function renderOptions() {
   const where = Store.user ? 'Your progress saves automatically to your account and to this browser.' : CG.data ? 'Your progress saves automatically with CrazyGames.' : Store.cloud ? 'Your progress saves automatically to your Claude account and to this browser.' : Store.localOk ? 'Your progress saves automatically to this browser.' : 'This browser blocks storage. Copy your save code before closing the page.';
+  // Sound and your save first (what people come here for), then the account, then the key bindings folded away
   return `<div class="opts">
-    ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
-    <div class="opt wide"><h3>Controls</h3>
-      ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
-      <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
-      <div class="toggle"><span>Auto-aim: attacks turn toward the nearest enemy</span><button class="btn ghost small" type="button" data-opt="autoAim">${Settings.data.autoAim ? 'On' : 'Off'}</button></div>
-      ${touchMode ? '' : `<div class="toggle"><span>Mouse and touchpad clicks attack and dodge</span><button class="btn ghost small" type="button" data-opt="mouse">${Settings.data.mouse ? 'On' : 'Off'}</button></div>`}
-      ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</div>
     <div class="opt"><h3>Sound and screen</h3>
       <div class="toggle"><span>Sound effects</span><button class="btn ghost small" type="button" data-opt="sound">${Settings.data.sound ? 'On' : 'Off'}</button></div>
       ${volRow('sfxVol', 'Sound effects volume')}
@@ -439,10 +433,20 @@ function renderOptions() {
       <div class="row"><button class="btn small" type="button" data-opt="export">Show save code</button><button class="btn ghost small" type="button" data-opt="import">Load a save code</button></div>
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
+      <div class="opt-split"></div>
+      <div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div>
     </div>
-    <div class="opt"><h3>Leave</h3><p>Your progress is already saved.</p><div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ?'<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div></div>
+    ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
+    <details class="opt wide fold" id="ctlBox" ${G.ctlOpen || G.rebinding ? 'open' : ''}><summary><h3>Controls</h3><span class="muted">${touchMode ? 'Auto-aim' : 'Keys, auto-aim and mouse'}</span></summary>
+      ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
+      <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
+      <div class="toggle"><span>Auto-aim: attacks turn toward the nearest enemy</span><button class="btn ghost small" type="button" data-opt="autoAim">${Settings.data.autoAim ? 'On' : 'Off'}</button></div>
+      ${touchMode ? '' : `<div class="toggle"><span>Mouse and touchpad clicks attack and dodge</span><button class="btn ghost small" type="button" data-opt="mouse">${Settings.data.mouse ? 'On' : 'Off'}</button></div>`}
+      ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</details>
   </div>`;
 }
+// remember whether the Controls section is open while the page redraws
+document.addEventListener('toggle', ev => { if (ev.target.id === 'ctlBox') G.ctlOpen = ev.target.open; }, true);
 function encodeSave(s) { return 'OH1.' + btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
 function decodeSave(str) { try { str = str.trim(); if (str.startsWith('OH1.')) str = str.slice(4); return sanitize(JSON.parse(decodeURIComponent(escape(atob(str))))); } catch (e) { return null; } }
 let pendingImport = null;
@@ -606,7 +610,11 @@ function finishQuest(win) {
   $('resUnlock').innerHTML = notes.map(n => `<div class="unlock">${esc(n)}</div>`).join('');
   // a lost hunt: point at the two things that make the next try easier
   if (!win && !run && Settings.data.tips !== false && ((s.potions.health || 0) < POTION_MAX || !s.blessing))
-    $('resUnlock').innerHTML += `<p class="tutnote">Tough one? <b>Melita the Trader</b> sells health potions (${touchMode ? 'tap one in the corner' : 'press ' + esc(codeLabel(Input.bind.potion1[0]))} during a hunt to drink it). An offering at <b>Hestia’s hearth</b> in the temple gets you back on your feet once if you fall. Better armor from the forge helps too.</p>`;
+    $('resUnlock').innerHTML += `<div class="tutnote"><b>Tough one?</b> A few things that help:<ul>
+      <li><b>Health potions</b> from Melita’s Market. ${touchMode ? 'Tap one in the corner' : 'Press ' + esc(codeLabel(Input.bind.potion1[0]))} during a hunt to drink it.</li>
+      <li><b>A meal at the Tavern</b> before you go gives you a boost for the hunt.</li>
+      <li><b>Hestia’s hearth</b> in the temple gets you back on your feet once if you fall.</li>
+      <li><b>Better armor</b> from Dion’s forge means monsters hurt less.</li></ul></div>`;
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
@@ -674,16 +682,17 @@ function setPaused(v) {
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
   $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : 'Leave now? You keep the parts you picked up, but you get no reward.';
   $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
-  $('btnPauseSound').textContent = 'Sound effects: ' + (Settings.data.sound ? 'on' : 'off');
+  $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
-  const k = a => codeLabel(Input.bind[a][0]);
-  $('pauseKeys').textContent = `Move ${moveKeysHTML().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()} · Attack ${k('attack')} · Dash ${k('dodge')} · Skill ${k('ability')} · Guard/use ${k('guard')} · Potions ${k('potion1')} ${k('potion2')} ${k('potion3')}`;
+  const k = a => kbd(Input.bind[a][0]);
+  $('pauseKeys').innerHTML = [['Move', moveKeysHTML()], ['Attack', k('attack')], ['Dash', k('dodge')], ['Skill', k('ability')], ['Guard / use', k('guard')],
+    ['Potions', k('potion1') + k('potion2') + k('potion3')]].map(([l, h]) => `<span>${l} ${h}</span>`).join('');
   Input.down.clear(); Input.virt = {}; Input.mouse.held = false;
   if (v) setTimeout(() => $('btnResume').focus(), 0); else if (document.activeElement) document.activeElement.blur();
 }
 $('btnResume').onclick = () => setPaused(false);
-$('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound effects: ' + (Settings.data.sound ? 'on' : 'off'); };
+$('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off'); };
 $('btnPauseMusic').onclick = () => { Settings.data.music = Settings.data.music === false; Settings.save(); Music.refresh(); $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off'); Sound.play('click'); };
 $('btnAbandon').onclick = () => { $('pauseMain').hidden = true; $('pauseConfirm').hidden = false; $('btnAbandonNo').focus(); };
 $('btnAbandonNo').onclick = () => { $('pauseMain').hidden = false; $('pauseConfirm').hidden = true; };

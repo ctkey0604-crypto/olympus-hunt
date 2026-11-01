@@ -49,13 +49,12 @@
         <h2>Paused</h2>
         <div class="stack" id="pauseMain">
           <button class="btn" id="btnResume" type="button">Resume</button>
-          <button class="btn ghost" id="btnPauseSound" type="button">Sound effects: on</button>
-          <button class="btn ghost" id="btnPauseMusic" type="button">Music: on</button>
+          <div class="pause-row"><button class="btn ghost" id="btnPauseSound" type="button">Sound: on</button><button class="btn ghost" id="btnPauseMusic" type="button">Music: on</button></div>
           <button class="btn ghost" id="btnPauseFs" type="button">Fullscreen</button>
           <button class="btn ghost" id="btnPauseOptions" type="button">Options and controls</button>
           <button class="btn ghost" id="btnAbandon" type="button">Abandon quest</button>
           <button class="btn ghost" id="btnQuit" type="button">Save and quit</button>
-          <p class="muted keys-only" id="pauseKeys" style="margin:0;font-size:.85rem"></p>
+          <div class="pause-keys keys-only" id="pauseKeys"></div>
         </div>
         <div class="stack" id="pauseConfirm" hidden>
           <p style="margin:0" id="abandonText">Leave now? You keep the parts you picked up, but you get no reward.</p>
