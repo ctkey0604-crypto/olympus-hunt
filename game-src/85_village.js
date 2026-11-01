@@ -1,29 +1,28 @@
 /* ============================== VILLAGE ================================== */
-// Two walkable places: the village of Akros, and the Temple of the Gods inside it.
+// The village of Akros and the Temple of the Gods inside it. The Forge, the Tavern, Melita's Market and your home
+// are rooms you walk into (85_rooms.js); Kleon hands out the hunts in the square, with his notice board beside him.
 const BUILDINGS = [
   { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
-  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, opens: 'armory' },
-  { id: 'hall',   name: 'Herald’s Hall',   kind: 'hall',   x: 29, y: 8, w: 7,  h: 5, opens: 'quests' },
-  { id: 'store',  name: 'Storehouse',           kind: 'store',  x: 4,  y: 16, w: 6, h: 4, opens: 'stash' },
-  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 30, y: 16, w: 6, h: 4, opens: 'options' },
+  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, goes: 'forge' },
+  { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 29, y: 8, w: 7,  h: 5, goes: 'tavern' },
+  { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 4,  y: 16, w: 6, h: 4, goes: 'market' },
+  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 30, y: 16, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
-  ['fountain', 20, 14], ['anvil', 12, 11], ['board', 35, 14], ['stall', 14, 18], ['stall', 26, 18], ['crate', 11, 17], ['amphora', 12, 17],
+  ['fountain', 20, 14], ['board', 26, 12], ['stall', 14, 18], ['stall', 26, 18], ['crate', 11, 17], ['amphora', 12, 17],
   ['amphora', 28, 20], ['crate', 29, 21], ['olive', 5, 5], ['olive', 35, 5], ['olive', 13, 21], ['olive', 27, 22], ['olive', 6, 22], ['olive', 34, 22],
 ];
 const NPCS = [
-  { id: 'smith',  name: 'Dion the Smith',   sprite: 'smith',  tx: 12, ty: 13, opens: 'armory' },
   { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 28, ty: 13, opens: 'quests' },
-  { id: 'keeper', name: 'Phaedra',          sprite: 'keeper', tx: 11, ty: 19, opens: 'stash' },
   { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 22, ty: 10 },
-  { id: 'merchant', name: 'Melita the Trader', sprite: 'merchant', tx: 14, ty: 19.4, opens: 'market' },
 ];
 const PANEL_INFO = {
   quests:  { title: 'Quests' },
-  market:  { title: 'Market' },
+  market:  { title: 'Melita’s Market' },
   armory:  { title: 'The Forge' },
-  stash:   { title: 'Storehouse' },
-  options: { title: 'Your Home' },
+  stash:   { title: 'Your Chest' },
+  tavern:  { title: 'The Tavern' },
+  options: { title: 'Options' },
   shrine:  { title: 'Hestia’s Hearth' },
   oracle:  { title: 'The Oracle' },
 };
@@ -78,8 +77,8 @@ function npcLines(n) {
       return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
-    case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
-    case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
+    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Want something else instead?` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
+    case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.'];
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
       if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between players are cut. Check your connection, then ask me again.'];
@@ -114,11 +113,8 @@ function buildVillage() {
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
-    const door = { id: b.id + '_door', name: b.goes ? 'the ' + b.name : b.name, kind: 'door', x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 };
-    if (b.opens) door.opens = b.opens; if (b.goes) door.goes = b.goes;
-    spots.push(door);
+    spots.push({ id: b.id + '_door', name: /^(The |Your |\S+’s )/.test(b.name) ? b.name : 'the ' + b.name, kind: 'door', goes: b.goes, ...doorAt(b) });
   }
-  for (const o of props) if (o.kind === 'board') spots.push({ id: 'board', name: 'the notice board', kind: 'board', opens: 'quests', x: o.x, y: o.y + 8 });
   return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
@@ -161,21 +157,24 @@ function paintTartarusGate(x, R, x0, x1, yTop, yBot) {
   const mid = Math.round((x0 + x1) / 2); dot(mid - 1, by - 1, '#0a090c', 2, 10); dot(mid - 1, by + 1, '#8a5ad8', 2, 6); dot(mid - 1, by + 3, '#b48cff', 2, 2);   // the seam, lit from below
   for (const px of [x0 + 8, x0 + 16, x1 - 10, x1 - 18]) { dot(px, by + 3, '#140d0b', 2, 2); dot(px, by + 3, '#e9c04f'); }
 }
+// Where a building's door is, out in the square.
+function doorAt(b) { return { x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 }; }
 function enterPlace(id, from) {
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
-  setWorldSize(40, 26);
+  const room = ROOMS[id];
+  setWorldSize(room ? room.wt : 40, room ? room.ht : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
-  if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : buildVillage();
+  if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = [];
-  Music.play(id === 'village' ? 'akros' : id);
-  const p = makePlayer();
+  Music.play(V.music || (id === 'village' ? 'akros' : id));
+  const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
-  else if (id === 'temple') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
+  else if (id === 'temple' || room) { p.x = room ? WORLD_W / 2 : tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
   else if (from === 'gate' || from === 'road') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
-  else if (from === 'temple') { p.x = tc(20); p.y = 8 * TILE + 14; p.face = Math.PI / 2; }
+  else if (outOf) { const d = doorAt(outOf); p.x = d.x; p.y = d.y + 8; p.face = Math.PI / 2; }      // stepping out of a door
   else { p.x = tc(20); p.y = tc(17); }
   V.player = p;
   G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
@@ -194,6 +193,7 @@ function enterPlace(id, from) {
     if (!G.save.seenHall) { G.save.seenHall = true; persist(); banner('Hall of the Titans', 'Their hunts start at the gate at the far end'); }
     else banner('Hall of the Titans', '');
   }
+  if (room) banner(V.name, V.sub);
 }
 function enterVillage(from) { enterPlace('village', from); }
 function resumeVillage() {
@@ -220,7 +220,8 @@ function startInteract(t) {
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
     const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
-  } else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
+  } else if (t.kind === 'seat') sitAt(t);
+  else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
   else if (t.opens) openPanel(t.opens);
@@ -274,7 +275,7 @@ function tickVillage(dt) {
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
     else if (!V.target && Input.enter && netOn() && netEnterKey()) {}   // Enter: ready up, or depart as host
-    else if (p.y > IPX.maxY + 6 && V.id === 'temple') { Sound.play('door'); fadeTo(() => enterPlace('village', 'temple')); Input.endFrame(); return; }
+    else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id; fadeTo(() => enterPlace('village', from)); Input.endFrame(); return; }
   }
   updateNpcs(dt); netTownTick(dt);
   if (V.id === 'hall' && Math.random() < .25) V.parts.push({ x: tc(20) - 8 + rand(-18, 18), y: IPX.maxY + rand(10, 44), vx: rand(-3, 3), vy: rand(-16, -7), g: 0, life: 1.4, max: 1.4, c: Math.random() < .5 ? '#b48cff' : '#8a5ad8', s: 1 });   // Tartarus' light drifting up from the gate

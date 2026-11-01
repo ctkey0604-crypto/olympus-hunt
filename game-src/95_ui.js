@@ -167,6 +167,7 @@ function renderHub() {
   else if (G.panel === 'options') body.innerHTML = renderOptions();
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
   else if (G.panel === 'market') body.innerHTML = renderMarket();
+  else if (G.panel === 'tavern') body.innerHTML = renderTavern();
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else body.innerHTML = renderBoard();
 }
@@ -498,6 +499,7 @@ $('scrHub').addEventListener('click', ev => {
     if ((s.potions[id] || 0) >= POTION_MAX || s.money < cost) return;
     s.money -= cost; s.potions[id] = (s.potions[id] || 0) + 1; Sound.play('pickup'); persist(); renderHub(); toast(`Bought a ${POTIONS[id].name}`); return;
   }
+  if (t.dataset.meal) { orderMeal(t.dataset.meal); return; }
   if (t.dataset.offer) {
     const cost = offeringCost(); if (s.blessing || s.money < cost) return;
     s.money -= cost; s.blessing = true; Sound.play('blessing'); persist(); renderHub(); toast('Hestia will watch over you'); return;
@@ -608,7 +610,7 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
-    : win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+    : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   G.mode = 'results'; q = null;
   show('scrResults');
@@ -913,6 +915,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
+  renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {

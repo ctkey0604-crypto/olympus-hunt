@@ -214,6 +214,14 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
       let px = R() * W, py = R() * H;
       for (let k = 0; k < 40; k++) { dot(px - 1, py, '#2c1a14', 3, 1); dot(px, py, R() < .2 ? '#ffd463' : '#ff7a2b'); px += R() * 2 - .4; py += R() * 2 - 1; }
     }
+  } else if (T.floor === 'planks') {                      // indoors: boards running across the room, joints staggered
+    x.fillStyle = T.base; x.fillRect(0, 0, W, H);
+    for (let py = 0; py < H; py += 6) for (let px = -((R() * 40) | 0); px < W;) {
+      const len = 28 + ((R() * 36) | 0);
+      dot(px, py, pick(T.planks), len, 5); dot(px, py + 5, T.seam, len, 1); dot(px + len - 1, py, T.seam, 1, 5);
+      for (let k = 0; k < 3; k++) dot(px + R() * len, py + 1 + R() * 3, T.grain, 2, 1);
+      px += len;
+    }
   } else if (T.floor === 'marble') {
     for (let ty = 0; ty < H / TILE; ty++) for (let tx = 0; tx < W / TILE; tx++) {
       const X = tx * TILE, Y = ty * TILE;
@@ -723,6 +731,7 @@ function drawObstacle(o, sx, sy) {
       ctx.fillStyle = '#f3e9d4'; ctx.fillRect(sx - 7, sy - 15, 5, 6); ctx.fillRect(sx - 1, sy - 16, 4, 5); ctx.fillRect(sx + 4, sy - 14, 4, 6);
       ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 5, sy - 15, 1, 1); ctx.fillRect(sx + 1, sy - 16, 1, 1); ctx.fillRect(sx + 6, sy - 14, 1, 1);
       break;
+    default: if (PROP_ART[o.kind]) PROP_ART[o.kind](o, sx, sy);   // the furniture inside the buildings (85_rooms.js)
   }
 }
 

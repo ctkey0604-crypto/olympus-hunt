@@ -18,11 +18,13 @@ function tutGoal() {
   $('goalText').textContent = s.tut === TUT.TALK ? 'Talk to Kleon the Herald'
     : s.tut === TUT.FORGE ? 'Forge new gear at Dion the Smith'
     : s.tut === TUT.NEXT ? 'Take your next hunt from Kleon'
-    : 'Pick a hunt from Kleon or the notice board';
+    : 'Pick a hunt from Kleon the Herald';
 }
+// Who the arrow points at: Kleon, or for new gear the Forge's door (and Dion, once you're inside).
 function tutTargetNpc() {
-  if (!tutOn() || G.save.tut < TUT.TALK || !V || V.id !== 'village') return null;
-  return V.npcs.find(n => n.id === (G.save.tut === TUT.FORGE ? 'smith' : 'herald')) || null;
+  if (!tutOn() || G.save.tut < TUT.TALK || !V) return null;
+  if (G.save.tut === TUT.FORGE) return V.id === 'forge' ? V.npcs.find(n => n.id === 'smith') || null : V.id === 'village' ? V.spots.find(s => s.id === 'forge_door') || null : null;
+  return V.id === 'village' ? V.npcs.find(n => n.id === 'herald') || null : null;
 }
 // A bobbing gold arrow over a spot, or on the edge of the screen pointing its way when it's off screen.
 function drawPointer(S, x, y, lift) {

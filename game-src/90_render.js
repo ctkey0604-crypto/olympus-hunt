@@ -545,7 +545,7 @@ function drawBuilding(b, sx, sy) {
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 4); ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 1);
     return;
   }
-  const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : ['#e6d9bd', '#cbbd9f'];
+  const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : b.kind === 'tavern' ? ['#c9b48f', '#a8926c'] : ['#e6d9bd', '#cbbd9f'];
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
   ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
   for (let y = sy + 3; y < sy + RH; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
@@ -559,10 +559,17 @@ function drawBuilding(b, sx, sy) {
   ctx.fillStyle = '#5a3a22'; ctx.fillRect(dx, sy + H - 18, 12, 18); ctx.fillStyle = '#6b4528'; ctx.fillRect(dx + 3, sy + H - 18, 1, 18); ctx.fillRect(dx + 8, sy + H - 18, 1, 18);
   ctx.fillStyle = '#e9c04f'; ctx.fillRect(dx + 9, sy + H - 10, 1, 1);
   for (const wx of [sx + 8, sx + W - 18]) { if (Math.abs(wx - dx) < 16) continue; ctx.fillStyle = '#1a1210'; ctx.fillRect(wx, sy + RH + 6, 10, 9); ctx.fillStyle = '#2b3d55'; ctx.fillRect(wx + 1, sy + RH + 7, 8, 7); ctx.fillStyle = '#8a5a34'; ctx.fillRect(wx + 1, sy + RH + 10, 8, 1); if (b.kind === 'home') { ctx.fillStyle = '#7fa548'; ctx.fillRect(wx, sy + RH + 15, 10, 2); ctx.fillStyle = '#d9493b'; ctx.fillRect(wx + 2, sy + RH + 14, 1, 1); ctx.fillRect(wx + 6, sy + RH + 14, 1, 1); } }
-  const signIcon = { forge: 'bronze_sword', hall: 'herald_token', store: 'cattle_hide', home: null }[b.kind];
+  const signIcon = { forge: 'bronze_sword', market: 'potion:health', home: null }[b.kind];
   if (signIcon) { ctx.fillStyle = '#1a1210'; ctx.fillRect(dx - 1, sy + RH + 1, 14, 10); ctx.fillStyle = '#c09a63'; ctx.fillRect(dx, sy + RH + 2, 12, 8); const ic = iconCanvas(signIcon); ctx.drawImage(ic, dx + 1, sy + RH + 1, 10, 10 * ic.height / ic.width); }
   if (b.kind === 'forge') { ctx.fillStyle = '#1a1210'; ctx.fillRect(sx + W - 22, sy - 8, 10, 12); ctx.fillStyle = '#6f685b'; ctx.fillRect(sx + W - 21, sy - 7, 8, 10); ctx.fillStyle = Math.floor(t * 8) % 2 ? '#ff8a2b' : '#ffd463'; ctx.fillRect(sx + W - 19, sy - 7, 4, 2); }
-  if (b.kind === 'hall') for (const bx2 of [sx + 3, sx + W - 8]) { ctx.fillStyle = '#1a1210'; ctx.fillRect(bx2 - 1, sy + RH - 1, 7, 18); ctx.fillStyle = '#4f8fc7'; ctx.fillRect(bx2, sy + RH, 5, 16); ctx.fillStyle = '#e9c04f'; ctx.fillRect(bx2 + 2, sy + RH + 5, 1, 5); }
+  if (b.kind === 'tavern') {
+    // a hanging sign with a foaming mug, and warm light in the windows
+    ctx.fillStyle = '#1a1210'; ctx.fillRect(dx - 1, sy + RH + 1, 14, 10); ctx.fillStyle = '#c09a63'; ctx.fillRect(dx, sy + RH + 2, 12, 8);
+    ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 3, sy + RH + 3, 6, 6); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(dx + 4, sy + RH + 5, 4, 3); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(dx + 4, sy + RH + 4, 4, 1); ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 9, sy + RH + 5, 1, 2);
+    const glow = Math.floor(t * 2) % 2 ? '#e9a030' : '#d98a2b';
+    for (const wx of [sx + 8, sx + W - 18]) if (Math.abs(wx - dx) >= 16) { ctx.fillStyle = glow; ctx.fillRect(wx + 1, sy + RH + 7, 8, 3); }
+  }
+  if (b.kind === 'market') for (let i = 0; i < 6; i++) { ctx.fillStyle = i % 2 ? '#f3e9d4' : '#4f7fb5'; ctx.fillRect(sx + 2 + i * Math.floor((W - 4) / 6), sy + RH - 2, Math.floor((W - 4) / 6), 4); }   // a striped awning
 }
 function renderVillage() {
   const [cx, cy] = camOffset();
@@ -707,6 +714,7 @@ function updateHud() {
   if (F.frenzy > 0) tags.push(['good', 'Frenzy']); if (F.heart > 0) tags.push(['good', 'Heartsteal']); if (F.killRush > 0) tags.push(['good', 'Revel']);
   if (F.echo > 0) tags.push(['good', 'Echo']); if (F.foresight > 0 && p.foresightN > 0) tags.push(['good', `Foresight ${p.foresightN}`]); if (q.timeStop > 0) tags.push(['good', 'Time stopped']);
   if (p.st.perks.ward && p.wardT <= 0) tags.push(['good', 'Warded']);
+  if (q.meal && MEALS[q.meal]) tags.push(['good', MEALS[q.meal].short]);     // the Tavern meal you set out with
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
   updatePotionBar(p);
@@ -734,7 +742,7 @@ function updateVillageHud() {
   tickHint();
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
-    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' ? 'Open' : 'Enter';
+    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
     const html = `${touchMode ? '' : kbd(Input.bind.guard[0]) + ' '}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
     pr.hidden = false;

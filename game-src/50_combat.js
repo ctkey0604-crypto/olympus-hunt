@@ -20,7 +20,7 @@ function playerStats(save = G.save) {
   def += perks.def || 0; hp += perks.hp || 0;
   const sh0 = save.shield && K.oneHand ? SHIELDS[save.shield] : null, shl = sh0 ? refineLevel(save.shield, save) : 0;
   const shield = shl ? { ...sh0, meter: Math.round(sh0.meter * (1 + REFINE_GAIN.shield * shl)), block: Math.min(.97, sh0.block + .01 * shl) } : sh0;
-  return {
+  const st = {
     weapon: w, kind: K, shield, perks, bonuses, maxHp: 100 + hp, def, doubleDash: PIECES[eq.feet + ':feet'].perk === 'doubleDash',
     mul: 1 + (perks.dmg || 0) + (w.kind === 'bow' ? perks.bowDmg || 0 : 0),
     projRes: Math.min(.6, perks.projRes || 0), kbRes: perks.unflinching ? 1 : Math.min(.6, perks.kbRes || 0),
@@ -29,6 +29,16 @@ function playerStats(save = G.save) {
     dodgeDist: 1 + (perks.dodgeDist || 0), abilityCd: Math.min(.5, perks.abilityCd || 0),
     guardMax: shield ? shield.meter * 10 * (1 + (perks.guard || 0)) : 0,
   };
+  // a Tavern meal (85_rooms.js), until the hunt it was eaten for is over
+  const M = save.meal && MEALS[save.meal];
+  if (M) {
+    if (M.hp) st.maxHp = Math.round(st.maxHp * (1 + M.hp));
+    if (M.dmg) st.mul += M.dmg;
+    if (M.def) st.def = Math.max(st.def + 1, Math.round(st.def * (1 + M.def)));   // at least +1, even in starting clothes
+    if (M.dash) st.dodgeCd *= 1 - M.dash;
+    if (M.skill) st.abilityCd = Math.min(.5, st.abilityCd + M.skill);
+  }
+  return st;
 }
 function makePlayer(save = G.save) {
   const st = playerStats(save);

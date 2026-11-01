@@ -62,7 +62,7 @@ setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a 
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
-  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref };
+  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null };
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
@@ -98,7 +98,7 @@ function gearSave(g) {
   for (const sl of SLOTS) look[sl] = g.look && ARMOR_SETS[g.look[sl]] && PIECES[g.look[sl] + ':' + sl] ? g.look[sl] : 'traveler';
   const weapon = WEAPONS[g.weapon] ? g.weapon : 'bronze_sword', shield = g.shield && SHIELDS[g.shield] ? g.shield : null, refine = {};
   if (g.refine) for (const [k, v] of Object.entries(g.refine)) refine[k] = clamp(Math.floor(+v || 0), 0, 5);
-  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 } };
+  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 }, meal: g.meal && MEALS[g.meal] ? g.meal : null };
 }
 
 /* ---- messages in ---- */
