@@ -77,7 +77,7 @@ function npcLines(n) {
       return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
-    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Want something else instead?` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
+    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
     case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.'];
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
@@ -167,7 +167,7 @@ function enterPlace(id, from) {
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
-  V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = [];
+  V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null;
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
@@ -265,6 +265,7 @@ function tickVillage(dt) {
   if (G.save) G.save.playtime += dt;
   const p = V.player;
   if (G.cutscene) { tickCutscene(dt); tickParticles(dt); Input.endFrame(); return; }
+  if (V.eat) { tickEating(dt); updateNpcs(dt); tickParticles(dt); followCam(p, dt); Input.endFrame(); return; }   // eating at the Tavern: hold still
   if (G.dialog) {
     const d = G.dialog, before = Math.floor(d.chars);
     d.chars = Math.min(d.lines[d.i].length, d.chars + 55 * dt);

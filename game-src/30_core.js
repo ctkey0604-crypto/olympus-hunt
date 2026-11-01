@@ -47,6 +47,10 @@ const Sound = {
       case 'heartbeat': this.tone(58, .11, 'sine', .32, .7); this.tone(52, .13, 'sine', .26, .7, .17); break;
       case 'pickup': this.tone(880, .06, 'square', .1); this.tone(1320, .08, 'square', .1, 1, .05); break;
       case 'heal': this.tone(660, .1, 'triangle', .18); this.tone(990, .14, 'triangle', .18, 1, .08); break;
+      case 'eat': this.noise(.05, .2, 1500, .9); this.noise(.05, .16, 1100, .9, 'bandpass', .08); break;                   // a crunchy bite
+      case 'drink': this.tone(320, .09, 'sine', .22, .6); this.tone(270, .1, 'sine', .2, .6, .13); break;                  // a gulp or two
+      case 'jingle': [523, 659, 784, 1047].forEach((f, i) => this.tone(f, i === 3 ? .32 : .12, 'triangle', .15, 1, i * .11)); break;   // fed and ready
+
       case 'dodge': this.noise(.14, .18, 3000, .6, 'bandpass', 0, 800); break;
       case 'shoot': this.tone(620, .06, 'triangle', .12, .6); break;
       case 'telegraph': this.tone(110, .25, 'square', .1, .8); break;

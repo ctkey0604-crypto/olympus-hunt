@@ -593,10 +593,11 @@ function renderVillage() {
   for (const o of peers) list.push({ y: o.y, draw: () => drawPlayer(o, S) });
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
+  if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth
   drawParticlesAndText(S);
   for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
-  if (t && !G.dialog && !G.cutscene) {
+  if (t && !G.dialog && !G.cutscene && !V.eat) {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
     ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, top - 1, 7, 5); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 2, top, 5, 1); ctx.fillRect(sx - 1, top + 1, 3, 1); ctx.fillRect(sx, top + 2, 1, 1);
   }

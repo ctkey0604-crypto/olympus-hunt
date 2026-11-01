@@ -49,7 +49,6 @@ function buildRoom(id) {
   const layers = genLayers(D.theme, null, { gate: { x: 11, y: 12, w: 2 }, seed: id, axis: WORLD_W / 2 });
   const gx = layers.ground.getContext('2d');
   for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
-  paintRug(gx, WORLD_W / 2 - 14, IPX.maxY - 10, 28, 9, '#6b4528', '#a3713f');               // a mat inside the door
   const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 34 });
@@ -145,20 +144,22 @@ const PROP_ART = {
 };
 
 /* ---- the Tavern: a meal before a hunt ---- */
-// One meal at a time. It lasts your next hunt (online too) and is used up when that hunt starts. Small on purpose:
-// about what one more refine level or a set bonus gives, so no monster needs to be any stronger for it.
+// One meal per hunt. It lasts your next hunt (online too) and is used up when that hunt starts; until then the menu is
+// closed to you, so nobody pays twice. Small on purpose: about what one more refine level or a set bonus gives, so no
+// monster needs to be any stronger for it. art: what you're seen eating or drinking.
 const MEALS = {
-  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  price: 120, desc: '+10% health on your next hunt.', hp: .10 },
-  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
-  bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, price: 120, desc: '+10% defense on your next hunt.', def: .10 },
-  wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
-  barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
+  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
+  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
+  bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
+  wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
+  barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
 };
 function mealCost(id) { return rankPrice(MEALS[id].price); }
 function orderMeal(id) {
-  const s = G.save, M = MEALS[id]; if (!M || s.meal === id) return;
+  const s = G.save, M = MEALS[id]; if (!M || s.meal) return;                 // already eaten: nothing more until the next hunt
   const cost = mealCost(id); if (s.money < cost) return;
-  s.money -= cost; s.meal = id; persist(true); Sound.play('pickup'); netSendInfo(); renderHub(); toast(`Phaedra brings you the ${M.name}`);
+  s.money -= cost; s.meal = id; persist(true); netSendInfo();
+  closePanel(); startEating(id);
 }
 function renderTavern() {
   const s = G.save, cur = s.meal && MEALS[s.meal];
@@ -167,11 +168,43 @@ function renderTavern() {
     return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b><span>${M.food ? 'Food' : 'Drink'}</span></div></div>
       <p class="desc">${esc(M.desc)}</p>
       <div class="stats"><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
-      <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${mine || s.money < cost ? 'disabled' : ''}>${mine ? 'Ordered' : cur ? 'Have this instead' : 'Order'}</button></div></article>`;
+      <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${cur || s.money < cost ? 'disabled' : ''}>${mine ? 'You ate this' : cur ? 'You’ve already eaten' : 'Order'}</button></div></article>`;
   };
   const list = Object.entries(MEALS);
-  return `<p class="muted" style="margin:0 0 12px">A meal lasts your next hunt, then it’s used up. One at a time: ordering another replaces it.</p>
-    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve had the ${esc(cur.name)}. ${esc(cur.desc)}</div>` : ''}
+  return `<p class="muted" style="margin:0 0 12px">One meal or drink per hunt. It lasts your next hunt, then you can order again.</p>
+    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(cur.name)}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
     <p class="sub">Food</p><div class="grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
     <p class="sub" style="margin-top:14px">Drinks</p><div class="grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
+}
+// Eating it, right there in the Tavern: a few bites (or sips), crumbs or drops, then a little tune and a sparkle.
+// You stand still while you eat. V.eat = { meal, t, dur, bites: times left to play a bite sound }.
+function startEating(id) {
+  const M = MEALS[id], p = V.player;
+  p.face = Math.PI / 2; p.moving = false; V.target = null;
+  V.eat = { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] };
+}
+function tickEating(dt) {
+  const e = V.eat, M = MEALS[e.meal], p = V.player; e.t += dt;
+  if (e.bites.length && e.t >= e.bites[0]) {
+    e.bites.shift(); Sound.play(M.food ? 'eat' : 'drink');
+    const cols = M.food ? ['#c09a63', '#e9c04f', '#8a5a34'] : M.art === 'cup' ? ['#e9a030', '#ffd463'] : ['#c8e6c9', '#ffffff'];
+    for (let i = 0; i < 5; i++) V.parts.push({ x: p.x + rand(-2, 4), y: p.y - 11, vx: rand(-14, 14), vy: rand(-18, -4), g: 90, life: .5, max: .5, c: cols[i % cols.length], s: 1 });
+  }
+  if (e.t >= e.dur) {
+    V.eat = null; Sound.play('jingle');
+    burst(p.x, p.y - 10, 16, ['#ffd463', '#fff6d8', '#9bbb55'], 70);
+    banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
+  }
+}
+// The meal in your hand, going up to your mouth and back with each bite.
+function drawEating(S) {
+  const e = V.eat, M = MEALS[e.meal], p = V.player, [sx, sy] = S(p.x, p.y), K = OUTLINE;
+  // from the hand (by the hip) up to the mouth and back
+  const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + 5 - lift * 3), y = Math.round(sy - 6 - lift * 5);
+  const R = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
+  if (M.art === 'bowl') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#a3713f'); R(-2, -2, 5, 1, '#c35f2a'); if (Math.floor(e.t * 6) % 2) R(-1, -5, 1, 2, '#e6e1d6'); }
+  else if (M.art === 'skewer') { R(-5, 0, 11, 1, '#c09a63'); for (const cx of [-4, -1, 2]) { R(cx, -2, 3, 4, K); R(cx + 1, -1, 1, 2, '#a3532a'); } }
+  else if (M.art === 'bread') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#d9a35a'); R(-1, -2, 3, 1, '#e9c27a'); R(0, -1, 1, 1, '#4e5a3a'); }
+  else if (M.art === 'cup') { R(-3, -3, 7, 3, K); R(-2, -3, 5, 2, '#c9a032'); R(-2, -3, 5, 1, '#e9a030'); R(0, 0, 1, 2, '#c9a032'); R(-1, 2, 3, 1, '#c9a032'); }
+  else { R(-3, -4, 6, 7, K); R(-2, -3, 4, 5, '#9aa0a6'); R(-2, -4, 4, 1, '#c8e6c9'); R(2, -2, 2, 3, K); }
 }
