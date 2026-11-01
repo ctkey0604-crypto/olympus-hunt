@@ -45,7 +45,12 @@ function rememberSlot(n) { Settings.data.lastSlot = n; Settings.save(); }
 async function updateTitleSub() {
   await Store.ready;
   const n = Settings.data.lastSlot, s = n ? await Store.load(n) : null;
-  $('titleSub').textContent = s ? `Continues save ${n} · ${GODS.filter(g => godRank(g.id, s) >= 0).length} of 12 gods hunted${s.rank ? ' · ' + RANKS[s.rank].name : ''}` : '';
+  $('titleSub').textContent = s ? `Continues save ${n} · ${huntTally(s)}${s.rank ? ' · ' + RANKS[s.rank].name : ''}` : '';
+}
+// "5 of 17 gods · 2 of 8 Titans": every god (side gods too) and every Titan hunted on any rank
+function huntTally(s) {
+  const all = [...GODS, ...SIDE_GODS], gods = all.filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
+  return `${gods} of ${all.length} gods · ${titans} of ${TITANS.length} Titans`;
 }
 
 async function renderSlots() {
@@ -127,8 +132,8 @@ function slotCard(n, s) {
   const el = document.createElement('article'); el.className = 'slot' + (s ? '' : ' empty');
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
-    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length, gods = [...GODS, ...SIDE_GODS].filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length;
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${huntTally(s)}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
