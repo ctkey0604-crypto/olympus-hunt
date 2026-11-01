@@ -245,7 +245,7 @@ export class Room extends DurableObject {
 
   roomMsg(forId) {
     const M = this.meta;
-    return JSON.stringify({ t: 'room', code: M.code, host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
+    return JSON.stringify({ t: 'room', v: 2, code: M.code, host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
       members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear })) });
   }
   broadcastRoom() { for (const ws of this.sockets()) { const a = ws.deserializeAttachment(); try { ws.send(this.roomMsg(a.id)); } catch {} } }
@@ -256,17 +256,17 @@ export class Room extends DurableObject {
     if (typeof raw !== 'string' || raw.length > 64000) return;
     const me = ws.deserializeAttachment(); if (!me || !this.meta) return;
     let m; try { m = JSON.parse(raw); } catch { return; }
-    const M = this.meta, isHost = me.id === M.host;
+    const M = this.meta, isHost = me.id === M.host, runs = me.id === (M.runner ?? M.host);   // runs: the player whose game runs the hunt (who posted it)
     switch (m.t) {
       case 'up': {                                                   // a guest's own hunter and actions: to the host
-        const h = this.byId(M.host); if (h && h !== ws) { m.from = me.id; this.send(h, m); } return;
+        const h = this.byId(M.runner ?? M.host); if (h && h !== ws) { m.from = me.id; this.send(h, m); } return;
       }
       case 'down': {                                                 // the host's hunt snapshot: to everyone in the hunt
-        if (!isHost) return; const s = JSON.stringify(m);
+        if (!runs) return; const s = JSON.stringify(m);
         for (const o of this.sockets()) if (o !== ws && o.deserializeAttachment().hunt) this.send(o, s);
         return;
       }
-      case 'to': { if (!isHost) return; const o = this.byId(m.id); if (o) this.send(o, m.m); return; }   // the host to one player
+      case 'to': { if (!runs) return; const o = this.byId(m.id); if (o) this.send(o, m.m); return; }   // the host to one player
       case 'town': case 'emote': {                                   // where you are in Akros: to everyone else
         m.from = me.id; const s = JSON.stringify(m);
         for (const o of this.sockets()) if (o !== ws) this.send(o, s);
@@ -279,31 +279,32 @@ export class Room extends DurableObject {
       }
       case 'ready': if (M.quest && M.phase === 'town') { me.ready = !!m.v; ws.serializeAttachment(me); this.broadcastRoom(); } return;
       case 'post':
-        if (!isHost || M.phase !== 'town' || !m.quest || typeof m.quest.id !== 'string') return;
-        M.quest = { id: m.quest.id.slice(0, 40), name: String(m.quest.name || '').slice(0, 60), rank: clampInt(m.quest.rank, 0, 2) };
+        if (M.phase !== 'town' || !m.quest || typeof m.quest.id !== 'string') return;
+        if (M.quest && M.quest.by !== me.id && !isHost) return;           // someone else's quest is up: only they or the host can replace it
+        M.quest = { id: m.quest.id.slice(0, 40), name: String(m.quest.name || '').slice(0, 60), rank: clampInt(m.quest.rank, 0, 2), by: me.id };
         for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.ready = a.id === me.id; o.serializeAttachment(a); }
         await this.save(); this.broadcastRoom(); await this.toLobby(); return;
       case 'cancel':
-        if (!isHost || M.phase !== 'town') return;
+        if (M.phase !== 'town' || !M.quest || !(isHost || M.quest.by === me.id)) return;
         M.quest = null; for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.ready = false; o.serializeAttachment(a); }
         await this.save(); this.broadcastRoom(); await this.toLobby(); return;
       case 'depart': {
-        if (!isHost || M.phase !== 'town' || !M.quest) return;
+        if (M.phase !== 'town' || !M.quest || (M.quest.by ?? M.host) !== me.id) return;   // whoever posted it departs
         const ids = this.members().filter(a => a.id === me.id || a.ready).map(a => a.id);
-        M.phase = 'hunt'; M.hunt = ids;
+        M.phase = 'hunt'; M.hunt = ids; M.runner = me.id;
         for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.hunt = ids.includes(a.id); o.serializeAttachment(a); }
         await this.save();
         const s = JSON.stringify({ t: 'depart', quest: M.quest, ids, cfg: m.cfg || null, from: me.id });
         for (const o of this.sockets()) this.send(o, s);
         this.broadcastRoom(); await this.toLobby(); return;
       }
-      case 'leave': me.hunt = false; ws.serializeAttachment(me); { const h = this.byId(M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
-      case 'end': if (isHost) await this.endHunt(); return;
+      case 'leave': me.hunt = false; ws.serializeAttachment(me); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
+      case 'end': if (runs) await this.endHunt(); return;
       case 'pub': if (isHost) { M.pub = !!m.v; await this.save(); this.broadcastRoom(); await this.toLobby(); } return;
     }
   }
   async endHunt() {
-    const M = this.meta; M.phase = 'town'; M.quest = null; M.hunt = [];
+    const M = this.meta; M.phase = 'town'; M.quest = null; M.hunt = []; M.runner = null;
     for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.ready = false; a.hunt = false; o.serializeAttachment(a); }
     await this.save(); this.broadcastRoom(); await this.toLobby();
   }
@@ -314,10 +315,10 @@ export class Room extends DurableObject {
     try { ws.serializeAttachment(null); } catch {} try { ws.close(1000, 'bye'); } catch {}
     const M = this.meta, left = this.members();
     if (!left.length) { await this.closeRoom(); return; }
-    if (me.id === M.host) {                                          // the host left: the oldest player hosts now
-      M.host = left[0].id;
-      if (M.phase === 'hunt') { for (const o of this.sockets()) this.send(o, { t: 'hostleft' }); await this.endHunt(); return; }
-    } else if (M.phase === 'hunt' && me.hunt) { const h = this.byId(M.host); if (h) this.send(h, { t: 'gone', from: me.id }); }
+    const runner = M.runner ?? M.host;
+    if (me.id === M.host) M.host = left[0].id;                       // the host left: the oldest player hosts now
+    if (M.phase === 'hunt' && me.id === runner) { for (const o of this.sockets()) this.send(o, { t: 'hostleft' }); await this.endHunt(); return; }
+    if (M.phase === 'hunt' && me.hunt) { const h = this.byId(runner); if (h) this.send(h, { t: 'gone', from: me.id }); }
     await this.save(); this.broadcastRoom(); await this.toLobby();
   }
   async closeRoom() {
@@ -329,15 +330,25 @@ export class Room extends DurableObject {
     const M = this.meta; if (!M) return; const mem = this.members(), host = mem.find(m => m.id === M.host);
     try {
       await lobbyStub(this.env).update({ code: M.code, pub: M.pub, host: host ? host.name : '', n: mem.length, max: ROOM_MAX,
-        rank: host ? host.rank : M.rank, phase: M.phase, quest: M.quest ? M.quest.name : null, created: M.created });
+        hostKey: host ? host.key : '', rank: host ? host.rank : M.rank, phase: M.phase, quest: M.quest ? M.quest.name : null, created: M.created });
     } catch {}
   }
-  async alarm() {                                                    // every minute: still alive? tell the lobby
+  async alarm() {                                                    // every 30 s: drop dead connections, tell the lobby
     if (!this.meta) return;
+    await this.sweep(); if (!this.meta) return;
     if (!this.sockets().length) { await this.closeRoom(); return; }
-    await this.toLobby(); await this.ctx.storage.setAlarm(Date.now() + 60000);
+    await this.toLobby(); await this.ctx.storage.setAlarm(Date.now() + 30000);
   }
-  async isOpen() { return !!(this.meta && this.sockets().length && this.sockets().length < ROOM_MAX); }
+  // A connection that stopped answering (a PC asleep, a dropped network) still looks open. Players ping every 2 s,
+  // every 10 s from a hidden tab, so 90 s of silence means they're gone.
+  async sweep() {
+    const now = Date.now();
+    for (const ws of this.sockets()) {
+      const a = ws.deserializeAttachment(); let ts = null; try { ts = this.ctx.getWebSocketAutoResponseTimestamp(ws); } catch {}
+      if (now - Math.max(ts ? ts.getTime() : 0, a.at || 0) > 90000) await this.dropped(ws);
+    }
+  }
+  async isOpen() { if (this.meta) await this.sweep(); return !!(this.meta && this.sockets().length && this.sockets().length < ROOM_MAX); }
 }
 
 // The public room list. Rooms check in when something changes and once a minute; ones that go quiet drop off.
@@ -345,13 +356,17 @@ export class Lobby extends DurableObject {
   async update(info) {
     if (!info || !CODE_RE.test(info.code)) return;
     const rooms = (await this.ctx.storage.get('rooms')) || {};
+    for (const [k, v] of Object.entries(rooms)) if (k !== info.code && info.hostKey && v.hostKey === info.hostKey) {   // one room per player: the newest
+      if (v.created > info.created) { if (rooms[info.code]) { delete rooms[info.code]; await this.ctx.storage.put('rooms', rooms); } return; }
+      delete rooms[k];
+    }
     rooms[info.code] = { ...info, seen: Date.now() };
     await this.ctx.storage.put('rooms', rooms);
   }
   async remove(code) { const rooms = (await this.ctx.storage.get('rooms')) || {}; if (rooms[code]) { delete rooms[code]; await this.ctx.storage.put('rooms', rooms); } }
   async list() {
     const rooms = (await this.ctx.storage.get('rooms')) || {}, now = Date.now(); let changed = false;
-    for (const [k, v] of Object.entries(rooms)) if (now - v.seen > 150000) { delete rooms[k]; changed = true; }
+    for (const [k, v] of Object.entries(rooms)) if (now - v.seen > 75000) { delete rooms[k]; changed = true; }
     if (changed) await this.ctx.storage.put('rooms', rooms);
     return Object.values(rooms).filter(r => r.pub && r.n > 0).sort((a, b) => b.created - a.created).slice(0, 60)
       .map(r => ({ code: r.code, host: r.host, n: r.n, max: r.max, rank: r.rank, phase: r.phase, quest: r.quest }));
