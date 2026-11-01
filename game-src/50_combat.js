@@ -743,7 +743,7 @@ function updateHazards(dt) {
       if (!h.fired && h.t >= h.delay) {
         h.fired = true;
         for (const p of hazHunters()) {
-          const inside = !p.dead && Math.hypot(p.x - h.x, p.y - h.y) < h.r + p.r;
+          const inside = !p.dead && Math.hypot(p.x - h.x, (p.y - h.y) / .6) < h.r + p.r;   // ground marks are drawn 60% as tall as wide: hit what's drawn
           if (inside && h.dmg) hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 150, { unblockable: true });
         }
         if (q.net === 'guest') {}                                 // a guest gets the host's effects instead
@@ -765,7 +765,7 @@ function updateHazards(dt) {
       h.r += h.speed * dt;
       for (const p of hazHunters()) {                                 // each hunter can be caught by a ring once
         if (h.hits && h.hits.has(p)) continue;
-        if (!p.dead && Math.abs(Math.hypot(p.x - h.x, p.y - h.y) - h.r) < 6) {
+        if (!p.dead && Math.abs(Math.hypot(p.x - h.x, (p.y - h.y) / .6) - h.r) < 6) {   // the drawn ring is flat (60% tall), so is its edge
           const r = hurtHunter(p, h.dmg, Math.atan2(p.y - h.y, p.x - h.x), 220, { unblockable: !h.blockable });
           if (r) { h.hit = true; (h.hits = h.hits || new Set()).add(p); if (h.confuse && r === 1) { p.fx.confuse = h.confuse; Sound.play('charm'); } }
         }

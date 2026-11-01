@@ -530,8 +530,6 @@ function drawBuilding(b, sx, sy) {
     const R = mulberry(Math.floor(t * 10)); for (let i = 0; i < 6; i++) { ctx.fillStyle = R() < .5 ? '#ff8a2b' : '#ffd463'; ctx.fillRect(sx + W / 2 - 6 + R() * 12 | 0, sy + RH + 8 + R() * 6 | 0, 1, 2); }
     for (let i = 0; i < 8; i++) { const cx = sx + 8 + i * ((W - 16) / 7); if (i === 3 || i === 4) continue; ctx.fillStyle = '#1a1210'; ctx.fillRect(cx - 4, sy + RH - 2, 8, F); ctx.fillStyle = '#efe7d4'; ctx.fillRect(cx - 3, sy + RH - 1, 6, F - 2); ctx.fillStyle = '#c9bda4'; ctx.fillRect(cx + 1, sy + RH - 1, 2, F - 2); }
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 4); ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 1);
-    // a glint for every god you've beaten: gold, diamond or amethyst
-    GODS.forEach((g, i) => { const r = godRank(g.id); ctx.fillStyle = r < 0 ? '#8f8470' : ['#e9c04f', '#cdeeff', '#b48cff'][r]; ctx.fillRect(sx + 10 + i * ((W - 20) / 11) | 0, sy + 3, 2, 2); });
     return;
   }
   const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : ['#e6d9bd', '#cbbd9f'];

@@ -187,7 +187,7 @@ const ABILITIES = {
 
 // wt = power tier (matches TIER_W). Damage is worked out from it, so every weapon stays in line with the curve.
 const WEAPONS = {
-  bronze_sword:    { name: 'Bronze Sword',          kind: 'sword',   wt: 1,    recipe: null, desc: 'Standard issue for a new hunter.' },
+  bronze_sword:    { name: 'Bronze Sword',          kind: 'sword',   wt: 1,    recipe: null, desc: 'Standard issue for every new arrival.' },
   bandit_spear:    { name: 'Brigand’s Spear',  kind: 'spear',   wt: 1.5,  recipe: { items: { bandit_cloth: 5, stolen_ring: 1 }, cost: 120 }, desc: 'A long road spear, re-wrapped with stolen wool.' },
   hill_bow:        { name: 'Hill Bow',              kind: 'bow',     wt: 1.5,  pierce: 1, recipe: { items: { sling_cord: 4, smooth_stone: 3 }, cost: 150 }, desc: 'Strung with sling cord. Shots punch through one extra enemy.' },
   bull_maul:       { name: 'Bull Maul',             kind: 'hammer',  wt: 1.8,  ability: 'stampede', recipe: { items: { cattle_hide: 5, golden_horn: 1 }, cost: 300 }, desc: 'A horn-capped maul with the weight of a charging bull.' },

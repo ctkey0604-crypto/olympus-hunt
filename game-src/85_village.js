@@ -53,19 +53,19 @@ function npcLines(n) {
   switch (n.id) {
     case 'herald': {
       const ready = rankReady();
-      if (ready === 1) return ['Hunter. Sit down a moment.', 'You’ve beaten every god on Olympus and every Titan under it. Word got around, and not the good kind.',
+      if (ready === 1) return ['Sit down a moment.', 'You’ve beaten every god on Olympus and every Titan under it. Word got around, and not the good kind.',
         'The gods are back, and they’re angry. Faster, meaner, hitting harder. Their beasts too.', 'High Rank is open. Every hunt on the board starts over, and none of it will go easy.'];
       if (ready === 2) return ['You did it again. Every god and every Titan, even the angry ones.', 'There’s one thing left. Until now the gods held back. Not anymore.',
         'God Rank is open. Good luck. I mean that.'];
-      if (typhonReady()) return ['Hunter. Every god and every Titan, on every rank. Even God Rank. I thought that was the end of it.',
+      if (typhonReady()) return ['Every god and every Titan, on every rank. Even God Rank. I thought that was the end of it.',
         'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
         'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
       if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
-        'Congratulations, hunter. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
+        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
       if (s.cleared[TYPHON_Q]) return ['They’re still singing about how you slew Typhon. The board still has work, and the smith says your gear can always be sharper.'];
       if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
-      if (!c.road_bandits) return ['You’re the new hunter? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
+      if (!c.road_bandits) return ['You’re new here? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
       if (s.rank === 0 && allGodsDone(0) && !s.stairs) return ['Every god on Olympus, beaten. The priests say the temple floor shook last night.', 'Something under it wants out. Go and see.'];
       if (s.rank === 0 && s.stairs && !rankDone(0)) return ['The Titans. I never thought I’d post their names on this board.', 'Their hunts are up. Be careful down there.'];
       if (s.rank > 0) return [`${RANKS[s.rank].name} work’s on the board. Everything out there hits harder now.`];
@@ -80,8 +80,8 @@ function npcLines(n) {
     case 'keeper': return ['Everything you carry home goes in the storehouse. Counted twice.'];
     case 'merchant': return ['Potions for the road. Health, strength and speed, brewed this morning.'];
     case 'oracle': {
-      if (oracleOnline()) return ['I see other hunters, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
-      if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between hunters are cut. Check your connection, then ask me again.'];
+      if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
+      if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between players are cut. Check your connection, then ask me again.'];
       G.oracleHints = false;
       const unfound = QUESTS.filter(qd => isUnlocked(qd) && !s.chests[qd.id]);
       if (!unfound.length) return [QUESTS.every(qd => s.chests[qd.id]) ? 'Every hidden cache I can see has been opened. You have sharp eyes.' : 'I see no unopened caches on the paths you can walk. Unlock new hunts and ask me again.'];

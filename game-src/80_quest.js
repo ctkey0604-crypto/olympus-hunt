@@ -22,7 +22,7 @@ function startQuest(id, opts = {}) {
   if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
-  const roster = opts.guest || (G.netParty && netHost() ? G.netParty : null); G.netParty = null;
+  const roster = opts.guest || (G.netParty || null); G.netParty = null;
   const bots = def.prologue || roster ? [] : (G.partyBots || []).slice(0, PARTY_MAX - 1), n = roster ? roster.length : 1 + bots.length;
   const A = partyArena(def.arena, ARENAS[def.arena], PARTY_SCALE[n].arena), T = THEMES[A.theme];
   setWorldSize(A.wt || 40, A.ht || 26);

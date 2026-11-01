@@ -130,7 +130,7 @@ function slotCard(n, s) {
     el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${gods} of ${GODS.length + SIDE_GODS.length} gods hunted${s.stairs ? ` · ${titans} of 8 Titans` : ''}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
-    el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new hunter here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
+    el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
   }
   el.addEventListener('click', async ev => {
     const btn = ev.target.closest('button'); if (!btn) return;
@@ -154,11 +154,11 @@ function renderHub() {
     const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null;
     const bonus = st.bonuses.map(b => { const set = ARMOR_SETS[b.set], perks = b.n === 4 ? set.four : set.two; return `${set.name} ${b.n}: ${Object.entries(perks).map(([k, v]) => PERK_TEXT[k](v)).join(', ')}`; });
     eqBox.innerHTML = `
-      <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your hunter"></canvas>
+      <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your character"></canvas>
         <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
       <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
-      <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div></div>`;
+      <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div>${sh ? '<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>' : ''}</div>`;
     drawPreview($('pvCanvas'), s.equip, s.shield, s.weapon);
   }
   const body = $('hubBody');
@@ -220,7 +220,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netHost() ? ' disabled' : ''}>${netOn() ? (netHost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}"${netOn() && !netCanPost() ? ' disabled' : ''}>${netOn() ? (netCanPost() ? 'Post to the room' : 'The host picks the hunt') : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -476,7 +476,7 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.forgerank) { G.forgeRank = +t.dataset.forgerank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
-  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { if (netHost()) netPost(id); return; } fadeTo(() => startQuest(id)); return; }
+  if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { netPost(id); return; } fadeTo(() => startQuest(id)); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.part) {
     const id = t.dataset.part, cost = partCost(id); if (s.money < cost) return;
@@ -599,7 +599,7 @@ function renderOracle() {
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
   if (R) return `<div class="opt"><h3>Room ${esc(R.code)}</h3><p>${R.members.map(m => esc(m.name) + (m.id === R.host ? ' (host)' : '')).join(' · ')} · ${R.members.length}/4</p>
-    <p class="muted">Friends join with the code ${esc(R.code)}. ${netHost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
+    <p class="muted">Friends join with the code ${esc(R.code)}. ${netCanPost() ? 'Post a hunt from Kleon’s board.' : 'The host posts the hunts.'}</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
   return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 hunters. Hunts grow tougher with more of you.</p>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
@@ -613,8 +613,8 @@ async function orLoad() {
     const d = await Store.call('GET', 'rooms'), rooms = d.rooms || [];
     if (!$('orList')) return;
     $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.host)}</b><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
-    for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(() => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (el) el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
-  } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other hunters. Check your connection.'; }
+    for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(x => x.json()).then(d => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (!el) return; if (d && d.open === false) { el.closest('.or-row').remove(); return; } el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
+  } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other players. Check your connection.'; }
 }
 async function orDo(a, code) {
   G.orMsg = '';
@@ -869,7 +869,8 @@ updateTitleSub();
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
 // Handy for testing from the browser console.
-window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
+// only on a local copy: the live site keeps its insides to itself
+if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },

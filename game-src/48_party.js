@@ -218,8 +218,8 @@ function botThink(p, dt) {
   // danger: marked ground about to go off under you, shots about to land, a god lining up a dash at you
   let fx = 0, fy = 0, threat = false;
   for (const h of q.hazards) {
-    if (h.type === 'circle' && !h.fired && h.dmg && h.delay - h.t < .5 && Math.hypot(p.x - h.x, p.y - h.y) < h.r + 8) { const a = Math.atan2(p.y - h.y, p.x - h.x); fx += Math.cos(a); fy += Math.sin(a); threat = true; }
-    else if (h.type === 'ring' && !(h.hits && h.hits.has(p)) && Math.abs(Math.hypot(p.x - h.x, p.y - h.y) - h.r) < 18 && Math.hypot(p.x - h.x, p.y - h.y) > h.r) threat = true;
+    if (h.type === 'circle' && !h.fired && h.dmg && h.delay - h.t < .5 && Math.hypot(p.x - h.x, (p.y - h.y) / .6) < h.r + 8) { const a = Math.atan2(p.y - h.y, p.x - h.x); fx += Math.cos(a); fy += Math.sin(a); threat = true; }
+    else if (h.type === 'ring' && !(h.hits && h.hits.has(p)) && Math.abs(Math.hypot(p.x - h.x, (p.y - h.y) / .6) - h.r) < 18 && Math.hypot(p.x - h.x, (p.y - h.y) / .6) > h.r) threat = true;
   }
   for (const pr of q.projs) {
     if (pr.team !== 'enemy' || pr.dead || pr.delay > 0) continue;
