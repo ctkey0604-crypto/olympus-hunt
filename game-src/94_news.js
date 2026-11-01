@@ -2,19 +2,11 @@
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
-  { v: '1.1', date: 'November 2026', title: 'Akros opens its doors',
-    new: [
-      'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
-      'The Tavern: take a seat or order at the counter. A meal or a drink gives you a small boost for your next hunt: more health, damage or defense, or faster dashes or skills.',
-      'Your home has a chest that holds everything you bring back from your hunts.',
-    ],
-    changed: [
-      'Dion works inside the Forge now, Phaedra runs the Tavern, and Melita has her own shop.',
-      'Kleon hands out the hunts, with his notice board right beside him.',
-      'Options moved to the pause menu (Esc).',
-    ] },
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
+      'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
+      'The Tavern: take a seat or order at the counter. One meal or drink per hunt gives you a small boost for it: more health, damage or defense, or faster dashes or skills.',
+      'Your home has a chest that holds everything you bring back from your hunts.',
       'The Endless Hunt: once Typhon is slain, Etna keeps sending monsters. Every wave is bigger and stronger, a god turns up every fifth wave, and each wave cleared pays. Your best wave and your last run show on the quest board.',
       'Room chat: in a room, press T (or tap Chat) to talk to everyone. H (or Hide) shrinks the room box when it’s in the way.',
       'The room’s host can kick a player from the Oracle’s room panel. A kicked player can’t rejoin that room.',
@@ -23,6 +15,9 @@ const NEWS = [
       'This What’s new list.',
     ],
     changed: [
+      'Dion works inside the Forge now, Phaedra runs the Tavern, and Melita has her own shop.',
+      'Kleon hands out the hunts, with his notice board right beside him.',
+      'Options moved to the pause menu (Esc).',
       'Online hunts need the rank and the earlier quests for them, and no gear from a higher rank.',
       'Online saves are checked by the server. A save that couldn’t come from real play isn’t stored online (it stays on your device).',
       'Shorter, clearer multiplayer messages. The room code shows in one place.',
