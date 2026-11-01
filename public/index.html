@@ -533,6 +533,9 @@ input[type=range]{accent-color:var(--clay)}
 .pause-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--bone-dim);margin-top:2px}
 .pause-keys span{white-space:nowrap}
 .pause-keys kbd{margin-left:2px}
+.sound-hint{margin:-6px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);animation:soundHint 2.4s ease-in-out infinite}
+@keyframes soundHint{50%{color:var(--gold)}}
+@media (prefers-reduced-motion:reduce){.sound-hint{animation:none}}
 /* the tip after a lost hunt */
 .tutnote ul{margin:6px 0 0;padding-left:1.2em;display:grid;gap:3px}
 </style>
@@ -621,6 +624,7 @@ input[type=range]{accent-color:var(--clay)}
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
+    <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
     <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
     <div class="controls" id="titleControls" aria-label="Controls"></div>
     <p class="tip keys-only" id="titleTip"></p>
@@ -10534,7 +10538,18 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
-Music.play('menu');                                  // starts with the first click or key (browsers keep audio off until then)
+Music.play('menu');
+// The menu theme from the moment the page loads. Browsers only allow sound before the first click, tap or key press on
+// sites people use a lot (Chrome remembers), so try right away; otherwise the very first input anywhere switches it on,
+// and a small note on the title screen says so until then.
+{
+  const evs = ['pointerdown', 'keydown', 'touchstart'], on = () => !!(Sound.ctx && Sound.ctx.state === 'running');
+  const hint = () => { $('soundHint').hidden = on() || G.mode !== 'title'; };
+  const wake = () => { Sound.init(); Sound.resume(); setTimeout(hint, 150); if (on()) for (const t of evs) removeEventListener(t, wake, true); };
+  for (const t of evs) addEventListener(t, wake, true);
+  Sound.init(); Sound.resume();                       // allowed straight away on sites the browser trusts
+  setTimeout(hint, 900);
+}
 // On CrazyGames players land straight in the game: no title screen, no save list.
 Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 
