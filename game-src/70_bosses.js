@@ -526,7 +526,7 @@ function startBossAttack(b, c) {
 function updateBoss(b, dt) {
   b.flash = Math.max(0, b.flash - dt);
   const p = bossTarget(b, dt), dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;   // who it's after (you, alone)
-  b.tgt = p;
+  b.tgt = p; if (q.hunters.length > 1) b.tgtHid = p.hid;            // online, everyone's screen marks who it's after
   // God Rank: below 30% health every god and Titan goes berserk.
   if (b.rank >= 2 && !b.rage3 && b.hp <= b.maxHp * .3 && b.state !== 'intro') {
     b.rage3 = true; b.tempo *= 1.15; banner(`${b.def.name} goes berserk`, 'Faster, and nothing held back', true); Sound.play('roar'); addShake(5); G.flash = .15;

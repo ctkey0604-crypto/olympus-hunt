@@ -87,8 +87,12 @@ function flankSteer(e, c) {
   const f = (((e.id * .618) % 1) - .5) * 2.2 * clamp((c.d - 36) / 80, 0, 1), cs = Math.cos(f), sn = Math.sin(f);
   const vx = e.vx * cs - e.vy * sn, vy = e.vx * sn + e.vy * cs; e.vx = vx; e.vy = vy;
 }
-// Gods and Titans keep a threat table: damage dealt to them (as a share of their health), fading over time, plus a
-// little for standing close. They pick a new target every 5-8 s, or sooner when someone else is clearly the bigger threat.
+// Gods and Titans keep a threat table: damage dealt to them (as a share of their health), fading over time, plus some
+// for standing close. They pick a new target every 5-8 s, or sooner when someone else is clearly the bigger threat.
+//  - A raised shield up close taunts: guarding within reach builds threat, so a shield hunter can pull a god off a friend.
+//  - Leash: a god won't spend its whole turn chasing someone across the arena while another hunter hits it up close.
+//  - When its target goes down it stops to roar before turning on the next one, so the rest get a moment to react.
+const TAUNT_R = 70, TAUNT_RATE = .02, LEASH_FAR = 190, LEASH_NEAR = 60;
 function addThreat(b, p, dmg) {
   if (!p || q.hunters.length === 1) return;
   b.threat = b.threat || new Map(); b.threat.set(p, (b.threat.get(p) || 0) + dmg / b.maxHp);
@@ -98,17 +102,24 @@ function bossTarget(b, dt) {
   if (H.length === 1) return H[0];
   b.threat = b.threat || new Map();
   const fade = Math.pow(.5, dt / 6); for (const [h, v] of b.threat) b.threat.set(h, v * fade);
+  for (const h of H) if (!h.dead && h.guarding && Math.hypot(h.x - b.x, h.y - b.y) < TAUNT_R) b.threat.set(h, (b.threat.get(h) || 0) + TAUNT_RATE * dt);
   if (b.tgtT === undefined) b.tgtT = rand(5, 8);
   b.tgtT -= dt;
-  const cur = b.tgt && !b.tgt.dead && H.includes(b.tgt) ? b.tgt : null;
+  const was = b.tgt, cur = was && !was.dead && H.includes(was) ? was : null;
   if (cur && b.state !== 'idle') return cur;                      // never mid-attack
+  if (cur && Math.hypot(cur.x - b.x, cur.y - b.y) > LEASH_FAR && H.some(h => h !== cur && !h.dead && Math.hypot(h.x - b.x, h.y - b.y) < LEASH_NEAR)) b.tgtT -= dt * 2;
   const due = !cur || b.tgtT <= 0;
   // when it's time to switch, whoever it's on now counts for half, so it usually moves on unless they're far ahead
-  const score = h => ((b.threat.get(h) || 0) + Math.max(0, 1 - Math.hypot(h.x - b.x, h.y - b.y) / 160) * .02) * (due && h === cur ? .5 : 1);
+  const near = h => Math.max(0, 1 - Math.hypot(h.x - b.x, h.y - b.y) / 160) * .03;
+  const score = h => ((b.threat.get(h) || 0) + near(h)) * (due && h === cur ? .5 : 1);
   let best = null, bs = -1;
   for (const h of H) { if (h.dead) continue; const s = score(h); if (s > bs) { bs = s; best = h; } }
-  if (!best) return cur || b.tgt || H[0];                         // everyone is down
-  if (due || (best !== cur && bs > score(cur) * 1.5 + .03)) { b.tgt = best; b.tgtT = rand(5, 8); }
+  if (!best) return cur || was || H[0];                           // everyone is down
+  if (due || (best !== cur && bs > score(cur) * 1.5 + .03)) {
+    // its target just went down: a short roar, then it turns on the next one
+    if (was && was.dead && !b.def.titan && b.state === 'idle' && !b.hidden && !b.air) { b.st = Math.max(b.st || 0, .6); b.vx = b.vy = 0; addText(b.x, b.y - b.h - 4, '!', b.def.colors[0]); }
+    b.tgt = best; b.tgtT = rand(5, 8);
+  }
   return b.tgt;
 }
 // Big ground attacks land where hunters bunch up: the middle of the group around the target, if two or more stand close.

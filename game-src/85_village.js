@@ -61,8 +61,9 @@ function npcLines(n) {
         'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
         'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
       if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
-        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.'];
-      if (s.cleared[TYPHON_Q]) return ['They’re still singing about how you slew Typhon. The board still has work, and the smith says your gear can always be sharper.'];
+        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.',
+        'One more thing. Etna hasn’t gone quiet: monsters keep crawling out of the fire. The Endless Hunt is on the board. See how deep you can go.'];
+      if (s.cleared[TYPHON_Q]) return [s.endless && s.endless.best ? `They’re still singing about how you slew Typhon. Your deepest run into Etna reached wave ${s.endless.best}. Think you can beat it?` : 'They’re still singing about how you slew Typhon. And Etna keeps spitting out monsters: the Endless Hunt is on the board.'];
       if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re new here? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];

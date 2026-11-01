@@ -76,7 +76,7 @@ function autoTarget(p, range) {
   }
   return best;
 }
-const tierNow = () => q ? q.def.mt : 1;
+const tierNow = () => q ? q.endMt || q.def.mt : 1;                 // endMt: the Endless Hunt's strength for this wave
 function healHunter(p, n, show = true) {
   if (p.remote) { netTo(p, 'heal', n); return n; }
   const before = p.hp; p.hp = Math.min(p.st.maxHp, p.hp + n);

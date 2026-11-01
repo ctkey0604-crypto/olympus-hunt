@@ -218,7 +218,7 @@ function drawDowned(p, S) {
   for (let i = 0; i < 40 * k; i++) { const a = -Math.PI / 2 + i / 40 * Math.PI * 2; ctx.fillStyle = '#9bbb55'; ctx.fillRect(Math.round(sx + Math.cos(a) * 12), Math.round(sy - 1 + Math.sin(a) * 12 * .6), 1, 1); }
 }
 function drawPartyTags(S) {
-  const placed = [];                                             // tags that would overlap stack upward instead
+  const placed = [], top = new Map();                            // tags that would overlap stack upward instead
   for (const h of q.hunters.slice().sort((a, b) => b.y - a.y)) {
     if (h === q.player) continue;
     const col = PARTY_COLS[h.hid % PARTY_COLS.length], [sx, sy] = S(h.x, h.y);
@@ -229,9 +229,22 @@ function drawPartyTags(S) {
     const txt = h.downed ? 'down' : h.name, w = Math.min(14, txt.length) * 4 + 1;
     let ty = h.downed ? sy - 18 : sy - 31;
     for (let n = 0; n < 4 && placed.some(r => Math.abs(r.x - sx) < (r.w + w) / 2 && Math.abs(r.y - ty) < 7); n++) ty -= 7;
-    placed.push({ x: sx, y: ty, w });
+    placed.push({ x: sx, y: ty, w }); top.set(h, ty - 5);
     drawTag(txt, sx, ty, h.downed ? '#ff6b5a' : col);
     if (!h.dead) { const bw = 14, f = clamp(h.hp / h.st.maxHp, 0, 1), by = ty + 6; ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - bw / 2 - 1, by, bw + 2, 3); ctx.fillStyle = f < .3 ? '#d9493b' : '#9bbb55'; ctx.fillRect(sx - bw / 2, by + 1, Math.round(bw * f), 1); }
+  }
+  // who the god or Titan is after: a small mark in its colour over their head, flashing while it lines up an attack
+  const b = q.boss;
+  if (b && !b.dead && b.state !== 'intro' && !b.hidden && b.tgtHid !== undefined) {
+    const h = q.hunters.find(x => x.hid === b.tgtHid);
+    if (h && !h.dead) {
+      const [sx, sy] = S(h.x, h.y), my = Math.round((top.get(h) ?? sy - 26) + Math.sin(G.time * 6) * 1), winding = BOT_DANGER.has(b.state);
+      if (sx >= 0 && sx <= VIEW_W && my >= 2 && (!winding || blink(10))) {
+        const c = b.def.colors[0];
+        ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, my - 3, 7, 1); ctx.fillRect(sx - 2, my - 2, 5, 1); ctx.fillRect(sx - 1, my - 1, 3, 1); ctx.fillRect(sx, my, 1, 1);
+        ctx.fillStyle = winding ? '#ffffff' : c; ctx.fillRect(sx - 2, my - 3, 5, 1); ctx.fillRect(sx - 1, my - 2, 3, 1); ctx.fillRect(sx, my - 1, 1, 1);
+      }
+    }
   }
 }
 function drawPlayer(p, S) {
@@ -701,6 +714,7 @@ function updateHud() {
   if (q.phase === 'boss') wave = '';
   else if (q.phase === 'victory') wave = 'Victory';
   else if (q.phase === 'defeat') wave = 'Defeated';
+  else if (q.waveIdx >= 0 && q.def.endless) wave = `Wave ${q.waveIdx + 1}`;
   else if (q.waveIdx >= 0) wave = `Wave ${Math.min(q.waveIdx + 1, q.def.waves.length)} / ${q.def.waves.length}` + (q.def.boss ? ' + boss' : '');
   else wave = q.def.name;
   setText('hudWave', wave);

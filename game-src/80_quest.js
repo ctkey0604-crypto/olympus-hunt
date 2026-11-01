@@ -19,7 +19,7 @@ function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
-  if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else Music.play(Music.huntTrack(def.god));
+  if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
   const roster = opts.guest || (G.netParty || null); G.netParty = null;
@@ -60,7 +60,7 @@ function startQuest(id, opts = {}) {
   netUi();
 }
 function startWave(i) {
-  q.waveIdx = i; const w = q.def.waves[i], light = [], heavy = [];
+  q.waveIdx = i; const w = q.def.endless ? endlessWave(i) : q.def.waves[i], light = [], heavy = [];
   const counts = Object.entries(w).map(([t, n]) => [t, partyCount(t, n)]);      // more of them in a party
   for (const [t, n] of counts) for (let k = 0; k < n; k++) (ENEMIES[t].cls === 'heavy' ? heavy : light).push(t);
   shuffle(light);
@@ -69,6 +69,7 @@ function startWave(i) {
   q.pending = list.map(type => ({ type })); q.spawnT = .2;
   q.phase = 'fight';
   if (q.def.prologue) proWaveBanner(i); else banner(`Wave ${i + 1}`, counts.map(([t, n]) => monsterCount(t, n)).join(' · ')); Sound.play('wave');
+  if (q.endBossNext) endlessBoss();                                  // the Endless Hunt: a god every fifth wave
 }
 function pickSpawnPoint() {
   const all = spawnTiles().map(([tx, ty]) => ({ x: tc(tx), y: tc(ty) }));
@@ -77,7 +78,7 @@ function pickSpawnPoint() {
   return list[(Math.random() * list.length) | 0];
 }
 function aliveWeight() { let n = 0; for (const e of q.enemies) if (!e.dead && !e.boss) n += WEIGHT[e.def.cls] || 1; return n; }
-const budget = () => Math.round((BUDGET + 2 * (q.def.rank || 0)) * partyScale().budget);
+const budget = () => Math.round((BUDGET + 2 * (q.def.rank || 0) + (q.endBudget || 0)) * partyScale().budget);
 function startBoss() {
   q.phase = 'boss';
   if (q.def.titan) Music.level(1); else if (Music.songs[q.def.god]) Music.play(q.def.god, 1);
@@ -93,6 +94,7 @@ function startBoss() {
   for (const h of q.hunters) for (let i = 0; i < (d.arrivalHeals || 0); i++) spawnPickup(h.x + rand(-24, 24), h.y + rand(-14, 14), '@heal');
 }
 function bossDefeated(b) {
+  if (q.def.endless) { endlessBossDown(b); return; }               // the run goes on
   G.slowmo = .25; q.hazards = []; q.gale = null;
   if (b) {                                                   // a god or Titan going down shakes the whole arena
     G.flash = Math.max(G.flash, b.def.final ? .5 : .3); addShake(b.def.final ? 10 : 7); Sound.play('roar'); Sound.play('thud');
@@ -153,13 +155,16 @@ function updateQuestFlow(dt) {
       if (alive === 0 || alive + w <= budget()) {
         q.pending.shift();
         const pt = pickSpawnPoint();
-        q.enemies.push(makeEnemy(next.type, clamp(pt.x + rand(-10, 10), IPX.minX + 8, IPX.maxX - 8), clamp(pt.y + rand(-8, 8), IPX.minY + 8, IPX.maxY - 8)));
+        const e = makeEnemy(next.type, clamp(pt.x + rand(-10, 10), IPX.minX + 8, IPX.maxX - 8), clamp(pt.y + rand(-8, 8), IPX.minY + 8, IPX.maxY - 8));
+        if (q.endTempo) e.tempo *= q.endTempo;                       // deep in the Endless Hunt they attack sooner too
+        q.enemies.push(e);
         q.spawnT = .38 / partyScale().spawn;
       } else q.spawnT = .25;
     }
   }
   if (q.phase === 'fight' && !q.pending.length && q.enemies.every(e => e.dead)) {
-    if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
+    if (q.def.endless) { q.phase = 'between'; q.timer = 2.2; q.nextIsBoss = false; endlessCleared(); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
+    else if (q.waveIdx < q.def.waves.length - 1) { q.phase = 'between'; q.timer = 1.8; q.nextIsBoss = false; banner('Wave cleared', 'Next wave incoming'); for (const p of q.hunters) spawnPickup(p.x + rand(-20, 20), p.y + rand(-14, 14), '@heal'); }
     else if (q.def.boss) { q.phase = 'between'; q.timer = 2.4; q.nextIsBoss = true; banner('The air goes still', 'Something is coming'); }
     else if (q.def.prologue) proWalkout();
     else questVictory();

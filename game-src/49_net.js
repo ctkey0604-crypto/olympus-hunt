@@ -440,6 +440,7 @@ function netGlobals() {
   if (q.current) g.cu = [r2(q.current.a), r1(q.current.s), q.current.next === null ? null : r2(q.current.next), r2(q.current.t)];
   if (q.gale) g.ga = [r2(q.gale.t), r1(q.gale.s), r2(q.gale.a)];
   if (q.ghosts && q.ghosts.length) g.gh = q.ghosts.map(gh => [r1(gh.x), r1(gh.y), r2(gh.face), r2(gh.clock), (gh.who || q.player).hid]);
+  if (q.def.endless) g.en = [q.endCleared || 0, q.endPay || 0];   // the Endless Hunt: waves cleared and pay so far
   return g;
 }
 // Effects (rings, slashes, after-images...) as plain data. Hero after-images carry the armor they show.
@@ -541,6 +542,7 @@ function netGlobalsIn(g) {
   q.gale = g.ga ? { t: g.ga[0], s: g.ga[1], a: g.ga[2] } : null;
   q.ghosts = (g.gh || []).map(a => ({ x: a[0], y: a[1], face: a[2], clock: a[3], who: q.hunters[a[4]] || q.player }));
   if (g.b && (!q.boss || q.boss.id !== g.b)) { const b = q.enemies.find(e => e.id === g.b); if (b) netBossIn(b); }
+  if (g.en) { q.endCleared = g.en[0]; q.endPay = g.en[1]; if (!g.b && q.boss) { q.boss = null; $('bossBar').hidden = true; } }   // a god down mid-run
 }
 // Messages meant only for your hunter: damage the host judged, heals, effects, a revive, a pull.
 function netSelf(m) {

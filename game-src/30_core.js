@@ -342,7 +342,8 @@ function newSave() {
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
-           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false };
+           rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
+           endless: { best: 0, last: 0 } };                         // the Endless Hunt: best wave reached, and the last run's
 }
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
@@ -382,6 +383,7 @@ function sanitize(s) {
   out.tut = typeof s.tut === 'number' ? clamp(Math.floor(s.tut), 0, 6) : Object.keys(out.cleared).length ? 6 : 0;
   out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
+  if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }

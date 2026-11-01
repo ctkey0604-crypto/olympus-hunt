@@ -172,7 +172,7 @@ function renderHub() {
 }
 function questCard(qd) {
   const s = G.save, un = isUnlocked(qd), done = s.cleared[qd.id];
-  const status = !un ? `<span class="chip">Locked</span>` : done ? `<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
+  const status = !un ? `<span class="chip">Locked</span>` : qd.endless ? (s.endless.best ? `<span class="chip done">Best wave ${s.endless.best}</span>` : `<span class="chip urgent">Endless</span>`) : done ?`<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
   return `<button type="button" class="qcard ${qd.id === G.selQuest ? 'sel' : ''} ${un ? '' : 'locked'}" data-quest="${qd.id}" data-rank="${qd.rank}">
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
@@ -207,12 +207,23 @@ function renderBoard() {
   // Typhon: God Rank only, once every god and Titan on it has fallen
   if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
   else if (fin && s.stairs) html += `<div class="qlock">Something older than the Titans is stirring · hunt every god and Titan on God Rank first</div>`;
+  // the Endless Hunt: only once Typhon is down
+  const endQ = mine.find(qd => qd.endless);
+  if (endQ && isUnlocked(endQ)) html += `<p class="rank titans final">Beyond the last hunt</p>` + questCard(endQ);
   const qd = QUEST_BY_ID[G.selQuest], un = isUnlocked(qd);
+  const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
+  if (qd.endless) return `${tabs}<div class="board"><div class="qlist">${html}</div>
+    <div class="qdetail">
+      <div><p class="eyebrow"><span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · Endless · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
+      <p>${esc(qd.desc)}</p>
+      <div class="facts"><div><span>Best wave</span><b class="${s.endless.best ? 'gold' : ''}">${s.endless.best || '—'}</b></div><div><span>Last run</span><b>${s.endless.last ? 'Wave ' + s.endless.last : '—'}</b></div><div><span>Pay</span><b class="gold">${fmtMoney(qd.perWave)}+ dr a wave</b></div><div><span>Gods</span><b>Every ${ENDLESS_BOSS_EVERY}th wave</b></div></div>
+      <div><p class="sub">Monsters</p><p class="muted" style="margin:0">Every monster from God Rank, more and stronger each wave. Gods turn up in a random order, no repeats until each has had a turn.</p></div>
+      <div class="row">${un ? `<button class="btn" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">Slay Typhon first.</span>`}</div>
+    </div></div>`;
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
   const needs = qd.requires.filter(x => !s.cleared[x]).map(x => QUEST_BY_ID[x].name);
   const needText = qd.final ? 'every god and Titan on God Rank' : needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
-  const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
   return `${tabs}<div class="board"><div class="qlist">${html}</div>
     <div class="qdetail">
       <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.final ? 'The last hunt' : qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
@@ -565,11 +576,20 @@ function finishQuest(win) {
     s.money += d.reward; s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
     const t = Math.max(1, Math.round(q.elapsed)); if (!s.best[d.id] || t < s.best[d.id]) { best = !!s.best[d.id]; s.best[d.id] = t; }
   }
+  // the Endless Hunt only ends in a fall (or leaving): it pays for the waves cleared and keeps the record
+  let run = null;
+  if (d.endless) {
+    const E = s.endless, reached = Math.max(0, q.waveIdx + 1), pay = q.endPay || 0;
+    run = { reached, cleared: q.endCleared || 0, pay, record: reached > E.best && E.best > 0 };
+    s.money += pay; E.last = reached; if (reached > E.best) E.best = reached;
+    if (reached) s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
+  }
   persist(true);
   const unlocked = QUESTS.filter(x => isUnlocked(x) && !before.has(x.id));
-  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
-  const title = $('resTitle'); title.textContent = win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win ? 'win' : 'lose');
-  $('resStats').innerHTML = `<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
+  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
+  const title = $('resTitle'); title.textContent = run ? (run.record ? 'A new record' : 'The hunt is over') : win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win || (run && run.record) ? 'win' : 'lose');
+  if (run) $('resStats').innerHTML = `<div><span>Wave reached</span><b>${run.reached}${run.record ? ' ★' : ''}</b></div><div><span>Best wave</span><b>${s.endless.best}</b></div><div><span>Pay</span><b style="color:var(--gold)">${fmtMoney(run.pay)} dr</b></div><div><span>Time</span><b>${fmtTime(q.elapsed)}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>`;
+  else $('resStats').innerHTML =`<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
   const notes = [];
   if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue in the ${d.titan ? 'Hall of the Titans' : 'Temple of the Gods'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
   if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
@@ -582,12 +602,13 @@ function finishQuest(win) {
   else notes.push(`${unlocked.length} new quests on the board.`);
   $('resUnlock').innerHTML = notes.map(n => `<div class="unlock">${esc(n)}</div>`).join('');
   // a lost hunt: point at the two things that make the next try easier
-  if (!win && Settings.data.tips !== false && ((s.potions.health || 0) < POTION_MAX || !s.blessing))
+  if (!win && !run && Settings.data.tips !== false && ((s.potions.health || 0) < POTION_MAX || !s.blessing))
     $('resUnlock').innerHTML += `<p class="tutnote">Tough one? <b>Melita the Trader</b> sells health potions (${touchMode ? 'tap one in the corner' : 'press ' + esc(codeLabel(Input.bind.potion1[0]))} during a hunt to drink it). An offering at <b>Hestia’s hearth</b> in the temple gets you back on your feet once if you fall. Better armor from the forge helps too.</p>`;
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
-  $('resNote').textContent = win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('btnResAgain').textContent = win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
+  $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
+    : win ? 'Parts and drachmae are in the storehouse. Visit Dion at the forge to see what you can craft.' : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+  $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   G.mode = 'results'; q = null;
   show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
@@ -883,6 +904,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
+  renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
