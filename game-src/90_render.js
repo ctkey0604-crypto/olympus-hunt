@@ -190,21 +190,11 @@ const GLYPHS = { A: '010101111101101', B: '110101110101110', C: '011100100100011
   H: '101101111101101', I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111', M: '101111111101101', N: '110101101101101',
   O: '010101101101010', P: '110101110100100', Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111',
   V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010', Z: '111001010100111', '_': '000000000000111', '.': '000000000000010', ' ': '000000000000000' };
+const tagGlyph = ch => GLYPHS[ch] || DIGITS[ch];
 function drawTag(str, x, y, col) {
   str = String(str).toUpperCase().slice(0, 14);
-  const w = str.length * 4 - 1, cx = Math.round(x - w / 2); y = Math.round(y);
-  for (const pass of [0, 1]) {
-    ctx.fillStyle = pass ? col : '#140d0b';
-    let ox = cx;
-    for (const ch of str) {
-      const g = GLYPHS[ch] || DIGITS[ch];
-      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
-        const px = ox + (i % 3), py = y + Math.floor(i / 3);
-        if (pass) ctx.fillRect(px, py, 1, 1); else { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
-      }
-      ox += 4;
-    }
-  }
+  const w = str.length * 4 - 1;
+  ctx.drawImage(pixelText(str, col, tagGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
 }
 const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff'];
 // A downed hunter lies flat on the ground, with a ring that fills while a teammate stands next to them.
@@ -600,7 +590,7 @@ function renderVillage() {
   for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
   if (t && !G.dialog && !G.cutscene && !V.eat && t.kind !== 'order') {
-    const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
+    const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (t.god === 'typhon' ? 74 : V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
     ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, top - 1, 7, 5); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 2, top, 5, 1); ctx.fillRect(sx - 1, top + 1, 3, 1); ctx.fillRect(sx, top + 2, 1, 1);
   }
   tutDraw(S);

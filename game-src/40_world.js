@@ -397,27 +397,90 @@ function paintHint(x, T, s, R) {
 }
 
 /* ---- pixel drawing helpers (crisp, no anti-aliasing) ---- */
+// Canvas draw calls are what slow Chromebooks pay for, so shapes and words that repeat are drawn once into a small canvas
+// and stamped after that (an ellipse is a dozen rects, a name tag a few hundred). Odd sizes are drawn the old way.
+const ELLIPSE_CACHE = new Map();
 function pxEllipse(cx, cy, rx, ry, col) {
   cx = Math.round(cx); cy = Math.round(cy); ctx.fillStyle = col;
-  for (let y = -ry; y <= ry; y++) { const w = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y / (ry + .5)) ** 2))); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); }
+  const rowW = y => Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y / (ry + .5)) ** 2)));
+  if (!Number.isInteger(rx) || !Number.isInteger(ry) || rx < 0 || ry < 0 || rx > 64 || ry > 64) {
+    for (let y = -ry; y <= ry; y++) { const w = rowW(y); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); }
+    return;
+  }
+  const key = rx + ',' + ry + ',' + col; let c = ELLIPSE_CACHE.get(key);
+  if (!c) {
+    if (ELLIPSE_CACHE.size > 400) ELLIPSE_CACHE.clear();
+    c = mkCanvas(rx * 2 + 1, ry * 2 + 1); const x = c.getContext('2d'); x.fillStyle = col;
+    for (let y = -ry; y <= ry; y++) { const w = rowW(y); x.fillRect(rx - w, ry + y, w * 2 + 1, 1); }
+    ELLIPSE_CACHE.set(key, c);
+  }
+  ctx.drawImage(c, cx - rx, cy - ry);
 }
-function pxRing(cx, cy, r, col, gap = 1) {
-  ctx.fillStyle = col; const step = 1 / Math.max(r, 1) * gap;
-  for (let a = 0; a < Math.PI * 2; a += step) ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1);
+// Pixel-font text (damage numbers, name tags) with its dark outline, drawn once per word and colour.
+const TEXT_CACHE = new Map();
+function pixelText(str, col, font) {
+  const key = col + '|' + str; let c = TEXT_CACHE.get(key); if (c) return c;
+  if (TEXT_CACHE.size > 500) TEXT_CACHE.clear();
+  c = mkCanvas(Math.max(1, str.length * 4 + 1), 7); const x = c.getContext('2d');
+  for (const pass of [0, 1]) {
+    x.fillStyle = pass ? col : '#140d0b';
+    let ox = 1;
+    for (const ch of str) {
+      const g = font(ch);
+      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
+        const px = ox + (i % 3), py = 1 + Math.floor(i / 3);
+        if (pass) x.fillRect(px, py, 1, 1); else { x.fillRect(px - 1, py, 3, 1); x.fillRect(px, py - 1, 1, 3); }
+      }
+      ox += 4;
+    }
+  }
+  TEXT_CACHE.set(key, c); return c;
 }
-function pxRingFlat(cx, cy, r, col, gap = 1) {
-  ctx.fillStyle = col; const step = 1 / Math.max(r, 1) * gap;
-  for (let a = 0; a < Math.PI * 2; a += step) ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * .6), 1, 1);
+// Rings: the same dots as plotting each one, but repeats are skipped, touching dots on a row become one rect, and dots
+// off the canvas aren't drawn (a big warning ring was hundreds of draw calls).
+function pxRingDots(cx, cy, r, sy, col, gap) {
+  ctx.fillStyle = col; const step = 1 / Math.max(r, 1) * gap, W = ctx.canvas.width, H = ctx.canvas.height;
+  let rx = 0, ry = 0, len = 0, lx = NaN, ly = NaN;
+  const flush = () => { if (len && ry >= 0 && ry < H && rx < W && rx + len > 0) ctx.fillRect(rx, ry, len, 1); len = 0; };
+  for (let a = 0; a < Math.PI * 2; a += step) {
+    const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
+    if (x === lx && y === ly) continue;
+    lx = x; ly = y;
+    if (len && y === ry && x === rx + len) len++;
+    else if (len && y === ry && x === rx - 1) { rx--; len++; }
+    else { flush(); rx = x; ry = y; len = 1; }
+  }
+  flush();
 }
+function pxRing(cx, cy, r, col, gap = 1) { pxRingDots(cx, cy, r, 1, col, gap); }
+function pxRingFlat(cx, cy, r, col, gap = 1) { pxRingDots(cx, cy, r, .6, col, gap); }
 function pxLine(x0, y0, x1, y1, col, dashed = 0) {
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   let err = dx + dy, i = 0; ctx.fillStyle = col;
+  if (dashed) {
+    for (let n = 0; n < 1200; n++) {
+      if ((i++ % (dashed * 2)) < dashed) ctx.fillRect(x0, y0, 1, 1);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+    return;
+  }
+  // The same pixels, but each straight run is one rect, and runs off the canvas are skipped.
+  const W = ctx.canvas.width, H = ctx.canvas.height, flat = dx >= -dy;
+  let rx = x0, ry = y0, len = 0;
+  const flush = () => {
+    if (!len) return;
+    const x = flat ? (sx > 0 ? rx : rx - len + 1) : rx, y = flat ? ry : (sy > 0 ? ry : ry - len + 1), w = flat ? len : 1, h = flat ? 1 : len;
+    if (x < W && y < H && x + w > 0 && y + h > 0) ctx.fillRect(x, y, w, h);
+  };
   for (let n = 0; n < 1200; n++) {
-    if (!dashed || (i++ % (dashed * 2)) < dashed) ctx.fillRect(x0, y0, 1, 1);
+    if (flat ? y0 !== ry : x0 !== rx) { flush(); rx = x0; ry = y0; len = 0; }
+    len++;
     if (x0 === x1 && y0 === y1) break;
     const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
   }
+  flush();
 }
 function jagged(x0, y0, x1, y1, col, amp = 3, seg = 8, seed = 1) {
   const R = mulberry(seed), d = Math.hypot(x1 - x0, y1 - y0), n = Math.max(2, Math.round(d / seg));
@@ -438,20 +501,10 @@ function drawSpr(name, fi, x, y, flip, tint, alpha = 1, scale = 1) {
   if (alpha < 1) ctx.globalAlpha = 1;
 }
 const DIGITS = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001001010010', '8': '111101111101111', '9': '111101111001111', '+': '000010111010000', '-': '000000111000000', '!': '010010010000010' };
+const numGlyph = ch => DIGITS[ch];
 function drawNum(str, x, y, col) {
-  const w = str.length * 4 - 1; const cx = Math.round(x - w / 2); y = Math.round(y);
-  for (const pass of [0, 1]) {
-    ctx.fillStyle = pass ? col : '#140d0b';
-    let ox = cx;
-    for (const ch of str) {
-      const g = DIGITS[ch];
-      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
-        const px = ox + (i % 3), py = y + Math.floor(i / 3);
-        if (pass) ctx.fillRect(px, py, 1, 1); else { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
-      }
-      ox += 4;
-    }
-  }
+  const w = str.length * 4 - 1;
+  ctx.drawImage(pixelText(str, col, numGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
 }
 
 /* ---- obstacle and prop art ---- */
@@ -632,6 +685,18 @@ function drawObstacle(o, sx, sy) {
     }
     case 'tstatue': {                                 // a Titan on a wide plinth, dark until you beat it
       const gr = godRank(o.variant), img = statueImg(o.variant, gr >= 0 ? STATUE_TONE[gr] : 'stone');
+      if (o.variant === 'typhon') {                   // Typhon: twice as big, on a taller plinth in the middle of the hall
+        pxEllipse(sx + 2, sy + 2, 20, 4, 'rgba(0,0,0,.4)');
+        ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 19, sy - 15, 38, 17);
+        ctx.fillStyle = '#4a4652'; ctx.fillRect(sx - 18, sy - 14, 36, 15); ctx.fillStyle = '#6a6672'; ctx.fillRect(sx - 18, sy - 14, 36, 2);
+        ctx.fillStyle = gr >= 0 ? RANK_TINT[gr] ? RANK_TINT[gr].trim : '#e9c04f' : '#2a2630'; ctx.fillRect(sx - 12, sy - 8, 24, 1); ctx.fillRect(sx - 12, sy - 5, 24, 1);
+        if (gr < 0) ctx.globalAlpha = .75;
+        ctx.drawImage(img, Math.round(sx - img.width), Math.round(sy - 14 - img.height * 2 + 2), img.width * 2, img.height * 2);
+        ctx.globalAlpha = 1;
+        if (gr >= 0 && Math.floor(t * 3 + o.seed) % 4 === 0) { ctx.fillStyle = '#ffffff'; ctx.fillRect(sx + 9, sy - 14 - img.height * 2 + 10, 1, 1); }
+        if (gr >= 0) { flame(sx - 16, sy - 15, 2, 4, o.seed); flame(sx + 16, sy - 15, 2, 4, o.seed + 5); }
+        break;
+      }
       pxEllipse(sx + 2, sy + 2, 13, 3, 'rgba(0,0,0,.35)');
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 12, sy - 11, 24, 13);
       ctx.fillStyle = '#4a4652'; ctx.fillRect(sx - 11, sy - 10, 22, 11); ctx.fillStyle = '#6a6672'; ctx.fillRect(sx - 11, sy - 10, 22, 2);

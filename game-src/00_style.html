@@ -459,6 +459,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .mp-tag span{color:var(--bone-dim)}
 .mp-card{background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);display:grid;gap:calc(var(--px)*1.5);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line)}
 .mp-q{display:flex;gap:calc(var(--px)*3);align-items:baseline}.mp-q b{color:var(--gold)}
+/* the posted hunt's rank: a bold coloured band across the top of the card */
+.mp-rank{margin:calc(var(--px)*-2) calc(var(--px)*-4) 0;padding:calc(var(--px)*1) calc(var(--px)*4);font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:.9em;
+  background:#d8ccb4;color:#1a1210;border-radius:calc(var(--px)*1.2) calc(var(--px)*1.2) 0 0}
+.mp-rank[data-rank="1"]{background:#e2603f;color:#1a0d08}.mp-rank[data-rank="2"]{background:#b48cff;color:#1a0d2a}
 .mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
 .mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
 .mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}

@@ -35,6 +35,8 @@ function rankReady(save = G.save) { return save && save.rank < RANKS.length - 1 
 // God Rank done: Typhon climbs out from under Etna, and Kleon has to tell you. Typhon down: Kleon's last word.
 function typhonReady(save = G.save) { return !!save && save.rank === RANKS.length - 1 && rankDone(save.rank, save) && !save.cleared[TYPHON_Q] && !save.typhonTold; }
 function finaleReady(save = G.save) { return !!save && !!save.cleared[TYPHON_Q] && !save.finale; }
+// Typhon's statue stands in the Titans' hall once his hunt is open: stone until he falls, then amethyst.
+function typhonShown(save = G.save) { return !!save && (!!save.cleared[TYPHON_Q] || save.typhonTold || (save.rank === RANKS.length - 1 && rankDone(save.rank, save))); }
 const heraldNews = () => !!(rankReady() || typhonReady() || finaleReady());
 function finishGame() {
   const s = G.save; if (s.finale) return;
@@ -96,6 +98,8 @@ function godName(id) { return (BOSSES[id] || {}).name || id; }
 function buildHall() {
   const props = [];
   TITANS.forEach((t, i) => { const left = i < 4, o = mkObstacle('tstatue', left ? 9.5 : 29.5, 7.6 + (i % 4) * 4.1, t.id); props.push(o); });
+  const ty = typhonShown();
+  if (ty) { const o = mkObstacle('tstatue', 19.5, 13.4, 'typhon'); o.box = { x: o.x - 18, y: o.y - 6, w: 36, h: 12 }; props.push(o); }   // in the middle of the eight, twice their size
   [[5, 6], [34, 6], [5, 14], [34, 14], [5, 21], [34, 21]].forEach(([tx, ty]) => props.push(mkObstacle('brazier', tx, ty)));
   [[14, 9], [25, 9], [14, 18], [25, 18]].forEach(([tx, ty]) => { const o = mkObstacle('column', tx, ty); o.variant = 'dark'; props.push(o); });
   const layers = genLayers('titanhall', null, { seed: 'hall' }), gx = tc(20) - 8;
@@ -103,7 +107,7 @@ function buildHall() {
   const spots = [{ id: 'upstairs', name: 'the stairs', kind: 'stairs', goes: 'temple', x: tc(20) - 8, y: IPX.minY + 10 },
                  { id: 'tgate', name: 'the Gate of Tartarus', kind: 'tgate', opens: 'quests', x: gx, y: IPX.maxY - 4 }];
   for (const o of props) if (o.kind === 'tstatue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
-  return { id: 'hall', name: 'Hall of the Titans', theme: 'titanhall', night: true, world: makeWorld(props.map(o => o.box)),
+  return { id: 'hall', name: 'Hall of the Titans', theme: 'titanhall', night: true, typhon: ty, world: makeWorld(props.map(o => o.box)),
            ground: layers.ground, buildings: [], props, npcs: [], spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 function buildVillage() {
@@ -166,6 +170,7 @@ function enterPlace(id, from) {
   setWorldSize(room ? room.wt : 40, room ? room.ht : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
+  if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
   Music.play(V.music || (id === 'village' ? 'akros' : id));

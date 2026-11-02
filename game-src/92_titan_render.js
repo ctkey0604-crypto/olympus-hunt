@@ -131,7 +131,7 @@ function drawTitanWorld(S) {
     for (let i = 0; i < 46; i++) {
       const bx = R() * (VIEW_W + 40), by = R() * (VIEW_H + 40), off = (G.time * sp + R() * 400);
       const x = ((bx + ca * off) % (VIEW_W + 40) + VIEW_W + 40) % (VIEW_W + 40) - 20, y = ((by + sa * off) % (VIEW_H + 40) + VIEW_H + 40) % (VIEW_H + 40) - 20;
-      for (let k = 0; k < 5; k++) ctx.fillRect(Math.round(x - ca * k), Math.round(y - sa * k), 1, 1);
+      pxLine(x, y, x - ca * 4, y - sa * 4, '#bfe8f0');
     }
     ctx.globalAlpha = 1;
     if (C.next !== null) { const p = q.player, [px, py] = S(p.x, p.y - 26); for (let i = -1; i <= 1; i++) arrowHead(px + Math.cos(C.next) * (8 + i * 6), py + Math.sin(C.next) * (8 + i * 6) * .6, C.next, blink(8) ? '#ffffff' : '#57c2b0'); }
@@ -153,9 +153,14 @@ function drawTitanWorld(S) {
   }
   if (b.type === 'hyperion' && b.state === 'beams' && b.beams) {
     const B = b.beams, [sx, sy] = S(b.x, b.y);
+    // each beam is three filled bands (orange edge, yellow, white core): a few shapes instead of thousands of pixels
     for (let i = 0; i < B.n; i++) {
-      const a = B.a + i / B.n * Math.PI * 2, len = raycast(b.x, b.y, a, 360, 12) + 12;
-      for (let o = -2; o <= 2; o++) { const nx = -Math.sin(a) * o, ny = Math.cos(a) * o; pxLine(sx + nx, sy - 6 + ny, sx + nx + Math.cos(a) * len, sy - 6 + ny + Math.sin(a) * len, Math.abs(o) === 2 ? '#ff8a2b' : Math.abs(o) === 1 ? '#ffd463' : '#ffffff'); }
+      const a = B.a + i / B.n * Math.PI * 2, len = raycast(b.x, b.y, a, 360, 12) + 12, ca = Math.cos(a), sa = Math.sin(a), x0 = sx, y0 = sy - 6;
+      for (const [w, col] of [[2.5, '#ff8a2b'], [1.5, '#ffd463'], [.5, '#ffffff']]) {
+        ctx.fillStyle = col; ctx.beginPath();
+        ctx.moveTo(x0 - sa * w, y0 + ca * w); ctx.lineTo(x0 + ca * len - sa * w, y0 + sa * len + ca * w);
+        ctx.lineTo(x0 + ca * len + sa * w, y0 + sa * len - ca * w); ctx.lineTo(x0 + sa * w, y0 - ca * w); ctx.closePath(); ctx.fill();
+      }
     }
   }
 }

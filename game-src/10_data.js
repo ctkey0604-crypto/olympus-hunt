@@ -62,7 +62,7 @@ const ATTACK_TURNS = { melee: 3, ranged: 2 };    // how many monsters may attack
 // hp / dmg: on top of the tier curve. tempo: how fast monsters and gods think (shorter windups and rests).
 // gear: name prefix for that rank's forged gear; item: suffix for its parts.
 const RANKS = [
-  { id: 0, key: 'lr', name: 'Low Rank',  prefix: '',    off: 0,  hp: 1,    dmg: 1,    tempo: 1,    waves: [1, 1, 0],     turns: [3, 2], gear: '',           item: '',   cost: 1, col: '#d8ccb4' },
+  { id: 0, key: 'lr', name: 'Normal Rank', prefix: '',    off: 0,  hp: 1,    dmg: 1,    tempo: 1,    waves: [1, 1, 0],     turns: [3, 2], gear: '',           item: '',   cost: 1, col: '#d8ccb4' },
   { id: 1, key: 'hr', name: 'High Rank', prefix: 'hr_', off: 16, hp: 1.15, dmg: 1.15, tempo: 1.17, waves: [1.3, 1.2, 0], turns: [4, 2], gear: 'Dread ',     item: '+',  cost: 4, col: '#e2603f' },
   { id: 2, key: 'gr', name: 'God Rank',  prefix: 'gr_', off: 32, hp: 1.3,  dmg: 1.3,  tempo: 1.32, waves: [1.6, 1.4, 1], turns: [5, 3], gear: 'Godslayer ', item: '++', cost: 8, col: '#b48cff' },
 ];
