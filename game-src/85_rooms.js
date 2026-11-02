@@ -53,7 +53,7 @@ function buildRoom(id) {
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
-  return { id, name: D.name, theme: D.theme, sub: D.sub, music: 'akros', exitTo: 'village',
+  return { id, name: D.name, theme: D.theme, sub: D.sub, music: Music.songs['room_' + id] ? 'room_' + id : 'akros', exitTo: 'village',
            world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: 11, y: 12, w: 2, h: 2 }]),
            ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
