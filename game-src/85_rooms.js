@@ -65,6 +65,7 @@ function paintRug(x, rx, ry, w, h, c1, c2) {
 }
 // Sitting down at a tavern table: you take the seat, then Phaedra brings the menu.
 function sitAt(seat) {
+  if (townPeers().some(o => dist(o, seat) < 5)) { toast('Someone is already sitting there.'); return; }
   const p = V.player; p.x = seat.x; p.y = seat.y; p.face = seat.face; p.moving = false;
   openPanel('tavern');
 }
@@ -189,27 +190,34 @@ function renderTavern() {
 }
 // Eating it, right there in the Tavern: a few bites (or sips), crumbs or drops, then a little tune and a sparkle.
 // You stand still while you eat. V.eat = { meal, t, dur, bites: times left to play a bite sound }.
+const eatState = id => { const M = MEALS[id]; return { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] }; };
 function startEating(id) {
-  const M = MEALS[id], p = V.player;
+  const p = V.player;
   p.face = Math.PI / 2; p.moving = false; V.target = null;
-  V.eat = { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] };
+  V.eat = eatState(id);
 }
-function tickEating(dt) {
-  const e = V.eat, M = MEALS[e.meal], p = V.player; e.t += dt;
+// One step of a meal, yours (sounds and the banner) or another player's in the same room (just the crumbs and the sparkle).
+// Returns true when it's finished.
+function eatStep(e, p, dt, mine) {
+  const M = MEALS[e.meal]; e.t += dt;
   if (e.bites.length && e.t >= e.bites[0]) {
-    e.bites.shift(); Sound.play(M.food ? 'eat' : 'drink');
+    e.bites.shift(); if (mine) Sound.play(M.food ? 'eat' : 'drink');
     const cols = M.food ? ['#c09a63', '#e9c04f', '#8a5a34'] : M.art === 'cup' ? ['#e9a030', '#ffd463'] : ['#c8e6c9', '#ffffff'];
     for (let i = 0; i < 5; i++) V.parts.push({ x: p.x + rand(-2, 4), y: p.y - 11, vx: rand(-14, 14), vy: rand(-18, -4), g: 90, life: .5, max: .5, c: cols[i % cols.length], s: 1 });
   }
-  if (e.t >= e.dur) {
-    V.eat = null; Sound.play('jingle');
-    burst(p.x, p.y - 10, 16, ['#ffd463', '#fff6d8', '#9bbb55'], 70);
-    banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
-  }
+  if (e.t < e.dur) return false;
+  burst(p.x, p.y - 10, 16, ['#ffd463', '#fff6d8', '#9bbb55'], 70);
+  return true;
 }
-// The meal in your hand, going up to your mouth and back with each bite.
-function drawEating(S) {
-  const e = V.eat, M = MEALS[e.meal], p = V.player, [sx, sy] = S(p.x, p.y), K = OUTLINE;
+function tickEating(dt) {
+  const M = MEALS[V.eat.meal];
+  if (!eatStep(V.eat, V.player, dt, true)) return;
+  V.eat = null; Sound.play('jingle');
+  banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
+}
+// The meal in someone's hand, going up to their mouth and back with each bite.
+function drawEating(S, e = V.eat, p = V.player) {
+  const M = MEALS[e.meal], [sx, sy] = S(p.x, p.y), K = OUTLINE;
   // from the hand (by the hip) up to the mouth and back
   const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + 5 - lift * 3), y = Math.round(sy - 6 - lift * 5);
   const R = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };

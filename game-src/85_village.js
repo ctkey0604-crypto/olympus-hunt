@@ -265,7 +265,7 @@ function tickVillage(dt) {
   if (G.save) G.save.playtime += dt;
   const p = V.player;
   if (G.cutscene) { tickCutscene(dt); tickParticles(dt); Input.endFrame(); return; }
-  if (V.eat) { tickEating(dt); updateNpcs(dt); tickParticles(dt); followCam(p, dt); Input.endFrame(); return; }   // eating at the Tavern: hold still
+  if (V.eat) { tickEating(dt); updateNpcs(dt); netTownTick(dt); tickParticles(dt); followCam(p, dt); Input.endFrame(); return; }   // eating at the Tavern: hold still
   if (G.dialog) {
     const d = G.dialog, before = Math.floor(d.chars);
     d.chars = Math.min(d.lines[d.i].length, d.chars + 55 * dt);

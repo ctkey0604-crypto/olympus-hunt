@@ -133,8 +133,12 @@ function netRoom(m) {
 
 /* ---- the shared town ---- */
 function netTownIn(m) {
-  const [place, x, y, face, mv, dash] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
+  const [place, x, y, face, mv, dash, meal] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
   Object.assign(pe, { place, tx: +x, ty: +y, face: +face, moving: mv === '1', dash: dash === '1', at: performance.now() });
+  // they started eating at the Tavern: play their meal here too (on our own clock, from the first message that says so)
+  const eating = !!(meal && Object.prototype.hasOwnProperty.call(MEALS, meal));
+  if (eating && !pe.mealOn && !pe.eat) pe.eat = eatState(meal);
+  pe.mealOn = eating;
 }
 function peerHunter(id) {                                         // a hunter object to draw someone else in town
   const mem = netMember(id); if (!mem) return null;
@@ -145,7 +149,7 @@ function peerHunter(id) {                                         // a hunter ob
 function netTownTick(dt) {
   if (!netOn() || !V || !V.player) return;
   const p = V.player; NET.townT -= dt;
-  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0].join(',');
+  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0, V.eat ? V.eat.meal : ''].join(',');
   if ((s !== NET.townLast && NET.townT <= 0) || NET.townT < -1) { NET.townLast = s; NET.townT = .1; netSend({ t: 'town', s }); }
 }
 function netPeersTick(dt) {
@@ -153,16 +157,17 @@ function netPeersTick(dt) {
   for (const pe of Object.values(NET.peers)) {
     if (Math.hypot(pe.tx - pe.x, pe.ty - pe.y) > 60) { pe.x = pe.tx; pe.y = pe.ty; }
     pe.x += (pe.tx - pe.x) * k; pe.y += (pe.ty - pe.y) * k; if (pe.moving) pe.walkT += dt;
+    if (pe.eat) { if (pe.place !== (V && V.id) || !V.parts) pe.eat = null; else if (eatStep(pe.eat, pe, dt, false)) pe.eat = null; }
   }
 }
-// Everyone else standing in the same place as you, for renderVillage.
+// Everyone else standing in the same place as you, for renderVillage. Your home is your own: nobody else shows up there.
 function townPeers() {
-  if (!netOn() || !V) return [];
+  if (!netOn() || !V || V.id === 'home') return [];
   const out = [], now = performance.now();
   for (const [id, pe] of Object.entries(NET.peers)) {
     if (pe.place !== V.id || now - pe.at > 4000) continue;
     const o = peerHunter(+id); if (!o) continue;
-    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4 });
+    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4, eat: pe.eat });
     out.push(o);
   }
   return out;

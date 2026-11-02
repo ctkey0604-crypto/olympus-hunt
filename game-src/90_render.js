@@ -593,6 +593,7 @@ function renderVillage() {
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
   if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth
+  for (const o of peers) if (o.eat) drawEating(S, o.eat, o);    // and theirs
   drawParticlesAndText(S);
   for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
