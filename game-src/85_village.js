@@ -167,7 +167,7 @@ function enterPlace(id, from) {
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
-  V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null;
+  V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
@@ -271,6 +271,10 @@ function tickVillage(dt) {
     d.chars = Math.min(d.lines[d.i].length, d.chars + 55 * dt);
     if (Math.floor(d.chars) !== before) { renderDialog(); if (Math.floor(d.chars) % 3 === 0) Sound.play('talk'); }
     if (interactPressed()) advanceDialog();
+  } else if (V.seat) {                                  // sitting at a tavern table: order something, or move to get up
+    const mv = moveVector();
+    if (mv.x || mv.y || Input.hit('dodge')) { V.seat = null; villageMove(p, dt); }
+    else { p.moving = false; V.target = { kind: 'order', name: 'a meal', x: p.x, y: p.y }; if (interactPressed()) { Sound.play('click'); openPanel('tavern'); } }
   } else {
     villageMove(p, dt);
     V.target = nearestInteract(p);

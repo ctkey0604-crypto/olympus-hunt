@@ -63,11 +63,11 @@ function paintRug(x, rx, ry, w, h, c1, c2) {
   x.fillStyle = c2; x.fillRect(rx + 2, ry + 2, w - 4, 1); x.fillRect(rx + 2, ry + h - 3, w - 4, 1); x.fillRect(rx + 2, ry + 2, 1, h - 4); x.fillRect(rx + w - 3, ry + 2, 1, h - 4);
   for (let px = rx + 6; px < rx + w - 6; px += 8) { x.fillRect(px, ry + Math.floor(h / 2) - 1, 3, 1); x.fillRect(px + 1, ry + Math.floor(h / 2) - 2, 1, 3); }
 }
-// Sitting down at a tavern table: you take the seat, then Phaedra brings the menu.
+// Sitting down at a tavern table: you take the seat and stay there. Order from it if you like, or just walk off to get up.
 function sitAt(seat) {
   if (townPeers().some(o => dist(o, seat) < 5)) { toast('Someone is already sitting there.'); return; }
   const p = V.player; p.x = seat.x; p.y = seat.y; p.face = seat.face; p.moving = false;
-  openPanel('tavern');
+  V.seat = seat; V.target = null;
 }
 
 /* ---- the furniture ---- */
