@@ -468,6 +468,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .mp-tag span{color:var(--bone-dim)}
 .mp-card{background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);display:grid;gap:calc(var(--px)*1.5);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line)}
 .mp-q{display:flex;gap:calc(var(--px)*3);align-items:baseline}.mp-q b{color:var(--gold)}
+/* the posted hunt's rank: a bold coloured band across the top of the card */
+.mp-rank{margin:calc(var(--px)*-2) calc(var(--px)*-4) 0;padding:calc(var(--px)*1) calc(var(--px)*4);font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:.9em;
+  background:#d8ccb4;color:#1a1210;border-radius:calc(var(--px)*1.2) calc(var(--px)*1.2) 0 0}
+.mp-rank[data-rank="1"]{background:#e2603f;color:#1a0d08}.mp-rank[data-rank="2"]{background:#b48cff;color:#1a0d2a}
 .mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
 .mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
 .mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
@@ -774,7 +778,7 @@ const ATTACK_TURNS = { melee: 3, ranged: 2 };    // how many monsters may attack
 // hp / dmg: on top of the tier curve. tempo: how fast monsters and gods think (shorter windups and rests).
 // gear: name prefix for that rank's forged gear; item: suffix for its parts.
 const RANKS = [
-  { id: 0, key: 'lr', name: 'Low Rank',  prefix: '',    off: 0,  hp: 1,    dmg: 1,    tempo: 1,    waves: [1, 1, 0],     turns: [3, 2], gear: '',           item: '',   cost: 1, col: '#d8ccb4' },
+  { id: 0, key: 'lr', name: 'Normal Rank', prefix: '',    off: 0,  hp: 1,    dmg: 1,    tempo: 1,    waves: [1, 1, 0],     turns: [3, 2], gear: '',           item: '',   cost: 1, col: '#d8ccb4' },
   { id: 1, key: 'hr', name: 'High Rank', prefix: 'hr_', off: 16, hp: 1.15, dmg: 1.15, tempo: 1.17, waves: [1.3, 1.2, 0], turns: [4, 2], gear: 'Dread ',     item: '+',  cost: 4, col: '#e2603f' },
   { id: 2, key: 'gr', name: 'God Rank',  prefix: 'gr_', off: 32, hp: 1.3,  dmg: 1.3,  tempo: 1.32, waves: [1.6, 1.4, 1], turns: [5, 3], gear: 'Godslayer ', item: '++', cost: 8, col: '#b48cff' },
 ];
@@ -3670,27 +3674,90 @@ function paintHint(x, T, s, R) {
 }
 
 /* ---- pixel drawing helpers (crisp, no anti-aliasing) ---- */
+// Canvas draw calls are what slow Chromebooks pay for, so shapes and words that repeat are drawn once into a small canvas
+// and stamped after that (an ellipse is a dozen rects, a name tag a few hundred). Odd sizes are drawn the old way.
+const ELLIPSE_CACHE = new Map();
 function pxEllipse(cx, cy, rx, ry, col) {
   cx = Math.round(cx); cy = Math.round(cy); ctx.fillStyle = col;
-  for (let y = -ry; y <= ry; y++) { const w = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y / (ry + .5)) ** 2))); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); }
+  const rowW = y => Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y / (ry + .5)) ** 2)));
+  if (!Number.isInteger(rx) || !Number.isInteger(ry) || rx < 0 || ry < 0 || rx > 64 || ry > 64) {
+    for (let y = -ry; y <= ry; y++) { const w = rowW(y); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); }
+    return;
+  }
+  const key = rx + ',' + ry + ',' + col; let c = ELLIPSE_CACHE.get(key);
+  if (!c) {
+    if (ELLIPSE_CACHE.size > 400) ELLIPSE_CACHE.clear();
+    c = mkCanvas(rx * 2 + 1, ry * 2 + 1); const x = c.getContext('2d'); x.fillStyle = col;
+    for (let y = -ry; y <= ry; y++) { const w = rowW(y); x.fillRect(rx - w, ry + y, w * 2 + 1, 1); }
+    ELLIPSE_CACHE.set(key, c);
+  }
+  ctx.drawImage(c, cx - rx, cy - ry);
 }
-function pxRing(cx, cy, r, col, gap = 1) {
-  ctx.fillStyle = col; const step = 1 / Math.max(r, 1) * gap;
-  for (let a = 0; a < Math.PI * 2; a += step) ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1);
+// Pixel-font text (damage numbers, name tags) with its dark outline, drawn once per word and colour.
+const TEXT_CACHE = new Map();
+function pixelText(str, col, font) {
+  const key = col + '|' + str; let c = TEXT_CACHE.get(key); if (c) return c;
+  if (TEXT_CACHE.size > 500) TEXT_CACHE.clear();
+  c = mkCanvas(Math.max(1, str.length * 4 + 1), 7); const x = c.getContext('2d');
+  for (const pass of [0, 1]) {
+    x.fillStyle = pass ? col : '#140d0b';
+    let ox = 1;
+    for (const ch of str) {
+      const g = font(ch);
+      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
+        const px = ox + (i % 3), py = 1 + Math.floor(i / 3);
+        if (pass) x.fillRect(px, py, 1, 1); else { x.fillRect(px - 1, py, 3, 1); x.fillRect(px, py - 1, 1, 3); }
+      }
+      ox += 4;
+    }
+  }
+  TEXT_CACHE.set(key, c); return c;
 }
-function pxRingFlat(cx, cy, r, col, gap = 1) {
-  ctx.fillStyle = col; const step = 1 / Math.max(r, 1) * gap;
-  for (let a = 0; a < Math.PI * 2; a += step) ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * .6), 1, 1);
+// Rings: the same dots as plotting each one, but repeats are skipped, touching dots on a row become one rect, and dots
+// off the canvas aren't drawn (a big warning ring was hundreds of draw calls).
+function pxRingDots(cx, cy, r, sy, col, gap) {
+  ctx.fillStyle = col; const step = 1 / Math.max(r, 1) * gap, W = ctx.canvas.width, H = ctx.canvas.height;
+  let rx = 0, ry = 0, len = 0, lx = NaN, ly = NaN;
+  const flush = () => { if (len && ry >= 0 && ry < H && rx < W && rx + len > 0) ctx.fillRect(rx, ry, len, 1); len = 0; };
+  for (let a = 0; a < Math.PI * 2; a += step) {
+    const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r * sy);
+    if (x === lx && y === ly) continue;
+    lx = x; ly = y;
+    if (len && y === ry && x === rx + len) len++;
+    else if (len && y === ry && x === rx - 1) { rx--; len++; }
+    else { flush(); rx = x; ry = y; len = 1; }
+  }
+  flush();
 }
+function pxRing(cx, cy, r, col, gap = 1) { pxRingDots(cx, cy, r, 1, col, gap); }
+function pxRingFlat(cx, cy, r, col, gap = 1) { pxRingDots(cx, cy, r, .6, col, gap); }
 function pxLine(x0, y0, x1, y1, col, dashed = 0) {
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   let err = dx + dy, i = 0; ctx.fillStyle = col;
+  if (dashed) {
+    for (let n = 0; n < 1200; n++) {
+      if ((i++ % (dashed * 2)) < dashed) ctx.fillRect(x0, y0, 1, 1);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+    return;
+  }
+  // The same pixels, but each straight run is one rect, and runs off the canvas are skipped.
+  const W = ctx.canvas.width, H = ctx.canvas.height, flat = dx >= -dy;
+  let rx = x0, ry = y0, len = 0;
+  const flush = () => {
+    if (!len) return;
+    const x = flat ? (sx > 0 ? rx : rx - len + 1) : rx, y = flat ? ry : (sy > 0 ? ry : ry - len + 1), w = flat ? len : 1, h = flat ? 1 : len;
+    if (x < W && y < H && x + w > 0 && y + h > 0) ctx.fillRect(x, y, w, h);
+  };
   for (let n = 0; n < 1200; n++) {
-    if (!dashed || (i++ % (dashed * 2)) < dashed) ctx.fillRect(x0, y0, 1, 1);
+    if (flat ? y0 !== ry : x0 !== rx) { flush(); rx = x0; ry = y0; len = 0; }
+    len++;
     if (x0 === x1 && y0 === y1) break;
     const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
   }
+  flush();
 }
 function jagged(x0, y0, x1, y1, col, amp = 3, seg = 8, seed = 1) {
   const R = mulberry(seed), d = Math.hypot(x1 - x0, y1 - y0), n = Math.max(2, Math.round(d / seg));
@@ -3711,20 +3778,10 @@ function drawSpr(name, fi, x, y, flip, tint, alpha = 1, scale = 1) {
   if (alpha < 1) ctx.globalAlpha = 1;
 }
 const DIGITS = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001001010010', '8': '111101111101111', '9': '111101111001111', '+': '000010111010000', '-': '000000111000000', '!': '010010010000010' };
+const numGlyph = ch => DIGITS[ch];
 function drawNum(str, x, y, col) {
-  const w = str.length * 4 - 1; const cx = Math.round(x - w / 2); y = Math.round(y);
-  for (const pass of [0, 1]) {
-    ctx.fillStyle = pass ? col : '#140d0b';
-    let ox = cx;
-    for (const ch of str) {
-      const g = DIGITS[ch];
-      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
-        const px = ox + (i % 3), py = y + Math.floor(i / 3);
-        if (pass) ctx.fillRect(px, py, 1, 1); else { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
-      }
-      ox += 4;
-    }
-  }
+  const w = str.length * 4 - 1;
+  ctx.drawImage(pixelText(str, col, numGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
 }
 
 /* ---- obstacle and prop art ---- */
@@ -3905,6 +3962,18 @@ function drawObstacle(o, sx, sy) {
     }
     case 'tstatue': {                                 // a Titan on a wide plinth, dark until you beat it
       const gr = godRank(o.variant), img = statueImg(o.variant, gr >= 0 ? STATUE_TONE[gr] : 'stone');
+      if (o.variant === 'typhon') {                   // Typhon: twice as big, on a taller plinth in the middle of the hall
+        pxEllipse(sx + 2, sy + 2, 20, 4, 'rgba(0,0,0,.4)');
+        ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 19, sy - 15, 38, 17);
+        ctx.fillStyle = '#4a4652'; ctx.fillRect(sx - 18, sy - 14, 36, 15); ctx.fillStyle = '#6a6672'; ctx.fillRect(sx - 18, sy - 14, 36, 2);
+        ctx.fillStyle = gr >= 0 ? RANK_TINT[gr] ? RANK_TINT[gr].trim : '#e9c04f' : '#2a2630'; ctx.fillRect(sx - 12, sy - 8, 24, 1); ctx.fillRect(sx - 12, sy - 5, 24, 1);
+        if (gr < 0) ctx.globalAlpha = .75;
+        ctx.drawImage(img, Math.round(sx - img.width), Math.round(sy - 14 - img.height * 2 + 2), img.width * 2, img.height * 2);
+        ctx.globalAlpha = 1;
+        if (gr >= 0 && Math.floor(t * 3 + o.seed) % 4 === 0) { ctx.fillStyle = '#ffffff'; ctx.fillRect(sx + 9, sy - 14 - img.height * 2 + 10, 1, 1); }
+        if (gr >= 0) { flame(sx - 16, sy - 15, 2, 4, o.seed); flame(sx + 16, sy - 15, 2, 4, o.seed + 5); }
+        break;
+      }
       pxEllipse(sx + 2, sy + 2, 13, 3, 'rgba(0,0,0,.35)');
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 12, sy - 11, 24, 13);
       ctx.fillStyle = '#4a4652'; ctx.fillRect(sx - 11, sy - 10, 22, 11); ctx.fillStyle = '#6a6672'; ctx.fillRect(sx - 11, sy - 10, 22, 2);
@@ -4464,10 +4533,11 @@ function netUi() {
     + (netChatOk() ? `<button type="button" data-mp="chat" class="mp-chatbtn">Chat${NET.unread ? `<i class="mp-unread">${NET.unread}</i>` : ''}${key('T')}</button>` : '')
     + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
   if (G.mode === 'village') {
-    if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}.</span></div>`;
+    if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}${R.quest ? ` (${RANKS[R.quest.rank || 0].name})` : ''}.</span></div>`;
     else if (R.quest) {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
-      html += `<div class="mp-card mp-post"><div class="mp-q"><b>${esc(R.quest.name)}</b>${R.quest.rank ? `<span class="rank-tag" data-rank="${R.quest.rank}">${RANKS[R.quest.rank].name}</span>` : ''}</div>
+      const qr = R.quest.rank || 0;                      // the rank goes first, big, in its own colour: you can't miss which one it is
+      html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qr}">${RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
         <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === poster ? 'ok' : ''}">${m.ready || m.id === poster ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
@@ -7840,6 +7910,8 @@ function rankReady(save = G.save) { return save && save.rank < RANKS.length - 1 
 // God Rank done: Typhon climbs out from under Etna, and Kleon has to tell you. Typhon down: Kleon's last word.
 function typhonReady(save = G.save) { return !!save && save.rank === RANKS.length - 1 && rankDone(save.rank, save) && !save.cleared[TYPHON_Q] && !save.typhonTold; }
 function finaleReady(save = G.save) { return !!save && !!save.cleared[TYPHON_Q] && !save.finale; }
+// Typhon's statue stands in the Titans' hall once his hunt is open: stone until he falls, then amethyst.
+function typhonShown(save = G.save) { return !!save && (!!save.cleared[TYPHON_Q] || save.typhonTold || (save.rank === RANKS.length - 1 && rankDone(save.rank, save))); }
 const heraldNews = () => !!(rankReady() || typhonReady() || finaleReady());
 function finishGame() {
   const s = G.save; if (s.finale) return;
@@ -7901,6 +7973,8 @@ function godName(id) { return (BOSSES[id] || {}).name || id; }
 function buildHall() {
   const props = [];
   TITANS.forEach((t, i) => { const left = i < 4, o = mkObstacle('tstatue', left ? 9.5 : 29.5, 7.6 + (i % 4) * 4.1, t.id); props.push(o); });
+  const ty = typhonShown();
+  if (ty) { const o = mkObstacle('tstatue', 19.5, 13.4, 'typhon'); o.box = { x: o.x - 18, y: o.y - 6, w: 36, h: 12 }; props.push(o); }   // in the middle of the eight, twice their size
   [[5, 6], [34, 6], [5, 14], [34, 14], [5, 21], [34, 21]].forEach(([tx, ty]) => props.push(mkObstacle('brazier', tx, ty)));
   [[14, 9], [25, 9], [14, 18], [25, 18]].forEach(([tx, ty]) => { const o = mkObstacle('column', tx, ty); o.variant = 'dark'; props.push(o); });
   const layers = genLayers('titanhall', null, { seed: 'hall' }), gx = tc(20) - 8;
@@ -7908,7 +7982,7 @@ function buildHall() {
   const spots = [{ id: 'upstairs', name: 'the stairs', kind: 'stairs', goes: 'temple', x: tc(20) - 8, y: IPX.minY + 10 },
                  { id: 'tgate', name: 'the Gate of Tartarus', kind: 'tgate', opens: 'quests', x: gx, y: IPX.maxY - 4 }];
   for (const o of props) if (o.kind === 'tstatue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
-  return { id: 'hall', name: 'Hall of the Titans', theme: 'titanhall', night: true, world: makeWorld(props.map(o => o.box)),
+  return { id: 'hall', name: 'Hall of the Titans', theme: 'titanhall', night: true, typhon: ty, world: makeWorld(props.map(o => o.box)),
            ground: layers.ground, buildings: [], props, npcs: [], spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 function buildVillage() {
@@ -7971,6 +8045,7 @@ function enterPlace(id, from) {
   setWorldSize(room ? room.wt : 40, room ? room.ht : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
+  if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
   Music.play(V.music || (id === 'village' ? 'akros' : id));
@@ -8893,21 +8968,11 @@ const GLYPHS = { A: '010101111101101', B: '110101110101110', C: '011100100100011
   H: '101101111101101', I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111', M: '101111111101101', N: '110101101101101',
   O: '010101101101010', P: '110101110100100', Q: '010101101110011', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111',
   V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010', Z: '111001010100111', '_': '000000000000111', '.': '000000000000010', ' ': '000000000000000' };
+const tagGlyph = ch => GLYPHS[ch] || DIGITS[ch];
 function drawTag(str, x, y, col) {
   str = String(str).toUpperCase().slice(0, 14);
-  const w = str.length * 4 - 1, cx = Math.round(x - w / 2); y = Math.round(y);
-  for (const pass of [0, 1]) {
-    ctx.fillStyle = pass ? col : '#140d0b';
-    let ox = cx;
-    for (const ch of str) {
-      const g = GLYPHS[ch] || DIGITS[ch];
-      if (g) for (let i = 0; i < 15; i++) if (g[i] === '1') {
-        const px = ox + (i % 3), py = y + Math.floor(i / 3);
-        if (pass) ctx.fillRect(px, py, 1, 1); else { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
-      }
-      ox += 4;
-    }
-  }
+  const w = str.length * 4 - 1;
+  ctx.drawImage(pixelText(str, col, tagGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
 }
 const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff'];
 // A downed hunter lies flat on the ground, with a ring that fills while a teammate stands next to them.
@@ -9303,7 +9368,7 @@ function renderVillage() {
   for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
   if (t && !G.dialog && !G.cutscene && !V.eat && t.kind !== 'order') {
-    const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
+    const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (t.god === 'typhon' ? 74 : V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
     ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, top - 1, 7, 5); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 2, top, 5, 1); ctx.fillRect(sx - 1, top + 1, 3, 1); ctx.fillRect(sx, top + 2, 1, 1);
   }
   tutDraw(S);
@@ -9610,7 +9675,7 @@ function drawTitanWorld(S) {
     for (let i = 0; i < 46; i++) {
       const bx = R() * (VIEW_W + 40), by = R() * (VIEW_H + 40), off = (G.time * sp + R() * 400);
       const x = ((bx + ca * off) % (VIEW_W + 40) + VIEW_W + 40) % (VIEW_W + 40) - 20, y = ((by + sa * off) % (VIEW_H + 40) + VIEW_H + 40) % (VIEW_H + 40) - 20;
-      for (let k = 0; k < 5; k++) ctx.fillRect(Math.round(x - ca * k), Math.round(y - sa * k), 1, 1);
+      pxLine(x, y, x - ca * 4, y - sa * 4, '#bfe8f0');
     }
     ctx.globalAlpha = 1;
     if (C.next !== null) { const p = q.player, [px, py] = S(p.x, p.y - 26); for (let i = -1; i <= 1; i++) arrowHead(px + Math.cos(C.next) * (8 + i * 6), py + Math.sin(C.next) * (8 + i * 6) * .6, C.next, blink(8) ? '#ffffff' : '#57c2b0'); }
@@ -9632,9 +9697,14 @@ function drawTitanWorld(S) {
   }
   if (b.type === 'hyperion' && b.state === 'beams' && b.beams) {
     const B = b.beams, [sx, sy] = S(b.x, b.y);
+    // each beam is three filled bands (orange edge, yellow, white core): a few shapes instead of thousands of pixels
     for (let i = 0; i < B.n; i++) {
-      const a = B.a + i / B.n * Math.PI * 2, len = raycast(b.x, b.y, a, 360, 12) + 12;
-      for (let o = -2; o <= 2; o++) { const nx = -Math.sin(a) * o, ny = Math.cos(a) * o; pxLine(sx + nx, sy - 6 + ny, sx + nx + Math.cos(a) * len, sy - 6 + ny + Math.sin(a) * len, Math.abs(o) === 2 ? '#ff8a2b' : Math.abs(o) === 1 ? '#ffd463' : '#ffffff'); }
+      const a = B.a + i / B.n * Math.PI * 2, len = raycast(b.x, b.y, a, 360, 12) + 12, ca = Math.cos(a), sa = Math.sin(a), x0 = sx, y0 = sy - 6;
+      for (const [w, col] of [[2.5, '#ff8a2b'], [1.5, '#ffd463'], [.5, '#ffffff']]) {
+        ctx.fillStyle = col; ctx.beginPath();
+        ctx.moveTo(x0 - sa * w, y0 + ca * w); ctx.lineTo(x0 + ca * len - sa * w, y0 + sa * len + ca * w);
+        ctx.lineTo(x0 + ca * len + sa * w, y0 + sa * len - ca * w); ctx.lineTo(x0 + sa * w, y0 - ca * w); ctx.closePath(); ctx.fill();
+      }
     }
   }
 }
@@ -10689,7 +10759,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
-  renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame,
+  renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
