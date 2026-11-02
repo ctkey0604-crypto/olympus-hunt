@@ -162,6 +162,9 @@ const SAVE_SLACK = 150000;  // on top of that per save: hidden caches, a long hu
 const PLAY_SLACK = 300;     // seconds of play a save may claim beyond the real time since the server's last copy
 const idRank = id => typeof id !== 'string' ? 0 : id.startsWith('gr_') ? 2 : id.startsWith('hr_') ? 1 : 0;
 const TYPHON_GEAR = new Set(['typhon_fang', 'typhonic']);      // God Rank gear without the gr_ prefix, forged from his heart
+const RANK_UP_MIN = 8;      // hunts cleared on a rank before the next one can open (the real rule is every god and Titan: 25)
+const CLEAR_SECS = 6;       // seconds of play a cleared hunt takes at the very least (real hunts take minutes)
+const CLEAR_SLACK = 150;    // hunts a save may have cleared beyond that: saves from before play time was counted
 function checkSave(s, prev, now) {
   const okNum = (v, max) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= max;
   const obj = v => v && typeof v === 'object' && !Array.isArray(v) ? v : {}, arr = v => Array.isArray(v) ? v : [];
@@ -176,12 +179,32 @@ function checkSave(s, prev, now) {
                ...Object.keys(obj(s.inv)), ...Object.keys(cleared), ...Object.keys(obj(s.refine))];
   if (ids.some(id => idRank(id) > rank)) return 'it has gear or hunts from a rank it hasn’t reached';
   if (!cleared.gr_typhon_hunt && ids.some(id => TYPHON_GEAR.has(id))) return 'it has Typhon’s gear without Typhon slain';
+  // a rank opens only after hunting through the one below, and its parts and gear come from its own hunts
+  const onRank = r => Object.keys(cleared).filter(id => cleared[id] > 0 && idRank(id) === r).length;
+  if (rank >= 1 && onRank(0) < RANK_UP_MIN) return 'it has High Rank without the Low Rank hunts';
+  if (rank >= 2 && onRank(1) < RANK_UP_MIN) return 'it has God Rank without the High Rank hunts';
+  const owned = [...arr(s.weapons), ...arr(s.shields), ...arr(s.pieces).map(p => String(p).split(':')[0]), ...Object.values(obj(s.equip)), s.weapon, s.shield,
+                 ...Object.keys(obj(s.inv)).filter(k => s.inv[k] > 0), ...Object.keys(obj(s.refine))];
+  for (const r of [1, 2]) if (!onRank(r) && owned.some(id => idRank(id) === r)) return 'it has parts or gear from a rank it hasn’t hunted on';
+  if (cleared.gr_typhon_hunt && onRank(2) < RANK_UP_MIN) return 'it has Typhon slain without the God Rank hunts';
+  const en = obj(s.endless);
+  if ((en.best > 0 || en.last > 0) && !cleared.gr_typhon_hunt) return 'it has an Endless Hunt record before Typhon was slain';
+  // what you wear and hold has to be yours
+  const pieces = new Set(arr(s.pieces));
+  if (Object.entries(obj(s.equip)).some(([sl, set]) => set !== 'traveler' && !pieces.has(set + ':' + sl)) ||
+      (s.weapon && s.weapon !== 'bronze_sword' && !arr(s.weapons).includes(s.weapon)) || (s.shield && !arr(s.shields).includes(s.shield)))
+    return 'it wears or holds gear it doesn’t own';
+  // every hunt takes real play time
+  const clearsOf = c => Object.values(obj(c)).reduce((n, v) => n + (typeof v === 'number' && v > 0 ? Math.floor(v) : 0), 0);
+  const play = s.playtime || 0, clears = clearsOf(cleared);
+  if (clears > play / CLEAR_SECS + CLEAR_SLACK) return 'it has more hunts cleared than its play time allows';
   // progress since the server's last copy of this same game (a new game in the slot starts fresh)
-  const play = s.playtime || 0, p = prev && prev.createdAt === s.createdAt && typeof prev._at === 'number' ? prev : null;
+  const p = prev && prev.createdAt === s.createdAt && typeof prev._at === 'number' ? prev : null;
   if (p) {
     const dPlay = play - (p.playtime || 0), dReal = (now - p._at) / 1000;
     if (dPlay > dReal + PLAY_SLACK) return 'it claims more play time than has passed';
     if (s.money - (p.money || 0) > Math.max(0, dPlay) * SAVE_RATE + SAVE_SLACK) return 'its drachmae went up faster than hunting pays';
+    if (clears - clearsOf(p.cleared) > Math.max(0, dPlay) / CLEAR_SECS + 3) return 'it cleared hunts faster than they can be played';
   } else if (s.money > play * SAVE_RATE + SAVE_SLACK) return 'it has more drachmae than its play time could earn';
   return null;
 }
