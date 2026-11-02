@@ -265,6 +265,7 @@ function drawPlayer(p, S) {
     shDraw = { cx, cy, rx: Math.round(lerp(3, 5, k)), ry: Math.round(lerp(4, 7, k)), front: k > .5 && Math.sin(p.face) > -.3, flash: p.guardFlash > 0, glow: p.fx && p.fx.riposte > 0 };
   }
   if (shDraw && !shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
+  if (p.sitting) { drawSpr(frames, 2, sx, sy - 1, flip); return; }   // on a tavern stool: weapon put away
   if (behind) drawWeapon(p, hx, hy);
   if (p.dodgeT > 0) drawSpr(frames, 1, sx, sy + 1, flip, null, 1);
   else drawSpr(frames, fi, sx, sy - bob, flip, p.flash > 0 ? 'white' : null);
@@ -587,9 +588,10 @@ function renderVillage() {
     const [sx, sy] = S(n.x, n.y); drawSpr(n.sprite, 0, sx, sy, n.flip);
     if (n.id === 'herald' && heraldNews()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
-  list.push({ y: V.player.y, draw: () => drawPlayer(V.player, S) });
+  V.player.sitting = !!V.seat;                                  // someone on a stool is drawn over it
+  list.push({ y: V.player.y + (V.seat ? 1 : 0), draw: () => drawPlayer(V.player, S) });
   const peers = townPeers();                                    // the others in your room, if you're in one
-  for (const o of peers) list.push({ y: o.y, draw: () => drawPlayer(o, S) });
+  for (const o of peers) list.push({ y: o.y + (o.sitting ? 1 : 0), draw: () => drawPlayer(o, S) });
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
   if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth

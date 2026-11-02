@@ -455,7 +455,10 @@ function heroFrames(eq) {
     p: cr ? RANK_TINT[cr].trim : '#000', q: lr ? RANK_TINT[lr].trim : '#000',
   });
   if (hr && extra) pal.k = RANK_TINT[hr].trim;
-  return (HERO_CACHE[key] = buildFrames([rows, HERO_WALK], pal));
+  // frame 2, sitting on a stool seen from the side: the same body, the legs bent (thigh out in front, then shin and foot).
+  // It's drawn a pixel up, so the feet swing just off the floor.
+  const sit = { from: 17, rows: ['...lllllL...', '........L...', '........Lf..'] };
+  return (HERO_CACHE[key] = buildFrames([rows, HERO_WALK, sit], pal));
 }
 
 

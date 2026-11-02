@@ -28,7 +28,7 @@ const ROOMS = {
             ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
             ['amphora', 3.4, 10.4], ['amphora', 20, 10.4]],
     npcs: [{ id: 'keeper', name: 'Phaedra', sprite: 'keeper', x: 192, y: 67, opens: 'tavern', behind: true }],
-    seats: [[83, 131, 0], [125, 131, Math.PI], [259, 131, 0], [301, 131, Math.PI]],
+    seats: [[85, 131, 0], [123, 131, Math.PI], [261, 131, 0], [299, 131, Math.PI]],   // a little forward of each stool, so it shows behind you
     rugs: [[128, 108, 128, 44, '#8f2e1e', '#e9c04f']] },
   market: { name: 'Melita’s Market', theme: 'marketroom', sub: 'Potions, and parts from hunts you’ve cleared',
     props: [['counter', 11.5, 4.4, 'market'], ['shelf', 5.4, 3.2, 'potions'], ['shelf', 17.6, 3.2, 'jars'], ['amphora', 3.6, 7.6], ['amphora', 4.4, 8.4],
@@ -103,7 +103,10 @@ const PROP_ART = {
     const R = mulberry(o.seed); if (R() < .7) drawMug(sx - 7, sy - 13);
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx + 1, sy - 14, 8, 2); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(sx + 2, sy - 15, 6, 2); ctx.fillStyle = '#c35f2a'; ctx.fillRect(sx + 4, sy - 15, 2, 1);   // a plate with something on it
   },
-  stool(o, sx, sy) { pxEllipse(sx, sy, 5, 2, 'rgba(0,0,0,.3)'); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 4, sy - 6, 8, 6); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 3, sy - 5, 6, 2); ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 3, sy - 3, 1, 3); ctx.fillRect(sx + 2, sy - 3, 1, 3); },
+  stool(o, sx, sy) {                                   // low, so someone sitting on it is in proportion
+    pxEllipse(sx, sy, 6, 2, 'rgba(0,0,0,.3)'); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 5, sy - 5, 10, 3); ctx.fillRect(sx - 4, sy - 2, 2, 2); ctx.fillRect(sx + 2, sy - 2, 2, 2);
+    ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 4, sy - 4, 8, 1); ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 3, sy - 2, 1, 2); ctx.fillRect(sx + 2, sy - 2, 1, 2);
+  },
   barrel(o, sx, sy) {
     const K = OUTLINE, water = o.variant === 'water'; pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)');
     ctx.fillStyle = K; ctx.fillRect(sx - 7, sy - 14, 14, 15); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 6, sy - 13, 12, 13); ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 6, sy - 13, 3, 13);
@@ -193,7 +196,8 @@ function renderTavern() {
 const eatState = id => { const M = MEALS[id]; return { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] }; };
 function startEating(id) {
   const p = V.player;
-  p.face = Math.PI / 2; p.moving = false; V.target = null;
+  if (!V.seat) p.face = Math.PI / 2;                   // seated, you keep facing the table
+  p.moving = false; V.target = null;
   V.eat = eatState(id);
 }
 // One step of a meal, yours (sounds and the banner) or another player's in the same room (just the crumbs and the sparkle).
@@ -217,9 +221,9 @@ function tickEating(dt) {
 }
 // The meal in someone's hand, going up to their mouth and back with each bite.
 function drawEating(S, e = V.eat, p = V.player) {
-  const M = MEALS[e.meal], [sx, sy] = S(p.x, p.y), K = OUTLINE;
-  // from the hand (by the hip) up to the mouth and back
-  const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + 5 - lift * 3), y = Math.round(sy - 6 - lift * 5);
+  const M = MEALS[e.meal], [sx, sy] = S(p.x, p.y), K = OUTLINE, dir = Math.cos(p.face) < 0 ? -1 : 1, low = p.sitting ? -1 : 0;
+  // from the hand (by the hip) up to the mouth and back, on the side you're facing
+  const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + dir * (5 - lift * 3)), y = Math.round(sy - 6 + low - lift * 5);
   const R = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
   if (M.art === 'bowl') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#a3713f'); R(-2, -2, 5, 1, '#c35f2a'); if (Math.floor(e.t * 6) % 2) R(-1, -5, 1, 2, '#e6e1d6'); }
   else if (M.art === 'skewer') { R(-5, 0, 11, 1, '#c09a63'); for (const cx of [-4, -1, 2]) { R(cx, -2, 3, 4, K); R(cx + 1, -1, 1, 2, '#a3532a'); } }
