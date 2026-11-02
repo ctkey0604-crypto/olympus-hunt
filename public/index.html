@@ -2275,7 +2275,10 @@ function heroFrames(eq) {
     p: cr ? RANK_TINT[cr].trim : '#000', q: lr ? RANK_TINT[lr].trim : '#000',
   });
   if (hr && extra) pal.k = RANK_TINT[hr].trim;
-  return (HERO_CACHE[key] = buildFrames([rows, HERO_WALK], pal));
+  // frame 2, sitting on a stool seen from the side: the same body, the legs bent (thigh out in front, then shin and foot).
+  // It's drawn a pixel up, so the feet swing just off the floor.
+  const sit = { from: 17, rows: ['...lllllL...', '........L...', '........Lf..'] };
+  return (HERO_CACHE[key] = buildFrames([rows, HERO_WALK, sit], pal));
 }
 
 
@@ -4369,8 +4372,8 @@ function netRoom(m) {
 
 /* ---- the shared town ---- */
 function netTownIn(m) {
-  const [place, x, y, face, mv, dash, meal] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
-  Object.assign(pe, { place, tx: +x, ty: +y, face: +face, moving: mv === '1', dash: dash === '1', at: performance.now() });
+  const [place, x, y, face, mv, dash, meal, sit] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
+  Object.assign(pe, { place, tx: +x, ty: +y, face: +face, moving: mv === '1', dash: dash === '1', sit: sit === '1', at: performance.now() });
   // they started eating at the Tavern: play their meal here too (on our own clock, from the first message that says so)
   const eating = !!(meal && Object.prototype.hasOwnProperty.call(MEALS, meal));
   if (eating && !pe.mealOn && !pe.eat) pe.eat = eatState(meal);
@@ -4385,7 +4388,7 @@ function peerHunter(id) {                                         // a hunter ob
 function netTownTick(dt) {
   if (!netOn() || !V || !V.player) return;
   const p = V.player; NET.townT -= dt;
-  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0, V.eat ? V.eat.meal : ''].join(',');
+  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0, V.eat ? V.eat.meal : '', V.seat ? 1 : 0].join(',');
   if ((s !== NET.townLast && NET.townT <= 0) || NET.townT < -1) { NET.townLast = s; NET.townT = .1; netSend({ t: 'town', s }); }
 }
 function netPeersTick(dt) {
@@ -4403,7 +4406,7 @@ function townPeers() {
   for (const [id, pe] of Object.entries(NET.peers)) {
     if (pe.place !== V.id || now - pe.at > 4000) continue;
     const o = peerHunter(+id); if (!o) continue;
-    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4, eat: pe.eat });
+    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4, eat: pe.eat, sitting: pe.sit });
     out.push(o);
   }
   return out;
@@ -7556,7 +7559,7 @@ const ROOMS = {
             ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
             ['amphora', 3.4, 10.4], ['amphora', 20, 10.4]],
     npcs: [{ id: 'keeper', name: 'Phaedra', sprite: 'keeper', x: 192, y: 67, opens: 'tavern', behind: true }],
-    seats: [[83, 131, 0], [125, 131, Math.PI], [259, 131, 0], [301, 131, Math.PI]],
+    seats: [[85, 131, 0], [123, 131, Math.PI], [261, 131, 0], [299, 131, Math.PI]],   // a little forward of each stool, so it shows behind you
     rugs: [[128, 108, 128, 44, '#8f2e1e', '#e9c04f']] },
   market: { name: 'Melita’s Market', theme: 'marketroom', sub: 'Potions, and parts from hunts you’ve cleared',
     props: [['counter', 11.5, 4.4, 'market'], ['shelf', 5.4, 3.2, 'potions'], ['shelf', 17.6, 3.2, 'jars'], ['amphora', 3.6, 7.6], ['amphora', 4.4, 8.4],
@@ -7631,7 +7634,10 @@ const PROP_ART = {
     const R = mulberry(o.seed); if (R() < .7) drawMug(sx - 7, sy - 13);
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx + 1, sy - 14, 8, 2); ctx.fillStyle = '#e6e1d6'; ctx.fillRect(sx + 2, sy - 15, 6, 2); ctx.fillStyle = '#c35f2a'; ctx.fillRect(sx + 4, sy - 15, 2, 1);   // a plate with something on it
   },
-  stool(o, sx, sy) { pxEllipse(sx, sy, 5, 2, 'rgba(0,0,0,.3)'); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 4, sy - 6, 8, 6); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 3, sy - 5, 6, 2); ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 3, sy - 3, 1, 3); ctx.fillRect(sx + 2, sy - 3, 1, 3); },
+  stool(o, sx, sy) {                                   // low, so someone sitting on it is in proportion
+    pxEllipse(sx, sy, 6, 2, 'rgba(0,0,0,.3)'); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 5, sy - 5, 10, 3); ctx.fillRect(sx - 4, sy - 2, 2, 2); ctx.fillRect(sx + 2, sy - 2, 2, 2);
+    ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 4, sy - 4, 8, 1); ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 3, sy - 2, 1, 2); ctx.fillRect(sx + 2, sy - 2, 1, 2);
+  },
   barrel(o, sx, sy) {
     const K = OUTLINE, water = o.variant === 'water'; pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)');
     ctx.fillStyle = K; ctx.fillRect(sx - 7, sy - 14, 14, 15); ctx.fillStyle = '#8a5a34'; ctx.fillRect(sx - 6, sy - 13, 12, 13); ctx.fillStyle = '#a3713f'; ctx.fillRect(sx - 6, sy - 13, 3, 13);
@@ -7721,7 +7727,8 @@ function renderTavern() {
 const eatState = id => { const M = MEALS[id]; return { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] }; };
 function startEating(id) {
   const p = V.player;
-  p.face = Math.PI / 2; p.moving = false; V.target = null;
+  if (!V.seat) p.face = Math.PI / 2;                   // seated, you keep facing the table
+  p.moving = false; V.target = null;
   V.eat = eatState(id);
 }
 // One step of a meal, yours (sounds and the banner) or another player's in the same room (just the crumbs and the sparkle).
@@ -7745,9 +7752,9 @@ function tickEating(dt) {
 }
 // The meal in someone's hand, going up to their mouth and back with each bite.
 function drawEating(S, e = V.eat, p = V.player) {
-  const M = MEALS[e.meal], [sx, sy] = S(p.x, p.y), K = OUTLINE;
-  // from the hand (by the hip) up to the mouth and back
-  const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + 5 - lift * 3), y = Math.round(sy - 6 - lift * 5);
+  const M = MEALS[e.meal], [sx, sy] = S(p.x, p.y), K = OUTLINE, dir = Math.cos(p.face) < 0 ? -1 : 1, low = p.sitting ? -1 : 0;
+  // from the hand (by the hip) up to the mouth and back, on the side you're facing
+  const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + dir * (5 - lift * 3)), y = Math.round(sy - 6 + low - lift * 5);
   const R = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
   if (M.art === 'bowl') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#a3713f'); R(-2, -2, 5, 1, '#c35f2a'); if (Math.floor(e.t * 6) % 2) R(-1, -5, 1, 2, '#e6e1d6'); }
   else if (M.art === 'skewer') { R(-5, 0, 11, 1, '#c09a63'); for (const cx of [-4, -1, 2]) { R(cx, -2, 3, 4, K); R(cx + 1, -1, 1, 2, '#a3532a'); } }
@@ -8920,6 +8927,7 @@ function drawPlayer(p, S) {
     shDraw = { cx, cy, rx: Math.round(lerp(3, 5, k)), ry: Math.round(lerp(4, 7, k)), front: k > .5 && Math.sin(p.face) > -.3, flash: p.guardFlash > 0, glow: p.fx && p.fx.riposte > 0 };
   }
   if (shDraw && !shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
+  if (p.sitting) { drawSpr(frames, 2, sx, sy - 1, flip); return; }   // on a tavern stool: weapon put away
   if (behind) drawWeapon(p, hx, hy);
   if (p.dodgeT > 0) drawSpr(frames, 1, sx, sy + 1, flip, null, 1);
   else drawSpr(frames, fi, sx, sy - bob, flip, p.flash > 0 ? 'white' : null);
@@ -9242,9 +9250,10 @@ function renderVillage() {
     const [sx, sy] = S(n.x, n.y); drawSpr(n.sprite, 0, sx, sy, n.flip);
     if (n.id === 'herald' && heraldNews()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
-  list.push({ y: V.player.y, draw: () => drawPlayer(V.player, S) });
+  V.player.sitting = !!V.seat;                                  // someone on a stool is drawn over it
+  list.push({ y: V.player.y + (V.seat ? 1 : 0), draw: () => drawPlayer(V.player, S) });
   const peers = townPeers();                                    // the others in your room, if you're in one
-  for (const o of peers) list.push({ y: o.y, draw: () => drawPlayer(o, S) });
+  for (const o of peers) list.push({ y: o.y + (o.sitting ? 1 : 0), draw: () => drawPlayer(o, S) });
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
   if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth
