@@ -2874,6 +2874,15 @@ const Music = (() => {
                 A: '1:8 3:4 2:4 | 1:12 7,:4 | 6,:8 1:4 3:4 | 7,:16', E: '3:8 2:4 1:4' }),
     hall:   T({ key: 'D', mode: 'phr', bpm: 64, prog: '1 2 1 7 1 2 7 1', progB: '1 1 2 2 7 7 1 1', bass: 'doom', drums: 'slow', arp: 'pad', duty: .5, oct: 3,
                 A: '1:8 2:8 | 1:12 -:4 | 5,:8 6,:4 5,:4 | 2:16', E: '2:8 1:8' }),
+    // inside the buildings: a jig at the tavern, a skipping market tune, the forge keeping time with the anvil, a lullaby at home
+    room_tavern: T({ key: 'D', mode: 'mix', bpm: 150, prog: '1 4 1 7 1 4 5 1', progB: '4 4 1 1 4 7 5 5', bass: 'octave', drums: 'dance', arp: 'broken8', duty: .125,
+                A: '1:3 3:1 5:2 5:2 6:2 5:2 3:4 | 4:3 6:1 5:2 4:2 3:4 2:4 | 1:3 3:1 5:2 1\':2 7:2 5:2 6:4 | 5:2 4:2 3:2 2:2 1:8', E: '7,:2 2:2 5:2 4:2 1:8' }),
+    room_market: T({ key: 'F', mode: 'ion', bpm: 124, prog: '1 6 4 5 1 6 2 5', progB: '4 5 3 6 4 5 1 1', bass: 'walk', drums: 'syncop', arp: 'up', duty: .125,
+                A: '5:2 1\':2 7:2 5:2 6:4 5:4 | 4:2 5:2 6:2 4:2 3:8 | 2:2 3:2 4:2 6:2 5:2 4:2 3:2 2:2 | 1:4 3:4 5:8', E: '2:4 7,:4 1:8' }),
+    room_forge:  T({ key: 'E', mode: 'dor', bpm: 108, prog: '1 1 7 1 3 4 7 1', progB: '4 4 1 1 4 4 7 7', bass: 'drive', drums: 'anvil', arp: 'broken8',
+                A: '1:4 1:2 3:2 4:4 3:2 1:2 | 7,:4 1:2 2:2 1:8 | 3:4 3:2 5:2 6:4 5:2 3:2 | 4:4 3:4 2:8', E: '2:4 7,:4 1:8' }),
+    room_home:   T({ key: 'Bb', mode: 'ion', bpm: 76, prog: '1 6 4 5 1 6 4 1', progB: '4 5 3 6 2 5 1 1', bass: 'walk', drums: 'soft', arp: 'updown', duty: .125, echo: true,
+                A: '3:4 5:4 1\':6 7:2 | 6:4 5:4 3:8 | 4:4 6:4 5:4 3:4 | 2:12 -:4', E: '3:4 2:4 1:8' }),
     // shared hunt music: every hunt that isn't a god or a Titan fight
     hunt_field: T({ key: 'E', mode: 'dor', bpm: 140, prog: '1 4 1 7 3 4 5 5', progB: '3 4 1 1 3 4 5 5', bass: 'gallop', drums: 'rock', arp: 'up',
                 A: '1:2 2:2 3:2 5:4 3:2 5:2 6:2 | 5:4 4:2 3:2 4:8 | 3:2 3:2 5:2 3:2 1\':4 7:4 | 6:6 5:2 4:8', E: '5:4 7:4 6:4 4:4' }),
@@ -7567,7 +7576,7 @@ function buildRoom(id) {
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
-  return { id, name: D.name, theme: D.theme, sub: D.sub, music: 'akros', exitTo: 'village',
+  return { id, name: D.name, theme: D.theme, sub: D.sub, music: Music.songs['room_' + id] ? 'room_' + id : 'akros', exitTo: 'village',
            world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: 11, y: 12, w: 2, h: 2 }]),
            ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
