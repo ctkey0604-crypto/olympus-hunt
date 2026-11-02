@@ -7591,11 +7591,11 @@ function paintRug(x, rx, ry, w, h, c1, c2) {
   x.fillStyle = c2; x.fillRect(rx + 2, ry + 2, w - 4, 1); x.fillRect(rx + 2, ry + h - 3, w - 4, 1); x.fillRect(rx + 2, ry + 2, 1, h - 4); x.fillRect(rx + w - 3, ry + 2, 1, h - 4);
   for (let px = rx + 6; px < rx + w - 6; px += 8) { x.fillRect(px, ry + Math.floor(h / 2) - 1, 3, 1); x.fillRect(px + 1, ry + Math.floor(h / 2) - 2, 1, 3); }
 }
-// Sitting down at a tavern table: you take the seat, then Phaedra brings the menu.
+// Sitting down at a tavern table: you take the seat and stay there. Order from it if you like, or just walk off to get up.
 function sitAt(seat) {
   if (townPeers().some(o => dist(o, seat) < 5)) { toast('Someone is already sitting there.'); return; }
   const p = V.player; p.x = seat.x; p.y = seat.y; p.face = seat.face; p.moving = false;
-  openPanel('tavern');
+  V.seat = seat; V.target = null;
 }
 
 /* ---- the furniture ---- */
@@ -7924,7 +7924,7 @@ function enterPlace(id, from) {
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
-  V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null;
+  V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
@@ -8028,6 +8028,10 @@ function tickVillage(dt) {
     d.chars = Math.min(d.lines[d.i].length, d.chars + 55 * dt);
     if (Math.floor(d.chars) !== before) { renderDialog(); if (Math.floor(d.chars) % 3 === 0) Sound.play('talk'); }
     if (interactPressed()) advanceDialog();
+  } else if (V.seat) {                                  // sitting at a tavern table: order something, or move to get up
+    const mv = moveVector();
+    if (mv.x || mv.y || Input.hit('dodge')) { V.seat = null; villageMove(p, dt); }
+    else { p.moving = false; V.target = { kind: 'order', name: 'a meal', x: p.x, y: p.y }; if (interactPressed()) { Sound.play('click'); openPanel('tavern'); } }
   } else {
     villageMove(p, dt);
     V.target = nearestInteract(p);
@@ -9248,7 +9252,7 @@ function renderVillage() {
   drawParticlesAndText(S);
   for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
-  if (t && !G.dialog && !G.cutscene && !V.eat) {
+  if (t && !G.dialog && !G.cutscene && !V.eat && t.kind !== 'order') {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
     ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, top - 1, 7, 5); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 2, top, 5, 1); ctx.fillRect(sx - 1, top + 1, 3, 1); ctx.fillRect(sx, top + 2, 1, 1);
   }
@@ -9395,7 +9399,8 @@ function updateVillageHud() {
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
     const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
-    const html = `${touchMode ? '' : kbd(Input.bind.guard[0]) + ' '}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
+    const key = touchMode ? '' : kbd(Input.bind.guard[0]) + ' ';
+    const html = t.kind === 'order' ? `${key}Order a meal <span class="muted">· ${touchMode ? 'move' : 'walk off'} to get up</span>` : `${key}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
     pr.hidden = false;
   } else pr.hidden = true;
