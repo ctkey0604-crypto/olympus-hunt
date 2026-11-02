@@ -145,7 +145,8 @@ function applyBinds() {
 }
 function codeLabel(c) {
   const map = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: 'Space', ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift', Enter: 'Enter', Backspace: 'Backspace',
-    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Backquote: '`' };
+    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Backquote: '`',
+    MouseMiddle: 'Middle click', Mouse4: 'Mouse 4', Mouse5: 'Mouse 5' };                       // mouse buttons bound like keys
   if (map[c]) return map[c];
   if (c.startsWith('Key')) return c.slice(3);
   if (c.startsWith('Digit')) return c.slice(5);

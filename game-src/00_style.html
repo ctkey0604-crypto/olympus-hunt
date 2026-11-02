@@ -1,3 +1,8 @@
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Olympus Hunt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;500;600;700&display=swap">
@@ -529,6 +534,10 @@ input[type=range]{accent-color:var(--clay)}
 .sound-hint{margin:-6px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);animation:soundHint 2.4s ease-in-out infinite}
 @keyframes soundHint{50%{color:var(--gold)}}
 @media (prefers-reduced-motion:reduce){.sound-hint{animation:none}}
+/* installing the game as an app: a button where the browser offers it, a how-to on iPhone and iPad */
+.app-row{display:flex;justify-content:center;margin:-4px 0 0}
+.app-hint{margin:-4px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);max-width:34em;justify-self:center}
+.app-hint b{color:var(--bone-dim)}
 /* the tip after a lost hunt */
 .tutnote ul{margin:6px 0 0;padding-left:1.2em;display:grid;gap:3px}
 </style>
