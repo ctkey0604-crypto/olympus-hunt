@@ -22,8 +22,8 @@ function netSend(o) { const ws = NET.ws; if (ws && ws.readyState === 1) ws.send(
 function netRec(ev) { if (NET.rec && !NET.replay) NET.rec.push(ev); }
 
 /* ---- joining and leaving rooms ---- */
-async function netHostRoom(pub) {
-  const d = await Store.call('POST', 'rooms', { public: !!pub, rank: G.save.rank });
+async function netHostRoom(pub, name) {
+  const d = await Store.call('POST', 'rooms', { public: !!pub, rank: G.save.rank, name: String(name || '').trim().slice(0, ROOM_NAME_MAX) });
   await netConnect(d.code, d.ticket);
 }
 async function netJoinRoom(code) {
@@ -32,6 +32,10 @@ async function netJoinRoom(code) {
   const d = await Store.call('POST', `rooms/${code}/ticket`);
   await netConnect(code, d.ticket);
 }
+// The host can rename the room; the name shows in the room list and at the Oracle.
+const ROOM_NAME_MAX = 24;
+const roomName = R => R.name || ((R.members.find(m => m.id === R.host) || {}).name || 'A') + '’s room';
+function netRename(name) { name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, ROOM_NAME_MAX); if (name && netHost()) netSend({ t: 'name', name }); }
 function netConnect(code, ticket) {
   netLeave(true);
   return new Promise((res, rej) => {
@@ -66,30 +70,36 @@ function myGear(s = G.save) {
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
-  const gear = myGear(), key = JSON.stringify(gear) + G.save.rank;
+  // why: a few words on why you can't take the posted hunt, so whoever posted it can see who's held up and why
+  const R = NET.room, qd = R && R.quest && R.phase === 'town' && QUEST_BY_ID[R.quest.id], why = (qd && netWhyNot(qd, true)) || null;
+  const gear = myGear(), key = JSON.stringify(gear) + G.save.rank + why;
   if (key !== NET.infoKey) {
-    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank });
+    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank, why });
     // changed into gear the posted quest doesn't allow: you're not ready any more
-    const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
-    if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+    const me = R && R.members.find(m => m.id === R.me);
+    if (why && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(netWhyNot(qd), 7000); }
   }
   netUi();                                                           // back in town: the room box shows again, with any gear warning up to date
 }
 // Online, everyone plays at the quest's rank: you need that rank, the quests before it in your own line,
 // and no gear from a higher rank. Returns why you can't take it, or null.
-function gearRank(s = G.save) {
-  let r = 0;
-  for (const id of [s.weapon, s.shield, ...Object.values(s.equip || {})]) if (id) r = Math.max(r, rankOf(id), ((WEAPONS[id] || SHIELDS[id] || ARMOR_SETS[id] || {}).rank) || 0);
-  return r;
+// The pieces you have on that come from a rank above r: what to take off, by name.
+function gearAbove(r, s = G.save) {
+  const out = [], rk = (id, def) => Math.max(rankOf(id), (def && def.rank) || 0);
+  if (s.weapon && rk(s.weapon, WEAPONS[s.weapon]) > r) out.push(WEAPONS[s.weapon].name);
+  if (s.shield && rk(s.shield, SHIELDS[s.shield]) > r) out.push(SHIELDS[s.shield].name);
+  for (const sl of SLOTS) { const id = s.equip[sl], P = PIECES[id + ':' + sl]; if (id && rk(id, ARMOR_SETS[id]) > r) out.push(P ? P.name : (ARMOR_SETS[id] || {}).name || id); }
+  return out;
 }
-function netWhyNot(qd) {
+// Why you can't take a hunt online, in full (with what to do about it), or null. short: a few words for the others' list.
+function netWhyNot(qd, short = false) {
   const s = G.save, qr = qd.rank || 0; if (!s) return null;
-  if ((s.rank || 0) < qr) return `You haven’t reached ${RANKS[qr].name} yet.`;
-  if (qd.titan && !s.stairs) return 'The stairway under the temple hasn’t opened for you yet.';
+  if ((s.rank || 0) < qr) return short ? `needs ${RANKS[qr].name}` : `This is a ${RANKS[qr].name} hunt, and you haven’t reached ${RANKS[qr].name} yet. Hunt every god and Titan on ${RANKS[(s.rank || 0)].name}, then talk to Kleon.`;
+  if (qd.titan && !s.stairs) return short ? 'hasn’t opened the Titans' : 'You haven’t opened the Titans’ hall yet. Hunt every god first; the stairway under the temple opens after that.';
   const miss = (qd.requires || []).filter(r => !s.cleared[r]);
-  if (miss.length) return `Finish ${QUEST_BY_ID[miss[0]] ? QUEST_BY_ID[miss[0]].name : 'the quests before it'} first.`;
-  const gr = gearRank(s);
-  if (gr > qr) return `This is a ${RANKS[qr].name} quest. Swap out your ${RANKS[gr].name} gear first.`;
+  if (miss.length) return short ? 'hasn’t unlocked it' : `You haven’t unlocked this hunt yet. Clear ${QUEST_BY_ID[miss[0]] ? `“${QUEST_BY_ID[miss[0]].name}”` : 'the hunts before it'}${miss.length > 1 ? ` (and ${miss.length - 1} more)` : ''} on Kleon’s board first.`;
+  const high = gearAbove(qr, s);
+  if (high.length) return short ? 'gear too strong' : `Online, a ${RANKS[qr].name} hunt needs ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`;
   return null;
 }
 // Turns someone's gear message into something playerStats() and drawPlayer() can use. Anything unknown falls back to the basics.
@@ -127,7 +137,8 @@ function netRoom(m) {
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
   if (was && was.host !== m.host && m.host === m.me && !(q && q.net)) toast('You’re the host now');
   if (was && was.quest && !m.quest && m.phase === 'town' && !(q && q.net)) NET.confirm = false;
-  if (G.mode === 'panel' && G.panel === 'oracle' && was && was.members.length !== m.members.length) renderHub();   // the Oracle's player list
+  if (G.mode === 'panel' && G.panel === 'oracle' && was && (was.members.length !== m.members.length || was.name !== m.name)) renderHub();   // the Oracle's player list
+  if (!was || (was.quest && was.quest.id) !== (m.quest && m.quest.id)) netSendInfo();   // a new hunt posted: tell the others whether you can take it
   netUi();
 }
 
@@ -199,11 +210,13 @@ function netUi() {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
       const qr = R.quest.rank || 0;                      // the rank goes first, big, in its own colour: you can't miss which one it is
       html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qr}">${RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
-        <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === poster ? 'ok' : ''}">${m.ready || m.id === poster ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
+        <div class="mp-who">${R.members.map(m => { const ok = m.ready || m.id === poster, no = !ok && m.id !== R.me && m.why;   // ✓ ready, · not yet, ✗ can't take it (and why)
+          return `<span class="${ok ? 'ok' : no ? 'no' : ''}">${ok ? '✓' : no ? '✗' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}${no ? ` <i>${esc(m.why)}</i>` : ''}</span>`; }).join('')}</div>
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
-          : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready || why ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
+          : `<div class="mp-btns">${why && !(me && me.ready) ? `<button type="button" data-mp="ready" class="no">Can’t join yet</button>`
+            : `<button type="button" data-mp="ready" class="${me && me.ready ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>`}${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
     } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it.' : 'Waiting for players to join.'}</span></div>`;
   }
@@ -255,11 +268,11 @@ function netBannerAction(a) {
   if (a === 'chat') { NET.chatOpen ? netChatClose() : netChatOpen(); return; }
   if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
-  if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
+  if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why, 7000); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
   else if (a === 'wait') { NET.confirm = false; netUi(); }
   else if (a === 'depart' || a === 'go') {
-    const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why); return; }
+    const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why, 7000); return; }
     const poster = netPoster(R), all = R.members.every(m => m.ready || m.id === poster);
     if (!all && a !== 'go') { NET.confirm = true; netUi(); return; }
     NET.confirm = false; G.save && persist(true); netSend({ t: 'depart' }); Sound.play('click');
@@ -270,7 +283,7 @@ function netEnterKey() { const R = NET.room; if (!R || !R.quest || R.phase !== '
 function netPost(id) {
   const qd = QUEST_BY_ID[id], R = NET.room; if (!qd || !netCanPost()) return;
   if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
-  const why = netWhyNot(qd); if (why) { toast(why); return; }
+  const why = netWhyNot(qd); if (why) { toast(why, 7000); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
   closePanel(); toast('Hunt posted.');
 }

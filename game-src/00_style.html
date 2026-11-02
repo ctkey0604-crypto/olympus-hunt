@@ -464,6 +464,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   background:#d8ccb4;color:#1a1210;border-radius:calc(var(--px)*1.2) calc(var(--px)*1.2) 0 0}
 .mp-rank[data-rank="1"]{background:#e2603f;color:#1a0d08}.mp-rank[data-rank="2"]{background:#b48cff;color:#1a0d2a}
 .mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
+.mp-who .no{color:#ff8a7a}.mp-who .no i{font-style:normal;opacity:.8}
+.mp-btns button.no{background:#3a1a14;color:#ff8a7a}
+/* online: what stops you posting a hunt (under its button on the board) */
+.qwarn{margin:0;padding:8px 10px;background:#3a1a14;color:#ffb3a6;box-shadow:inset 3px 0 0 #d9493b;border-radius:var(--rad-sm)}
 .mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
 .mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
 .mp-btns button.hot{background:var(--clay);color:#160e0b}
@@ -502,7 +506,13 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .or-mem{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
 .or-mem b{min-width:8em}
 @media (prefers-reduced-motion:reduce){#mpLog p{animation-duration:.01s}}
-.or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.or-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* naming the room: when hosting, and the host's rename box */
+.or-name,.or-rename label{display:grid;gap:4px;font-size:.85rem;color:var(--bone-dim);margin:0 0 10px}
+.or-rename{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:4px 0 8px}.or-rename label{flex:1 1 160px;margin:0}
+.or-name input,.or-rename input{font:1rem var(--font-ui);background:#000;color:var(--bone);border:0;box-shadow:inset 0 0 0 2px var(--line);padding:9px 10px;min-width:0;user-select:text;-webkit-user-select:text;border-radius:var(--rad-sm)}
+.or-name input:focus,.or-rename input:focus{outline:2px solid var(--gold);outline-offset:0}
 @media (max-width:560px){.or-row{grid-template-columns:1fr auto auto}}
 
 /* ---- finish: softer corners, smoother feedback, quieter scrollbars ---- */

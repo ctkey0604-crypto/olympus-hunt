@@ -13,7 +13,14 @@ function camOffset() {
 }
 const blink = (hz = 16) => Math.floor(G.time * hz) % 2 === 0;
 function drawParticlesAndText(S) {
-  for (const pt of sc.parts) { const [sx, sy] = S(pt.x, pt.y); ctx.globalAlpha = clamp(pt.life / pt.max * 1.4, 0, 1); ctx.fillStyle = pt.c; ctx.fillRect(sx, sy, pt.s, pt.s); }
+  // the camera offset once (it's whole pixels), so hundreds of sparks don't each make a new [x, y]; colour and fade
+  // are only set when they change from the last spark
+  const [ox, oy] = S(0, 0); let lastA = -1, lastC = null;
+  for (const pt of sc.parts) {
+    const a = clamp(pt.life / pt.max * 1.4, 0, 1); if (a !== lastA) { ctx.globalAlpha = lastA = a; }
+    if (pt.c !== lastC) { ctx.fillStyle = lastC = pt.c; }
+    ctx.fillRect(Math.round(pt.x) + ox, Math.round(pt.y) + oy, pt.s, pt.s);
+  }
   ctx.globalAlpha = 1;
   for (const t of sc.texts) { const [sx, sy] = S(t.x, t.y); if (t.life > .1 || Math.floor(G.time * 30) % 2) drawNum(t.s, sx, sy, t.c); }
 }
@@ -104,6 +111,9 @@ function drawHazards(S) {
     }
   }
 }
+// A hunt's things to draw, sorted by depth: entries are a kind and a thing, kept and reused between frames.
+const DRAW_LIST = [], DRAW_POOL = [], byDrawY = (a, b) => a.y - b.y;
+function drawAdd(y, k, o) { const i = DRAW_LIST.length, e = DRAW_POOL[i] || (DRAW_POOL[i] = { y: 0, k: 0, o: null }); e.y = y; e.k = k; e.o = o; DRAW_LIST.push(e); }
 function renderQuest() {
   if (!q) return;
   const [cx, cy] = camOffset();
@@ -119,16 +129,28 @@ function renderQuest() {
   for (const e of q.enemies) if (e.state !== 'spawn' && !e.hidden && (!e.boss || e.alpha > .3 || e.air)) shadow(e.x, e.y, e.def.titan ? 24 : e.r + 1);
   for (const h of q.hunters) if (!h.dead) shadow(h.x, h.y, 5);
   for (const k of q.pickups) shadow(k.x, k.y, 2);
-  // depth-sorted drawables
-  const list = [];
-  for (const o of q.obstacles) list.push({ y: o.y + o.h / 2, draw: () => { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); } });
-  for (const e of q.enemies) list.push({ y: e.y, draw: () => drawEnemy(e, S) });
-  for (const k of q.pickups) list.push({ y: k.y, draw: () => drawPickup(k, S) });
-  if (q.chest) list.push({ y: q.chest.y, draw: () => { const [sx, sy] = S(q.chest.x, q.chest.y); drawSpr('chest', q.chest.open ? 1 : 0, sx, sy, false); } });
-  for (const h of q.hunters) { if (!h.dead) list.push({ y: h.y, draw: () => drawPlayer(h, S) }); else if (h.downed) list.push({ y: h.y, draw: () => drawDowned(h, S) }); }
-  for (const gh of q.ghosts || []) list.push({ y: gh.y, draw: () => drawGhost(gh, S) });
-  list.sort((a, b) => a.y - b.y);
-  for (const d of list) d.draw();
+  // depth-sorted drawables (the list and its entries are reused every frame)
+  for (const o of q.obstacles) drawAdd(o.y + o.h / 2, 0, o);
+  for (const e of q.enemies) drawAdd(e.y, 1, e);
+  for (const k of q.pickups) drawAdd(k.y, 2, k);
+  if (q.chest) drawAdd(q.chest.y, 3, q.chest);
+  for (const h of q.hunters) { if (!h.dead) drawAdd(h.y, 4, h); else if (h.downed) drawAdd(h.y, 5, h); }
+  for (const gh of q.ghosts || []) drawAdd(gh.y, 6, gh);
+  DRAW_LIST.sort(byDrawY);
+  for (const d of DRAW_LIST) {
+    const o = d.o;
+    switch (d.k) {
+      case 0: { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); break; }
+      case 1: drawEnemy(o, S); break;
+      case 2: drawPickup(o, S); break;
+      case 3: { const [sx, sy] = S(o.x, o.y); drawSpr('chest', o.open ? 1 : 0, sx, sy, false); break; }
+      case 4: drawPlayer(o, S); break;
+      case 5: drawDowned(o, S); break;
+      case 6: drawGhost(o, S); break;
+    }
+    d.o = null;
+  }
+  DRAW_LIST.length = 0;
   // the wall over the hidden nook (see-through while you're inside it)
   if (q.cover) { const r = q.coverRect, [sx, sy] = S(r.x, r.y); ctx.globalAlpha = inCover(q.player.x, q.player.y) ? .28 : 1; ctx.drawImage(q.cover, sx, sy); ctx.globalAlpha = 1; }
   for (const e of q.enemies) if (e.boss && e.beam && e.state === 'beam') drawBeam(e, S);

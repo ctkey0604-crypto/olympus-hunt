@@ -398,12 +398,12 @@ function paintHint(x, T, s, R) {
 
 /* ---- pixel drawing helpers (crisp, no anti-aliasing) ---- */
 // Canvas draw calls are what slow Chromebooks pay for, so shapes and words that repeat are drawn once into a small canvas
-// and stamped after that (an ellipse is a dozen rects, a name tag a few hundred). Odd sizes are drawn the old way.
+// and stamped after that (an ellipse is a dozen rects, a name tag a few hundred). Tiny and odd sizes are drawn the old way.
 const ELLIPSE_CACHE = new Map();
 function pxEllipse(cx, cy, rx, ry, col) {
   cx = Math.round(cx); cy = Math.round(cy); ctx.fillStyle = col;
   const rowW = y => Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y / (ry + .5)) ** 2)));
-  if (!Number.isInteger(rx) || !Number.isInteger(ry) || rx < 0 || ry < 0 || rx > 64 || ry > 64) {
+  if (ry < 3 || rx < 0 || !Number.isInteger(rx) || !Number.isInteger(ry) || rx > 64 || ry > 64) {   // small ones: a few rows beat a stamp
     for (let y = -ry; y <= ry; y++) { const w = rowW(y); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); }
     return;
   }

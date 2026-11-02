@@ -188,6 +188,15 @@ function questCard(qd) {
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
 }
+// The button under a hunt: Depart (Post to the room, online), Locked with what to clear first, or, online, what's
+// stopping you from taking it (the rank, or which gear is too strong for it) before you try.
+function departRow(qd, un, lockText) {
+  const s = G.save;
+  if (!un) return `<div class="row"><button class="btn" type="button" disabled>Locked</button><span class="muted">${lockText}</span></div>`;
+  const why = netOn() ? netWhyNot(qd) : null;
+  if (why) return `<div class="row"><button class="btn" type="button" disabled>Can’t post yet</button></div><p class="qwarn">${esc(why)}</p>`;
+  return `<div class="row"><button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}</div>`;
+}
 // The quest board. Ranks only show as tabs once High Rank is open; before that there's no rank talk at all.
 function renderBoard() {
   const s = G.save;
@@ -229,7 +238,7 @@ function renderBoard() {
       <p>${esc(qd.desc)}</p>
       <div class="facts"><div><span>Best wave</span><b class="${s.endless.best ? 'gold' : ''}">${s.endless.best || '—'}</b></div><div><span>Last run</span><b>${s.endless.last ? 'Wave ' + s.endless.last : '—'}</b></div><div><span>Pay</span><b class="gold">${fmtMoney(qd.perWave)}+ dr a wave</b></div><div><span>Gods</span><b>Every ${ENDLESS_BOSS_EVERY}th wave</b></div></div>
       <div><p class="sub">Monsters</p><p class="muted" style="margin:0">Every monster from God Rank, more and stronger each wave. Gods turn up in a random order, no repeats until each has had a turn.</p></div>
-      <div class="row">${un ? `<button class="btn" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">Slay Typhon first.</span>`}</div>
+      ${departRow(qd, un, 'Slay Typhon first.')}
     </div></div>`;
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
@@ -242,7 +251,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      ${departRow(qd, un, un ? '' : qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`)}
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -648,13 +657,15 @@ function renderOracle() {
   if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
-  if (R) return `<div class="opt"><h3>Room ${esc(R.code)} <span class="muted">${R.members.length}/4</span></h3>
+  if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/4</span></h3>
+    ${netHost() && R.v >= 3 ? `<form class="or-rename" data-orname novalidate><label>Room name<input name="name" maxlength="${ROOM_NAME_MAX}" value="${esc(R.name || '')}" placeholder="${esc(roomName(R))}" autocomplete="off" spellcheck="false"></label><button class="btn ghost small" type="submit">Rename</button></form>` : ''}
     <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
       ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
         : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
     <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
   return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 players. Hunts grow tougher with more of you.</p>
+      <label class="or-name">Room name<input id="orName" maxlength="${ROOM_NAME_MAX}" placeholder="${esc(Store.user)}’s room" autocomplete="off" spellcheck="false"></label>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
     <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
     <div class="opt wide"><h3>Open rooms</h3><div id="orList" class="muted">Looking…</div><button class="btn ghost small" type="button" data-or="refresh">Refresh</button></div>
@@ -665,14 +676,14 @@ async function orLoad() {
   try {
     const d = await Store.call('GET', 'rooms'), rooms = d.rooms || [];
     if (!$('orList')) return;
-    $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.host)}</b><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
+    $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.name || r.host + '’s room')}</b><span class="muted">${esc(r.host)}</span><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
     for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(x => x.json()).then(d => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (!el) return; if (d && d.open === false) { el.closest('.or-row').remove(); return; } el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
   } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other players. Check your connection.'; }
 }
 async function orDo(a, code, id) {
   G.orMsg = '';
   try {
-    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast('Room open. The code is in the top left.'); }
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true, $('orName') ? $('orName').value : ''); closePanel(); toast('Room open. The code is in the top left.'); }
     else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
     else if (a === 'leave') { netLeave(); renderHub(); }
     else if (a === 'armkick' || a === 'nokick') { G.kickArm = a === 'armkick' ? +id : 0; renderHub(); }
@@ -682,7 +693,11 @@ async function orDo(a, code, id) {
   } catch (e) { G.orMsg = e.message; if (G.panel === 'oracle') renderHub(); }
 }
 document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code, b.dataset.id); } });
-document.addEventListener('submit', ev => { const f = ev.target.closest('[data-orjoin]'); if (!f) return; ev.preventDefault(); orDo('join', f.elements.code.value); });
+document.addEventListener('submit', ev => {
+  const f = ev.target.closest('[data-orjoin]'), r = ev.target.closest('[data-orname]');
+  if (f) { ev.preventDefault(); orDo('join', f.elements.code.value); }
+  else if (r) { ev.preventDefault(); Sound.play('click'); netRename(r.elements.name.value); toast('Room renamed.'); }
+});
 $('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
 $('mpForm').addEventListener('submit', ev => { ev.preventDefault(); netChatSend(); });
 $('mpInput').addEventListener('keydown', ev => { if (ev.code === 'Escape') { ev.preventDefault(); ev.stopPropagation(); netChatClose(); } });

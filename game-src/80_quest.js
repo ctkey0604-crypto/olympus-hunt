@@ -175,8 +175,10 @@ function updateQuestFlow(dt) {
   if (q.chest && !q.chest.open && q.hunters.some(p => !p.dead && dist(p, q.chest) < 13)) openChest();
 }
 function tickParticles(dt) {
-  for (const pt of sc.parts) { pt.life -= dt; pt.vy += (pt.g || 0) * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= .96; }
-  sc.parts = sc.parts.filter(pt => pt.life > 0);
+  // moved and pruned in place: the same list every frame, not a new one (less for the browser to clean up)
+  const P = sc.parts; let n = 0;
+  for (let i = 0; i < P.length; i++) { const pt = P[i]; pt.life -= dt; pt.vy += (pt.g || 0) * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= .96; if (pt.life > 0) P[n++] = pt; }
+  P.length = n;
   if (sc.parts.length > 500) sc.parts.splice(0, sc.parts.length - 500);
   for (const t of sc.texts) { t.life -= dt; t.y -= 18 * dt; }
   sc.texts = sc.texts.filter(t => t.life > 0);

@@ -51,8 +51,24 @@ function typhonHeadWorld(b, i) {
   const h = typhonHeads(b, 55, typhonTop(100))[i];
   return { x: b.x + (h.hx - 55) * TITAN_SCALE, y: clamp(b.y + (h.hy - 100) * TITAN_SCALE, IPX.minY + 6, IPX.maxY - 6) };
 }
+// The wings and the coils only change with the flap and the coil's turn, so each pose is drawn once into a small canvas
+// and stamped after that (together they were a few hundred draw calls a frame).
+const TY_CACHE = new Map();
+function tyStamp(key, w, h, ox, oy, x, y, draw) {
+  let c = TY_CACHE.get(key);
+  if (!c) {
+    if (TY_CACHE.size > 200) TY_CACHE.clear();
+    c = mkCanvas(w, h); const main = ctx; ctx = c.getContext('2d');
+    try { draw(ox, oy); } finally { ctx = main; }
+    TY_CACHE.set(key, c);
+  }
+  ctx.drawImage(c, Math.round(x) - ox, Math.round(y) - oy);
+}
 function typhonWings(b, sx, top) {
-  const gale = b.state === 'gale' || b.state === 'galeAim', flap = Math.sin(G.time * (gale ? 10 : 2.2)) * (gale ? 6 : 3);
+  const gale = b.state === 'gale' || b.state === 'galeAim', f4 = Math.round(Math.sin(G.time * (gale ? 10 : 2.2)) * (gale ? 6 : 3) * 4);
+  tyStamp('w' + f4, 128, 72, 64, 24, sx, top, (x, y) => typhonWingsAt(x, y, f4 / 4));
+}
+function typhonWingsAt(sx, top, flap) {
   for (const s of [-1, 1]) {
     const rx = sx + s * 8, ry = top + 13;
     const tips = [[s * 44, -24 + flap], [s * 50, -6 + flap * .7], [s * 45, 10 + flap * .4], [s * 30, 21 + flap * .2]];
@@ -79,7 +95,11 @@ function typhonNecks(b, heads) {
 // The serpent half, coiled under him: a spiral tube of scales. It's split into arcs (the half-turns behind his body and
 // the ones in front of it); each arc is outlined and filled as one piece so it reads as a single snake, not a pile of beads.
 function typhonCoils(b, sx, sy, layer) {
-  const cx = sx, cy = sy - 4, n = 70, spin = (b.walkT || 0) * 1.4, arcs = []; let cur = null;
+  const T = Math.PI * 2, step = Math.round(((((b.walkT || 0) * 1.4) % T + T) % T) / T * 48) % 48;     // 48 turns of the coil
+  tyStamp('c' + layer + step, 80, 48, 40, 24, sx, sy - 4, (x, y) => typhonCoilsAt(x, y, step / 48 * T, layer));
+}
+function typhonCoilsAt(cx, cy, spin, layer) {
+  const n = 70, arcs = []; let cur = null;
   for (let i = 0; i < n; i++) {
     const k = i / (n - 1), a = spin + k * Math.PI * 3.6 + 1.3, r = 29 - 22 * k;
     if ((Math.sin(a) > 0) !== (layer === 'front')) { cur = null; continue; }
