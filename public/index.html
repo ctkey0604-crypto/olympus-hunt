@@ -473,6 +473,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   background:#d8ccb4;color:#1a1210;border-radius:calc(var(--px)*1.2) calc(var(--px)*1.2) 0 0}
 .mp-rank[data-rank="1"]{background:#e2603f;color:#1a0d08}.mp-rank[data-rank="2"]{background:#b48cff;color:#1a0d2a}
 .mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
+.mp-who .no{color:#ff8a7a}.mp-who .no i{font-style:normal;opacity:.8}
+.mp-btns button.no{background:#3a1a14;color:#ff8a7a}
+/* online: what stops you posting a hunt (under its button on the board) */
+.qwarn{margin:0;padding:8px 10px;background:#3a1a14;color:#ffb3a6;box-shadow:inset 3px 0 0 #d9493b;border-radius:var(--rad-sm)}
 .mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
 .mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
 .mp-btns button.hot{background:var(--clay);color:#160e0b}
@@ -511,7 +515,13 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .or-mem{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}
 .or-mem b{min-width:8em}
 @media (prefers-reduced-motion:reduce){#mpLog p{animation-duration:.01s}}
-.or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.or-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.or-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* naming the room: when hosting, and the host's rename box */
+.or-name,.or-rename label{display:grid;gap:4px;font-size:.85rem;color:var(--bone-dim);margin:0 0 10px}
+.or-rename{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:4px 0 8px}.or-rename label{flex:1 1 160px;margin:0}
+.or-name input,.or-rename input{font:1rem var(--font-ui);background:#000;color:var(--bone);border:0;box-shadow:inset 0 0 0 2px var(--line);padding:9px 10px;min-width:0;user-select:text;-webkit-user-select:text;border-radius:var(--rad-sm)}
+.or-name input:focus,.or-rename input:focus{outline:2px solid var(--gold);outline-offset:0}
 @media (max-width:560px){.or-row{grid-template-columns:1fr auto auto}}
 
 /* ---- finish: softer corners, smoother feedback, quieter scrollbars ---- */
@@ -3675,12 +3685,12 @@ function paintHint(x, T, s, R) {
 
 /* ---- pixel drawing helpers (crisp, no anti-aliasing) ---- */
 // Canvas draw calls are what slow Chromebooks pay for, so shapes and words that repeat are drawn once into a small canvas
-// and stamped after that (an ellipse is a dozen rects, a name tag a few hundred). Odd sizes are drawn the old way.
+// and stamped after that (an ellipse is a dozen rects, a name tag a few hundred). Tiny and odd sizes are drawn the old way.
 const ELLIPSE_CACHE = new Map();
 function pxEllipse(cx, cy, rx, ry, col) {
   cx = Math.round(cx); cy = Math.round(cy); ctx.fillStyle = col;
   const rowW = y => Math.floor(rx * Math.sqrt(Math.max(0, 1 - (y / (ry + .5)) ** 2)));
-  if (!Number.isInteger(rx) || !Number.isInteger(ry) || rx < 0 || ry < 0 || rx > 64 || ry > 64) {
+  if (ry < 3 || rx < 0 || !Number.isInteger(rx) || !Number.isInteger(ry) || rx > 64 || ry > 64) {   // small ones: a few rows beat a stamp
     for (let y = -ry; y <= ry; y++) { const w = rowW(y); ctx.fillRect(cx - w, cy + y, w * 2 + 1, 1); }
     return;
   }
@@ -4361,8 +4371,8 @@ function netSend(o) { const ws = NET.ws; if (ws && ws.readyState === 1) ws.send(
 function netRec(ev) { if (NET.rec && !NET.replay) NET.rec.push(ev); }
 
 /* ---- joining and leaving rooms ---- */
-async function netHostRoom(pub) {
-  const d = await Store.call('POST', 'rooms', { public: !!pub, rank: G.save.rank });
+async function netHostRoom(pub, name) {
+  const d = await Store.call('POST', 'rooms', { public: !!pub, rank: G.save.rank, name: String(name || '').trim().slice(0, ROOM_NAME_MAX) });
   await netConnect(d.code, d.ticket);
 }
 async function netJoinRoom(code) {
@@ -4371,6 +4381,10 @@ async function netJoinRoom(code) {
   const d = await Store.call('POST', `rooms/${code}/ticket`);
   await netConnect(code, d.ticket);
 }
+// The host can rename the room; the name shows in the room list and at the Oracle.
+const ROOM_NAME_MAX = 24;
+const roomName = R => R.name || ((R.members.find(m => m.id === R.host) || {}).name || 'A') + '’s room';
+function netRename(name) { name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, ROOM_NAME_MAX); if (name && netHost()) netSend({ t: 'name', name }); }
 function netConnect(code, ticket) {
   netLeave(true);
   return new Promise((res, rej) => {
@@ -4405,30 +4419,36 @@ function myGear(s = G.save) {
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
-  const gear = myGear(), key = JSON.stringify(gear) + G.save.rank;
+  // why: a few words on why you can't take the posted hunt, so whoever posted it can see who's held up and why
+  const R = NET.room, qd = R && R.quest && R.phase === 'town' && QUEST_BY_ID[R.quest.id], why = (qd && netWhyNot(qd, true)) || null;
+  const gear = myGear(), key = JSON.stringify(gear) + G.save.rank + why;
   if (key !== NET.infoKey) {
-    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank });
+    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank, why });
     // changed into gear the posted quest doesn't allow: you're not ready any more
-    const R = NET.room, qd = R && R.quest && QUEST_BY_ID[R.quest.id], me = R && R.members.find(m => m.id === R.me), why = qd && netWhyNot(qd);
-    if (why && R.phase === 'town' && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(why); }
+    const me = R && R.members.find(m => m.id === R.me);
+    if (why && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(netWhyNot(qd), 7000); }
   }
   netUi();                                                           // back in town: the room box shows again, with any gear warning up to date
 }
 // Online, everyone plays at the quest's rank: you need that rank, the quests before it in your own line,
 // and no gear from a higher rank. Returns why you can't take it, or null.
-function gearRank(s = G.save) {
-  let r = 0;
-  for (const id of [s.weapon, s.shield, ...Object.values(s.equip || {})]) if (id) r = Math.max(r, rankOf(id), ((WEAPONS[id] || SHIELDS[id] || ARMOR_SETS[id] || {}).rank) || 0);
-  return r;
+// The pieces you have on that come from a rank above r: what to take off, by name.
+function gearAbove(r, s = G.save) {
+  const out = [], rk = (id, def) => Math.max(rankOf(id), (def && def.rank) || 0);
+  if (s.weapon && rk(s.weapon, WEAPONS[s.weapon]) > r) out.push(WEAPONS[s.weapon].name);
+  if (s.shield && rk(s.shield, SHIELDS[s.shield]) > r) out.push(SHIELDS[s.shield].name);
+  for (const sl of SLOTS) { const id = s.equip[sl], P = PIECES[id + ':' + sl]; if (id && rk(id, ARMOR_SETS[id]) > r) out.push(P ? P.name : (ARMOR_SETS[id] || {}).name || id); }
+  return out;
 }
-function netWhyNot(qd) {
+// Why you can't take a hunt online, in full (with what to do about it), or null. short: a few words for the others' list.
+function netWhyNot(qd, short = false) {
   const s = G.save, qr = qd.rank || 0; if (!s) return null;
-  if ((s.rank || 0) < qr) return `You haven’t reached ${RANKS[qr].name} yet.`;
-  if (qd.titan && !s.stairs) return 'The stairway under the temple hasn’t opened for you yet.';
+  if ((s.rank || 0) < qr) return short ? `needs ${RANKS[qr].name}` : `This is a ${RANKS[qr].name} hunt, and you haven’t reached ${RANKS[qr].name} yet. Hunt every god and Titan on ${RANKS[(s.rank || 0)].name}, then talk to Kleon.`;
+  if (qd.titan && !s.stairs) return short ? 'hasn’t opened the Titans' : 'You haven’t opened the Titans’ hall yet. Hunt every god first; the stairway under the temple opens after that.';
   const miss = (qd.requires || []).filter(r => !s.cleared[r]);
-  if (miss.length) return `Finish ${QUEST_BY_ID[miss[0]] ? QUEST_BY_ID[miss[0]].name : 'the quests before it'} first.`;
-  const gr = gearRank(s);
-  if (gr > qr) return `This is a ${RANKS[qr].name} quest. Swap out your ${RANKS[gr].name} gear first.`;
+  if (miss.length) return short ? 'hasn’t unlocked it' : `You haven’t unlocked this hunt yet. Clear ${QUEST_BY_ID[miss[0]] ? `“${QUEST_BY_ID[miss[0]].name}”` : 'the hunts before it'}${miss.length > 1 ? ` (and ${miss.length - 1} more)` : ''} on Kleon’s board first.`;
+  const high = gearAbove(qr, s);
+  if (high.length) return short ? 'gear too strong' : `Online, a ${RANKS[qr].name} hunt needs ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`;
   return null;
 }
 // Turns someone's gear message into something playerStats() and drawPlayer() can use. Anything unknown falls back to the basics.
@@ -4466,7 +4486,8 @@ function netRoom(m) {
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
   if (was && was.host !== m.host && m.host === m.me && !(q && q.net)) toast('You’re the host now');
   if (was && was.quest && !m.quest && m.phase === 'town' && !(q && q.net)) NET.confirm = false;
-  if (G.mode === 'panel' && G.panel === 'oracle' && was && was.members.length !== m.members.length) renderHub();   // the Oracle's player list
+  if (G.mode === 'panel' && G.panel === 'oracle' && was && (was.members.length !== m.members.length || was.name !== m.name)) renderHub();   // the Oracle's player list
+  if (!was || (was.quest && was.quest.id) !== (m.quest && m.quest.id)) netSendInfo();   // a new hunt posted: tell the others whether you can take it
   netUi();
 }
 
@@ -4538,11 +4559,13 @@ function netUi() {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
       const qr = R.quest.rank || 0;                      // the rank goes first, big, in its own colour: you can't miss which one it is
       html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qr}">${RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
-        <div class="mp-who">${R.members.map(m => `<span class="${m.ready || m.id === poster ? 'ok' : ''}">${m.ready || m.id === poster ? '✓' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}</span>`).join('')}</div>
+        <div class="mp-who">${R.members.map(m => { const ok = m.ready || m.id === poster, no = !ok && m.id !== R.me && m.why;   // ✓ ready, · not yet, ✗ can't take it (and why)
+          return `<span class="${ok ? 'ok' : no ? 'no' : ''}">${ok ? '✓' : no ? '✗' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}${no ? ` <i>${esc(m.why)}</i>` : ''}</span>`; }).join('')}</div>
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
-          : `<div class="mp-btns"><button type="button" data-mp="ready" class="${me && me.ready || why ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
+          : `<div class="mp-btns">${why && !(me && me.ready) ? `<button type="button" data-mp="ready" class="no">Can’t join yet</button>`
+            : `<button type="button" data-mp="ready" class="${me && me.ready ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>`}${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
     } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it.' : 'Waiting for players to join.'}</span></div>`;
   }
@@ -4594,11 +4617,11 @@ function netBannerAction(a) {
   if (a === 'chat') { NET.chatOpen ? netChatClose() : netChatOpen(); return; }
   if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
-  if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
+  if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why, 7000); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
   else if (a === 'wait') { NET.confirm = false; netUi(); }
   else if (a === 'depart' || a === 'go') {
-    const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why); return; }
+    const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why, 7000); return; }
     const poster = netPoster(R), all = R.members.every(m => m.ready || m.id === poster);
     if (!all && a !== 'go') { NET.confirm = true; netUi(); return; }
     NET.confirm = false; G.save && persist(true); netSend({ t: 'depart' }); Sound.play('click');
@@ -4609,7 +4632,7 @@ function netEnterKey() { const R = NET.room; if (!R || !R.quest || R.phase !== '
 function netPost(id) {
   const qd = QUEST_BY_ID[id], R = NET.room; if (!qd || !netCanPost()) return;
   if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
-  const why = netWhyNot(qd); if (why) { toast(why); return; }
+  const why = netWhyNot(qd); if (why) { toast(why, 7000); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
   closePanel(); toast('Hunt posted.');
 }
@@ -7589,8 +7612,10 @@ function updateQuestFlow(dt) {
   if (q.chest && !q.chest.open && q.hunters.some(p => !p.dead && dist(p, q.chest) < 13)) openChest();
 }
 function tickParticles(dt) {
-  for (const pt of sc.parts) { pt.life -= dt; pt.vy += (pt.g || 0) * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= .96; }
-  sc.parts = sc.parts.filter(pt => pt.life > 0);
+  // moved and pruned in place: the same list every frame, not a new one (less for the browser to clean up)
+  const P = sc.parts; let n = 0;
+  for (let i = 0; i < P.length; i++) { const pt = P[i]; pt.life -= dt; pt.vy += (pt.g || 0) * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= .96; if (pt.life > 0) P[n++] = pt; }
+  P.length = n;
   if (sc.parts.length > 500) sc.parts.splice(0, sc.parts.length - 500);
   for (const t of sc.texts) { t.life -= dt; t.y -= 18 * dt; }
   sc.texts = sc.texts.filter(t => t.life > 0);
@@ -8483,8 +8508,24 @@ function typhonHeadWorld(b, i) {
   const h = typhonHeads(b, 55, typhonTop(100))[i];
   return { x: b.x + (h.hx - 55) * TITAN_SCALE, y: clamp(b.y + (h.hy - 100) * TITAN_SCALE, IPX.minY + 6, IPX.maxY - 6) };
 }
+// The wings and the coils only change with the flap and the coil's turn, so each pose is drawn once into a small canvas
+// and stamped after that (together they were a few hundred draw calls a frame).
+const TY_CACHE = new Map();
+function tyStamp(key, w, h, ox, oy, x, y, draw) {
+  let c = TY_CACHE.get(key);
+  if (!c) {
+    if (TY_CACHE.size > 200) TY_CACHE.clear();
+    c = mkCanvas(w, h); const main = ctx; ctx = c.getContext('2d');
+    try { draw(ox, oy); } finally { ctx = main; }
+    TY_CACHE.set(key, c);
+  }
+  ctx.drawImage(c, Math.round(x) - ox, Math.round(y) - oy);
+}
 function typhonWings(b, sx, top) {
-  const gale = b.state === 'gale' || b.state === 'galeAim', flap = Math.sin(G.time * (gale ? 10 : 2.2)) * (gale ? 6 : 3);
+  const gale = b.state === 'gale' || b.state === 'galeAim', f4 = Math.round(Math.sin(G.time * (gale ? 10 : 2.2)) * (gale ? 6 : 3) * 4);
+  tyStamp('w' + f4, 128, 72, 64, 24, sx, top, (x, y) => typhonWingsAt(x, y, f4 / 4));
+}
+function typhonWingsAt(sx, top, flap) {
   for (const s of [-1, 1]) {
     const rx = sx + s * 8, ry = top + 13;
     const tips = [[s * 44, -24 + flap], [s * 50, -6 + flap * .7], [s * 45, 10 + flap * .4], [s * 30, 21 + flap * .2]];
@@ -8511,7 +8552,11 @@ function typhonNecks(b, heads) {
 // The serpent half, coiled under him: a spiral tube of scales. It's split into arcs (the half-turns behind his body and
 // the ones in front of it); each arc is outlined and filled as one piece so it reads as a single snake, not a pile of beads.
 function typhonCoils(b, sx, sy, layer) {
-  const cx = sx, cy = sy - 4, n = 70, spin = (b.walkT || 0) * 1.4, arcs = []; let cur = null;
+  const T = Math.PI * 2, step = Math.round(((((b.walkT || 0) * 1.4) % T + T) % T) / T * 48) % 48;     // 48 turns of the coil
+  tyStamp('c' + layer + step, 80, 48, 40, 24, sx, sy - 4, (x, y) => typhonCoilsAt(x, y, step / 48 * T, layer));
+}
+function typhonCoilsAt(cx, cy, spin, layer) {
+  const n = 70, arcs = []; let cur = null;
   for (let i = 0; i < n; i++) {
     const k = i / (n - 1), a = spin + k * Math.PI * 3.6 + 1.3, r = 29 - 22 * k;
     if ((Math.sin(a) > 0) !== (layer === 'front')) { cur = null; continue; }
@@ -8791,7 +8836,14 @@ function camOffset() {
 }
 const blink = (hz = 16) => Math.floor(G.time * hz) % 2 === 0;
 function drawParticlesAndText(S) {
-  for (const pt of sc.parts) { const [sx, sy] = S(pt.x, pt.y); ctx.globalAlpha = clamp(pt.life / pt.max * 1.4, 0, 1); ctx.fillStyle = pt.c; ctx.fillRect(sx, sy, pt.s, pt.s); }
+  // the camera offset once (it's whole pixels), so hundreds of sparks don't each make a new [x, y]; colour and fade
+  // are only set when they change from the last spark
+  const [ox, oy] = S(0, 0); let lastA = -1, lastC = null;
+  for (const pt of sc.parts) {
+    const a = clamp(pt.life / pt.max * 1.4, 0, 1); if (a !== lastA) { ctx.globalAlpha = lastA = a; }
+    if (pt.c !== lastC) { ctx.fillStyle = lastC = pt.c; }
+    ctx.fillRect(Math.round(pt.x) + ox, Math.round(pt.y) + oy, pt.s, pt.s);
+  }
   ctx.globalAlpha = 1;
   for (const t of sc.texts) { const [sx, sy] = S(t.x, t.y); if (t.life > .1 || Math.floor(G.time * 30) % 2) drawNum(t.s, sx, sy, t.c); }
 }
@@ -8882,6 +8934,9 @@ function drawHazards(S) {
     }
   }
 }
+// A hunt's things to draw, sorted by depth: entries are a kind and a thing, kept and reused between frames.
+const DRAW_LIST = [], DRAW_POOL = [], byDrawY = (a, b) => a.y - b.y;
+function drawAdd(y, k, o) { const i = DRAW_LIST.length, e = DRAW_POOL[i] || (DRAW_POOL[i] = { y: 0, k: 0, o: null }); e.y = y; e.k = k; e.o = o; DRAW_LIST.push(e); }
 function renderQuest() {
   if (!q) return;
   const [cx, cy] = camOffset();
@@ -8897,16 +8952,28 @@ function renderQuest() {
   for (const e of q.enemies) if (e.state !== 'spawn' && !e.hidden && (!e.boss || e.alpha > .3 || e.air)) shadow(e.x, e.y, e.def.titan ? 24 : e.r + 1);
   for (const h of q.hunters) if (!h.dead) shadow(h.x, h.y, 5);
   for (const k of q.pickups) shadow(k.x, k.y, 2);
-  // depth-sorted drawables
-  const list = [];
-  for (const o of q.obstacles) list.push({ y: o.y + o.h / 2, draw: () => { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); } });
-  for (const e of q.enemies) list.push({ y: e.y, draw: () => drawEnemy(e, S) });
-  for (const k of q.pickups) list.push({ y: k.y, draw: () => drawPickup(k, S) });
-  if (q.chest) list.push({ y: q.chest.y, draw: () => { const [sx, sy] = S(q.chest.x, q.chest.y); drawSpr('chest', q.chest.open ? 1 : 0, sx, sy, false); } });
-  for (const h of q.hunters) { if (!h.dead) list.push({ y: h.y, draw: () => drawPlayer(h, S) }); else if (h.downed) list.push({ y: h.y, draw: () => drawDowned(h, S) }); }
-  for (const gh of q.ghosts || []) list.push({ y: gh.y, draw: () => drawGhost(gh, S) });
-  list.sort((a, b) => a.y - b.y);
-  for (const d of list) d.draw();
+  // depth-sorted drawables (the list and its entries are reused every frame)
+  for (const o of q.obstacles) drawAdd(o.y + o.h / 2, 0, o);
+  for (const e of q.enemies) drawAdd(e.y, 1, e);
+  for (const k of q.pickups) drawAdd(k.y, 2, k);
+  if (q.chest) drawAdd(q.chest.y, 3, q.chest);
+  for (const h of q.hunters) { if (!h.dead) drawAdd(h.y, 4, h); else if (h.downed) drawAdd(h.y, 5, h); }
+  for (const gh of q.ghosts || []) drawAdd(gh.y, 6, gh);
+  DRAW_LIST.sort(byDrawY);
+  for (const d of DRAW_LIST) {
+    const o = d.o;
+    switch (d.k) {
+      case 0: { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); break; }
+      case 1: drawEnemy(o, S); break;
+      case 2: drawPickup(o, S); break;
+      case 3: { const [sx, sy] = S(o.x, o.y); drawSpr('chest', o.open ? 1 : 0, sx, sy, false); break; }
+      case 4: drawPlayer(o, S); break;
+      case 5: drawDowned(o, S); break;
+      case 6: drawGhost(o, S); break;
+    }
+    d.o = null;
+  }
+  DRAW_LIST.length = 0;
   // the wall over the hidden nook (see-through while you're inside it)
   if (q.cover) { const r = q.coverRect, [sx, sy] = S(r.x, r.y); ctx.globalAlpha = inCover(q.player.x, q.player.y) ? .28 : 1; ctx.drawImage(q.cover, sx, sy); ctx.globalAlpha = 1; }
   for (const e of q.enemies) if (e.boss && e.beam && e.state === 'beam') drawBeam(e, S);
@@ -9952,6 +10019,15 @@ function questCard(qd) {
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
 }
+// The button under a hunt: Depart (Post to the room, online), Locked with what to clear first, or, online, what's
+// stopping you from taking it (the rank, or which gear is too strong for it) before you try.
+function departRow(qd, un, lockText) {
+  const s = G.save;
+  if (!un) return `<div class="row"><button class="btn" type="button" disabled>Locked</button><span class="muted">${lockText}</span></div>`;
+  const why = netOn() ? netWhyNot(qd) : null;
+  if (why) return `<div class="row"><button class="btn" type="button" disabled>Can’t post yet</button></div><p class="qwarn">${esc(why)}</p>`;
+  return `<div class="row"><button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}</div>`;
+}
 // The quest board. Ranks only show as tabs once High Rank is open; before that there's no rank talk at all.
 function renderBoard() {
   const s = G.save;
@@ -9993,7 +10069,7 @@ function renderBoard() {
       <p>${esc(qd.desc)}</p>
       <div class="facts"><div><span>Best wave</span><b class="${s.endless.best ? 'gold' : ''}">${s.endless.best || '—'}</b></div><div><span>Last run</span><b>${s.endless.last ? 'Wave ' + s.endless.last : '—'}</b></div><div><span>Pay</span><b class="gold">${fmtMoney(qd.perWave)}+ dr a wave</b></div><div><span>Gods</span><b>Every ${ENDLESS_BOSS_EVERY}th wave</b></div></div>
       <div><p class="sub">Monsters</p><p class="muted" style="margin:0">Every monster from God Rank, more and stronger each wave. Gods turn up in a random order, no repeats until each has had a turn.</p></div>
-      <div class="row">${un ? `<button class="btn" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">Slay Typhon first.</span>`}</div>
+      ${departRow(qd, un, 'Slay Typhon first.')}
     </div></div>`;
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
@@ -10006,7 +10082,7 @@ function renderBoard() {
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
       <div><p class="sub">Parts you can find</p><div class="chips">${parts}</div></div>
-      <div class="row">${un ? `<button class="btn${tutOn() && s.tut === TUT.DEPART ? ' pulse' : ''}" type="button" data-depart="${qd.id}">${netOn() ? 'Post to the room' : 'Depart'}</button>${s.blessing ? '<span class="muted">Hestia is watching over you.</span>' : ''}` : `<button class="btn" type="button" disabled>Locked</button><span class="muted">${qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`}</span>`}</div>
+      ${departRow(qd, un, un ? '' : qd.titan && !s.stairs ? 'Something under the temple has to wake first.' : `Clear ${needText} first.`)}
     </div></div>`;
 }
 function canCraft(rec) { return G.save.money >= rec.cost && Object.entries(rec.items).every(([id, n]) => (G.save.inv[id] || 0) >= n); }
@@ -10412,13 +10488,15 @@ function renderOracle() {
   if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
-  if (R) return `<div class="opt"><h3>Room ${esc(R.code)} <span class="muted">${R.members.length}/4</span></h3>
+  if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/4</span></h3>
+    ${netHost() && R.v >= 3 ? `<form class="or-rename" data-orname novalidate><label>Room name<input name="name" maxlength="${ROOM_NAME_MAX}" value="${esc(R.name || '')}" placeholder="${esc(roomName(R))}" autocomplete="off" spellcheck="false"></label><button class="btn ghost small" type="submit">Rename</button></form>` : ''}
     <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
       ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
         : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
     <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
   return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 players. Hunts grow tougher with more of you.</p>
+      <label class="or-name">Room name<input id="orName" maxlength="${ROOM_NAME_MAX}" placeholder="${esc(Store.user)}’s room" autocomplete="off" spellcheck="false"></label>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
     <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
     <div class="opt wide"><h3>Open rooms</h3><div id="orList" class="muted">Looking…</div><button class="btn ghost small" type="button" data-or="refresh">Refresh</button></div>
@@ -10429,14 +10507,14 @@ async function orLoad() {
   try {
     const d = await Store.call('GET', 'rooms'), rooms = d.rooms || [];
     if (!$('orList')) return;
-    $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.host)}</b><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
+    $('orList').innerHTML = rooms.length ? rooms.map(r => `<div class="or-row"><b>${esc(r.name || r.host + '’s room')}</b><span class="muted">${esc(r.host)}</span><span>${r.n}/${r.max}</span><span>${RANKS[r.rank] ? RANKS[r.rank].name : ''}</span><span class="muted">${r.phase === 'hunt' ? 'Hunting' + (r.quest ? ': ' + esc(r.quest) : '') : 'In Akros'}</span><span class="muted" data-ping="${r.code}">…</span><button class="btn small" type="button" data-or="join" data-code="${r.code}" ${r.n >= r.max ? 'disabled' : ''}>Join</button></div>`).join('') : 'No open rooms right now. Host one!';
     for (const r of rooms) { const t0 = performance.now(); fetch(`/api/rooms/${r.code}/ping`, { cache: 'no-store' }).then(x => x.json()).then(d => { const el = document.querySelector(`[data-ping="${r.code}"]`); if (!el) return; if (d && d.open === false) { el.closest('.or-row').remove(); return; } el.textContent = Math.round(performance.now() - t0) + ' ms'; }).catch(() => {}); }
   } catch (e) { if ($('orList')) $('orList').textContent = 'Can’t reach the other players. Check your connection.'; }
 }
 async function orDo(a, code, id) {
   G.orMsg = '';
   try {
-    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true); closePanel(); toast('Room open. The code is in the top left.'); }
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true, $('orName') ? $('orName').value : ''); closePanel(); toast('Room open. The code is in the top left.'); }
     else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
     else if (a === 'leave') { netLeave(); renderHub(); }
     else if (a === 'armkick' || a === 'nokick') { G.kickArm = a === 'armkick' ? +id : 0; renderHub(); }
@@ -10446,7 +10524,11 @@ async function orDo(a, code, id) {
   } catch (e) { G.orMsg = e.message; if (G.panel === 'oracle') renderHub(); }
 }
 document.addEventListener('click', ev => { const b = ev.target.closest('[data-or]'); if (b && !b.disabled) { Sound.play('click'); orDo(b.dataset.or, b.dataset.code, b.dataset.id); } });
-document.addEventListener('submit', ev => { const f = ev.target.closest('[data-orjoin]'); if (!f) return; ev.preventDefault(); orDo('join', f.elements.code.value); });
+document.addEventListener('submit', ev => {
+  const f = ev.target.closest('[data-orjoin]'), r = ev.target.closest('[data-orname]');
+  if (f) { ev.preventDefault(); orDo('join', f.elements.code.value); }
+  else if (r) { ev.preventDefault(); Sound.play('click'); netRename(r.elements.name.value); toast('Room renamed.'); }
+});
 $('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
 $('mpForm').addEventListener('submit', ev => { ev.preventDefault(); netChatSend(); });
 $('mpInput').addEventListener('keydown', ev => { if (ev.code === 'Escape') { ev.preventDefault(); ev.stopPropagation(); netChatClose(); } });
