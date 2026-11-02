@@ -48,7 +48,7 @@ function makePlayer(save = G.save) {
            bufAtk: 0, bufDodge: 0, bufAbil: 0, bufMouse: false, walkT: 0, moving: false, dead: false, dashHit: new Set(),
            guarding: false, guard: st.guardMax, guardDelay: 0, guardBreak: 0, guardPress: 0, guardTapCd: 0, guardFlash: 0,
            fx: { heavy: 0, echo: 0, foresight: 0, slow: 0, confuse: 0, charm: 0, sleep: 0, drowsy: 0, poison: 0, burn: 0, frenzy: 0, heart: 0, spin: 0, killRush: 0, strike: 0, riposte: 0, str: 0, spd: 0 },
-           charmFrom: null, spinTicks: 0, hits: 0, regenAcc: 0, revived: false, look: { ...save.equip },
+           charmFrom: null, spinTicks: 0, hits: 0, regenAcc: 0, revived: false, look: heroLook(save),
            shieldT: 0, blockKick: 0, bashT: 0, bashCd: 0, comboT: 0, potionCd: 0,
            wardT: 0, lastStandUsed: false, recent: [], echoes: [], flurryT: 0, flurryAcc: 0, foresightN: 0, strikes: 0 };
 }

@@ -353,8 +353,11 @@ function newSave() {
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
            rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
-           meal: null };                                            // a Tavern meal waiting for the next hunt
+           meal: null,                                              // a Tavern meal waiting for the next hunt
+           hero: 'boy' };                                           // 'boy' or 'girl', picked in Options
 }
+// How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
+const heroLook = s => ({ ...s.equip, girl: s.hero === 'girl' });
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
                    aegis_mantle: 'aegis', cyclops_mail: 'cyclops', olympian_regalia: 'olympian' };
@@ -395,6 +398,7 @@ function sanitize(s) {
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
   if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
   out.meal = typeof s.meal === 'string' && MEALS[s.meal] ? s.meal : null;
+  out.hero = s.hero === 'girl' ? 'girl' : 'boy';
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }

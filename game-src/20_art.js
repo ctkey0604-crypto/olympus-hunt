@@ -432,33 +432,46 @@ const HEAD_EXTRAS = {
   hood:    {},
 };
 const HEAD_STYLE = { hood: 'hood', laurel: 'wreath', ivy: 'wreath', roses: 'wreath', rays: 'wreath', crown: 'wreath', antlers: 'wreath' };
+// The girl hero: hair falling down her back (out from under a helmet too, but not a hood), a taller eye, and a chiton
+// that flares out to the knee, so the legs show below it and the walk only moves the shins.
+const GIRL_HAIR = { 7: '_h__________', 8: '_h__________', 9: '_h__________', 10: '_hhH________', 11: '_hH_________', 12: '_H__________' };
+const GIRL_DRESS = { 17: '..aaAaaaaa..', 18: '...lL..lL...', 19: '...ff..ff...' };
+const GIRL_WALK = { from: 18, rows: ['....lL.L....', '....ff.ff...'] };
 const HERO_CACHE = {};
-function heroKey(eq, shield) { return SLOTS.map(s => eq[s]).join('|'); }
-// eq = { head: setId, chest: setId, legs: setId, feet: setId }
+function heroKey(eq, shield) { return SLOTS.map(s => eq[s]).join('|') + (eq.girl ? '|g' : ''); }
+// eq = { head: setId, chest: setId, legs: setId, feet: setId, girl: true for the girl hero }
 function heroFrames(eq) {
   const key = heroKey(eq);
   if (HERO_CACHE[key]) return HERO_CACHE[key];
   const H = ARMOR_SETS[eq.head] || ARMOR_SETS.traveler, C = ARMOR_SETS[eq.chest] || ARMOR_SETS.traveler;
   const L = ARMOR_SETS[eq.legs] || ARMOR_SETS.traveler, F = ARMOR_SETS[eq.feet] || ARMOR_SETS.traveler;
-  const extra = H === ARMOR_SETS.traveler ? null : H.extra, style = extra ? (HEAD_STYLE[extra] || 'cap') : 'hair';
+  const extra = H === ARMOR_SETS.traveler ? null : H.extra, style = extra ? (HEAD_STYLE[extra] || 'cap') : 'hair', girl = !!eq.girl;
   let rows = patchRows(HERO_BODY, HEAD_SHAPES[style]);
+  if (girl) {
+    if (style !== 'hood') rows = patchRows(rows, GIRL_HAIR);
+    if (style === 'hair') rows = patchRows(rows, { 7: '______h_____' });   // bangs, when there's no helmet
+    if (rows[7][7] === 's') rows = patchRows(rows, { 7: '_______k____' });   // the eye a pixel taller where the forehead shows
+    if (rows[9][6] === 's') rows = patchRows(rows, { 9: '______m_____' });   // a little blush on the cheek
+    rows = patchRows(rows, GIRL_DRESS);
+  }
   if (extra) rows = patchRows(rows, HEAD_EXTRAS[extra]);
   const hc = H.colors.head, cc = C.colors.chest, lc = L.colors.legs, fc = F.colors.feet;
   const hair = style === 'hair' && H === ARMOR_SETS.traveler ? hc : ['#5a3a22', '#3a2416'];
   // High and God Rank: spiked pauldrons on the chest piece, glowing eyes under the helmet, spiked knees.
   const cr = C.rank || 0, hr = H.rank || 0, lr = L.rank || 0;
   if (cr) rows = patchRows(rows, { 9: '_p_______p__', 10: '_pp_____pp__', 11: '_p_________' });
-  if (lr) rows = patchRows(rows, { 17: '__q_________' });
+  if (lr) rows = patchRows(rows, { [girl ? 18 : 17]: '__q_________' });
   const pal = Object.assign({}, PAL, {
     h: hair[0], H: hair[1], i: hc[0], I: hc[1], c: hc[2] || hc[0],
     a: cc[0], A: cc[1], t: cc[2] || cc[1], l: lc[0], L: lc[1], f: fc[0], F: fc[1],
-    p: cr ? RANK_TINT[cr].trim : '#000', q: lr ? RANK_TINT[lr].trim : '#000',
+    p: cr ? RANK_TINT[cr].trim : '#000', q: lr ? RANK_TINT[lr].trim : '#000', m: '#e0907c',
   });
   if (hr && extra) pal.k = RANK_TINT[hr].trim;
   // frame 2, sitting on a stool seen from the side: the same body, the legs bent (thigh out in front, then shin and foot).
   // It's drawn a pixel up, so the feet swing just off the floor.
-  const sit = { from: 17, rows: ['...lllllL...', '........L...', '........Lf..'] };
-  return (HERO_CACHE[key] = buildFrames([rows, HERO_WALK, sit], pal));
+  // (The girl's chiton drapes over her lap instead.)
+  const sit = { from: 17, rows: [girl ? '...aAaaaaa..' : '...lllllL...', '........L...', '........Lf..'] };
+  return (HERO_CACHE[key] = buildFrames([rows, girl ? GIRL_WALK : HERO_WALK, sit], pal));
 }
 
 

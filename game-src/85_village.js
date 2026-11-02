@@ -199,7 +199,7 @@ function enterVillage(from) { enterPlace('village', from); }
 function resumeVillage() {
   sc = V; G.mode = 'village'; G.paused = false; G.dialog = null; G.panel = null;
   G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0;
-  if (V.player) { V.player.st = playerStats(); V.player.look = { ...G.save.equip }; }
+  if (V.player) { V.player.st = playerStats(); V.player.look = heroLook(G.save); }
   hideScreens(); $('stage').hidden = false; $('pause').hidden = true; resize();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();

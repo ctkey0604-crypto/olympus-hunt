@@ -169,12 +169,12 @@ function renderHub() {
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
       <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
       <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div>${sh ? '<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>' : ''}</div>`;
-    drawPreview($('pvCanvas'), s.equip, s.shield, s.weapon);
+    drawPreview($('pvCanvas'), heroLook(s), s.shield, s.weapon);
   }
   const body = $('hubBody');
   if (G.panel === 'armory') body.innerHTML = renderArmory();
   else if (G.panel === 'stash') body.innerHTML = renderStash();
-  else if (G.panel === 'options') body.innerHTML = renderOptions();
+  else if (G.panel === 'options') { body.innerHTML = renderOptions(); drawPreview($('heroPv'), heroLook(s), s.shield, s.weapon); }
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
   else if (G.panel === 'market') body.innerHTML = renderMarket();
   else if (G.panel === 'tavern') body.innerHTML = renderTavern();
@@ -439,7 +439,10 @@ function renderOptions() {
       <div class="toggle"><span>Tips for new players</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
-    <div class="opt"><h3>Your save</h3><p>${where}</p>
+    <div class="opt"><h3>Your save</h3>
+      <div class="preview hero-pick"><canvas id="heroPv" width="24" height="32" aria-label="Your hero"></canvas>
+        <div><span class="lbl">Your hero</span><div class="seg">${['boy', 'girl'].map(h => `<button type="button" data-hero="${h}" aria-pressed="${(G.save.hero === 'girl' ? 'girl' : 'boy') === h}">${h === 'girl' ? 'Girl' : 'Boy'}</button>`).join('')}</div></div></div>
+      <p>${where}</p>
       <div class="row"><button class="btn small" type="button" data-opt="export">Show save code</button><button class="btn ghost small" type="button" data-opt="import">Load a save code</button></div>
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
@@ -500,6 +503,11 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.quest) { G.selQuest = t.dataset.quest; Sound.play('click'); renderHub(); return; }
   if (t.dataset.boardrank) { G.boardRank = +t.dataset.boardrank; G.selQuest = null; Sound.play('click'); renderHub(); return; }
   if (t.dataset.forgerank) { G.forgeRank = +t.dataset.forgerank; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.hero) {                                    // boy or girl: saved with this game, and the others in your room see it
+    s.hero = t.dataset.hero === 'girl' ? 'girl' : 'boy'; persist();
+    if (V && V.player) V.player.look = heroLook(s);
+    netSendInfo(); Sound.play('click'); renderHub(); return;
+  }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { netPost(id); return; } fadeTo(() => startQuest(id)); return; }
