@@ -4369,8 +4369,12 @@ function netRoom(m) {
 
 /* ---- the shared town ---- */
 function netTownIn(m) {
-  const [place, x, y, face, mv, dash] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
+  const [place, x, y, face, mv, dash, meal] = String(m.s || '').split(','), pe = NET.peers[m.from] || (NET.peers[m.from] = { x: +x, y: +y, walkT: 0 });
   Object.assign(pe, { place, tx: +x, ty: +y, face: +face, moving: mv === '1', dash: dash === '1', at: performance.now() });
+  // they started eating at the Tavern: play their meal here too (on our own clock, from the first message that says so)
+  const eating = !!(meal && Object.prototype.hasOwnProperty.call(MEALS, meal));
+  if (eating && !pe.mealOn && !pe.eat) pe.eat = eatState(meal);
+  pe.mealOn = eating;
 }
 function peerHunter(id) {                                         // a hunter object to draw someone else in town
   const mem = netMember(id); if (!mem) return null;
@@ -4381,7 +4385,7 @@ function peerHunter(id) {                                         // a hunter ob
 function netTownTick(dt) {
   if (!netOn() || !V || !V.player) return;
   const p = V.player; NET.townT -= dt;
-  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0].join(',');
+  const s = [V.id, Math.round(p.x), Math.round(p.y), r2(p.face), p.moving ? 1 : 0, p.dodgeT > 0 ? 1 : 0, V.eat ? V.eat.meal : ''].join(',');
   if ((s !== NET.townLast && NET.townT <= 0) || NET.townT < -1) { NET.townLast = s; NET.townT = .1; netSend({ t: 'town', s }); }
 }
 function netPeersTick(dt) {
@@ -4389,16 +4393,17 @@ function netPeersTick(dt) {
   for (const pe of Object.values(NET.peers)) {
     if (Math.hypot(pe.tx - pe.x, pe.ty - pe.y) > 60) { pe.x = pe.tx; pe.y = pe.ty; }
     pe.x += (pe.tx - pe.x) * k; pe.y += (pe.ty - pe.y) * k; if (pe.moving) pe.walkT += dt;
+    if (pe.eat) { if (pe.place !== (V && V.id) || !V.parts) pe.eat = null; else if (eatStep(pe.eat, pe, dt, false)) pe.eat = null; }
   }
 }
-// Everyone else standing in the same place as you, for renderVillage.
+// Everyone else standing in the same place as you, for renderVillage. Your home is your own: nobody else shows up there.
 function townPeers() {
-  if (!netOn() || !V) return [];
+  if (!netOn() || !V || V.id === 'home') return [];
   const out = [], now = performance.now();
   for (const [id, pe] of Object.entries(NET.peers)) {
     if (pe.place !== V.id || now - pe.at > 4000) continue;
     const o = peerHunter(+id); if (!o) continue;
-    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4 });
+    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4, eat: pe.eat });
     out.push(o);
   }
   return out;
@@ -7588,6 +7593,7 @@ function paintRug(x, rx, ry, w, h, c1, c2) {
 }
 // Sitting down at a tavern table: you take the seat, then Phaedra brings the menu.
 function sitAt(seat) {
+  if (townPeers().some(o => dist(o, seat) < 5)) { toast('Someone is already sitting there.'); return; }
   const p = V.player; p.x = seat.x; p.y = seat.y; p.face = seat.face; p.moving = false;
   openPanel('tavern');
 }
@@ -7712,27 +7718,34 @@ function renderTavern() {
 }
 // Eating it, right there in the Tavern: a few bites (or sips), crumbs or drops, then a little tune and a sparkle.
 // You stand still while you eat. V.eat = { meal, t, dur, bites: times left to play a bite sound }.
+const eatState = id => { const M = MEALS[id]; return { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] }; };
 function startEating(id) {
-  const M = MEALS[id], p = V.player;
+  const p = V.player;
   p.face = Math.PI / 2; p.moving = false; V.target = null;
-  V.eat = { meal: id, t: 0, dur: M.food ? 2.2 : 1.8, bites: M.food ? [.35, .95, 1.55] : [.45, 1.15] };
+  V.eat = eatState(id);
 }
-function tickEating(dt) {
-  const e = V.eat, M = MEALS[e.meal], p = V.player; e.t += dt;
+// One step of a meal, yours (sounds and the banner) or another player's in the same room (just the crumbs and the sparkle).
+// Returns true when it's finished.
+function eatStep(e, p, dt, mine) {
+  const M = MEALS[e.meal]; e.t += dt;
   if (e.bites.length && e.t >= e.bites[0]) {
-    e.bites.shift(); Sound.play(M.food ? 'eat' : 'drink');
+    e.bites.shift(); if (mine) Sound.play(M.food ? 'eat' : 'drink');
     const cols = M.food ? ['#c09a63', '#e9c04f', '#8a5a34'] : M.art === 'cup' ? ['#e9a030', '#ffd463'] : ['#c8e6c9', '#ffffff'];
     for (let i = 0; i < 5; i++) V.parts.push({ x: p.x + rand(-2, 4), y: p.y - 11, vx: rand(-14, 14), vy: rand(-18, -4), g: 90, life: .5, max: .5, c: cols[i % cols.length], s: 1 });
   }
-  if (e.t >= e.dur) {
-    V.eat = null; Sound.play('jingle');
-    burst(p.x, p.y - 10, 16, ['#ffd463', '#fff6d8', '#9bbb55'], 70);
-    banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
-  }
+  if (e.t < e.dur) return false;
+  burst(p.x, p.y - 10, 16, ['#ffd463', '#fff6d8', '#9bbb55'], 70);
+  return true;
 }
-// The meal in your hand, going up to your mouth and back with each bite.
-function drawEating(S) {
-  const e = V.eat, M = MEALS[e.meal], p = V.player, [sx, sy] = S(p.x, p.y), K = OUTLINE;
+function tickEating(dt) {
+  const M = MEALS[V.eat.meal];
+  if (!eatStep(V.eat, V.player, dt, true)) return;
+  V.eat = null; Sound.play('jingle');
+  banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
+}
+// The meal in someone's hand, going up to their mouth and back with each bite.
+function drawEating(S, e = V.eat, p = V.player) {
+  const M = MEALS[e.meal], [sx, sy] = S(p.x, p.y), K = OUTLINE;
   // from the hand (by the hip) up to the mouth and back
   const lift = Math.max(0, Math.sin(e.t * Math.PI / (M.food ? .6 : .7))), x = Math.round(sx + 5 - lift * 3), y = Math.round(sy - 6 - lift * 5);
   const R = (dx, dy, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + dx, y + dy, w, h); };
@@ -8009,7 +8022,7 @@ function tickVillage(dt) {
   if (G.save) G.save.playtime += dt;
   const p = V.player;
   if (G.cutscene) { tickCutscene(dt); tickParticles(dt); Input.endFrame(); return; }
-  if (V.eat) { tickEating(dt); updateNpcs(dt); tickParticles(dt); followCam(p, dt); Input.endFrame(); return; }   // eating at the Tavern: hold still
+  if (V.eat) { tickEating(dt); updateNpcs(dt); netTownTick(dt); tickParticles(dt); followCam(p, dt); Input.endFrame(); return; }   // eating at the Tavern: hold still
   if (G.dialog) {
     const d = G.dialog, before = Math.floor(d.chars);
     d.chars = Math.min(d.lines[d.i].length, d.chars + 55 * dt);
@@ -9231,6 +9244,7 @@ function renderVillage() {
   list.sort((a, b) => a.y - b.y);
   for (const d of list) d.draw();
   if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth
+  for (const o of peers) if (o.eat) drawEating(S, o.eat, o);    // and theirs
   drawParticlesAndText(S);
   for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
   const t = V.target;
@@ -10570,7 +10584,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
   NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
-  renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo,
+  renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame,
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
   setBots: list => { G.partyBots = (list || []).filter(w => WEAPONS[w]).slice(0, PARTY_MAX - 1); },
   addBotHunter: wid => {
