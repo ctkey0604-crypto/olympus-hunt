@@ -1,7 +1,7 @@
 /* ============================== MENUS ==================================== */
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
 // The menus have their own theme; the town's plays only in town (What's new opened from Options keeps the place's music).
-function show(id) { if (id === 'scrTitle' || id === 'scrSlots' || (id === 'scrNews' && G.mode === 'news')) Music.play('menu'); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
+function show(id) { if (id === 'scrTitle' || id === 'scrSlots' || (id === 'scrNews' && G.mode === 'news')) Music.play('menu'); if (id === 'scrTitle') updateTitleSub(); $('stage').hidden = true; document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== id; }); $(id).scrollTop = 0; }
 let toastTimer = 0;
 function toast(msg, ms = 2200) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms); }
 function persist(urgent = false) { if (G.save) Store.save(G.slot, G.save, urgent); }
@@ -44,13 +44,17 @@ async function playNow() {
 function rememberSlot(n) { Settings.data.lastSlot = n; Settings.save(); }
 async function updateTitleSub() {
   await Store.ready;
-  const n = Settings.data.lastSlot, s = n ? await Store.load(n) : null;
-  $('titleSub').textContent = s ? `Continues save ${n} · ${huntTally(s)}${s.rank ? ' · ' + RANKS[s.rank].name : ''}` : '';
+  const n = Settings.data.lastSlot; let s = n ? await Store.load(n) : null;
+  if (s && G.save && G.slot === n) s = G.save;   // back from playing: the save in hand is the newest
+  $('titleSub').textContent = s ? `Continues save ${n} · ${huntTally(s)}` : '';
 }
-// "5 of 17 gods · 2 of 8 Titans": every god (side gods too) and every Titan hunted on any rank
-function huntTally(s) {
-  const all = [...GODS, ...SIDE_GODS], gods = all.filter(g => godRank(g.id, s) >= 0).length, titans = TITANS.filter(t => godRank(t.id, s) >= 0).length;
-  return `${gods} of ${all.length} gods · ${titans} of ${TITANS.length} Titans`;
+// "High Rank: 5 of 17 gods · 2 of 8 Titans": hunted on the rank you're on, so it starts again at 0 when a new rank opens.
+// Typhon down: "Game complete · Endless mode: best wave 12" (slot cards add the last run).
+function huntTally(s, slot) {
+  const e = s.endless || {};
+  if (s.cleared[TYPHON_Q]) return `Game complete · Endless mode: ${e.best ? `best wave ${e.best}${slot && e.last ? `, last run wave ${e.last}` : ''}` : 'not tried yet'}`;
+  const r = s.rank || 0, gods = ALL_GOD_QUESTS.filter(id => s.cleared[rid(id, r)]).length, titans = TITANS.filter(t => s.cleared[rid(t.quest, r)]).length;
+  return `${slot && r ? '' : RANKS[r].name + ': '}${gods} of ${ALL_GOD_QUESTS.length} gods · ${titans} of ${TITANS.length} Titans`;
 }
 
 async function renderSlots() {
@@ -132,8 +136,8 @@ function slotCard(n, s) {
   const el = document.createElement('article'); el.className = 'slot' + (s ? '' : ' empty');
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
-    const base = QUESTS.filter(qd => qd.rank === 0), cleared = base.filter(qd => s.cleared[qd.id]).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${huntTally(s)}${s.cleared[TYPHON_Q] ? ' · Typhon slain' : ''} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless), cleared = base.filter(qd => s.cleared[qd.id]).length;
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
