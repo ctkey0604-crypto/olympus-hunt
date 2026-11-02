@@ -295,6 +295,8 @@ textarea:focus{outline:2px solid var(--gold)}
 .preview{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--glaze-2);padding:12px 14px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .preview canvas{image-rendering:pixelated;width:72px;height:96px;background:#0007;box-shadow:inset 0 0 0 2px var(--line)}
 .preview .stats{font-size:.95rem}
+.hero-pick{margin:4px 0 14px}
+.hero-pick .lbl{display:block;margin:0 0 8px;font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute)}
 
 .acct{display:grid;gap:10px}
 #acctBox{background:var(--glaze-2);padding:14px 16px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
@@ -2252,33 +2254,46 @@ const HEAD_EXTRAS = {
   hood:    {},
 };
 const HEAD_STYLE = { hood: 'hood', laurel: 'wreath', ivy: 'wreath', roses: 'wreath', rays: 'wreath', crown: 'wreath', antlers: 'wreath' };
+// The girl hero: hair falling down her back (out from under a helmet too, but not a hood), a taller eye, and a chiton
+// that flares out to the knee, so the legs show below it and the walk only moves the shins.
+const GIRL_HAIR = { 7: '_h__________', 8: '_h__________', 9: '_h__________', 10: '_hhH________', 11: '_hH_________', 12: '_H__________' };
+const GIRL_DRESS = { 17: '..aaAaaaaa..', 18: '...lL..lL...', 19: '...ff..ff...' };
+const GIRL_WALK = { from: 18, rows: ['....lL.L....', '....ff.ff...'] };
 const HERO_CACHE = {};
-function heroKey(eq, shield) { return SLOTS.map(s => eq[s]).join('|'); }
-// eq = { head: setId, chest: setId, legs: setId, feet: setId }
+function heroKey(eq, shield) { return SLOTS.map(s => eq[s]).join('|') + (eq.girl ? '|g' : ''); }
+// eq = { head: setId, chest: setId, legs: setId, feet: setId, girl: true for the girl hero }
 function heroFrames(eq) {
   const key = heroKey(eq);
   if (HERO_CACHE[key]) return HERO_CACHE[key];
   const H = ARMOR_SETS[eq.head] || ARMOR_SETS.traveler, C = ARMOR_SETS[eq.chest] || ARMOR_SETS.traveler;
   const L = ARMOR_SETS[eq.legs] || ARMOR_SETS.traveler, F = ARMOR_SETS[eq.feet] || ARMOR_SETS.traveler;
-  const extra = H === ARMOR_SETS.traveler ? null : H.extra, style = extra ? (HEAD_STYLE[extra] || 'cap') : 'hair';
+  const extra = H === ARMOR_SETS.traveler ? null : H.extra, style = extra ? (HEAD_STYLE[extra] || 'cap') : 'hair', girl = !!eq.girl;
   let rows = patchRows(HERO_BODY, HEAD_SHAPES[style]);
+  if (girl) {
+    if (style !== 'hood') rows = patchRows(rows, GIRL_HAIR);
+    if (style === 'hair') rows = patchRows(rows, { 7: '______h_____' });   // bangs, when there's no helmet
+    if (rows[7][7] === 's') rows = patchRows(rows, { 7: '_______k____' });   // the eye a pixel taller where the forehead shows
+    if (rows[9][6] === 's') rows = patchRows(rows, { 9: '______m_____' });   // a little blush on the cheek
+    rows = patchRows(rows, GIRL_DRESS);
+  }
   if (extra) rows = patchRows(rows, HEAD_EXTRAS[extra]);
   const hc = H.colors.head, cc = C.colors.chest, lc = L.colors.legs, fc = F.colors.feet;
   const hair = style === 'hair' && H === ARMOR_SETS.traveler ? hc : ['#5a3a22', '#3a2416'];
   // High and God Rank: spiked pauldrons on the chest piece, glowing eyes under the helmet, spiked knees.
   const cr = C.rank || 0, hr = H.rank || 0, lr = L.rank || 0;
   if (cr) rows = patchRows(rows, { 9: '_p_______p__', 10: '_pp_____pp__', 11: '_p_________' });
-  if (lr) rows = patchRows(rows, { 17: '__q_________' });
+  if (lr) rows = patchRows(rows, { [girl ? 18 : 17]: '__q_________' });
   const pal = Object.assign({}, PAL, {
     h: hair[0], H: hair[1], i: hc[0], I: hc[1], c: hc[2] || hc[0],
     a: cc[0], A: cc[1], t: cc[2] || cc[1], l: lc[0], L: lc[1], f: fc[0], F: fc[1],
-    p: cr ? RANK_TINT[cr].trim : '#000', q: lr ? RANK_TINT[lr].trim : '#000',
+    p: cr ? RANK_TINT[cr].trim : '#000', q: lr ? RANK_TINT[lr].trim : '#000', m: '#e0907c',
   });
   if (hr && extra) pal.k = RANK_TINT[hr].trim;
   // frame 2, sitting on a stool seen from the side: the same body, the legs bent (thigh out in front, then shin and foot).
   // It's drawn a pixel up, so the feet swing just off the floor.
-  const sit = { from: 17, rows: ['...lllllL...', '........L...', '........Lf..'] };
-  return (HERO_CACHE[key] = buildFrames([rows, HERO_WALK, sit], pal));
+  // (The girl's chiton drapes over her lap instead.)
+  const sit = { from: 17, rows: [girl ? '...aAaaaaa..' : '...lllllL...', '........L...', '........Lf..'] };
+  return (HERO_CACHE[key] = buildFrames([rows, girl ? GIRL_WALK : HERO_WALK, sit], pal));
 }
 
 
@@ -2715,8 +2730,11 @@ function newSave() {
            shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
            rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
-           meal: null };                                            // a Tavern meal waiting for the next hunt
+           meal: null,                                              // a Tavern meal waiting for the next hunt
+           hero: 'boy' };                                           // 'boy' or 'girl', picked in Options
 }
+// How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
+const heroLook = s => ({ ...s.equip, girl: s.hero === 'girl' });
 // Version 2 armor became full sets of four pieces.
 const V2_ARMOR = { tunic: 'traveler', brigand_leathers: 'brigand', herdsman_hide: 'herdsman', winged_raiment: 'winged', hoplite_panoply: 'hoplite',
                    aegis_mantle: 'aegis', cyclops_mail: 'cyclops', olympian_regalia: 'olympian' };
@@ -2757,6 +2775,7 @@ function sanitize(s) {
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
   if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
   out.meal = typeof s.meal === 'string' && MEALS[s.meal] ? s.meal : null;
+  out.hero = s.hero === 'girl' ? 'girl' : 'boy';
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }
@@ -4301,7 +4320,7 @@ setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a 
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
-  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null };
+  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null, hero: s.hero === 'girl' ? 'girl' : 'boy' };
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
@@ -4337,7 +4356,7 @@ function gearSave(g) {
   for (const sl of SLOTS) look[sl] = g.look && ARMOR_SETS[g.look[sl]] && PIECES[g.look[sl] + ':' + sl] ? g.look[sl] : 'traveler';
   const weapon = WEAPONS[g.weapon] ? g.weapon : 'bronze_sword', shield = g.shield && SHIELDS[g.shield] ? g.shield : null, refine = {};
   if (g.refine) for (const [k, v] of Object.entries(g.refine)) refine[k] = clamp(Math.floor(+v || 0), 0, 5);
-  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 }, meal: g.meal && MEALS[g.meal] ? g.meal : null };
+  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 }, meal: g.meal && MEALS[g.meal] ? g.meal : null, hero: g.hero === 'girl' ? 'girl' : 'boy' };
 }
 
 /* ---- messages in ---- */
@@ -4943,7 +4962,7 @@ function makePlayer(save = G.save) {
            bufAtk: 0, bufDodge: 0, bufAbil: 0, bufMouse: false, walkT: 0, moving: false, dead: false, dashHit: new Set(),
            guarding: false, guard: st.guardMax, guardDelay: 0, guardBreak: 0, guardPress: 0, guardTapCd: 0, guardFlash: 0,
            fx: { heavy: 0, echo: 0, foresight: 0, slow: 0, confuse: 0, charm: 0, sleep: 0, drowsy: 0, poison: 0, burn: 0, frenzy: 0, heart: 0, spin: 0, killRush: 0, strike: 0, riposte: 0, str: 0, spd: 0 },
-           charmFrom: null, spinTicks: 0, hits: 0, regenAcc: 0, revived: false, look: { ...save.equip },
+           charmFrom: null, spinTicks: 0, hits: 0, regenAcc: 0, revived: false, look: heroLook(save),
            shieldT: 0, blockKick: 0, bashT: 0, bashCd: 0, comboT: 0, potionCd: 0,
            wardT: 0, lastStandUsed: false, recent: [], echoes: [], flurryT: 0, flurryAcc: 0, foresightN: 0, strikes: 0 };
 }
@@ -7963,7 +7982,7 @@ function enterVillage(from) { enterPlace('village', from); }
 function resumeVillage() {
   sc = V; G.mode = 'village'; G.paused = false; G.dialog = null; G.panel = null;
   G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0;
-  if (V.player) { V.player.st = playerStats(); V.player.look = { ...G.save.equip }; }
+  if (V.player) { V.player.st = playerStats(); V.player.look = heroLook(G.save); }
   hideScreens(); $('stage').hidden = false; $('pause').hidden = true; resize();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();
@@ -9821,12 +9840,12 @@ function renderHub() {
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
       <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
       <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div>${sh ? '<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>' : ''}</div>`;
-    drawPreview($('pvCanvas'), s.equip, s.shield, s.weapon);
+    drawPreview($('pvCanvas'), heroLook(s), s.shield, s.weapon);
   }
   const body = $('hubBody');
   if (G.panel === 'armory') body.innerHTML = renderArmory();
   else if (G.panel === 'stash') body.innerHTML = renderStash();
-  else if (G.panel === 'options') body.innerHTML = renderOptions();
+  else if (G.panel === 'options') { body.innerHTML = renderOptions(); drawPreview($('heroPv'), heroLook(s), s.shield, s.weapon); }
   else if (G.panel === 'shrine') body.innerHTML = renderShrine();
   else if (G.panel === 'market') body.innerHTML = renderMarket();
   else if (G.panel === 'tavern') body.innerHTML = renderTavern();
@@ -10091,7 +10110,10 @@ function renderOptions() {
       <div class="toggle"><span>Tips for new players</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
-    <div class="opt"><h3>Your save</h3><p>${where}</p>
+    <div class="opt"><h3>Your save</h3>
+      <div class="preview hero-pick"><canvas id="heroPv" width="24" height="32" aria-label="Your hero"></canvas>
+        <div><span class="lbl">Your hero</span><div class="seg">${['boy', 'girl'].map(h => `<button type="button" data-hero="${h}" aria-pressed="${(G.save.hero === 'girl' ? 'girl' : 'boy') === h}">${h === 'girl' ? 'Girl' : 'Boy'}</button>`).join('')}</div></div></div>
+      <p>${where}</p>
       <div class="row"><button class="btn small" type="button" data-opt="export">Show save code</button><button class="btn ghost small" type="button" data-opt="import">Load a save code</button></div>
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
@@ -10152,6 +10174,11 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.quest) { G.selQuest = t.dataset.quest; Sound.play('click'); renderHub(); return; }
   if (t.dataset.boardrank) { G.boardRank = +t.dataset.boardrank; G.selQuest = null; Sound.play('click'); renderHub(); return; }
   if (t.dataset.forgerank) { G.forgeRank = +t.dataset.forgerank; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.hero) {                                    // boy or girl: saved with this game, and the others in your room see it
+    s.hero = t.dataset.hero === 'girl' ? 'girl' : 'boy'; persist();
+    if (V && V.player) V.player.look = heroLook(s);
+    netSendInfo(); Sound.play('click'); renderHub(); return;
+  }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
   if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { netPost(id); return; } fadeTo(() => startQuest(id)); return; }
