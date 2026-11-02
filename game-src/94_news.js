@@ -7,6 +7,7 @@ const NEWS = [
       'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
       'The Tavern: take a seat or order at the counter. One meal or drink per hunt gives you a small boost for it: more health, damage or defense, or faster dashes or skills.',
       'Your home has a chest that holds everything you bring back from your hunts.',
+      'Play as a boy or a girl: pick in Options (Esc), under Your save. Every armor set has both looks, each save keeps its own, and the others in your room see it.',
       'The Endless Hunt: once Typhon is slain, Etna keeps sending monsters. Every wave is bigger and stronger, a god turns up every fifth wave, and each wave cleared pays. Your best wave and your last run show on the quest board.',
       'Room chat: in a room, press T (or tap Chat) to talk to everyone. H (or Hide) shrinks the room box when it’s in the way.',
       'The room’s host can kick a player from the Oracle’s room panel. A kicked player can’t rejoin that room.',

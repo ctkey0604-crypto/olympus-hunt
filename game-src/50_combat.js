@@ -704,7 +704,12 @@ function updateProjs(dt) {
           if (pr.team !== 'enemy') break;                          // a perfect block just sent it back
         }
       }
-    } else if (!pr.vis) {                                        // vis: a guest's shot, only for show here
+    } else if (pr.vis) {                                         // vis: a guest's shot, only for show here (its hits come from the guest)
+      for (const e of q.enemies) {                               // it still stops at the monsters it reaches, like it did on the guest's screen
+        if (!targetable(e) || pr.hit.has(e.id) || edist(pr, e) >= pr.r + e.r + 1) continue;
+        pr.hit.add(e.id); if (pr.pierce-- <= 0) { killProj(pr); break; }
+      }
+    } else {
       q.actor = pr.owner || q.player;
       for (const e of q.enemies) {
         if (!targetable(e) || pr.hit.has(e.id)) continue;

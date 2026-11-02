@@ -393,7 +393,7 @@ function netRemoteStep(p, dt) {
     else if (k === 'ph') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') killProj(pr); }   // a shot hit it on its screen
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
     else if (k === 'pj') {                                       // one of its shots, for everyone else to see (it does no damage here)
-      spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p });
+      spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p, pierce: clamp(Math.floor(+a[8] || 0), 0, 20) });
       const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid;
     }
   }
@@ -477,7 +477,7 @@ function netHostEnd(win) {
 
 /* ---- a hunt as guest ---- */
 function netStartGuest() {
-  NET.out = { q: [], v: [] }; NET.upT = 0; NET.rec = []; NET.lastSeq = 0;
+  NET.out = { q: [], v: [] }; NET.upT = 0; NET.rec = []; NET.lastSeq = 0; NET.skipP = new Set();
   q.onPlayerAct = (k, p, aim) => { if (p === q.player) NET.out.q.push(['act', k, r2(p.swing ? p.swing.aim : p.face)]); };
 }
 // A hit your hunter landed: the host applies it (blocks, marks, the real number). You see the flash right away.
@@ -497,8 +497,9 @@ function netDown(m) {
     const def = d.boss ? BOSSES[d.type] : ENEMIES[d.type]; if (!def) return null;
     const e = { def, kbx: 0, kby: 0, vx: 0, vy: 0, walkT: 0, mirror: true }; return e;
   }, true);
-  netMirror(m.p, m.px, q.projs, () => ({ mirror: true, hit: new Set(), t: 0, life: 9 }), false, pr => pr.oh === mine && pr.team === 'player');
-  netMirror(m.k, m.kx, q.pickups, () => ({ mirror: true, vx: 0, vy: 0, vz: 0, t: 1 }));
+  // (your own shots are already flying here, so the host's copies of them are left out, now and in later snapshots)
+  netMirror(m.p, m.px, q.projs, (id, d) => d.kind ? { mirror: true, hit: new Set(), t: 0, life: 9 } : null, false, pr => pr.oh === mine && pr.team === 'player', NET.skipP);
+  netMirror(m.k, m.kx, q.pickups, (id, d) => d.item ? { mirror: true, vx: 0, vy: 0, vz: 0, t: 1 } : null);
   if (m.z) for (const [id, d] of m.z) { const h = netApplyFields({ nid: id, mirror: true }, d); if (h.type === 'ring' || h.type === 'circle' || h.type === 'puddle' || h.type === 'whirl' || h.type === 'lane') q.hazards.push(h); }
   if (m.zx) { const gone = new Set(m.zx); q.hazards = q.hazards.filter(h => !gone.has(h.nid)); }
   if (m.v) { NET.replay = true; for (const [o, ev] of m.v) if (o !== mine) netPlayEvent(ev); NET.replay = false; }
@@ -509,14 +510,17 @@ function netApplyFields(o, d) {
 }
 // Keeps a local list in step with the host's: new ones made, changed fields copied, gone ones removed.
 // Monsters and pickups glide to their new spot; shots carry on in a straight line between snapshots.
-function netMirror(list, gone, arr, make, smooth = false, skipNew = null) {
+// skipped: ids left out on purpose. Later snapshots only carry what changed (a new spot), so without it they would come
+// back as half-made copies (a shot with no kind or speed, drawn as a blinking dot).
+function netMirror(list, gone, arr, make, smooth = false, skipNew = null, skipped = null) {
   if (list) for (const [id, d] of list) {
+    if (skipped && skipped.has(id)) continue;
     const key = arr === q.enemies ? 'id' : 'nid';
     let o = arr.find(x => x[key] === id);
     if (!o) {
       o = make(id, d); if (!o) continue;
       o[key] = id; netApplyFields(o, d);
-      if (skipNew && skipNew(o)) continue;
+      if (skipNew && skipNew(o)) { if (skipped) skipped.add(id); continue; }
       arr.push(o);
       if (arr === q.enemies && o.boss) netBossIn(o);
       continue;
@@ -529,6 +533,7 @@ function netMirror(list, gone, arr, make, smooth = false, skipNew = null) {
     for (const o of arr) if (g.has(o[key])) o.netGone = true;
     const keep = arr.filter(o => !o.netGone || o.mine);
     arr.length = 0; arr.push(...keep);
+    if (skipped) for (const id of g) skipped.delete(id);
   }
 }
 function netBossIn(b) {
@@ -595,7 +600,7 @@ function guestProjs(dt) {
   q.projs = others.filter(pr => !pr.lgone).concat(mineAfter);
 }
 // Your hunter's own new shots also go to the host, so everyone else sees them.
-function netOwnShot(pr) { pr.mine = true; NET.out.q.push(['pj', r1(pr.x), r1(pr.y), r1(pr.vx), r1(pr.vy), pr.kind, pr.r, r2(pr.life)]); }
+function netOwnShot(pr) { pr.mine = true; NET.out.q.push(['pj', r1(pr.x), r1(pr.y), r1(pr.vx), r1(pr.vy), pr.kind, pr.r, r2(pr.life), pr.pierce || 0]); }
 // One guest step: your hunter runs for real, everything else follows the host.
 function guestTick(dt) {
   G.time += dt; if (G.save) G.save.playtime += dt;
