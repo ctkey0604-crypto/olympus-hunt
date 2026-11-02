@@ -7,6 +7,11 @@
 <meta name="theme-color" content="#130d0b">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <title>Olympus Hunt</title>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Olympus Hunt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;500;600;700&display=swap">
@@ -538,6 +543,10 @@ input[type=range]{accent-color:var(--clay)}
 .sound-hint{margin:-6px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);animation:soundHint 2.4s ease-in-out infinite}
 @keyframes soundHint{50%{color:var(--gold)}}
 @media (prefers-reduced-motion:reduce){.sound-hint{animation:none}}
+/* installing the game as an app: a button where the browser offers it, a how-to on iPhone and iPad */
+.app-row{display:flex;justify-content:center;margin:-4px 0 0}
+.app-hint{margin:-4px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);max-width:34em;justify-self:center}
+.app-hint b{color:var(--bone-dim)}
 /* the tip after a lost hunt */
 .tutnote ul{margin:6px 0 0;padding-left:1.2em;display:grid;gap:3px}
 </style>
@@ -627,6 +636,8 @@ input[type=range]{accent-color:var(--clay)}
     </div>
     <p class="title-sub muted" id="titleSub"></p>
     <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
+    <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
+    <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
     <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
     <div class="controls" id="titleControls" aria-label="Controls"></div>
     <p class="tip keys-only" id="titleTip"></p>
@@ -2522,7 +2533,8 @@ function applyBinds() {
 }
 function codeLabel(c) {
   const map = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Space: 'Space', ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift', Enter: 'Enter', Backspace: 'Backspace',
-    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Backquote: '`' };
+    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\', BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=', Backquote: '`',
+    MouseMiddle: 'Middle click', Mouse4: 'Mouse 4', Mouse5: 'Mouse 5' };                       // mouse buttons bound like keys
   if (map[c]) return map[c];
   if (c.startsWith('Key')) return c.slice(3);
   if (c.startsWith('Digit')) return c.slice(5);
@@ -10120,7 +10132,7 @@ function renderOptions() {
       ${volRow('musicVol', 'Music volume')}
       <div class="toggle"><span>Tips for new players</span><button class="btn ghost small" type="button" data-opt="tips">${Settings.data.tips !== false ? 'On' : 'Off'}</button></div>
       <div class="toggle"><span>Screen shake</span><button class="btn ghost small" type="button" data-opt="shake">${Settings.data.shake ? 'On' : 'Off'}</button></div>
-      <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${document.fullscreenElement ? 'Exit' : 'Enter'}</button></div></div>
+      <div class="toggle"><span>Fullscreen${touchMode ? '' : ' <kbd>F</kbd>'}</span><button class="btn ghost small" type="button" data-opt="fullscreen">${fsEl() ? 'Exit' : 'Enter'}</button></div></div>
     <div class="opt"><h3>Your save</h3>
       <div class="preview hero-pick"><canvas id="heroPv" width="24" height="32" aria-label="Your hero"></canvas>
         <div><span class="lbl">Your hero</span><div class="seg">${['boy', 'girl'].map(h => `<button type="button" data-hero="${h}" aria-pressed="${(G.save.hero === 'girl' ? 'girl' : 'boy') === h}">${h === 'girl' ? 'Girl' : 'Boy'}</button>`).join('')}</div></div></div>
@@ -10133,8 +10145,8 @@ function renderOptions() {
     </div>
     ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
     <details class="opt wide fold" id="ctlBox" ${G.ctlOpen || G.rebinding ? 'open' : ''}><summary><h3>Controls</h3><span class="muted">${touchMode ? 'Auto-aim' : 'Keys, auto-aim and mouse'}</span></summary>
-      ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
-      <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
+      ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. A gaming mouse’s side buttons (Mouse 4 and 5) and the middle button work too. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
+      <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key or mouse button… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
       <div class="toggle"><span>Auto-aim: attacks turn toward the nearest enemy</span><button class="btn ghost small" type="button" data-opt="autoAim">${Settings.data.autoAim ? 'On' : 'Off'}</button></div>
       ${touchMode ? '' : `<div class="toggle"><span>Mouse and touchpad clicks attack and dodge</span><button class="btn ghost small" type="button" data-opt="mouse">${Settings.data.mouse ? 'On' : 'Off'}</button></div>`}
       ${touchMode ? '' : `<div class="row"><button class="btn ghost small" type="button" data-opt="resetkeys">Reset all controls</button><span class="muted" id="bindNote">${esc(bindNote)}</span></div>`}</details>
@@ -10384,7 +10396,7 @@ function setPaused(v) {
   $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
-  $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+  $('btnPauseFs').textContent = fsEl() ? 'Exit fullscreen' : 'Fullscreen';
   const k = a => kbd(Input.bind[a][0]);
   $('pauseKeys').innerHTML = [['Move', moveKeysHTML()], ['Attack', k('attack')], ['Dash', k('dodge')], ['Skill', k('ability')], ['Guard / use', k('guard')],
     ['Potions', k('potion1') + k('potion2') + k('potion3')]].map(([l, h]) => `<span>${l} ${h}</span>`).join('');
@@ -10405,19 +10417,46 @@ $('btnPauseFs').onclick = () => toggleFullscreen();
 $('dialog').addEventListener('click', () => { if (G.mode === 'village' && G.dialog) advanceDialog(); });
 
 /* ---- fullscreen (Chromebooks also have a fullscreen key on the top row) ---- */
+// iPhone Safari can't put a page in fullscreen at all: there the game runs full screen when it's opened from the Home
+// Screen, so the button says how. iPads take the webkit-prefixed calls.
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+const asApp = () => navigator.standalone === true || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;   // opened from its icon
+const FS_BLOCKED = () => touchMode ? 'Fullscreen is blocked here.' : 'Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.';
 let fsByUs = false;
 function toggleFullscreen() {
-  if (!document.fullscreenEnabled) { toast(touchMode ? 'Fullscreen is blocked here.' : 'Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.'); return; }
-  if (document.fullscreenElement) { fsByUs = true; document.exitFullscreen().catch(() => {}); }
-  else document.documentElement.requestFullscreen().catch(() => toast(touchMode ? 'Fullscreen is blocked here.' : 'Fullscreen is blocked here. Use your keyboard’s fullscreen key instead.'));
+  const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled) || !req) {
+    if (IS_IOS) toast(asApp() ? 'You’re already playing full screen.' : 'iPhone can’t go full screen in Safari. Tap Share, then Add to Home Screen, and play from the icon it makes.', 9000);
+    else toast(FS_BLOCKED());
+    return;
+  }
+  if (fsEl()) { fsByUs = true; const r = (document.exitFullscreen || document.webkitExitFullscreen).call(document); if (r && r.catch) r.catch(() => {}); }
+  else { const r = req.call(el); if (r && r.catch) r.catch(() => toast(FS_BLOCKED())); }
 }
-document.addEventListener('fullscreenchange', () => {
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => {
   resize();
-  if (!document.fullscreenElement && !fsByUs && (G.mode === 'quest' || G.mode === 'village') && !G.paused) setPaused(true);
+  if (!fsEl() && !fsByUs && (G.mode === 'quest' || G.mode === 'village') && !G.paused) setPaused(true);
   fsByUs = false;
-  $('btnPauseFs').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+  $('btnPauseFs').textContent = fsEl() ? 'Exit fullscreen' : 'Fullscreen';
   if (G.mode === 'panel' && G.panel === 'options') renderHub();
 });
+
+/* ---- installing it as an app, on phones and tablets only (desktops and Chromebooks keep the plain website) ---- */
+// Android's browser offers the install (the button); on iPhone and iPad it's Share, Add to Home Screen (the hint).
+// The app manifest is only linked on those devices, so desktop browsers never show an install icon.
+const PHONE_APP = /Android/i.test(navigator.userAgent) || IS_IOS;
+if (PHONE_APP) { const l = document.createElement('link'); l.rel = 'manifest'; l.href = '/manifest.webmanifest'; document.head.appendChild(l); }
+let installAsk = null;
+addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); if (!PHONE_APP) return; installAsk = ev; $('appRow').hidden = false; $('iosHint').hidden = true; });
+addEventListener('appinstalled', () => { installAsk = null; $('appRow').hidden = true; toast('Installed. Open Olympus Hunt from its icon to play full screen.', 6000); });
+$('btnInstall').onclick = async () => {
+  Sound.init(); Sound.play('click');
+  if (!installAsk) return;
+  const ask = installAsk; installAsk = null; $('appRow').hidden = true;
+  try { await ask.prompt(); } catch (e) {}
+};
+$('iosHint').hidden = !(IS_IOS && !asApp());
 
 /* ---- top-level buttons ---- */
 $('btnPlay').onclick = () => { Sound.init(); Sound.play('click'); playNow(); };
@@ -10533,6 +10572,20 @@ cv.addEventListener('mousedown', ev => {
 });
 addEventListener('mouseup', ev => { if (ev.button === 0) Input.mouse.held = false; });
 cv.addEventListener('contextmenu', ev => ev.preventDefault());
+// The middle button and a gaming mouse's side buttons (Mouse 4 and 5) can be bound like keys in Options. In the game and
+// its menus they never act as the browser's Back and Forward, so a stray thumb press can't leave the page.
+const MOUSE_KEYS = { 1: 'MouseMiddle', 3: 'Mouse4', 4: 'Mouse5' };
+const inGame = () => G.mode === 'quest' || G.mode === 'village' || G.mode === 'panel';
+addEventListener('mousedown', ev => {
+  const code = MOUSE_KEYS[ev.button]; if (!code) return;
+  if (G.rebinding) { ev.preventDefault(); ev.stopPropagation(); captureBind(code); return; }
+  if (!inGame()) return;
+  ev.preventDefault();
+  if (G.mode === 'panel' || G.paused || !GAME_KEYS.has(code)) return;
+  setTouchMode(false); Input.pressed.add(code); Input.down.add(code);
+}, true);
+addEventListener('mouseup', ev => { const code = MOUSE_KEYS[ev.button]; if (!code) return; Input.down.delete(code); if (inGame()) ev.preventDefault(); }, true);
+addEventListener('auxclick', ev => { if (MOUSE_KEYS[ev.button] && inGame()) ev.preventDefault(); }, true);
 
 // Touch controls only appear once you actually touch the screen, and hide again when you use
 // the keyboard or touchpad. That keeps them out of the way on touchscreen Chromebooks.
