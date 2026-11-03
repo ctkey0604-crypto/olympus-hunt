@@ -178,7 +178,7 @@ function townPeers() {
   for (const [id, pe] of Object.entries(NET.peers)) {
     if (pe.place !== V.id || now - pe.at > 4000) continue;
     const o = peerHunter(+id); if (!o) continue;
-    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4, eat: pe.eat, sitting: pe.sit });
+    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % PARTY_COLS.length, eat: pe.eat, sitting: pe.sit });
     out.push(o);
   }
   return out;
@@ -237,7 +237,7 @@ function netChatRender() {
   const log = $('mpLog'); if (!log) return;
   const now = performance.now(), lines = NET.chatOpen ? NET.chat : Settings.data.mpMin ? [] : NET.chat.slice(-CHAT_SHOW).filter(l => now - l.at < CHAT_FADE);
   log.innerHTML = lines.map(l => { const fade = NET.chatOpen ? '' : ` style="animation-delay:${Math.round(CHAT_FADE - 1500 - (now - l.at))}ms"`;   // fades over its last 1.5 s
-    return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 4}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
+    return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 6}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
   log.hidden = !lines.length; log.classList.toggle('open', NET.chatOpen);
   if (NET.chatOpen) log.scrollTop = log.scrollHeight;
 }

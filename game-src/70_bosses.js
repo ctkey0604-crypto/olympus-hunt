@@ -28,14 +28,23 @@ function makeBoss(type, x, y, rank = q ? q.def.rank : 0) {
   const d = BOSSES[type], fr = SPR[d.sprite][0], R = RANKS[rank] || RANKS[0], tier = d.tier + R.off;
   const tune = k => (d.tune && d.tune[k] && d.tune[k][rank]) || 1;          // per-boss, per-rank balance from the bot runs (BOSS_TUNE)
   const hp = Math.round(d.hits * tierW(tier) * R.hp * tune('hp') * partyScale().bossHp);
-  return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo, attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
+  return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo * (partyScale().tempo || 1), attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
            dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg * (d.dmgScale || 1) * tune('dmg'), dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1) * (d.dmgScale || 1) * tune('dmg'),
            x, y, r: d.titan ? 15 : d.r, h: d.titan ? fr.h * TITAN_SCALE : fr.h + 4, body: d.titan ? Math.round(fr.h * TITAN_SCALE * .74) : 0, hp, maxHp: hp, vx: 0, vy: 0, kbx: 0, kby: 0,
            state: 'intro', st: 1.6, phase: 1, flash: 0, stun: 0, flip: true, walkT: 0, invuln: 1.6, alpha: 0, orbit: 1, last: null, lastCount: 0,
            dashEnd: null, count: 0, lockAt: .2, summons: 0, kbRes: .06, dead: false, contactCd: 0, face: Math.PI / 2, guard: false, stormT: 3, aim: 0,
            reflectT: 0, hidden: false, air: false, z: 0, markT: 0, burnT: 0, burnAcc: 0 };
 }
-// The first gods are still teaching you: in Low Rank they call one fewer helper than they do in High and God Rank.
+// Five or six hunters: a god's ground strike also drops a smaller cluster on the hunter furthest from its target.
+function bigPartyRain(p, P, dm) {
+  if (!partyScale().big) return;
+  let far = null, fd = 60;
+  for (const h of q.hunters) { if (h.dead || h === p) continue; const d = Math.hypot(h.x - p.x, h.y - p.y); if (d > fd) { fd = d; far = h; } }
+  if (!far) return;
+  addCircleHazard(far.x, far.y, P.r, P.delay + .1, dm(P.dmg), P.kind);
+  for (let i = 1; i < Math.ceil(P.n / 2); i++) { const a = rand(0, Math.PI * 2), r = rand(18, 60); addCircleHazard(far.x + Math.cos(a) * r, far.y + Math.sin(a) * r, P.r, P.delay + .1 + i * .06, dm(P.dmg), P.kind); }
+}
+// The first gods are still teaching you: in Normal Rank they call one fewer helper than they do in High and God Rank.
 function summonFor(b, types) { return b.rank === 0 && b.def.tier <= 3 && types.length > 2 ? types.slice(0, -1) : types; }
 function bossCommon(b, dt) {
   b.invuln = Math.max(0, b.invuln - dt); b.contactCd = Math.max(0, b.contactCd - dt); b.markT = Math.max(0, b.markT - dt);
@@ -353,6 +362,7 @@ const BOSS_AI = {
           const at = aoeAt(p);
           addCircleHazard(at.x, at.y, P.r, P.delay, dm(P.dmg), P.kind);
           for (let i = 1; i < P.n; i++) { const a = rand(0, Math.PI * 2), r = rand(22, 85); addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, P.r, P.delay + i * .06, dm(P.dmg), P.kind); }
+          bigPartyRain(p, P, dm);
           b.state = 'recover'; b.st = .9;
         }
         break;
@@ -517,7 +527,7 @@ function startBossAttack(b, c) {
     }
     case 'dash': b.state = 'dashAim'; b.st = .7; b.count = P.count || 1; Sound.play('telegraph'); break;
     case 'quake': b.state = 'quake'; b.st = .6; Sound.play('telegraph'); break;
-    case 'ring': b.state = 'ring'; b.st = .6; b.count = P.rings || 1; break;
+    case 'ring': b.state = 'ring'; b.st = .6; b.count = (P.rings || 1) + (partyScale().big ? 1 : 0); break;   // 5-6 hunters: one more ring
     case 'vanish': b.state = 'vanishOut'; b.st = .4; Sound.play('dodge'); break;
     case 'stampede': b.state = 'stampede'; b.st = .5; break;
     case 'reflect': b.state = 'reflect'; b.st = P.time; Sound.play('perfect'); break;

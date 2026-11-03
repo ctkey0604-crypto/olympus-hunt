@@ -385,7 +385,58 @@ const Music = (() => {
   function stopCur(fade = .5) {
     const c = M.cur; if (!c) return; M.cur = null;
     const ctx = Sound.ctx; if (!ctx) return;
-    try { c.gain.gain.cancelScheduledValues(ctx.currentTime); c.gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 4); setTimeout(() => c.gain.disconnect(), (fade + .3) * 1000); } catch (e) {}
+    try {
+      c.gain.gain.cancelScheduledValues(ctx.currentTime); c.gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 4); setTimeout(() => c.gain.disconnect(), (fade + .3) * 1000);
+      if (c.loop) c.loop.stop(ctx.currentTime + fade + .3);
+    } catch (e) {}
+  }
+  // ---- whole loops, made ahead. Played note by note, a fight theme makes a few hundred sound nodes a second. So once a
+  // track is playing, its loop is also made in the background (the same notes through the same chain, a little at a
+  // time while the browser is idle), and when it's ready the track carries on from that at the very same spot. The
+  // notes ringing past the end of the loop are folded back onto its start, as they'd overlap when it loops. The music
+  // is mono, so one channel holds all of it. Only the few loops most recently played are kept.
+  const LOOPS = new Map(); let baking = null; M.loops = LOOPS; M.baking = () => baking;   // (for checking them in tests)
+  const loopKey = (id, lvl, gr) => id + ':' + lvl + ':' + gr;
+  const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 250 }) : f => setTimeout(() => f({ timeRemaining: () => 4 }), 40);
+  function bakeLoop(id, lvl, gr) {
+    const key = loopKey(id, lvl, gr), S = SONGS[id], live = Sound.ctx;
+    if (S.once || LOOPS.has(key) || baking || !live || !window.OfflineAudioContext || !audible()) return;
+    const rate = live.sampleRate, sd = 60 / (S.bpm * speed(lvl)) / 4, ev = events(id, lvl, gr), len = ev.length * sd, tail = 2.5;
+    let off; try { off = new OfflineAudioContext(1, Math.ceil(rate * (len + tail)), rate); } catch (e) { return; }
+    const out = chain(off, off.destination, S, sd, gr), job = baking = { key };
+    let step = 0;
+    const more = dl => {
+      if (baking !== job) return;                                       // given up (the music changed)
+      const s0 = step;                                                   // a couple of steps every time, more while the browser is idle
+      while (step < ev.length && (step - s0 < 4 || dl.timeRemaining() > 1.5)) { for (const e of ev[step]) note(off, out, S, e, step * sd, sd); step++; }
+      job.step = step;
+      if (step < ev.length) { idle(more); return; }
+      job.rendering = true;
+      off.startRendering().then(buf => {
+        if (baking === job) baking = null;
+        const d = buf.getChannelData(0), n = Math.round(len * rate);
+        for (let i = n; i < d.length; i++) d[i - n] += d[i];               // the tail rings on into the next time round
+        const loop = live.createBuffer(1, n, rate); loop.copyToChannel(d.subarray(0, n), 0);
+        LOOPS.set(key, loop); while (LOOPS.size > 3) LOOPS.delete(LOOPS.keys().next().value);
+      }).catch(() => { if (baking === job) baking = null; });
+    };
+    idle(more);
+  }
+  // Switch the playing track over to its made loop, from the next step on (the notes already scheduled play out).
+  function toLoop(c, ctx) {
+    const buf = LOOPS.get(loopKey(c.id, c.lvl, c.out.grit)); if (!buf || c.loop || c.S.once) return false;
+    const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4, src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true; src.connect(c.gain); src.start(c.next, c.step * sd);
+    c.loop = src; c.loopAt = c.next - c.step * sd; c.loopLen = buf.duration; return true;
+  }
+  // Back to note by note (the boss changed phase): from the next step after now, at the same place in the loop.
+  function fromLoop(c, ctx) {
+    const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4, t = ctx.currentTime + .05, el = t - c.loopAt, k = Math.floor(el / c.loopLen);
+    let i = Math.ceil((el - k * c.loopLen) / sd - 1e-6), base = c.loopAt + k * c.loopLen;
+    if (i >= c.ev.length) { i = 0; base += c.loopLen; }
+    c.step = i; c.next = base + i * sd;
+    try { c.loop.stop(c.next); } catch (e) {}
+    c.loop = null;
   }
   const gritFor = id => { const r = Math.max(0, Math.min(3, M.rankGrit || 0)); return SONGS[id].boss ? [1, 2, 3, 4][r] : SONGS[id].hunt ? [0, 1, 2, 2][r] : 0; };
   function startCur(id, lvl) {
@@ -393,7 +444,7 @@ const Music = (() => {
     const S = SONGS[id], gain = ctx.createGain(); gain.gain.value = 0; gain.connect(ensureOut(ctx)); gain.gain.setTargetAtTime(1, ctx.currentTime, .12);
     const sd = 60 / (S.bpm * speed(lvl)) / 4;
     const gr = gritFor(id);
-    M.cur = { id, lvl, S, gain, out: chain(ctx, gain, S, sd, gr), step: 0, next: ctx.currentTime + .08, ev: events(id, lvl, gr) };
+    M.cur = { id, lvl, S, gain, out: chain(ctx, gain, S, sd, gr), step: 0, next: ctx.currentTime + .08, ev: events(id, lvl, gr), started: ctx.currentTime, loop: null };
     M.refresh();
   }
   function tick() {
@@ -401,7 +452,14 @@ const Music = (() => {
     // a new track, or the same track at a different rank (it restarts with that rank's sound)
     if (M.want && (!M.cur || M.cur.id !== M.want || M.cur.out.grit !== gritFor(M.want))) { stopCur(); startCur(M.want, M.wantLvl); }
     const c = M.cur; if (!c) return;
-    if (c.lvl !== M.wantLvl && !c.S.once) { c.lvl = M.wantLvl; c.ev = events(c.id, c.lvl, c.out.grit); }
+    if (c.lvl !== M.wantLvl && !c.S.once) { if (c.loop) fromLoop(c, ctx); c.lvl = M.wantLvl; c.ev = events(c.id, c.lvl, c.out.grit); }
+    if (c.loop) return;                                                  // its made loop is playing
+    if (!c.S.once) {
+      const key = loopKey(c.id, c.lvl, c.out.grit);
+      if (baking && baking.key !== key) baking = null;                   // the music moved on: drop that one
+      if (toLoop(c, ctx)) return;
+      if (ctx.currentTime - c.started > 1.5) bakeLoop(c.id, c.lvl, c.out.grit);
+    }
     const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4;
     if (c.next < ctx.currentTime - .25) c.next = ctx.currentTime + .03;      // woke up late (tab in the background): don't play catch-up
     while (c.next < ctx.currentTime + .14) {

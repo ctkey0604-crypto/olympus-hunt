@@ -5,7 +5,7 @@ function makeEnemy(type, x, y, tier = tierNow(), rank = q ? q.def.rank : 0) {
   const d = ENEMIES[type], C = CLASS[d.cls], R = RANKS[rank] || RANKS[0];
   const hp = Math.max(1, Math.round((d.hpM || C.hpM) * tierW(tier) * R.hp * partyScale().mobHp));
   const fr = SPR[d.sprite][0], scale = d.scale || 1, fly = d.role === 'flyer' || !!d.fly;
-  return { id: EID++, type, def: d, tier, rank, tempo: R.tempo, x, y, r: d.r, h: fr.h * scale + (fly ? 10 : 0), hp, maxHp: hp, dmg: rawDmg((d.dmgP || C.dmgP) * R.dmg, tier),
+  return { id: EID++, type, def: d, tier, rank, tempo: R.tempo * (partyScale().tempo || 1), x, y, r: d.r, h: fr.h * scale + (fly ? 10 : 0), hp, maxHp: hp, dmg: rawDmg((d.dmgP || C.dmgP) * R.dmg, tier),
            vx: 0, vy: 0, kbx: 0, kby: 0, state: 'spawn', st: .8, cd: rand(.3, 1.2), flash: 0, stun: 0, flip: false, walkT: Math.random() * 2, face: 0,
            spdMul: rand(.85, 1.15), strafe: Math.random() < .5 ? 1 : -1, aim: 0, kbRes: d.kbRes ?? 1, dead: false, hitDone: false, owner: 0,
            tok: null, markT: 0, burnT: 0, burnAcc: 0, chainLeft: 0, hidden: false, alpha: 1, fly, scale };

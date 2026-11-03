@@ -17,9 +17,10 @@ function drawParticlesAndText(S) {
   // are only set when they change from the last spark
   const [ox, oy] = S(0, 0); let lastA = -1, lastC = null;
   for (const pt of sc.parts) {
+    const x = Math.round(pt.x) + ox, y = Math.round(pt.y) + oy; if (x < -4 || y < -4 || x > VIEW_W || y > VIEW_H) continue;   // off the screen
     const a = clamp(pt.life / pt.max * 1.4, 0, 1); if (a !== lastA) { ctx.globalAlpha = lastA = a; }
     if (pt.c !== lastC) { ctx.fillStyle = lastC = pt.c; }
-    ctx.fillRect(Math.round(pt.x) + ox, Math.round(pt.y) + oy, pt.s, pt.s);
+    ctx.fillRect(x, y, pt.s, pt.s);
   }
   ctx.globalAlpha = 1;
   for (const t of sc.texts) { const [sx, sy] = S(t.x, t.y); if (t.life > .1 || Math.floor(G.time * 30) % 2) drawNum(t.s, sx, sy, t.c); }
@@ -125,14 +126,16 @@ function renderQuest() {
   drawTelegraphs(S);
   for (const f of q.fx) if (f.t === 'ring') { const [sx, sy] = S(f.x, f.y), k = 1 - f.life / f.max; pxRing(sx, sy, lerp(f.r0, f.r1, k), f.c); pxRing(sx, sy, lerp(f.r0, f.r1, k) - 1, f.c, 2); }
   // shadows
-  const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.32)'); };
+  const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); if (sx < -rx - 2 || sx > VIEW_W + rx + 2 || sy < -12 || sy > VIEW_H + 12) return; pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.32)'); };
   for (const e of q.enemies) if (e.state !== 'spawn' && !e.hidden && (!e.boss || e.alpha > .3 || e.air)) shadow(e.x, e.y, e.def.titan ? 24 : e.r + 1);
   for (const h of q.hunters) if (!h.dead) shadow(h.x, h.y, 5);
   for (const k of q.pickups) shadow(k.x, k.y, 2);
-  // depth-sorted drawables (the list and its entries are reused every frame)
-  for (const o of q.obstacles) drawAdd(o.y + o.h / 2, 0, o);
-  for (const e of q.enemies) drawAdd(e.y, 1, e);
-  for (const k of q.pickups) drawAdd(k.y, 2, k);
+  // depth-sorted drawables (the list and its entries are reused every frame). Monsters, props and pickups off the screen
+  // are skipped; the room around them covers tall sprites and things in the air. Gods, Titans and hunters always draw.
+  const vis = (x, y) => x > cx - 48 && x < cx + VIEW_W + 48 && y > cy - 16 && y < cy + VIEW_H + 96;
+  for (const o of q.obstacles) if (vis(o.x, o.y)) drawAdd(o.y + o.h / 2, 0, o);
+  for (const e of q.enemies) if (e.boss || vis(e.x, e.y)) drawAdd(e.y, 1, e);
+  for (const k of q.pickups) if (vis(k.x, k.y)) drawAdd(k.y, 2, k);
   if (q.chest) drawAdd(q.chest.y, 3, q.chest);
   for (const h of q.hunters) { if (!h.dead) drawAdd(h.y, 4, h); else if (h.downed) drawAdd(h.y, 5, h); }
   for (const gh of q.ghosts || []) drawAdd(gh.y, 6, gh);
@@ -218,7 +221,7 @@ function drawTag(str, x, y, col) {
   const w = str.length * 4 - 1;
   ctx.drawImage(pixelText(str, col, tagGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
 }
-const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff'];
+const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff', '#9bbb55', '#ff9a5a'];   // one per hunter, up to six
 // A downed hunter lies flat on the ground, with a ring that fills while a teammate stands next to them.
 function drawDowned(p, S) {
   const [sx, sy] = S(p.x, p.y), fr = heroFrames(p.look)[0], flip = Math.cos(p.face) < 0;
@@ -609,7 +612,7 @@ function renderVillage() {
   if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth
   for (const o of peers) if (o.eat) drawEating(S, o.eat, o);    // and theirs
   drawParticlesAndText(S);
-  for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
+  for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % PARTY_COLS.length]); }
   const t = V.target;
   if (t && !G.dialog && !G.cutscene && !V.eat && t.kind !== 'order') {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (t.god === 'typhon' ? 74 : V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);

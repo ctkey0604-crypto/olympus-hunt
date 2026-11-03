@@ -9,20 +9,25 @@
 //   mobHp    every monster's health   helpers monsters a boss calls in
 //   arena    width and height         budget  how many monsters can be out at once
 //   spawn    how fast new monsters walk in
+// Five and six hunters also get a tougher fight, not just a longer one (Nov 2): monsters and gods think faster (tempo),
+// gods change targets sooner (retarget, their 5-8 s on one hunter shortened) so nobody gets left alone, a god's
+// ground strikes also land a second cluster on someone else, and its rings come twice. Parties of 1-4 are unchanged.
 const PARTY_SCALE = [null,
-  { bossHp: 1,    mobs: 1,    mobHp: 1, helpers: 1,    arena: 1,    budget: 1,    spawn: 1 },
-  { bossHp: 1.7,  mobs: 1.35, mobHp: 1, helpers: 1.25, arena: 1,    budget: 1.35, spawn: 1.3 },
-  { bossHp: 2.35, mobs: 1.65, mobHp: 1, helpers: 1.5,  arena: 1.15, budget: 1.7,  spawn: 1.6 },
-  { bossHp: 3,    mobs: 1.9,  mobHp: 1, helpers: 1.75, arena: 1.3,  budget: 2,    spawn: 1.9 },
+  { bossHp: 1,    mobs: 1,    mobHp: 1,    helpers: 1,    arena: 1,    budget: 1,    spawn: 1 },
+  { bossHp: 1.7,  mobs: 1.35, mobHp: 1,    helpers: 1.25, arena: 1,    budget: 1.35, spawn: 1.3 },
+  { bossHp: 2.35, mobs: 1.65, mobHp: 1,    helpers: 1.5,  arena: 1.15, budget: 1.7,  spawn: 1.6 },
+  { bossHp: 3,    mobs: 1.9,  mobHp: 1,    helpers: 1.75, arena: 1.3,  budget: 2,    spawn: 1.9 },
+  { bossHp: 3.7,  mobs: 2.2,  mobHp: 1.08, helpers: 2.1,  arena: 1.45, budget: 2.4,  spawn: 2.25, tempo: 1.06, retarget: .75, big: true },
+  { bossHp: 4.4,  mobs: 2.5,  mobHp: 1.15, helpers: 2.4,  arena: 1.6,  budget: 2.8,  spawn: 2.6,  tempo: 1.1,  retarget: .6,  big: true },
 ];
-const PARTY_MAX = 4;
+const PARTY_MAX = 6;
 const partyScale = () => PARTY_SCALE[clamp((q && q.partyN) || 1, 1, PARTY_MAX)];
 const REVIVE_TIME = 3, REVIVE_R = 22;            // stand this close to a downed teammate for this long to get them up
 // Faints. null: no limit, the hunt fails only when everyone is down at once. A number: a shared pool per hunt.
 const PARTY_FAINTS = null;
 // true: a part one hunter picks up goes into every hunter's own haul. false: only the one who grabbed it gets it.
 const SHARED_LOOT = true;
-const BOT_NAMES = ['Nikias', 'Thalia', 'Damon', 'Ione'];
+const BOT_NAMES = ['Nikias', 'Thalia', 'Damon', 'Ione', 'Kallias', 'Myrto'];
 
 const isLocal = p => !q || !p || p === q.player;   // screen shake, hitstop, flashes and banners are only for your own hunter
 function nearestHunter(x, y, pred) {
@@ -46,7 +51,7 @@ function makeHunter(o = {}) {
   const save = o.save || G.save, p = makePlayer(save);
   p.hid = o.hid || 0; p.local = !!o.local; p.bot = o.bot || null; p.name = o.name || ''; p.save = save;
   p.in = blankInput(); p.stats = { kills: 0, dealt: 0, taken: 0, perfect: 0 }; p.loot = {}; p.tok = { melee: 0, ranged: 0 };
-  if (p.hid) { const a = -Math.PI / 2 + p.hid * Math.PI * 2 / PARTY_MAX; p.x += Math.round(Math.cos(a) * 20); p.y += Math.round(Math.sin(a) * 14); }
+  if (p.hid) { const a = -Math.PI / 2 + p.hid * Math.PI * 2 / (q && q.partyN > 4 ? 6 : 4); p.x += Math.round(Math.cos(a) * 20); p.y += Math.round(Math.sin(a) * 14); }   // a ring around the start
   return p;
 }
 // A bot teammate carries your armor and shield (if its weapon takes one) with the weapon you give it.
@@ -103,7 +108,8 @@ function bossTarget(b, dt) {
   b.threat = b.threat || new Map();
   const fade = Math.pow(.5, dt / 6); for (const [h, v] of b.threat) b.threat.set(h, v * fade);
   for (const h of H) if (!h.dead && h.guarding && Math.hypot(h.x - b.x, h.y - b.y) < TAUNT_R) b.threat.set(h, (b.threat.get(h) || 0) + TAUNT_RATE * dt);
-  if (b.tgtT === undefined) b.tgtT = rand(5, 8);
+  const hold = () => rand(5, 8) * (partyScale().retarget || 1);
+  if (b.tgtT === undefined) b.tgtT = hold();
   b.tgtT -= dt;
   const was = b.tgt, cur = was && !was.dead && H.includes(was) ? was : null;
   if (cur && b.state !== 'idle') return cur;                      // never mid-attack
@@ -118,7 +124,7 @@ function bossTarget(b, dt) {
   if (due || (best !== cur && bs > score(cur) * 1.5 + .03)) {
     // its target just went down: a short roar, then it turns on the next one
     if (was && was.dead && !b.def.titan && b.state === 'idle' && !b.hidden && !b.air) { b.st = Math.max(b.st || 0, .6); b.vx = b.vy = 0; addText(b.x, b.y - b.h - 4, '!', b.def.colors[0]); }
-    b.tgt = best; b.tgtT = rand(5, 8);
+    b.tgt = best; b.tgtT = hold();
   }
   return b.tgt;
 }
@@ -143,7 +149,7 @@ function partyCount(type, n) {
   const cls = ENEMIES[type].cls;
   return Math.max(n, Math.round(n * (cls === 'heavy' ? 1 + (m - 1) * .3 : cls === 'medium' ? 1 + (m - 1) * .55 : m)));
 }
-// Bigger arenas for 3-4 hunters: the same layout stretched to fit, worked out once per size.
+// Bigger arenas for 3-6 hunters: the same layout stretched to fit, worked out once per size.
 const ARENA_CACHE = {};
 function partyArena(id, A, s) {
   if (s === 1 || A.paint) return A;

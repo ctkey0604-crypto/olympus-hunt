@@ -657,14 +657,14 @@ function renderOracle() {
   if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
-  if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/4</span></h3>
+  if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/${PARTY_MAX}</span></h3>
     ${netHost() && R.v >= 3 ? `<form class="or-rename" data-orname novalidate><label>Room name<input name="name" maxlength="${ROOM_NAME_MAX}" value="${esc(R.name || '')}" placeholder="${esc(roomName(R))}" autocomplete="off" spellcheck="false"></label><button class="btn ghost small" type="submit">Rename</button></form>` : ''}
     <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
       ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
         : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
     <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
-  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 players. Hunts grow tougher with more of you.</p>
+  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to ${PARTY_MAX} players. Hunts grow tougher with more of you.</p>
       <label class="or-name">Room name<input id="orName" maxlength="${ROOM_NAME_MAX}" placeholder="${esc(Store.user)}’s room" autocomplete="off" spellcheck="false"></label>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
     <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
@@ -959,18 +959,24 @@ addEventListener('resize', resize);
 let last = performance.now(), acc = 0;
 const STEP = 1 / 60;
 const DEBUG = { speed: 1 };
+// The game moves in steps of 1/60 s; the screen is only redrawn after a step (or the first time it shows a new hunt or
+// place). A 120 or 144 Hz screen used to draw the same picture two or three times between steps.
+let shown = null;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   netFrame(dt);
   CG.gameplay((G.mode === 'quest' || G.mode === 'village') && !G.paused && !document.hidden);
   if (G.mode === 'quest' && q) {
-    if (!G.paused || q.net) { acc += dt * DEBUG.speed; let n = 0; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
-    if (G.mode === 'quest' && q) { renderQuest(); updateHud(); }
+    let n = 0;
+    if (!G.paused || q.net) { acc += dt * DEBUG.speed; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
+    if (G.mode === 'quest' && q && (n || shown !== q)) { shown = q; renderQuest(); updateHud(); }
   } else if (G.mode === 'village' && V) {
-    if (!G.paused) { acc += dt; let n = 0; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
-    if (G.mode === 'village') { renderVillage(); updateVillageHud(); }
+    let n = 0;
+    if (!G.paused) { acc += dt; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
+    if (G.mode === 'village' && (n || shown !== V)) { shown = V; renderVillage(); updateVillageHud(); }
   } else {
+    shown = null;
     acc = 0;
     if (G.save && (G.mode === 'panel' || G.mode === 'results')) G.save.playtime += dt;
   }

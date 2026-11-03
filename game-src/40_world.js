@@ -519,7 +519,25 @@ function flame(sx, sy, w, h, seed) {
   const R = mulberry(Math.floor(G.time * 12) + seed);
   for (let i = 0; i < w + 3; i++) { const fx = sx - w / 2 + R() * w, fh = 2 + R() * h; ctx.fillStyle = R() < .4 ? '#ffd463' : R() < .7 ? '#ff8a2b' : '#d9493b'; ctx.fillRect(Math.round(fx), Math.round(sy - fh), 1, Math.round(fh)); }
 }
+// Props that never change once a place is built (no flames, glints, water or statues that turn gold) are drawn once into
+// a small canvas per look and stamped after that. Their size is even, so they sit on whole pixels exactly as before.
+const STATIC_PROPS = new Set(['rock', 'boulder', 'tree', 'olive', 'pine', 'stump', 'vine', 'rosebush', 'coral', 'shell', 'rack', 'fence', 'cart',
+  'gatepost', 'column', 'brokencol', 'obelisk', 'slab', 'anvil', 'stall', 'crate', 'amphora', 'gatedoors', 'board']);
+const PROP_CACHE = new Map();
 function drawObstacle(o, sx, sy) {
+  if (STATIC_PROPS.has(o.kind)) {
+    const key = o.kind + '|' + (o.variant || '') + '|' + o.seed + '|' + (sc && sc.theme); let c = PROP_CACHE.get(key);
+    if (!c) {
+      if (PROP_CACHE.size > 300) PROP_CACHE.clear();
+      c = mkCanvas(64, 64); const main = ctx; ctx = c.getContext('2d');
+      try { drawObstacleNow(o, 32, 54); } finally { ctx = main; }
+      PROP_CACHE.set(key, c);
+    }
+    ctx.drawImage(c, sx - 32, sy - 54); return;
+  }
+  drawObstacleNow(o, sx, sy);
+}
+function drawObstacleNow(o, sx, sy) {
   const t = G.time;
   switch (o.kind) {
     case 'rock':
