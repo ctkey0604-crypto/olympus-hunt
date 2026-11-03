@@ -181,7 +181,7 @@ function checkSave(s, prev, now) {
   if (!cleared.gr_typhon_hunt && ids.some(id => TYPHON_GEAR.has(id))) return 'it has Typhon’s gear without Typhon slain';
   // a rank opens only after hunting through the one below, and its parts and gear come from its own hunts
   const onRank = r => Object.keys(cleared).filter(id => cleared[id] > 0 && idRank(id) === r).length;
-  if (rank >= 1 && onRank(0) < RANK_UP_MIN) return 'it has High Rank without the Low Rank hunts';
+  if (rank >= 1 && onRank(0) < RANK_UP_MIN) return 'it has High Rank without the Normal Rank hunts';
   if (rank >= 2 && onRank(1) < RANK_UP_MIN) return 'it has God Rank without the High Rank hunts';
   const owned = [...arr(s.weapons), ...arr(s.shields), ...arr(s.pieces).map(p => String(p).split(':')[0]), ...Object.values(obj(s.equip)), s.weapon, s.shield,
                  ...Object.keys(obj(s.inv)).filter(k => s.inv[k] > 0), ...Object.keys(obj(s.refine))];
@@ -211,7 +211,7 @@ function checkSave(s, prev, now) {
 
 /* ---------- multiplayer rooms ---------- */
 // Room codes: 5 letters, no I or O so nobody mixes them up with 1 and 0.
-const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ', CODE_RE = /^[A-Z]{5}$/, ROOM_MAX = 4;
+const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ', CODE_RE = /^[A-Z]{5}$/, ROOM_MAX = 6;
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 const lobbyStub = env => env.LOBBY.get(env.LOBBY.idFromName('main'));
 function newCode() { const b = crypto.getRandomValues(new Uint8Array(5)); return [...b].map(x => CODE_ABC[x % CODE_ABC.length]).join(''); }
@@ -230,9 +230,9 @@ async function roomsPublic(req, env, path, method) {
 async function roomsAuthed(req, env, path, method, user) {
   const who = { key: user.name, name: user.display };
   if (path === '/api/rooms' && method === 'POST') {
-    const body = await readJson(req), pub = body.public !== false, rank = clampInt(body.rank, 0, 2);
+    const body = await readJson(req), pub = body.public !== false, rank = clampInt(body.rank, 0, 2), name = roomName(body.name);
     for (let i = 0; i < 6; i++) {
-      const code = newCode(), r = await roomStub(env, code).init({ code, owner: who, pub, rank });
+      const code = newCode(), r = await roomStub(env, code).init({ code, owner: who, pub, rank, name });
       if (r.ok) return json({ code, ticket: (await roomStub(env, code).ticket(who)).ticket });
     }
     return json({ error: 'Could not make a room. Try again.' }, 503);
@@ -245,13 +245,21 @@ async function roomsAuthed(req, env, path, method, user) {
   return null;
 }
 function clampInt(v, a, b) { v = Math.floor(Number(v) || 0); return v < a ? a : v > b ? b : v; }
+// A room's name, as the host typed it: one line, 24 characters. Rude words make it no name at all (the list shows
+// "<host>'s room" instead), since anyone can see the public room list.
+const ROOM_RUDE = /f+u+c+k|sh[i1]t|b[i1]tch|c+u+n+t|n[i1]gg|f+a+g|d[i1]ck|c+o+c+k|puss(y|ie)|wh[o0]re|slut|rap(e|ist)|porn|nazi|retard/i;
+function roomName(v) {
+  if (typeof v !== 'string') return '';
+  const s = v.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 24);
+  return ROOM_RUDE.test(s.replace(/[\s._\-*]/g, '')) ? '' : s;
+}
 
 // One room. It never runs the game: it keeps who is in it, who hosts, the posted quest and ready flags,
 // and passes messages on. Uses the WebSocket Hibernation API, so an idle room costs nothing.
 // Messages are small JSON objects with a type t. From players:
 //   info {gear, rank}   town {..}   post {quest}   ready {v}   cancel   depart {ids, cfg}   end   leave
 //   up {..} (a guest's own hunter, hits, claims: goes to the host)   down {..} / to {id, m} (the host's snapshots and events)
-//   chat {text}   kick {id} (host only: that player is removed and can't rejoin this room)
+//   chat {text}   kick {id} (host only: that player is removed and can't rejoin this room)   name {name} (host only: rename it)
 // To players: room {..} on every change, the relayed messages with from = sender's id, chat {from, name, text},
 // kick {id, name} (to the others), err {msg}. A kicked player's connection closes with code 4002.
 export class Room extends DurableObject {
@@ -266,9 +274,9 @@ export class Room extends DurableObject {
   sockets() { return this.ctx.getWebSockets().filter(ws => { try { return !!ws.deserializeAttachment(); } catch { return false; } }); }
   members() { return this.sockets().map(ws => ws.deserializeAttachment()).sort((a, b) => a.at - b.at); }
 
-  async init({ code, owner, pub, rank }) {
+  async init({ code, owner, pub, rank, name }) {
     if (this.meta && this.sockets().length) return { ok: false };
-    this.meta = { code, owner: owner.key, pub, rank, host: 0, quest: null, phase: 'town', hunt: [], created: Date.now(), nextId: 1, tickets: {} };
+    this.meta = { code, owner: owner.key, pub, rank, name: name || '', host: 0, quest: null, phase: 'town', hunt: [], created: Date.now(), nextId: 1, tickets: {} };
     await this.save();
     await this.ctx.storage.setAlarm(Date.now() + 60000);   // nobody turned up: close it
     return { ok: true };
@@ -308,8 +316,8 @@ export class Room extends DurableObject {
 
   roomMsg(forId) {
     const M = this.meta;
-    return JSON.stringify({ t: 'room', v: 3, code: M.code, host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
-      members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear })) });
+    return JSON.stringify({ t: 'room', v: 3, code: M.code, name: M.name || '', host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
+      members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear, why: m.why || null })) });
   }
   broadcastRoom() { for (const ws of this.sockets()) { const a = ws.deserializeAttachment(); try { ws.send(this.roomMsg(a.id)); } catch {} } }
   send(ws, o) { try { ws.send(typeof o === 'string' ? o : JSON.stringify(o)); } catch {} }
@@ -337,7 +345,9 @@ export class Room extends DurableObject {
       }
       case 'info': {                                                 // what you look like and carry (drawn by the others), and your rank
         const g = m.gear && typeof m.gear === 'object' ? JSON.stringify(m.gear) : null;
-        me.gear = g && g.length < 1200 ? JSON.parse(g) : null; me.rank = clampInt(m.rank, 0, 2); ws.serializeAttachment(me);
+        me.gear = g && g.length < 1200 ? JSON.parse(g) : null; me.rank = clampInt(m.rank, 0, 2);
+        me.why = typeof m.why === 'string' ? m.why.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').slice(0, 40) : null;   // why they can't take the posted hunt
+        ws.serializeAttachment(me);
         this.broadcastRoom(); if (me.id === M.host) await this.toLobby(); return;
       }
       case 'ready': if (M.quest && M.phase === 'town') { me.ready = !!m.v; ws.serializeAttachment(me); this.broadcastRoom(); } return;
@@ -364,6 +374,7 @@ export class Room extends DurableObject {
       case 'leave': me.hunt = false; ws.serializeAttachment(me); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
       case 'end': if (runs) await this.endHunt(); return;
       case 'pub': if (isHost) { M.pub = !!m.v; await this.save(); this.broadcastRoom(); await this.toLobby(); } return;
+      case 'name': if (isHost) { M.name = roomName(m.name); await this.save(); this.broadcastRoom(); await this.toLobby(); } return;   // the host renames the room
       case 'chat': {                                                 // room chat: to everyone, the sender included, so all see the same order
         if (typeof m.text !== 'string') return;
         const text = m.text.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120), now = Date.now();
@@ -409,7 +420,7 @@ export class Room extends DurableObject {
   async toLobby() {
     const M = this.meta; if (!M) return; const mem = this.members(), host = mem.find(m => m.id === M.host);
     try {
-      await lobbyStub(this.env).update({ code: M.code, pub: M.pub, host: host ? host.name : '', n: mem.length, max: ROOM_MAX,
+      await lobbyStub(this.env).update({ code: M.code, name: M.name || '', pub: M.pub, host: host ? host.name : '', n: mem.length, max: ROOM_MAX,
         hostKey: host ? host.key : '', rank: host ? host.rank : M.rank, phase: M.phase, quest: M.quest ? M.quest.name : null, created: M.created });
     } catch {}
   }
@@ -449,6 +460,6 @@ export class Lobby extends DurableObject {
     for (const [k, v] of Object.entries(rooms)) if (now - v.seen > 75000) { delete rooms[k]; changed = true; }
     if (changed) await this.ctx.storage.put('rooms', rooms);
     return Object.values(rooms).filter(r => r.pub && r.n > 0).sort((a, b) => b.created - a.created).slice(0, 60)
-      .map(r => ({ code: r.code, host: r.host, n: r.n, max: r.max, rank: r.rank, phase: r.phase, quest: r.quest }));
+      .map(r => ({ code: r.code, name: r.name || '', host: r.host, n: r.n, max: r.max, rank: r.rank, phase: r.phase, quest: r.quest }));
   }
 }
