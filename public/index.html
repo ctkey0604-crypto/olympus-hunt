@@ -493,7 +493,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 #mpLog{display:grid;gap:calc(var(--px)*.8);align-content:end}
 #mpLog p{margin:0;width:fit-content;max-width:100%;background:#000a;padding:0 calc(var(--px)*2.5);color:var(--bone);overflow-wrap:anywhere;animation:mpFade 1.5s linear forwards}
 #mpLog p b{font-weight:700;margin-right:.25em}
-#mpLog .c0{color:var(--aegean)}#mpLog .c1{color:var(--gold)}#mpLog .c2{color:var(--olive)}#mpLog .c3{color:var(--clay)}
+#mpLog .c0{color:var(--aegean)}#mpLog .c1{color:var(--gold)}#mpLog .c2{color:var(--olive)}#mpLog .c3{color:var(--clay)}#mpLog .c4{color:#e88aa8}#mpLog .c5{color:#9fb8ff}
 #mpLog p.sys{color:var(--bone-dim);font-style:italic}
 #mpLog.open{max-height:calc(var(--px)*46);overflow-y:auto;background:#000c;padding:calc(var(--px)*2) calc(var(--px)*3);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line);align-content:start}
 #mpLog.open p{background:none;padding:0;animation:none}
@@ -3243,7 +3243,58 @@ const Music = (() => {
   function stopCur(fade = .5) {
     const c = M.cur; if (!c) return; M.cur = null;
     const ctx = Sound.ctx; if (!ctx) return;
-    try { c.gain.gain.cancelScheduledValues(ctx.currentTime); c.gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 4); setTimeout(() => c.gain.disconnect(), (fade + .3) * 1000); } catch (e) {}
+    try {
+      c.gain.gain.cancelScheduledValues(ctx.currentTime); c.gain.gain.setTargetAtTime(0, ctx.currentTime, fade / 4); setTimeout(() => c.gain.disconnect(), (fade + .3) * 1000);
+      if (c.loop) c.loop.stop(ctx.currentTime + fade + .3);
+    } catch (e) {}
+  }
+  // ---- whole loops, made ahead. Played note by note, a fight theme makes a few hundred sound nodes a second. So once a
+  // track is playing, its loop is also made in the background (the same notes through the same chain, a little at a
+  // time while the browser is idle), and when it's ready the track carries on from that at the very same spot. The
+  // notes ringing past the end of the loop are folded back onto its start, as they'd overlap when it loops. The music
+  // is mono, so one channel holds all of it. Only the few loops most recently played are kept.
+  const LOOPS = new Map(); let baking = null; M.loops = LOOPS; M.baking = () => baking;   // (for checking them in tests)
+  const loopKey = (id, lvl, gr) => id + ':' + lvl + ':' + gr;
+  const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 250 }) : f => setTimeout(() => f({ timeRemaining: () => 4 }), 40);
+  function bakeLoop(id, lvl, gr) {
+    const key = loopKey(id, lvl, gr), S = SONGS[id], live = Sound.ctx;
+    if (S.once || LOOPS.has(key) || baking || !live || !window.OfflineAudioContext || !audible()) return;
+    const rate = live.sampleRate, sd = 60 / (S.bpm * speed(lvl)) / 4, ev = events(id, lvl, gr), len = ev.length * sd, tail = 2.5;
+    let off; try { off = new OfflineAudioContext(1, Math.ceil(rate * (len + tail)), rate); } catch (e) { return; }
+    const out = chain(off, off.destination, S, sd, gr), job = baking = { key };
+    let step = 0;
+    const more = dl => {
+      if (baking !== job) return;                                       // given up (the music changed)
+      const s0 = step;                                                   // a couple of steps every time, more while the browser is idle
+      while (step < ev.length && (step - s0 < 4 || dl.timeRemaining() > 1.5)) { for (const e of ev[step]) note(off, out, S, e, step * sd, sd); step++; }
+      job.step = step;
+      if (step < ev.length) { idle(more); return; }
+      job.rendering = true;
+      off.startRendering().then(buf => {
+        if (baking === job) baking = null;
+        const d = buf.getChannelData(0), n = Math.round(len * rate);
+        for (let i = n; i < d.length; i++) d[i - n] += d[i];               // the tail rings on into the next time round
+        const loop = live.createBuffer(1, n, rate); loop.copyToChannel(d.subarray(0, n), 0);
+        LOOPS.set(key, loop); while (LOOPS.size > 3) LOOPS.delete(LOOPS.keys().next().value);
+      }).catch(() => { if (baking === job) baking = null; });
+    };
+    idle(more);
+  }
+  // Switch the playing track over to its made loop, from the next step on (the notes already scheduled play out).
+  function toLoop(c, ctx) {
+    const buf = LOOPS.get(loopKey(c.id, c.lvl, c.out.grit)); if (!buf || c.loop || c.S.once) return false;
+    const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4, src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true; src.connect(c.gain); src.start(c.next, c.step * sd);
+    c.loop = src; c.loopAt = c.next - c.step * sd; c.loopLen = buf.duration; return true;
+  }
+  // Back to note by note (the boss changed phase): from the next step after now, at the same place in the loop.
+  function fromLoop(c, ctx) {
+    const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4, t = ctx.currentTime + .05, el = t - c.loopAt, k = Math.floor(el / c.loopLen);
+    let i = Math.ceil((el - k * c.loopLen) / sd - 1e-6), base = c.loopAt + k * c.loopLen;
+    if (i >= c.ev.length) { i = 0; base += c.loopLen; }
+    c.step = i; c.next = base + i * sd;
+    try { c.loop.stop(c.next); } catch (e) {}
+    c.loop = null;
   }
   const gritFor = id => { const r = Math.max(0, Math.min(3, M.rankGrit || 0)); return SONGS[id].boss ? [1, 2, 3, 4][r] : SONGS[id].hunt ? [0, 1, 2, 2][r] : 0; };
   function startCur(id, lvl) {
@@ -3251,7 +3302,7 @@ const Music = (() => {
     const S = SONGS[id], gain = ctx.createGain(); gain.gain.value = 0; gain.connect(ensureOut(ctx)); gain.gain.setTargetAtTime(1, ctx.currentTime, .12);
     const sd = 60 / (S.bpm * speed(lvl)) / 4;
     const gr = gritFor(id);
-    M.cur = { id, lvl, S, gain, out: chain(ctx, gain, S, sd, gr), step: 0, next: ctx.currentTime + .08, ev: events(id, lvl, gr) };
+    M.cur = { id, lvl, S, gain, out: chain(ctx, gain, S, sd, gr), step: 0, next: ctx.currentTime + .08, ev: events(id, lvl, gr), started: ctx.currentTime, loop: null };
     M.refresh();
   }
   function tick() {
@@ -3259,7 +3310,14 @@ const Music = (() => {
     // a new track, or the same track at a different rank (it restarts with that rank's sound)
     if (M.want && (!M.cur || M.cur.id !== M.want || M.cur.out.grit !== gritFor(M.want))) { stopCur(); startCur(M.want, M.wantLvl); }
     const c = M.cur; if (!c) return;
-    if (c.lvl !== M.wantLvl && !c.S.once) { c.lvl = M.wantLvl; c.ev = events(c.id, c.lvl, c.out.grit); }
+    if (c.lvl !== M.wantLvl && !c.S.once) { if (c.loop) fromLoop(c, ctx); c.lvl = M.wantLvl; c.ev = events(c.id, c.lvl, c.out.grit); }
+    if (c.loop) return;                                                  // its made loop is playing
+    if (!c.S.once) {
+      const key = loopKey(c.id, c.lvl, c.out.grit);
+      if (baking && baking.key !== key) baking = null;                   // the music moved on: drop that one
+      if (toLoop(c, ctx)) return;
+      if (ctx.currentTime - c.started > 1.5) bakeLoop(c.id, c.lvl, c.out.grit);
+    }
     const sd = 60 / (c.S.bpm * speed(c.lvl)) / 4;
     if (c.next < ctx.currentTime - .25) c.next = ctx.currentTime + .03;      // woke up late (tab in the background): don't play catch-up
     while (c.next < ctx.currentTime + .14) {
@@ -3806,7 +3864,25 @@ function flame(sx, sy, w, h, seed) {
   const R = mulberry(Math.floor(G.time * 12) + seed);
   for (let i = 0; i < w + 3; i++) { const fx = sx - w / 2 + R() * w, fh = 2 + R() * h; ctx.fillStyle = R() < .4 ? '#ffd463' : R() < .7 ? '#ff8a2b' : '#d9493b'; ctx.fillRect(Math.round(fx), Math.round(sy - fh), 1, Math.round(fh)); }
 }
+// Props that never change once a place is built (no flames, glints, water or statues that turn gold) are drawn once into
+// a small canvas per look and stamped after that. Their size is even, so they sit on whole pixels exactly as before.
+const STATIC_PROPS = new Set(['rock', 'boulder', 'tree', 'olive', 'pine', 'stump', 'vine', 'rosebush', 'coral', 'shell', 'rack', 'fence', 'cart',
+  'gatepost', 'column', 'brokencol', 'obelisk', 'slab', 'anvil', 'stall', 'crate', 'amphora', 'gatedoors', 'board']);
+const PROP_CACHE = new Map();
 function drawObstacle(o, sx, sy) {
+  if (STATIC_PROPS.has(o.kind)) {
+    const key = o.kind + '|' + (o.variant || '') + '|' + o.seed + '|' + (sc && sc.theme); let c = PROP_CACHE.get(key);
+    if (!c) {
+      if (PROP_CACHE.size > 300) PROP_CACHE.clear();
+      c = mkCanvas(64, 64); const main = ctx; ctx = c.getContext('2d');
+      try { drawObstacleNow(o, 32, 54); } finally { ctx = main; }
+      PROP_CACHE.set(key, c);
+    }
+    ctx.drawImage(c, sx - 32, sy - 54); return;
+  }
+  drawObstacleNow(o, sx, sy);
+}
+function drawObstacleNow(o, sx, sy) {
   const t = G.time;
   switch (o.kind) {
     case 'rock':
@@ -4099,20 +4175,25 @@ function drawObstacle(o, sx, sy) {
 //   mobHp    every monster's health   helpers monsters a boss calls in
 //   arena    width and height         budget  how many monsters can be out at once
 //   spawn    how fast new monsters walk in
+// Five and six hunters also get a tougher fight, not just a longer one (Nov 2): monsters and gods think faster (tempo),
+// gods change targets sooner (retarget, their 5-8 s on one hunter shortened) so nobody gets left alone, a god's
+// ground strikes also land a second cluster on someone else, and its rings come twice. Parties of 1-4 are unchanged.
 const PARTY_SCALE = [null,
-  { bossHp: 1,    mobs: 1,    mobHp: 1, helpers: 1,    arena: 1,    budget: 1,    spawn: 1 },
-  { bossHp: 1.7,  mobs: 1.35, mobHp: 1, helpers: 1.25, arena: 1,    budget: 1.35, spawn: 1.3 },
-  { bossHp: 2.35, mobs: 1.65, mobHp: 1, helpers: 1.5,  arena: 1.15, budget: 1.7,  spawn: 1.6 },
-  { bossHp: 3,    mobs: 1.9,  mobHp: 1, helpers: 1.75, arena: 1.3,  budget: 2,    spawn: 1.9 },
+  { bossHp: 1,    mobs: 1,    mobHp: 1,    helpers: 1,    arena: 1,    budget: 1,    spawn: 1 },
+  { bossHp: 1.7,  mobs: 1.35, mobHp: 1,    helpers: 1.25, arena: 1,    budget: 1.35, spawn: 1.3 },
+  { bossHp: 2.35, mobs: 1.65, mobHp: 1,    helpers: 1.5,  arena: 1.15, budget: 1.7,  spawn: 1.6 },
+  { bossHp: 3,    mobs: 1.9,  mobHp: 1,    helpers: 1.75, arena: 1.3,  budget: 2,    spawn: 1.9 },
+  { bossHp: 3.7,  mobs: 2.2,  mobHp: 1.08, helpers: 2.1,  arena: 1.45, budget: 2.4,  spawn: 2.25, tempo: 1.06, retarget: .75, big: true },
+  { bossHp: 4.4,  mobs: 2.5,  mobHp: 1.15, helpers: 2.4,  arena: 1.6,  budget: 2.8,  spawn: 2.6,  tempo: 1.1,  retarget: .6,  big: true },
 ];
-const PARTY_MAX = 4;
+const PARTY_MAX = 6;
 const partyScale = () => PARTY_SCALE[clamp((q && q.partyN) || 1, 1, PARTY_MAX)];
 const REVIVE_TIME = 3, REVIVE_R = 22;            // stand this close to a downed teammate for this long to get them up
 // Faints. null: no limit, the hunt fails only when everyone is down at once. A number: a shared pool per hunt.
 const PARTY_FAINTS = null;
 // true: a part one hunter picks up goes into every hunter's own haul. false: only the one who grabbed it gets it.
 const SHARED_LOOT = true;
-const BOT_NAMES = ['Nikias', 'Thalia', 'Damon', 'Ione'];
+const BOT_NAMES = ['Nikias', 'Thalia', 'Damon', 'Ione', 'Kallias', 'Myrto'];
 
 const isLocal = p => !q || !p || p === q.player;   // screen shake, hitstop, flashes and banners are only for your own hunter
 function nearestHunter(x, y, pred) {
@@ -4136,7 +4217,7 @@ function makeHunter(o = {}) {
   const save = o.save || G.save, p = makePlayer(save);
   p.hid = o.hid || 0; p.local = !!o.local; p.bot = o.bot || null; p.name = o.name || ''; p.save = save;
   p.in = blankInput(); p.stats = { kills: 0, dealt: 0, taken: 0, perfect: 0 }; p.loot = {}; p.tok = { melee: 0, ranged: 0 };
-  if (p.hid) { const a = -Math.PI / 2 + p.hid * Math.PI * 2 / PARTY_MAX; p.x += Math.round(Math.cos(a) * 20); p.y += Math.round(Math.sin(a) * 14); }
+  if (p.hid) { const a = -Math.PI / 2 + p.hid * Math.PI * 2 / (q && q.partyN > 4 ? 6 : 4); p.x += Math.round(Math.cos(a) * 20); p.y += Math.round(Math.sin(a) * 14); }   // a ring around the start
   return p;
 }
 // A bot teammate carries your armor and shield (if its weapon takes one) with the weapon you give it.
@@ -4193,7 +4274,8 @@ function bossTarget(b, dt) {
   b.threat = b.threat || new Map();
   const fade = Math.pow(.5, dt / 6); for (const [h, v] of b.threat) b.threat.set(h, v * fade);
   for (const h of H) if (!h.dead && h.guarding && Math.hypot(h.x - b.x, h.y - b.y) < TAUNT_R) b.threat.set(h, (b.threat.get(h) || 0) + TAUNT_RATE * dt);
-  if (b.tgtT === undefined) b.tgtT = rand(5, 8);
+  const hold = () => rand(5, 8) * (partyScale().retarget || 1);
+  if (b.tgtT === undefined) b.tgtT = hold();
   b.tgtT -= dt;
   const was = b.tgt, cur = was && !was.dead && H.includes(was) ? was : null;
   if (cur && b.state !== 'idle') return cur;                      // never mid-attack
@@ -4208,7 +4290,7 @@ function bossTarget(b, dt) {
   if (due || (best !== cur && bs > score(cur) * 1.5 + .03)) {
     // its target just went down: a short roar, then it turns on the next one
     if (was && was.dead && !b.def.titan && b.state === 'idle' && !b.hidden && !b.air) { b.st = Math.max(b.st || 0, .6); b.vx = b.vy = 0; addText(b.x, b.y - b.h - 4, '!', b.def.colors[0]); }
-    b.tgt = best; b.tgtT = rand(5, 8);
+    b.tgt = best; b.tgtT = hold();
   }
   return b.tgt;
 }
@@ -4233,7 +4315,7 @@ function partyCount(type, n) {
   const cls = ENEMIES[type].cls;
   return Math.max(n, Math.round(n * (cls === 'heavy' ? 1 + (m - 1) * .3 : cls === 'medium' ? 1 + (m - 1) * .55 : m)));
 }
-// Bigger arenas for 3-4 hunters: the same layout stretched to fit, worked out once per size.
+// Bigger arenas for 3-6 hunters: the same layout stretched to fit, worked out once per size.
 const ARENA_CACHE = {};
 function partyArena(id, A, s) {
   if (s === 1 || A.paint) return A;
@@ -4527,7 +4609,7 @@ function townPeers() {
   for (const [id, pe] of Object.entries(NET.peers)) {
     if (pe.place !== V.id || now - pe.at > 4000) continue;
     const o = peerHunter(+id); if (!o) continue;
-    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % 4, eat: pe.eat, sitting: pe.sit });
+    Object.assign(o, { x: pe.x, y: pe.y, face: pe.face, moving: pe.moving, walkT: pe.walkT, dodgeT: pe.dash ? .1 : 0, hid: (+id) % PARTY_COLS.length, eat: pe.eat, sitting: pe.sit });
     out.push(o);
   }
   return out;
@@ -4586,7 +4668,7 @@ function netChatRender() {
   const log = $('mpLog'); if (!log) return;
   const now = performance.now(), lines = NET.chatOpen ? NET.chat : Settings.data.mpMin ? [] : NET.chat.slice(-CHAT_SHOW).filter(l => now - l.at < CHAT_FADE);
   log.innerHTML = lines.map(l => { const fade = NET.chatOpen ? '' : ` style="animation-delay:${Math.round(CHAT_FADE - 1500 - (now - l.at))}ms"`;   // fades over its last 1.5 s
-    return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 4}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
+    return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 6}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
   log.hidden = !lines.length; log.classList.toggle('open', NET.chatOpen);
   if (NET.chatOpen) log.scrollTop = log.scrollHeight;
 }
@@ -5921,7 +6003,7 @@ function makeEnemy(type, x, y, tier = tierNow(), rank = q ? q.def.rank : 0) {
   const d = ENEMIES[type], C = CLASS[d.cls], R = RANKS[rank] || RANKS[0];
   const hp = Math.max(1, Math.round((d.hpM || C.hpM) * tierW(tier) * R.hp * partyScale().mobHp));
   const fr = SPR[d.sprite][0], scale = d.scale || 1, fly = d.role === 'flyer' || !!d.fly;
-  return { id: EID++, type, def: d, tier, rank, tempo: R.tempo, x, y, r: d.r, h: fr.h * scale + (fly ? 10 : 0), hp, maxHp: hp, dmg: rawDmg((d.dmgP || C.dmgP) * R.dmg, tier),
+  return { id: EID++, type, def: d, tier, rank, tempo: R.tempo * (partyScale().tempo || 1), x, y, r: d.r, h: fr.h * scale + (fly ? 10 : 0), hp, maxHp: hp, dmg: rawDmg((d.dmgP || C.dmgP) * R.dmg, tier),
            vx: 0, vy: 0, kbx: 0, kby: 0, state: 'spawn', st: .8, cd: rand(.3, 1.2), flash: 0, stun: 0, flip: false, walkT: Math.random() * 2, face: 0,
            spdMul: rand(.85, 1.15), strafe: Math.random() < .5 ? 1 : -1, aim: 0, kbRes: d.kbRes ?? 1, dead: false, hitDone: false, owner: 0,
            tok: null, markT: 0, burnT: 0, burnAcc: 0, chainLeft: 0, hidden: false, alpha: 1, fly, scale };
@@ -6311,14 +6393,23 @@ function makeBoss(type, x, y, rank = q ? q.def.rank : 0) {
   const d = BOSSES[type], fr = SPR[d.sprite][0], R = RANKS[rank] || RANKS[0], tier = d.tier + R.off;
   const tune = k => (d.tune && d.tune[k] && d.tune[k][rank]) || 1;          // per-boss, per-rank balance from the bot runs (BOSS_TUNE)
   const hp = Math.round(d.hits * tierW(tier) * R.hp * tune('hp') * partyScale().bossHp);
-  return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo, attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
+  return { id: EID++, boss: true, type, def: d, tier, rank, tempo: R.tempo * (partyScale().tempo || 1), attacks: d.attacks ? d.attacks.concat((RANK_MOVES[type] || []).slice(0, rank)) : null,
            dm: rawDmg(1, tier) / rawDmg(1, BOSS_REF[type] || d.tier) * R.dmg * (d.dmgScale || 1) * tune('dmg'), dmgMul: R.dmg * (d.titan ? TITAN_DMG[rank] || 1 : 1) * (d.dmgScale || 1) * tune('dmg'),
            x, y, r: d.titan ? 15 : d.r, h: d.titan ? fr.h * TITAN_SCALE : fr.h + 4, body: d.titan ? Math.round(fr.h * TITAN_SCALE * .74) : 0, hp, maxHp: hp, vx: 0, vy: 0, kbx: 0, kby: 0,
            state: 'intro', st: 1.6, phase: 1, flash: 0, stun: 0, flip: true, walkT: 0, invuln: 1.6, alpha: 0, orbit: 1, last: null, lastCount: 0,
            dashEnd: null, count: 0, lockAt: .2, summons: 0, kbRes: .06, dead: false, contactCd: 0, face: Math.PI / 2, guard: false, stormT: 3, aim: 0,
            reflectT: 0, hidden: false, air: false, z: 0, markT: 0, burnT: 0, burnAcc: 0 };
 }
-// The first gods are still teaching you: in Low Rank they call one fewer helper than they do in High and God Rank.
+// Five or six hunters: a god's ground strike also drops a smaller cluster on the hunter furthest from its target.
+function bigPartyRain(p, P, dm) {
+  if (!partyScale().big) return;
+  let far = null, fd = 60;
+  for (const h of q.hunters) { if (h.dead || h === p) continue; const d = Math.hypot(h.x - p.x, h.y - p.y); if (d > fd) { fd = d; far = h; } }
+  if (!far) return;
+  addCircleHazard(far.x, far.y, P.r, P.delay + .1, dm(P.dmg), P.kind);
+  for (let i = 1; i < Math.ceil(P.n / 2); i++) { const a = rand(0, Math.PI * 2), r = rand(18, 60); addCircleHazard(far.x + Math.cos(a) * r, far.y + Math.sin(a) * r, P.r, P.delay + .1 + i * .06, dm(P.dmg), P.kind); }
+}
+// The first gods are still teaching you: in Normal Rank they call one fewer helper than they do in High and God Rank.
 function summonFor(b, types) { return b.rank === 0 && b.def.tier <= 3 && types.length > 2 ? types.slice(0, -1) : types; }
 function bossCommon(b, dt) {
   b.invuln = Math.max(0, b.invuln - dt); b.contactCd = Math.max(0, b.contactCd - dt); b.markT = Math.max(0, b.markT - dt);
@@ -6636,6 +6727,7 @@ const BOSS_AI = {
           const at = aoeAt(p);
           addCircleHazard(at.x, at.y, P.r, P.delay, dm(P.dmg), P.kind);
           for (let i = 1; i < P.n; i++) { const a = rand(0, Math.PI * 2), r = rand(22, 85); addCircleHazard(at.x + Math.cos(a) * r, at.y + Math.sin(a) * r, P.r, P.delay + i * .06, dm(P.dmg), P.kind); }
+          bigPartyRain(p, P, dm);
           b.state = 'recover'; b.st = .9;
         }
         break;
@@ -6800,7 +6892,7 @@ function startBossAttack(b, c) {
     }
     case 'dash': b.state = 'dashAim'; b.st = .7; b.count = P.count || 1; Sound.play('telegraph'); break;
     case 'quake': b.state = 'quake'; b.st = .6; Sound.play('telegraph'); break;
-    case 'ring': b.state = 'ring'; b.st = .6; b.count = P.rings || 1; break;
+    case 'ring': b.state = 'ring'; b.st = .6; b.count = (P.rings || 1) + (partyScale().big ? 1 : 0); break;   // 5-6 hunters: one more ring
     case 'vanish': b.state = 'vanishOut'; b.st = .4; Sound.play('dodge'); break;
     case 'stampede': b.state = 'stampede'; b.st = .5; break;
     case 'reflect': b.state = 'reflect'; b.st = P.time; Sound.play('perfect'); break;
@@ -8840,9 +8932,10 @@ function drawParticlesAndText(S) {
   // are only set when they change from the last spark
   const [ox, oy] = S(0, 0); let lastA = -1, lastC = null;
   for (const pt of sc.parts) {
+    const x = Math.round(pt.x) + ox, y = Math.round(pt.y) + oy; if (x < -4 || y < -4 || x > VIEW_W || y > VIEW_H) continue;   // off the screen
     const a = clamp(pt.life / pt.max * 1.4, 0, 1); if (a !== lastA) { ctx.globalAlpha = lastA = a; }
     if (pt.c !== lastC) { ctx.fillStyle = lastC = pt.c; }
-    ctx.fillRect(Math.round(pt.x) + ox, Math.round(pt.y) + oy, pt.s, pt.s);
+    ctx.fillRect(x, y, pt.s, pt.s);
   }
   ctx.globalAlpha = 1;
   for (const t of sc.texts) { const [sx, sy] = S(t.x, t.y); if (t.life > .1 || Math.floor(G.time * 30) % 2) drawNum(t.s, sx, sy, t.c); }
@@ -8948,14 +9041,16 @@ function renderQuest() {
   drawTelegraphs(S);
   for (const f of q.fx) if (f.t === 'ring') { const [sx, sy] = S(f.x, f.y), k = 1 - f.life / f.max; pxRing(sx, sy, lerp(f.r0, f.r1, k), f.c); pxRing(sx, sy, lerp(f.r0, f.r1, k) - 1, f.c, 2); }
   // shadows
-  const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.32)'); };
+  const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); if (sx < -rx - 2 || sx > VIEW_W + rx + 2 || sy < -12 || sy > VIEW_H + 12) return; pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.32)'); };
   for (const e of q.enemies) if (e.state !== 'spawn' && !e.hidden && (!e.boss || e.alpha > .3 || e.air)) shadow(e.x, e.y, e.def.titan ? 24 : e.r + 1);
   for (const h of q.hunters) if (!h.dead) shadow(h.x, h.y, 5);
   for (const k of q.pickups) shadow(k.x, k.y, 2);
-  // depth-sorted drawables (the list and its entries are reused every frame)
-  for (const o of q.obstacles) drawAdd(o.y + o.h / 2, 0, o);
-  for (const e of q.enemies) drawAdd(e.y, 1, e);
-  for (const k of q.pickups) drawAdd(k.y, 2, k);
+  // depth-sorted drawables (the list and its entries are reused every frame). Monsters, props and pickups off the screen
+  // are skipped; the room around them covers tall sprites and things in the air. Gods, Titans and hunters always draw.
+  const vis = (x, y) => x > cx - 48 && x < cx + VIEW_W + 48 && y > cy - 16 && y < cy + VIEW_H + 96;
+  for (const o of q.obstacles) if (vis(o.x, o.y)) drawAdd(o.y + o.h / 2, 0, o);
+  for (const e of q.enemies) if (e.boss || vis(e.x, e.y)) drawAdd(e.y, 1, e);
+  for (const k of q.pickups) if (vis(k.x, k.y)) drawAdd(k.y, 2, k);
   if (q.chest) drawAdd(q.chest.y, 3, q.chest);
   for (const h of q.hunters) { if (!h.dead) drawAdd(h.y, 4, h); else if (h.downed) drawAdd(h.y, 5, h); }
   for (const gh of q.ghosts || []) drawAdd(gh.y, 6, gh);
@@ -9041,7 +9136,7 @@ function drawTag(str, x, y, col) {
   const w = str.length * 4 - 1;
   ctx.drawImage(pixelText(str, col, tagGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
 }
-const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff'];
+const PARTY_COLS = ['#ebc152', '#57c2b0', '#e88aa8', '#9fb8ff', '#9bbb55', '#ff9a5a'];   // one per hunter, up to six
 // A downed hunter lies flat on the ground, with a ring that fills while a teammate stands next to them.
 function drawDowned(p, S) {
   const [sx, sy] = S(p.x, p.y), fr = heroFrames(p.look)[0], flip = Math.cos(p.face) < 0;
@@ -9432,7 +9527,7 @@ function renderVillage() {
   if (V.eat) drawEating(S);                                     // a Tavern meal on its way to your mouth
   for (const o of peers) if (o.eat) drawEating(S, o.eat, o);    // and theirs
   drawParticlesAndText(S);
-  for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % 4]); }
+  for (const o of peers) { const [sx, sy] = S(o.x, o.y); drawTag(o.name, sx, sy - 31, PARTY_COLS[o.hid % PARTY_COLS.length]); }
   const t = V.target;
   if (t && !G.dialog && !G.cutscene && !V.eat && t.kind !== 'order') {
     const [sx, sy] = S(t.x, t.y), top = sy - (t.kind === 'npc' ? 22 : t.kind === 'statue' ? (t.god === 'typhon' ? 74 : V.id === 'hall' ? 58 : 44) : t.kind === 'tgate' ? 20 : 26) - (Math.floor(G.time * 3) % 2);
@@ -9791,6 +9886,8 @@ const NEWS = [
       'Your home has a chest that holds everything you bring back from your hunts.',
       'Play as a boy or a girl: pick in Options (Esc), under Your save. Every armor set has both looks, each save keeps its own, and the others in your room see it.',
       'The Endless Hunt: once Typhon is slain, Etna keeps sending monsters. Every wave is bigger and stronger, a god turns up every fifth wave, and each wave cleared pays. Your best wave and your last run show on the quest board.',
+      'Rooms hold up to six players. With five or six, the maps are bigger, more monsters come, monsters and gods think faster, and gods switch targets sooner and drop strikes on more of the party.',
+      'The host can name the room at the Oracle, and the name shows in the room list.',
       'Room chat: in a room, press T (or tap Chat) to talk to everyone. H (or Hide) shrinks the room box when it’s in the way.',
       'The room’s host can kick a player from the Oracle’s room panel. A kicked player can’t rejoin that room.',
       'Anyone in a room can post a hunt now, and whoever posts it leads the party out.',
@@ -9801,7 +9898,9 @@ const NEWS = [
       'Dion works inside the Forge now, Phaedra runs the Tavern, and Melita has her own shop.',
       'Kleon hands out the hunts, with his notice board right beside him.',
       'Options moved to the pause menu (Esc).',
-      'Online hunts need the rank and the earlier quests for them, and no gear from a higher rank.',
+      'Online hunts need the rank and the earlier quests for them, and no gear from a higher rank. The board and the room box now say exactly what to clear or take off.',
+      'Smoother on Chromebooks and older laptops: hunts take far less work to draw, and the music is made ahead instead of note by note.',
+      '“Low Rank” is now called Normal Rank.',
       'Online saves are checked by the server. A save that couldn’t come from real play isn’t stored online (it stays on your device).',
       'Shorter, clearer multiplayer messages. The room code shows in one place.',
       '“Hunter” is now “Player” in menus and messages.',
@@ -10488,14 +10587,14 @@ function renderOracle() {
   if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
-  if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/4</span></h3>
+  if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/${PARTY_MAX}</span></h3>
     ${netHost() && R.v >= 3 ? `<form class="or-rename" data-orname novalidate><label>Room name<input name="name" maxlength="${ROOM_NAME_MAX}" value="${esc(R.name || '')}" placeholder="${esc(roomName(R))}" autocomplete="off" spellcheck="false"></label><button class="btn ghost small" type="submit">Rename</button></form>` : ''}
     <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
       ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
         : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
     <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
-  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to 4 players. Hunts grow tougher with more of you.</p>
+  return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to ${PARTY_MAX} players. Hunts grow tougher with more of you.</p>
       <label class="or-name">Room name<input id="orName" maxlength="${ROOM_NAME_MAX}" placeholder="${esc(Store.user)}’s room" autocomplete="off" spellcheck="false"></label>
       <label class="toggle-row"><input type="checkbox" id="orPub" checked> Show it in the room list</label><button class="btn" type="button" data-or="host">Host a room</button></div>
     <div class="opt"><h3>Join by code</h3><form class="acct-form" data-orjoin novalidate><label>Room code<input name="code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false"></label><button class="btn" type="submit">Join</button></form></div>
@@ -10790,18 +10889,24 @@ addEventListener('resize', resize);
 let last = performance.now(), acc = 0;
 const STEP = 1 / 60;
 const DEBUG = { speed: 1 };
+// The game moves in steps of 1/60 s; the screen is only redrawn after a step (or the first time it shows a new hunt or
+// place). A 120 or 144 Hz screen used to draw the same picture two or three times between steps.
+let shown = null;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   netFrame(dt);
   CG.gameplay((G.mode === 'quest' || G.mode === 'village') && !G.paused && !document.hidden);
   if (G.mode === 'quest' && q) {
-    if (!G.paused || q.net) { acc += dt * DEBUG.speed; let n = 0; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
-    if (G.mode === 'quest' && q) { renderQuest(); updateHud(); }
+    let n = 0;
+    if (!G.paused || q.net) { acc += dt * DEBUG.speed; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
+    if (G.mode === 'quest' && q && (n || shown !== q)) { shown = q; renderQuest(); updateHud(); }
   } else if (G.mode === 'village' && V) {
-    if (!G.paused) { acc += dt; let n = 0; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
-    if (G.mode === 'village') { renderVillage(); updateVillageHud(); }
+    let n = 0;
+    if (!G.paused) { acc += dt; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
+    if (G.mode === 'village' && (n || shown !== V)) { shown = V; renderVillage(); updateVillageHud(); }
   } else {
+    shown = null;
     acc = 0;
     if (G.save && (G.mode === 'panel' || G.mode === 'results')) G.save.playtime += dt;
   }
