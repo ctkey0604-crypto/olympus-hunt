@@ -4533,8 +4533,11 @@ async function netRetry(re) {
 }
 // Back in the room. The same player, still on the hunt: carry on. Otherwise the hunt went on without you.
 function netRejoined(m, old) {
-  if (!q || !q.net) return;
   const me = m.members.find(x => x.id === m.me), on = m.me === old && m.phase === 'hunt' && !!me && me.hunt, runner = m.runner ?? m.host;
+  if (!q || !q.net) {                                                // you left the hunt while the connection was down: say so now
+    if (on) netSend(runner !== m.me ? { t: 'leave' } : { t: m.hand ? 'handoff' : 'end' });
+    return;
+  }
   if (q.net === 'host') {
     if (on && runner === m.me) netResync(); else netHuntLost('The party went on without you. Your hunt carries on here.');
     return;
@@ -4993,10 +4996,18 @@ function netPlayEvent(ev) {
 }
 // The host's hunt ended (results): tell the room, so everyone's back in town.
 function netHostEnd(win) {
-  if (!q || q.net !== 'host') return;
+  if (!q || q.net !== 'host' || (!win && netHandOn())) return;
   netRec(['Q', win ? 1 : 0]); NET.downT = 0; netHostTick(0);
   netSend({ t: 'end' }); NET.rec = null; NET.sent = null;
 }
+// Leaving a hunt you run before it's over, with others still on it: it goes on without you, and you stay in the room.
+function netHandOn() {
+  if (q.phase === 'victory' || q.phase === 'defeat' || !NET.room || !NET.room.hand || !q.hunters.some(h => h.remote && !h.left)) return false;
+  NET.downT = 0; netHostTick(0);                                     // one last snapshot: where things stand, for whoever takes over
+  netSend({ t: 'handoff' }); NET.rec = null; NET.sent = null;
+  return true;
+}
+addEventListener('pagehide', ev => { if (!ev.persisted && q && q.net === 'host') netHandOn(); });   // closing the tab or reloading it is leaving too
 
 /* ---- a hunt as guest ---- */
 function netStartGuest() {
@@ -5183,11 +5194,12 @@ function guestTick(dt) {
   }
   Input.endFrame();
 }
-// The player running the hunt didn't come back, so the room named who runs it now.
+// The player running the hunt left it or didn't come back, so the room named who runs it now.
 function netRunner(m) {
   NET.runner = m.id; NET.downAt = performance.now();
   if (!q || q.net !== 'guest') return;
   netHunterLeft(netHunter(m.old));
+  banner(`${netName(m.old) || 'The party leader'} left the hunt`, '');
   if (m.id === NET.me) netTakeOver(); else netChatAdd({ sys: `${netName(m.id) || 'Another player'}’s game runs the hunt now.` });
 }
 // Your game takes over the hunt. Monsters and gods were only copies here, so each is made properly and given everything the
@@ -10027,7 +10039,7 @@ const NEWS = [
       'Rooms hold up to six players. With five or six, the maps are bigger, more monsters come, monsters and gods think faster, and gods switch targets sooner and drop strikes on more of the party.',
       'The host can name the room at the Oracle, and the name shows in the room list.',
       'Room chat: in a room, press T (or tap Chat) to talk to everyone. H (or Hide) shrinks the room box when it’s in the way.',
-      'Dropped out of a hunt? Your game gets back in on its own within 20 seconds and carries on. If the player leading the hunt doesn’t come back, another player’s game takes it over and the hunt goes on.',
+      'Dropped out of a hunt? Your game gets back in on its own within 20 seconds and carries on. If the player leading the hunt leaves or doesn’t come back, another player’s game takes it over and the hunt goes on.',
       'The room’s host can kick a player from the Oracle’s room panel. A kicked player can’t rejoin that room.',
       'Anyone in a room can post a hunt now, and whoever posts it leads the party out.',
       'Gods and Titans fight smarter in a party: a mark shows who they’re after, a raised shield up close pulls them onto you, and they stop chasing someone far away while someone else hits them up close.',
@@ -10783,7 +10795,7 @@ function setPaused(v) {
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
   const road = !!(inQuest && q && q.def.prologue);
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
-  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : 'Leave now? You keep the parts you picked up, but you get no reward.';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
   $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
