@@ -656,7 +656,7 @@ input[type=range]{accent-color:var(--clay)}
     <div class="controls" id="titleControls" aria-label="Controls"></div>
     <p class="tip keys-only" id="titleTip"></p>
     <div class="meander" style="width:100%"></div>
-    <p class="build-tag">Version 1.0</p>
+    <p class="build-tag">Version 1.1</p>
   </div>
 </section>
 
@@ -1893,6 +1893,9 @@ const SPRITE_DATA = {
      '...ssssss....', '....SsssS....', '..wwwwwww....', '.swwwwwwws...', '.swwbbbwws...', '..wwyyyww.s..', '..wwwwwww....',
      '..wwbbbbw....', '...ss.ss.....', '..wnn.wnn....', '...n...n.....'],
     { from: 0, rows: ['.............', 'w...yyyyy...w', 'wwwyyyyyyywww'] }],
+  dummy: [
+    ['...OOOO...', '..OooooO..', '..OookoO..', '..OooooO..', '...OooO...', 'NNNNnnNNNN', 'NnnooooonN', '...oooo...', '...orro...', '...orro...', '...oooo...', '....nn....', '....nn....', '....nn....', '...NnnN...'],
+    { from: 0, rows: ['...OOOO...'] }],
   owl: [
     ['H........H', 'hH.HhhH.Hh', '.hhHhhHhh.', '..hywwyh..', '..hkyykh..', '...hooh...', '...hWWh...', '....hh....', '....yy....'],
     { from: 0, rows: ['..........', '...HhhH...', 'HhhHhhHhhH'] }],
@@ -2075,6 +2078,7 @@ const NPC_BASES = {
 };
 const NPC_LOOKS = {
   smith:     { base: 'manBeard', pal: { a: '#2e211b', c: '#6b4528', C: '#4e321d', d: '#9aa0a6' } },
+  arena:     { base: 'manBeard', pal: { a: '#3a2416', c: '#a8301f', C: '#6b1c12', d: '#e9c04f' } },
   herald:    { base: 'man',      pal: { a: '#5a3a22', c: '#4f8fc7', C: '#2c5684', d: '#e9c04f' } },
   keeper:    { base: 'woman',    pal: { a: '#7fa548', c: '#a39a5c', C: '#7d7546', d: '#e9c04f' } },
   oracle:    { base: 'woman',    pal: { a: '#4a2f63', c: '#7a4f9c', C: '#4a2f63', d: '#e9c04f' } },
@@ -2948,6 +2952,8 @@ const Music = (() => {
                 A: '5:2 1\':2 7:2 5:2 6:4 5:4 | 4:2 5:2 6:2 4:2 3:8 | 2:2 3:2 4:2 6:2 5:2 4:2 3:2 2:2 | 1:4 3:4 5:8', E: '2:4 7,:4 1:8' }),
     room_forge:  T({ key: 'E', mode: 'dor', bpm: 108, prog: '1 1 7 1 3 4 7 1', progB: '4 4 1 1 4 4 7 7', bass: 'drive', drums: 'anvil', arp: 'broken8',
                 A: '1:4 1:2 3:2 4:4 3:2 1:2 | 7,:4 1:2 2:2 1:8 | 3:4 3:2 5:2 6:4 5:2 3:2 | 4:4 3:4 2:8', E: '2:4 7,:4 1:8' }),
+    room_coliseum: T({ key: 'A', mode: 'dor', bpm: 132, prog: '1 1 6 7 1 1 4 5', progB: '4 4 1 1 6 7 1 1', bass: 'drive', drums: 'dance', arp: 'broken8',
+                A: '1:4 1:2 5:2 7:4 5:4 | 6:4 5:2 3:2 5:8 | 1\':4 7:2 5:2 6:4 5:2 3:2 | 2:4 3:4 1:8', E: '7,:4 2:4 1:8' }),
     room_home:   T({ key: 'Bb', mode: 'ion', bpm: 76, prog: '1 6 4 5 1 6 4 1', progB: '4 5 3 6 2 5 1 1', bass: 'walk', drums: 'soft', arp: 'updown', duty: .125, echo: true,
                 A: '3:4 5:4 1\':6 7:2 | 6:4 5:4 3:8 | 4:4 6:4 5:4 3:4 | 2:12 -:4', E: '3:4 2:4 1:8' }),
     // shared hunt music: every hunt that isn't a god or a Titan fight
@@ -3454,7 +3460,7 @@ const THEMES = {
                border: 'wall', wallBase: '#8d8a80', wall: ['#b3afa3', '#a4a094'], wallHi: '#c9c5b9', frieze: '#4f8fc7' },
   summit:    { floor: 'marble', light: '#f0e8d3', dark: '#e4d8b8', fleck: ['#eae0c6', '#d9cca8'], grout: '#c9a958', crack: '#c9b98f', cracks: .04, medallion: ['#a8842a', '#4f8fc7'],
                border: 'clouds', weather: 'storm' },
-  village:   { floor: 'grass', base: '#6a8c3c', shades: ['#5e7d35', '#79a046', '#53702f'], flowers: 160, plaza: true,
+  village:   { floor: 'grass', base: '#6a8c3c', shades: ['#5e7d35', '#79a046', '#53702f'], flowers: 300, plaza: true,
                border: 'drystone', stoneBase: '#4f4a40', stone: ['#a39b8b', '#b8b0a0', '#8f8778', '#aca494'], stoneHi: '#d4cdbd' },
   hall:      { floor: 'marble', light: '#e6dcc6', dark: '#d8ccb2', fleck: ['#ded3bb', '#cbbfa5'], grout: '#b0a48a', crack: '#9c9078', cracks: .05, medallion: ['#3a2416', '#cf6a2f'], runner: '#8f2a1c',
                border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#cf6a2f' },
@@ -3612,14 +3618,30 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
   }
   if (T.stars) for (let i = 0; i < T.stars; i++) { const px = R() * W, py = R() * H, c = R() < .15 ? '#ffd463' : R() < .5 ? '#ffffff' : '#9fb8d8'; dot(px, py, c); if (R() < .08) { dot(px - 1, py, c); dot(px + 1, py, c); dot(px, py - 1, c); dot(px, py + 1, c); } }
 }
-// Village paths: plaza around the fountain and roads to every door and the gate.
+// Village paths: a plaza around the fountain and winding roads out to every door and the gate.
+// Each road: its width, then points it curves through.
+const ROADS = [
+  [40, [424, 138], [424, 210], [420, 300], [428, 400], [424, 480], [424, 560]],                   // the main street, from the Temple to the gate
+  [24, [248, 150], [258, 182], [300, 206], [352, 232], [392, 262]],                               // up to the Forge
+  [28, [168, 340], [186, 368], [250, 366], [310, 332], [362, 306]],                               // out to the Coliseum
+  [22, [308, 338], [318, 400], [304, 454], [272, 468], [248, 456]],                               // round to the Market's door
+  [24, [648, 214], [640, 240], [590, 262], [540, 282], [498, 294]],                               // across to the Tavern
+  [22, [490, 340], [540, 392], [600, 438], [640, 446], [664, 424]],                               // down to your home
+];
+// The roads as a list of closely spaced points, curved through the ones above (each point: x, y, half width).
+const ROAD_DOTS = [];
+for (const [w, ...P] of ROADS) for (let i = 0; i < P.length - 1; i++) {
+  const a = P[Math.max(0, i - 1)], b = P[i], c = P[i + 1], d = P[Math.min(P.length - 1, i + 2)], n = Math.ceil(Math.hypot(c[0] - b[0], c[1] - b[1]) / 8);
+  for (let k = 0; k < n; k++) {
+    const t = k / n, cr = (p0, p1, p2, p3) => .5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
+    ROAD_DOTS.push([cr(a[0], b[0], c[0], d[0]), cr(a[1], b[1], c[1], d[1]), w / 2]);
+  }
+}
 function isPath(px, py) {
-  const dx = (px - 328) / 112, dy = (py - 240) / 74;
-  if (dx * dx + dy * dy < 1) return true;
-  if (px >= 304 && px < 352 && py > 120) return true;          // the main street
-  if (py > 200 && py < 238 && px > 100 && px < 560) return true;
-  if (px > 102 && px < 138 && py > 200 && py < 336) return true;
-  if (px > 518 && px < 554 && py > 200 && py < 336) return true;
+  const ang = Math.atan2(py - 304, px - 424), dx = (px - 424) / 124, dy = (py - 304) / 82;
+  if (dx * dx + dy * dy < 1 + .1 * Math.sin(ang * 5) + .06 * Math.sin(ang * 3 + 1)) return true;
+  const edge = Math.sin(px * .07 + py * .05) * 2 + Math.sin(py * .13) * 1.5;                       // no straight edges
+  for (const [x, y, r] of ROAD_DOTS) { const D = r + edge, ax = px - x, ay = py - y; if (ax * ax + ay * ay < D * D) return true; }
   return false;
 }
 function paintCobbles(x, R) {
@@ -4808,7 +4830,7 @@ function netDepart(m) {
   const host = m.from, order = [host, ...m.ids.filter(i => i !== host)];
   const roster = order.map((id, hid) => { const mem = netMember(id) || {}; return { id, hid, name: mem.name || 'Player', gear: mem.gear || null }; });
   if (!order.includes(NET.me)) { toast('The party set off without you. They’ll be back.'); return; }
-  if (q) return;
+  if (q && !q.def.practice) return;
   NET.runner = host; closeDialog();
   if (NET.me === host) { G.netParty = roster; fadeTo(() => startQuest(m.quest.id)); }
   else fadeTo(() => startQuest(m.quest.id, { guest: roster }));
@@ -5497,7 +5519,7 @@ function shieldBash(p) {
 function drinkPotion(id, p = q && q.player) {
   const s = p && p.save || G.save, P = POTIONS[id];
   if (!p || p.dead || q.phase === 'victory' || p.potionCd > 0) return;
-  if (!(s.potions[id] > 0)) { Sound.play('clink'); return; }
+  if (!(s.potions[id] > 0) || q.def.practice) { Sound.play('clink'); return; }
   if (id === 'health' && p.hp >= p.st.maxHp) { addText(p.x, p.y - 20, '+0', '#9bbb55'); return; }
   s.potions[id]--; p.potionCd = .4; Sound.play(id === 'health' ? 'heal' : 'ability');
   if (id === 'health') healHunter(p, Math.round(p.st.maxHp * .4));
@@ -7744,7 +7766,7 @@ function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
-  if (def.prologue) Music.play('road'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
+  if (def.prologue) Music.play('road'); else if (def.practice) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
   const roster = opts.guest || (G.netParty || null); G.netParty = null;
@@ -7770,7 +7792,7 @@ function startQuest(id, opts = {}) {
   if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
   else q.hunters.push(q.player);
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
-  if (G.save.meal && !def.prologue) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
+  if (G.save.meal && !def.prologue && !def.practice) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.mode = 'quest'; G.paused = false; G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0; G.dialog = null;
@@ -7967,11 +7989,16 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#2e2018', wall: ['#e6d9bd', '#d8caac'], wallHi: '#f3ecdb', frieze: '#5b8fc9' },
   forgeroom:  { floor: 'marble', light: '#5a5048', dark: '#4e4540', fleck: ['#625850', '#463e38'], grout: '#2e2824', crack: '#2a221e', cracks: .2,
                 border: 'wall', wallBase: '#1c1410', wall: ['#6f685b', '#5f594e'], wallHi: '#8f8470', frieze: '#cf6a2f' },
+  arena:      { floor: 'rock', base: '#c9b48a', shades: ['#c2ad82', '#d1bd94', '#baa57a', '#d6c39c'], crack: '#a8926c', pebble: '#ab9570',
+                border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
+// The Coliseum's floor, for practice and for fights between players.
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 30, ht: 20, secret: null,
+  obstacles: [['column', 8, 6], ['column', 21, 6], ['column', 8, 13], ['column', 21, 13]] } });
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
-  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 },
+  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 },
 });
 const ROOMS = {
   forge: { name: 'The Forge', theme: 'forgeroom', sub: 'Dion makes your gear at the anvil',
@@ -7995,6 +8022,10 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time',
+    props: [['rack', 4.5, 3.5], ['rack', 6.5, 3.5], ['armorstand', 17, 3.7, 'iron'], ['armorstand', 19, 3.7, 'bronze'], ['dummy', 17.5, 8], ['amphora', 3.6, 10.2], ['barrel', 20, 10, 'water']],
+    npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 120, y: 100 }],
+    spots: [{ id: 'dummy', name: 'the practice dummy', kind: 'practice', x: 288, y: 148 }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = 24; R.ht = 15; }
 
@@ -8018,6 +8049,16 @@ function paintRug(x, rx, ry, w, h, c1, c2) {
   x.fillStyle = c2; x.fillRect(rx + 2, ry + 2, w - 4, 1); x.fillRect(rx + 2, ry + h - 3, w - 4, 1); x.fillRect(rx + 2, ry + 2, 1, h - 4); x.fillRect(rx + w - 3, ry + 2, 1, h - 4);
   for (let px = rx + 6; px < rx + w - 6; px += 8) { x.fillRect(px, ry + Math.floor(h / 2) - 1, 3, 1); x.fillRect(px + 1, ry + Math.floor(h / 2) - 2, 1, 3); }
 }
+// The practice floor: your own gear and a dummy that never hits back, with nothing to win or lose and no room needed.
+// It doesn't fall; it just shakes off the damage. Leave from the pause menu.
+Object.assign(ENEMIES, { dummy: { name: 'Practice Dummy', role: 'dummy', cls: 'medium', sprite: 'dummy', r: 6, speed: 0, hpM: 9000, dmgP: 0, kbRes: 0, colors: ['#d9b860', '#8a5a34', '#c0412e'], loot: [] } });
+ROLES.dummy = (e, dt) => { e.vx = e.vy = e.kbx = e.kby = 0; e.stun = 0; if (e.hp < e.maxHp * .5) e.hp = e.maxHp; };
+const PRACTICE = { id: 'practice', base: 'practice', practice: true, name: 'Practice', god: 'ares', arena: 'coliseum', rank: 0, tier: 1, mt: 1, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
+function startPractice() {
+  startQuest(PRACTICE); q.phase = 'practice';
+  const d = makeEnemy('dummy', tc(15), tc(7)); d.state = 'move'; q.enemies.push(d);
+}
+function endPractice() { fadeTo(() => enterPlace('coliseum', 'practice')); }
 // Sitting down at a tavern table: you take the seat and stay there. Order from it if you like, or just walk off to get up.
 function sitAt(seat) {
   if (townPeers().some(o => dist(o, seat) < 5)) { toast('Someone is already sitting there.'); return; }
@@ -8076,6 +8117,7 @@ const PROP_ART = {
     ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 10, sy - 2, 20, 2);
   },
   chestbox(o, sx, sy) { pxEllipse(sx, sy + 1, 9, 2, 'rgba(0,0,0,.3)'); drawSpr('chest', 0, sx, sy, false); },
+  dummy(o, sx, sy) { pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)'); drawSpr('dummy', 0, sx, sy, false); },
   furnace(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 24, 3, 'rgba(0,0,0,.35)');
     ctx.fillStyle = K; ctx.fillRect(sx - 23, sy - 30, 46, 31); ctx.fillRect(sx - 7, sy - 44, 14, 15);
@@ -8189,20 +8231,25 @@ function drawEating(S, e = V.eat, p = V.player) {
 /* ============================== VILLAGE ================================== */
 // The village of Akros and the Temple of the Gods inside it. The Forge, the Tavern, Melita's Market and your home
 // are rooms you walk into (85_rooms.js); Kleon hands out the hunts in the square, with his notice board beside him.
+const VILLAGE_W = 52, VILLAGE_H = 34, VILLAGE_MID = 26;              // the street runs up the middle of this column
 const BUILDINGS = [
-  { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
-  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, goes: 'forge' },
-  { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 29, y: 8, w: 7,  h: 5, goes: 'tavern' },
-  { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 4,  y: 16, w: 6, h: 4, goes: 'market' },
-  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 30, y: 16, w: 6, h: 4, goes: 'home' },
+  { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 20.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
+  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 12, y: 4, w: 7,  h: 5, goes: 'forge' },
+  { id: 'coliseum', name: 'The Coliseum',       kind: 'coliseum', x: 4, y: 13, w: 13, h: 8, goes: 'coliseum' },
+  { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 37, y: 8, w: 7,  h: 5, goes: 'tavern' },
+  { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 12, y: 24, w: 6, h: 4, goes: 'market' },
+  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 38, y: 22, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
-  ['fountain', 20, 14], ['board', 26, 12], ['stall', 14, 18], ['stall', 26, 18], ['crate', 11, 17], ['amphora', 12, 17],
-  ['amphora', 28, 20], ['crate', 29, 21], ['olive', 5, 5], ['olive', 35, 5], ['olive', 13, 21], ['olive', 27, 22], ['olive', 6, 22], ['olive', 34, 22],
+  ['fountain', 26, 18], ['board', 31, 16], ['stall', 20, 23], ['stall', 33, 23], ['crate', 22, 24], ['amphora', 23, 24], ['amphora', 35, 24], ['crate', 36, 25], ['cart', 20, 28],
+  ['column', 8, 22], ['column', 12, 22], ['brokencol', 3, 22], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
+  ['olive', 5, 5], ['tree', 8, 8], ['olive', 4, 10], ['olive', 10, 11], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
+  ['olive', 47, 18], ['pine', 46, 21], ['olive', 5, 25], ['tree', 8, 28], ['pine', 4, 29], ['olive', 11, 30], ['olive', 17, 30], ['tree', 21, 12], ['olive', 31, 12],
+  ['olive', 32, 29], ['pine', 37, 28], ['tree', 41, 30], ['olive', 47, 27], ['rock', 15, 22], ['rock', 39, 19], ['stump', 43, 17], ['stump', 18, 11], ['rock', 28, 28],
 ];
 const NPCS = [
-  { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 28, ty: 13, opens: 'quests' },
-  { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 22, ty: 10 },
+  { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 33, ty: 17, opens: 'quests' },
+  { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 28, ty: 13 },
 ];
 const PANEL_INFO = {
   quests:  { title: 'Quests' },
@@ -8269,6 +8316,11 @@ function npcLines(n) {
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
     case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.'];
+    case 'arena': {
+      if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The dummy is free any time, if you want to try out your gear.'];
+      if (NET.room.members.length < 2) return ['You have a room, but nobody in it to fight.', 'You need at least two players. Share your room code or find another room at the Oracle, then come back.'];
+      return ['Your room is here and the sand is raked.', 'The gates aren’t open yet. Practice on the dummy until they are.'];
+    }
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
       if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between players are cut. Check your connection, then ask me again.'];
@@ -8301,13 +8353,13 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 }, gateRoad: true });
-  const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
+  const layers = genLayers('village', null, { gate: { x: VILLAGE_MID - 1, y: VILLAGE_H - 3, w: 3 }, gateRoad: true });
+  const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > VILLAGE_MID, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
     spots.push({ id: b.id + '_door', name: /^(The |Your |\S+’s )/.test(b.name) ? b.name : 'the ' + b.name, kind: 'door', goes: b.goes, ...doorAt(b) });
   }
-  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
+  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: (VILLAGE_MID - 1) * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 // Inside the temple: the twelve gods along the back wall, the side-hunt gods along the walls, Hestia's hearth in the middle.
@@ -8355,7 +8407,7 @@ function enterPlace(id, from) {
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
   const room = ROOMS[id];
-  setWorldSize(room ? room.wt : 40, room ? room.ht : 26);
+  setWorldSize(room ? room.wt : id === 'village' ? VILLAGE_W : 40, room ? room.ht : id === 'village' ? VILLAGE_H : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
@@ -8366,9 +8418,9 @@ function enterPlace(id, from) {
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
   else if (id === 'temple' || room) { p.x = room ? WORLD_W / 2 : tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
-  else if (from === 'gate' || from === 'road') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
+  else if (from === 'gate' || from === 'road') { p.x = tc(VILLAGE_MID); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
   else if (outOf) { const d = doorAt(outOf); p.x = d.x; p.y = d.y + 8; p.face = Math.PI / 2; }      // stepping out of a door
-  else { p.x = tc(20); p.y = tc(17); }
+  else { p.x = tc(VILLAGE_MID); p.y = tc(22); }
   V.player = p;
   G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   resumeVillage();
@@ -8414,6 +8466,7 @@ function startInteract(t) {
     const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'seat') sitAt(t);
+  else if (t.kind === 'practice') fadeTo(startPractice);
   else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
@@ -9683,6 +9736,7 @@ function drawBuilding(b, sx, sy) {
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 4); ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 1);
     return;
   }
+  if (b.kind === 'coliseum') { drawColiseum(b, sx, sy, W, H, t); return; }
   const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : b.kind === 'tavern' ? ['#c9b48f', '#a8926c'] : ['#e6d9bd', '#cbbd9f'];
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
   ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
@@ -9706,6 +9760,34 @@ function drawBuilding(b, sx, sy) {
     ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 3, sy + RH + 3, 6, 6); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(dx + 4, sy + RH + 5, 4, 3); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(dx + 4, sy + RH + 4, 4, 1); ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 9, sy + RH + 5, 1, 2);
     const glow = Math.floor(t * 2) % 2 ? '#e9a030' : '#d98a2b';
     for (const wx of [sx + 8, sx + W - 18]) if (Math.abs(wx - dx) >= 16) { ctx.fillStyle = glow; ctx.fillRect(wx + 1, sy + RH + 7, 8, 3); }
+  }
+}
+// The Coliseum from the front: the far rim and the sand showing over a wall of arches, red banners, and the big gate.
+function drawColiseum(b, sx, sy, W, H, t) {
+  const K = '#1a1210', mid = sx + W / 2, top = sy + 28, wallH = H - 28, gate = Math.round(sx + Math.floor(b.w / 2) * TILE + 2), n = Math.floor((W - 6) / 15);
+  pxEllipse(mid, top, W / 2 + 1, 29, K); pxEllipse(mid, top, W / 2, 28, '#b5a98f');   // the rim
+  pxEllipse(mid, top, W / 2 - 9, 22, '#8f8470'); pxEllipse(mid, top, W / 2 - 16, 18, '#a69a80'); pxEllipse(mid, top - 1, W / 2 - 30, 12, '#d9c08c');   // the seats and the sand
+  ctx.fillStyle = K; ctx.fillRect(sx - 1, top, W + 2, wallH + 1);
+  ctx.fillStyle = '#c9bda4'; ctx.fillRect(sx, top, W, wallH);
+  ctx.fillStyle = '#efe7d4'; ctx.fillRect(sx, top, W, 2); ctx.fillStyle = '#a69a80'; ctx.fillRect(sx, sy + H - 3, W, 3);
+  for (let row = 0; row < 3; row++) for (let i = 0; i < n; i++) {
+    const ax = sx + 5 + i * 15, ay = top + 6 + row * 20;
+    if (row === 2 && Math.abs(ax + 5 - (gate + 6)) < 22) continue;      // the gate takes the middle of the bottom row
+    ctx.fillStyle = K; ctx.fillRect(ax + 1, ay, 8, 1); ctx.fillRect(ax, ay + 1, 10, 15);
+    ctx.fillStyle = '#2a1e19'; ctx.fillRect(ax + 1, ay + 1, 8, 14);
+    ctx.fillStyle = '#efe7d4'; ctx.fillRect(ax + 11, ay, 2, 16);
+    if (row < 2) { ctx.fillStyle = '#a69a80'; ctx.fillRect(ax - 2, ay + 17, 15, 1); }
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(sx, top, 12, wallH); ctx.fillRect(sx + W - 12, top, 12, wallH);   // the wall curves away at both ends
+  ctx.fillStyle = K; ctx.fillRect(gate - 8, sy + H - 32, 28, 32); ctx.fillRect(gate - 6, sy + H - 34, 24, 2);
+  ctx.fillStyle = '#2a1e19'; ctx.fillRect(gate - 7, sy + H - 31, 26, 31);
+  ctx.fillStyle = '#6b4528'; for (let x = gate - 6; x < gate + 19; x += 5) ctx.fillRect(x, sy + H - 31, 1, 31);
+  ctx.fillStyle = '#6b4528'; ctx.fillRect(gate - 7, sy + H - 22, 26, 1); ctx.fillRect(gate - 7, sy + H - 12, 26, 1);
+  const wave = Math.floor(t * 4) % 2;
+  for (const fx of [sx + 24, sx + 62, mid - 1, sx + W - 64, sx + W - 26]) {
+    ctx.fillStyle = K; ctx.fillRect(fx, sy - 8, 1, 16);
+    ctx.fillStyle = '#c0412e'; ctx.fillRect(fx + 1, sy - 8, 9, 3); ctx.fillRect(fx + 1, sy - 5, 7 - wave * 2, 2);
+    ctx.fillStyle = '#e9c04f'; ctx.fillRect(fx + 1, sy - 8, 9 - wave, 1);
   }
 }
 function renderVillage() {
@@ -10086,6 +10168,18 @@ function drawGhost(gh, S) {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1', date: 'November 2026', title: 'The Coliseum and a bigger Akros',
+    new: [
+      'The Coliseum now stands in Akros. Walk in, meet Agon the Arena Master and try your gear on the practice dummy. Fights between players are coming.',
+      'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
+    ],
+    changed: [
+      'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
+      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Hammers hit a little softer. Spears hit a little harder and faster.',
+      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
+    ] },
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
       'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
@@ -10108,11 +10202,6 @@ const NEWS = [
       'Options moved to the pause menu (Esc).',
       'Online hunts need the rank and the earlier quests for them, and no gear from a higher rank. The board and the room box now say exactly what to clear or take off.',
       'Smoother on Chromebooks and older laptops: hunts take far less work to draw, and the music is made ahead instead of note by note.',
-      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. He also drops fewer healing charms when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
-      'Hammers hit a little softer. Spears hit a little harder and faster.',
-      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
-      'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
       '“Low Rank” is now called Normal Rank.',
       'Online saves are checked by the server. A save that couldn’t come from real play isn’t stored online (it stays on your device).',
       'Shorter, clearer multiplayer messages. The room code shows in one place.',
@@ -10855,10 +10944,10 @@ function setPaused(v) {
   G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
-  const road = !!(inQuest && q && q.def.prologue);
-  $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
-  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
-  $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
+  const road = !!(inQuest && q && q.def.prologue), prac = !!(inQuest && q && q.def.practice);
+  $('btnAbandon').textContent = road ? 'Skip the tutorial' : prac ? 'Leave practice' : 'Abandon quest';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : prac ? 'Head back to the Coliseum?' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
+  $('btnAbandonYes').textContent = road ? 'Go to the village' : prac ? 'Leave practice' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = fsEl() ? 'Exit fullscreen' : 'Fullscreen';
@@ -10873,7 +10962,7 @@ $('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound;
 $('btnPauseMusic').onclick = () => { Settings.data.music = Settings.data.music === false; Settings.save(); Music.refresh(); $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off'); Sound.play('click'); };
 $('btnAbandon').onclick = () => { $('pauseMain').hidden = true; $('pauseConfirm').hidden = false; $('btnAbandonNo').focus(); };
 $('btnAbandonNo').onclick = () => { $('pauseMain').hidden = false; $('pauseConfirm').hidden = true; };
-$('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else finishQuest(false); };
+$('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else if (q && q.def.practice) endPractice(); else finishQuest(false); };
 $('btnPauseOptions').onclick = () => { G.paused = false; $('pause').hidden = true; openPanel('options'); };
 $('btnQuit').onclick = () => { G.paused = false; $('pause').hidden = true; persist(true); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('tPause').onclick = () => setPaused(true);
@@ -11181,7 +11270,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter,
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
