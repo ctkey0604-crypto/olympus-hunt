@@ -90,7 +90,7 @@ const THEMES = {
                border: 'wall', wallBase: '#8d8a80', wall: ['#b3afa3', '#a4a094'], wallHi: '#c9c5b9', frieze: '#4f8fc7' },
   summit:    { floor: 'marble', light: '#f0e8d3', dark: '#e4d8b8', fleck: ['#eae0c6', '#d9cca8'], grout: '#c9a958', crack: '#c9b98f', cracks: .04, medallion: ['#a8842a', '#4f8fc7'],
                border: 'clouds', weather: 'storm' },
-  village:   { floor: 'grass', base: '#6a8c3c', shades: ['#5e7d35', '#79a046', '#53702f'], flowers: 160, plaza: true,
+  village:   { floor: 'grass', base: '#6a8c3c', shades: ['#5e7d35', '#79a046', '#53702f'], flowers: 300, plaza: true,
                border: 'drystone', stoneBase: '#4f4a40', stone: ['#a39b8b', '#b8b0a0', '#8f8778', '#aca494'], stoneHi: '#d4cdbd' },
   hall:      { floor: 'marble', light: '#e6dcc6', dark: '#d8ccb2', fleck: ['#ded3bb', '#cbbfa5'], grout: '#b0a48a', crack: '#9c9078', cracks: .05, medallion: ['#3a2416', '#cf6a2f'], runner: '#8f2a1c',
                border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#cf6a2f' },
@@ -248,14 +248,30 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
   }
   if (T.stars) for (let i = 0; i < T.stars; i++) { const px = R() * W, py = R() * H, c = R() < .15 ? '#ffd463' : R() < .5 ? '#ffffff' : '#9fb8d8'; dot(px, py, c); if (R() < .08) { dot(px - 1, py, c); dot(px + 1, py, c); dot(px, py - 1, c); dot(px, py + 1, c); } }
 }
-// Village paths: plaza around the fountain and roads to every door and the gate.
+// Village paths: a plaza around the fountain and winding roads out to every door and the gate.
+// Each road: its width, then points it curves through.
+const ROADS = [
+  [40, [424, 138], [424, 210], [420, 300], [428, 400], [424, 480], [424, 560]],                   // the main street, from the Temple to the gate
+  [24, [248, 150], [258, 182], [300, 206], [352, 232], [392, 262]],                               // up to the Forge
+  [28, [168, 340], [186, 368], [250, 366], [310, 332], [362, 306]],                               // out to the Coliseum
+  [22, [308, 338], [318, 400], [304, 454], [272, 468], [248, 456]],                               // round to the Market's door
+  [24, [648, 214], [640, 240], [590, 262], [540, 282], [498, 294]],                               // across to the Tavern
+  [22, [490, 340], [540, 392], [600, 438], [640, 446], [664, 424]],                               // down to your home
+];
+// The roads as a list of closely spaced points, curved through the ones above (each point: x, y, half width).
+const ROAD_DOTS = [];
+for (const [w, ...P] of ROADS) for (let i = 0; i < P.length - 1; i++) {
+  const a = P[Math.max(0, i - 1)], b = P[i], c = P[i + 1], d = P[Math.min(P.length - 1, i + 2)], n = Math.ceil(Math.hypot(c[0] - b[0], c[1] - b[1]) / 8);
+  for (let k = 0; k < n; k++) {
+    const t = k / n, cr = (p0, p1, p2, p3) => .5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
+    ROAD_DOTS.push([cr(a[0], b[0], c[0], d[0]), cr(a[1], b[1], c[1], d[1]), w / 2]);
+  }
+}
 function isPath(px, py) {
-  const dx = (px - 328) / 112, dy = (py - 240) / 74;
-  if (dx * dx + dy * dy < 1) return true;
-  if (px >= 304 && px < 352 && py > 120) return true;          // the main street
-  if (py > 200 && py < 238 && px > 100 && px < 560) return true;
-  if (px > 102 && px < 138 && py > 200 && py < 336) return true;
-  if (px > 518 && px < 554 && py > 200 && py < 336) return true;
+  const ang = Math.atan2(py - 304, px - 424), dx = (px - 424) / 124, dy = (py - 304) / 82;
+  if (dx * dx + dy * dy < 1 + .1 * Math.sin(ang * 5) + .06 * Math.sin(ang * 3 + 1)) return true;
+  const edge = Math.sin(px * .07 + py * .05) * 2 + Math.sin(py * .13) * 1.5;                       // no straight edges
+  for (const [x, y, r] of ROAD_DOTS) { const D = r + edge, ax = px - x, ay = py - y; if (ax * ax + ay * ay < D * D) return true; }
   return false;
 }
 function paintCobbles(x, R) {

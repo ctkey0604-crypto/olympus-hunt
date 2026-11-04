@@ -1,20 +1,25 @@
 /* ============================== VILLAGE ================================== */
 // The village of Akros and the Temple of the Gods inside it. The Forge, the Tavern, Melita's Market and your home
 // are rooms you walk into (85_rooms.js); Kleon hands out the hunts in the square, with his notice board beside him.
+const VILLAGE_W = 52, VILLAGE_H = 34, VILLAGE_MID = 26;              // the street runs up the middle of this column
 const BUILDINGS = [
-  { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 14.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
-  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 4,  y: 8, w: 7,  h: 5, goes: 'forge' },
-  { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 29, y: 8, w: 7,  h: 5, goes: 'tavern' },
-  { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 4,  y: 16, w: 6, h: 4, goes: 'market' },
-  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 30, y: 16, w: 6, h: 4, goes: 'home' },
+  { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 20.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
+  { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 12, y: 4, w: 7,  h: 5, goes: 'forge' },
+  { id: 'coliseum', name: 'The Coliseum',       kind: 'coliseum', x: 4, y: 13, w: 13, h: 8, goes: 'coliseum' },
+  { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 37, y: 8, w: 7,  h: 5, goes: 'tavern' },
+  { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 12, y: 24, w: 6, h: 4, goes: 'market' },
+  { id: 'home',   name: 'Your Home',            kind: 'home',   x: 38, y: 22, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
-  ['fountain', 20, 14], ['board', 26, 12], ['stall', 14, 18], ['stall', 26, 18], ['crate', 11, 17], ['amphora', 12, 17],
-  ['amphora', 28, 20], ['crate', 29, 21], ['olive', 5, 5], ['olive', 35, 5], ['olive', 13, 21], ['olive', 27, 22], ['olive', 6, 22], ['olive', 34, 22],
+  ['fountain', 26, 18], ['board', 31, 16], ['stall', 20, 23], ['stall', 33, 23], ['crate', 22, 24], ['amphora', 23, 24], ['amphora', 35, 24], ['crate', 36, 25], ['cart', 20, 28],
+  ['column', 8, 22], ['column', 12, 22], ['brokencol', 3, 22], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
+  ['olive', 5, 5], ['tree', 8, 8], ['olive', 4, 10], ['olive', 10, 11], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
+  ['olive', 47, 18], ['pine', 46, 21], ['olive', 5, 25], ['tree', 8, 28], ['pine', 4, 29], ['olive', 11, 30], ['olive', 17, 30], ['tree', 21, 12], ['olive', 31, 12],
+  ['olive', 32, 29], ['pine', 37, 28], ['tree', 41, 30], ['olive', 47, 27], ['rock', 15, 22], ['rock', 39, 19], ['stump', 43, 17], ['stump', 18, 11], ['rock', 28, 28],
 ];
 const NPCS = [
-  { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 28, ty: 13, opens: 'quests' },
-  { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 22, ty: 10 },
+  { id: 'herald', name: 'Kleon the Herald', sprite: 'herald', tx: 33, ty: 17, opens: 'quests' },
+  { id: 'oracle', name: 'The Oracle',       sprite: 'oracle', tx: 28, ty: 13 },
 ];
 const PANEL_INFO = {
   quests:  { title: 'Quests' },
@@ -81,6 +86,11 @@ function npcLines(n) {
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
     case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.'];
+    case 'arena': {
+      if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The dummy is free any time, if you want to try out your gear.'];
+      if (NET.room.members.length < 2) return ['You have a room, but nobody in it to fight.', 'You need at least two players. Share your room code or find another room at the Oracle, then come back.'];
+      return ['Your room is here and the sand is raked.', 'The gates aren’t open yet. Practice on the dummy until they are.'];
+    }
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
       if (Store.api && !G.oracleHints && navigator.onLine === false) return ['The threads between players are cut. Check your connection, then ask me again.'];
@@ -113,13 +123,13 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: 19, y: 23, w: 3 }, gateRoad: true });
-  const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > 20, walkT: 0, moving: false, talkT: 0 }));
+  const layers = genLayers('village', null, { gate: { x: VILLAGE_MID - 1, y: VILLAGE_H - 3, w: 3 }, gateRoad: true });
+  const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > VILLAGE_MID, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
     spots.push({ id: b.id + '_door', name: /^(The |Your |\S+’s )/.test(b.name) ? b.name : 'the ' + b.name, kind: 'door', goes: b.goes, ...doorAt(b) });
   }
-  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: 19 * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
+  return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: (VILLAGE_MID - 1) * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
            ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 // Inside the temple: the twelve gods along the back wall, the side-hunt gods along the walls, Hestia's hearth in the middle.
@@ -167,7 +177,7 @@ function enterPlace(id, from) {
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
   const room = ROOMS[id];
-  setWorldSize(room ? room.wt : 40, room ? room.ht : 26);
+  setWorldSize(room ? room.wt : id === 'village' ? VILLAGE_W : 40, room ? room.ht : id === 'village' ? VILLAGE_H : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
@@ -178,9 +188,9 @@ function enterPlace(id, from) {
   if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
   else if (id === 'temple' || room) { p.x = room ? WORLD_W / 2 : tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
-  else if (from === 'gate' || from === 'road') { p.x = tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
+  else if (from === 'gate' || from === 'road') { p.x = tc(VILLAGE_MID); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
   else if (outOf) { const d = doorAt(outOf); p.x = d.x; p.y = d.y + 8; p.face = Math.PI / 2; }      // stepping out of a door
-  else { p.x = tc(20); p.y = tc(17); }
+  else { p.x = tc(VILLAGE_MID); p.y = tc(22); }
   V.player = p;
   G.cam.x = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(p.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   resumeVillage();
@@ -226,6 +236,7 @@ function startInteract(t) {
     const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'seat') sitAt(t);
+  else if (t.kind === 'practice') fadeTo(startPractice);
   else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }

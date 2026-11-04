@@ -27,6 +27,9 @@ const SPRITE_DATA = {
      '...ssssss....', '....SsssS....', '..wwwwwww....', '.swwwwwwws...', '.swwbbbwws...', '..wwyyyww.s..', '..wwwwwww....',
      '..wwbbbbw....', '...ss.ss.....', '..wnn.wnn....', '...n...n.....'],
     { from: 0, rows: ['.............', 'w...yyyyy...w', 'wwwyyyyyyywww'] }],
+  dummy: [
+    ['...OOOO...', '..OooooO..', '..OookoO..', '..OooooO..', '...OooO...', 'NNNNnnNNNN', 'NnnooooonN', '...oooo...', '...orro...', '...orro...', '...oooo...', '....nn....', '....nn....', '....nn....', '...NnnN...'],
+    { from: 0, rows: ['...OOOO...'] }],
   owl: [
     ['H........H', 'hH.HhhH.Hh', '.hhHhhHhh.', '..hywwyh..', '..hkyykh..', '...hooh...', '...hWWh...', '....hh....', '....yy....'],
     { from: 0, rows: ['..........', '...HhhH...', 'HhhHhhHhhH'] }],
@@ -209,6 +212,7 @@ const NPC_BASES = {
 };
 const NPC_LOOKS = {
   smith:     { base: 'manBeard', pal: { a: '#2e211b', c: '#6b4528', C: '#4e321d', d: '#9aa0a6' } },
+  arena:     { base: 'manBeard', pal: { a: '#3a2416', c: '#a8301f', C: '#6b1c12', d: '#e9c04f' } },
   herald:    { base: 'man',      pal: { a: '#5a3a22', c: '#4f8fc7', C: '#2c5684', d: '#e9c04f' } },
   keeper:    { base: 'woman',    pal: { a: '#7fa548', c: '#a39a5c', C: '#7d7546', d: '#e9c04f' } },
   oracle:    { base: 'woman',    pal: { a: '#4a2f63', c: '#7a4f9c', C: '#4a2f63', d: '#e9c04f' } },

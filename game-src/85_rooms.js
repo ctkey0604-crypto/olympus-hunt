@@ -12,11 +12,16 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#2e2018', wall: ['#e6d9bd', '#d8caac'], wallHi: '#f3ecdb', frieze: '#5b8fc9' },
   forgeroom:  { floor: 'marble', light: '#5a5048', dark: '#4e4540', fleck: ['#625850', '#463e38'], grout: '#2e2824', crack: '#2a221e', cracks: .2,
                 border: 'wall', wallBase: '#1c1410', wall: ['#6f685b', '#5f594e'], wallHi: '#8f8470', frieze: '#cf6a2f' },
+  arena:      { floor: 'rock', base: '#c9b48a', shades: ['#c2ad82', '#d1bd94', '#baa57a', '#d6c39c'], crack: '#a8926c', pebble: '#ab9570',
+                border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
+// The Coliseum's floor, for practice and for fights between players.
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 30, ht: 20, secret: null,
+  obstacles: [['column', 8, 6], ['column', 21, 6], ['column', 8, 13], ['column', 21, 13]] } });
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
-  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 },
+  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 },
 });
 const ROOMS = {
   forge: { name: 'The Forge', theme: 'forgeroom', sub: 'Dion makes your gear at the anvil',
@@ -40,6 +45,10 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time',
+    props: [['rack', 4.5, 3.5], ['rack', 6.5, 3.5], ['armorstand', 17, 3.7, 'iron'], ['armorstand', 19, 3.7, 'bronze'], ['dummy', 17.5, 8], ['amphora', 3.6, 10.2], ['barrel', 20, 10, 'water']],
+    npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 120, y: 100 }],
+    spots: [{ id: 'dummy', name: 'the practice dummy', kind: 'practice', x: 288, y: 148 }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = 24; R.ht = 15; }
 
@@ -63,6 +72,16 @@ function paintRug(x, rx, ry, w, h, c1, c2) {
   x.fillStyle = c2; x.fillRect(rx + 2, ry + 2, w - 4, 1); x.fillRect(rx + 2, ry + h - 3, w - 4, 1); x.fillRect(rx + 2, ry + 2, 1, h - 4); x.fillRect(rx + w - 3, ry + 2, 1, h - 4);
   for (let px = rx + 6; px < rx + w - 6; px += 8) { x.fillRect(px, ry + Math.floor(h / 2) - 1, 3, 1); x.fillRect(px + 1, ry + Math.floor(h / 2) - 2, 1, 3); }
 }
+// The practice floor: your own gear and a dummy that never hits back, with nothing to win or lose and no room needed.
+// It doesn't fall; it just shakes off the damage. Leave from the pause menu.
+Object.assign(ENEMIES, { dummy: { name: 'Practice Dummy', role: 'dummy', cls: 'medium', sprite: 'dummy', r: 6, speed: 0, hpM: 9000, dmgP: 0, kbRes: 0, colors: ['#d9b860', '#8a5a34', '#c0412e'], loot: [] } });
+ROLES.dummy = (e, dt) => { e.vx = e.vy = e.kbx = e.kby = 0; e.stun = 0; if (e.hp < e.maxHp * .5) e.hp = e.maxHp; };
+const PRACTICE = { id: 'practice', base: 'practice', practice: true, name: 'Practice', god: 'ares', arena: 'coliseum', rank: 0, tier: 1, mt: 1, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
+function startPractice() {
+  startQuest(PRACTICE); q.phase = 'practice';
+  const d = makeEnemy('dummy', tc(15), tc(7)); d.state = 'move'; q.enemies.push(d);
+}
+function endPractice() { fadeTo(() => enterPlace('coliseum', 'practice')); }
 // Sitting down at a tavern table: you take the seat and stay there. Order from it if you like, or just walk off to get up.
 function sitAt(seat) {
   if (townPeers().some(o => dist(o, seat) < 5)) { toast('Someone is already sitting there.'); return; }
@@ -121,6 +140,7 @@ const PROP_ART = {
     ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx - 10, sy - 2, 20, 2);
   },
   chestbox(o, sx, sy) { pxEllipse(sx, sy + 1, 9, 2, 'rgba(0,0,0,.3)'); drawSpr('chest', 0, sx, sy, false); },
+  dummy(o, sx, sy) { pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)'); drawSpr('dummy', 0, sx, sy, false); },
   furnace(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 24, 3, 'rgba(0,0,0,.35)');
     ctx.fillStyle = K; ctx.fillRect(sx - 23, sy - 30, 46, 31); ctx.fillRect(sx - 7, sy - 44, 14, 15);

@@ -561,6 +561,7 @@ function drawBuilding(b, sx, sy) {
     ctx.fillStyle = '#b5a98f'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 4); ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx - 2, sy + H - 4, W + 4, 1);
     return;
   }
+  if (b.kind === 'coliseum') { drawColiseum(b, sx, sy, W, H, t); return; }
   const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : b.kind === 'tavern' ? ['#c9b48f', '#a8926c'] : ['#e6d9bd', '#cbbd9f'];
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
   ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
@@ -584,6 +585,34 @@ function drawBuilding(b, sx, sy) {
     ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 3, sy + RH + 3, 6, 6); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(dx + 4, sy + RH + 5, 4, 3); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(dx + 4, sy + RH + 4, 4, 1); ctx.fillStyle = '#1a1210'; ctx.fillRect(dx + 9, sy + RH + 5, 1, 2);
     const glow = Math.floor(t * 2) % 2 ? '#e9a030' : '#d98a2b';
     for (const wx of [sx + 8, sx + W - 18]) if (Math.abs(wx - dx) >= 16) { ctx.fillStyle = glow; ctx.fillRect(wx + 1, sy + RH + 7, 8, 3); }
+  }
+}
+// The Coliseum from the front: the far rim and the sand showing over a wall of arches, red banners, and the big gate.
+function drawColiseum(b, sx, sy, W, H, t) {
+  const K = '#1a1210', mid = sx + W / 2, top = sy + 28, wallH = H - 28, gate = Math.round(sx + Math.floor(b.w / 2) * TILE + 2), n = Math.floor((W - 6) / 15);
+  pxEllipse(mid, top, W / 2 + 1, 29, K); pxEllipse(mid, top, W / 2, 28, '#b5a98f');   // the rim
+  pxEllipse(mid, top, W / 2 - 9, 22, '#8f8470'); pxEllipse(mid, top, W / 2 - 16, 18, '#a69a80'); pxEllipse(mid, top - 1, W / 2 - 30, 12, '#d9c08c');   // the seats and the sand
+  ctx.fillStyle = K; ctx.fillRect(sx - 1, top, W + 2, wallH + 1);
+  ctx.fillStyle = '#c9bda4'; ctx.fillRect(sx, top, W, wallH);
+  ctx.fillStyle = '#efe7d4'; ctx.fillRect(sx, top, W, 2); ctx.fillStyle = '#a69a80'; ctx.fillRect(sx, sy + H - 3, W, 3);
+  for (let row = 0; row < 3; row++) for (let i = 0; i < n; i++) {
+    const ax = sx + 5 + i * 15, ay = top + 6 + row * 20;
+    if (row === 2 && Math.abs(ax + 5 - (gate + 6)) < 22) continue;      // the gate takes the middle of the bottom row
+    ctx.fillStyle = K; ctx.fillRect(ax + 1, ay, 8, 1); ctx.fillRect(ax, ay + 1, 10, 15);
+    ctx.fillStyle = '#2a1e19'; ctx.fillRect(ax + 1, ay + 1, 8, 14);
+    ctx.fillStyle = '#efe7d4'; ctx.fillRect(ax + 11, ay, 2, 16);
+    if (row < 2) { ctx.fillStyle = '#a69a80'; ctx.fillRect(ax - 2, ay + 17, 15, 1); }
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(sx, top, 12, wallH); ctx.fillRect(sx + W - 12, top, 12, wallH);   // the wall curves away at both ends
+  ctx.fillStyle = K; ctx.fillRect(gate - 8, sy + H - 32, 28, 32); ctx.fillRect(gate - 6, sy + H - 34, 24, 2);
+  ctx.fillStyle = '#2a1e19'; ctx.fillRect(gate - 7, sy + H - 31, 26, 31);
+  ctx.fillStyle = '#6b4528'; for (let x = gate - 6; x < gate + 19; x += 5) ctx.fillRect(x, sy + H - 31, 1, 31);
+  ctx.fillStyle = '#6b4528'; ctx.fillRect(gate - 7, sy + H - 22, 26, 1); ctx.fillRect(gate - 7, sy + H - 12, 26, 1);
+  const wave = Math.floor(t * 4) % 2;
+  for (const fx of [sx + 24, sx + 62, mid - 1, sx + W - 64, sx + W - 26]) {
+    ctx.fillStyle = K; ctx.fillRect(fx, sy - 8, 1, 16);
+    ctx.fillStyle = '#c0412e'; ctx.fillRect(fx + 1, sy - 8, 9, 3); ctx.fillRect(fx + 1, sy - 5, 7 - wave * 2, 2);
+    ctx.fillStyle = '#e9c04f'; ctx.fillRect(fx + 1, sy - 8, 9 - wave, 1);
   }
 }
 function renderVillage() {

@@ -711,10 +711,10 @@ function setPaused(v) {
   G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
-  const road = !!(inQuest && q && q.def.prologue);
-  $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
-  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
-  $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
+  const road = !!(inQuest && q && q.def.prologue), prac = !!(inQuest && q && q.def.practice);
+  $('btnAbandon').textContent = road ? 'Skip the tutorial' : prac ? 'Leave practice' : 'Abandon quest';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : prac ? 'Head back to the Coliseum?' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
+  $('btnAbandonYes').textContent = road ? 'Go to the village' : prac ? 'Leave practice' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = fsEl() ? 'Exit fullscreen' : 'Fullscreen';
@@ -729,7 +729,7 @@ $('btnPauseSound').onclick = () => { Settings.data.sound = !Settings.data.sound;
 $('btnPauseMusic').onclick = () => { Settings.data.music = Settings.data.music === false; Settings.save(); Music.refresh(); $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off'); Sound.play('click'); };
 $('btnAbandon').onclick = () => { $('pauseMain').hidden = true; $('pauseConfirm').hidden = false; $('btnAbandonNo').focus(); };
 $('btnAbandonNo').onclick = () => { $('pauseMain').hidden = false; $('pauseConfirm').hidden = true; };
-$('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else finishQuest(false); };
+$('btnAbandonYes').onclick = () => { G.paused = false; $('pause').hidden = true; if (q && q.def.prologue) proFinish(true); else if (q && q.def.practice) endPractice(); else finishQuest(false); };
 $('btnPauseOptions').onclick = () => { G.paused = false; $('pause').hidden = true; openPanel('options'); };
 $('btnQuit').onclick = () => { G.paused = false; $('pause').hidden = true; persist(true); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('tPause').onclick = () => setPaused(true);
@@ -1037,7 +1037,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter,
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)

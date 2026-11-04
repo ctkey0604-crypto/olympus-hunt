@@ -356,7 +356,7 @@ function netDepart(m) {
   const host = m.from, order = [host, ...m.ids.filter(i => i !== host)];
   const roster = order.map((id, hid) => { const mem = netMember(id) || {}; return { id, hid, name: mem.name || 'Player', gear: mem.gear || null }; });
   if (!order.includes(NET.me)) { toast('The party set off without you. They’ll be back.'); return; }
-  if (q) return;
+  if (q && !q.def.practice) return;
   NET.runner = host; closeDialog();
   if (NET.me === host) { G.netParty = roster; fadeTo(() => startQuest(m.quest.id)); }
   else fadeTo(() => startQuest(m.quest.id, { guest: roster }));

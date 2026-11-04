@@ -220,7 +220,7 @@ function shieldBash(p) {
 function drinkPotion(id, p = q && q.player) {
   const s = p && p.save || G.save, P = POTIONS[id];
   if (!p || p.dead || q.phase === 'victory' || p.potionCd > 0) return;
-  if (!(s.potions[id] > 0)) { Sound.play('clink'); return; }
+  if (!(s.potions[id] > 0) || q.def.practice) { Sound.play('clink'); return; }
   if (id === 'health' && p.hp >= p.st.maxHp) { addText(p.x, p.y - 20, '+0', '#9bbb55'); return; }
   s.potions[id]--; p.potionCd = .4; Sound.play(id === 'health' ? 'heal' : 'ability');
   if (id === 'health') healHunter(p, Math.round(p.st.maxHp * .4));

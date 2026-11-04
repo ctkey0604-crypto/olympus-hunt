@@ -71,6 +71,8 @@ const Music = (() => {
                 A: '5:2 1\':2 7:2 5:2 6:4 5:4 | 4:2 5:2 6:2 4:2 3:8 | 2:2 3:2 4:2 6:2 5:2 4:2 3:2 2:2 | 1:4 3:4 5:8', E: '2:4 7,:4 1:8' }),
     room_forge:  T({ key: 'E', mode: 'dor', bpm: 108, prog: '1 1 7 1 3 4 7 1', progB: '4 4 1 1 4 4 7 7', bass: 'drive', drums: 'anvil', arp: 'broken8',
                 A: '1:4 1:2 3:2 4:4 3:2 1:2 | 7,:4 1:2 2:2 1:8 | 3:4 3:2 5:2 6:4 5:2 3:2 | 4:4 3:4 2:8', E: '2:4 7,:4 1:8' }),
+    room_coliseum: T({ key: 'A', mode: 'dor', bpm: 132, prog: '1 1 6 7 1 1 4 5', progB: '4 4 1 1 6 7 1 1', bass: 'drive', drums: 'dance', arp: 'broken8',
+                A: '1:4 1:2 5:2 7:4 5:4 | 6:4 5:2 3:2 5:8 | 1\':4 7:2 5:2 6:4 5:2 3:2 | 2:4 3:4 1:8', E: '7,:4 2:4 1:8' }),
     room_home:   T({ key: 'Bb', mode: 'ion', bpm: 76, prog: '1 6 4 5 1 6 4 1', progB: '4 5 3 6 2 5 1 1', bass: 'walk', drums: 'soft', arp: 'updown', duty: .125, echo: true,
                 A: '3:4 5:4 1\':6 7:2 | 6:4 5:4 3:8 | 4:4 6:4 5:4 3:4 | 2:12 -:4', E: '3:4 2:4 1:8' }),
     // shared hunt music: every hunt that isn't a god or a Titan fight
