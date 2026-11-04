@@ -4439,9 +4439,13 @@ function updateHunters(dt) {
 // Messages (JSON, small): guest -> host 'up' (20 a second): its hunter, actions, hits, claims, shots, visuals.
 // host -> everyone 'down' (15 a second): changes to monsters, shots, ground marks, pickups, hunters, plus visual events.
 // host -> one guest 'self': damage taken, heals, revives and effects meant only for that guest's hunter.
+// A connection that drops isn't the end: the room holds your place and your game gets back in on its own (netReconnect), then
+// the host sends everything once (a full snapshot). If the player running the hunt never comes back, the room names another
+// player and their game takes over (netTakeOver).
 const NET = { ws: null, room: null, me: 0, code: '', ping: 0, pingAt: 0, peers: {}, peerObj: {},
               rec: null, replay: false, personal: 0, townT: 0, townLast: '', upT: 0, downT: 0, seq: 0, sent: null,
-              out: null, uiT: 0, pingT: 0, infoKey: '', chat: [], chatOpen: false, gone: new Set() };
+              out: null, uiT: 0, pingT: 0, infoKey: '', chat: [], chatOpen: false, gone: new Set(),
+              re: null, reId: 0, runner: 0, inAt: 0, frameAt: 0, downAt: 0, stall: false, stallT: 0, full: false, flowKey: '' };
 const netOn = () => !!(NET.ws && NET.room);
 const netHost = () => netOn() && NET.room.host === NET.room.me;
 const netMember = id => NET.room && NET.room.members.find(m => m.id === id);
@@ -4465,32 +4469,79 @@ async function netJoinRoom(code) {
 }
 // The host can rename the room; the name shows in the room list and at the Oracle.
 const ROOM_NAME_MAX = 24;
-const roomName = R => R.name || ((R.members.find(m => m.id === R.host) || {}).name || 'A') + '’s room';
+const netName = id => { const R = NET.room, m = R && [...R.members, ...(R.away || [])].find(x => x.id === id); return m ? m.name : ''; };
+const roomName = R => R.name || (netName(R.host) || 'A') + '’s room';
 function netRename(name) { name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, ROOM_NAME_MAX); if (name && netHost()) netSend({ t: 'name', name }); }
-function netConnect(code, ticket) {
-  netLeave(true);
+// re: getting back in after a drop (netReconnect), as the player you were.
+function netConnect(code, ticket, re = null) {
+  if (!re) netLeave(true);
   return new Promise((res, rej) => {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/rooms/${code}/ws?ticket=${encodeURIComponent(ticket)}`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/rooms/${code}/ws?ticket=${encodeURIComponent(ticket)}${re ? '&re=' + re.id : ''}`);
     let done = false;
-    const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { ws.close(); } catch (e) {} rej(new Error(msg)); };
+    const fail = msg => { if (done) return; done = true; clearTimeout(timer); try { ws.close(1000, 'left'); } catch (e) {} rej(new Error(msg)); };
     const timer = setTimeout(() => fail('The room didn’t answer. Check your connection.'), 8000);
-    ws.onopen = () => { if (done) return; done = true; clearTimeout(timer); NET.ws = ws; NET.code = code; NET.peers = {}; NET.peerObj = {}; NET.infoKey = ''; NET.chat = []; NET.gone.clear(); netChatRender(); netSendInfo(); netPing(); res(); };
-    ws.onmessage = ev => { if (ws === NET.ws) netMessage(ev.data); };
+    ws.onopen = () => {
+      if (done) return; done = true; clearTimeout(timer);
+      if (re && NET.re !== re) { try { ws.close(1000, 'left'); } catch (e) {} res(); return; }   // you left while it was connecting
+      NET.ws = ws; NET.code = code; NET.infoKey = ''; NET.inAt = performance.now();
+      if (re) { NET.re = null; NET.reId = re.id; }
+      else { NET.peers = {}; NET.peerObj = {}; NET.chat = []; NET.gone.clear(); netChatRender(); }
+      netSendInfo(); netPing(); res();
+    };
+    ws.onmessage = ev => { if (ws === NET.ws) { NET.inAt = performance.now(); netMessage(ev.data); } };
     ws.onclose = ev => { if (!done) fail('Couldn’t join that room. It may be full or closed.'); else if (ws === NET.ws) netClosed(ev); };
   });
 }
 function netLeave(quiet) {
   const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0;
+  if (NET.re) clearTimeout(NET.re.timer); NET.re = null; NET.reId = 0;
   if (ws) try { ws.close(1000, 'left'); } catch (e) {}
   netChatClose();
   if (!quiet) netUi();
 }
+// The connection went. Kicked, or replaced by another tab: that's final. Anything else: try to get back in.
 function netClosed(ev) {
-  const had = !!NET.room; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {};
+  const code = ev && ev.code; NET.ws = null;
+  if (NET.room && code !== 4001 && code !== 4002) netReconnect(); else netDropped(code);
+}
+// Out of the room for good.
+function netDropped(code) {
+  const had = !!NET.room; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.re = null;
   if (q && q.net) netHuntLost(q.net === 'guest' ? 'Lost the connection to the room' : null);
-  if (had) toast(ev && ev.code === 4001 ? 'You joined that room from another tab.' : ev && ev.code === 4002 ? 'The host removed you from the room.' : 'You’re no longer in the room. Check your connection.');
+  if (had) toast(code === 4001 ? 'You joined that room from another tab.' : code === 4002 ? 'The host removed you from the room.' : 'You’re no longer in the room. Check your connection.');
   netChatClose(); netUi();
   if (G.mode === 'panel' && G.panel === 'oracle') renderHub();
+}
+// The room holds your place for 20 s. Your hunt keeps running meanwhile: you keep moving, the monsters wait for the next snapshot.
+const NET_RE_MS = 20000, NET_DEAD_MS = 8000;
+function netReconnect() {
+  NET.peers = {}; NET.peerObj = {}; netChatClose();
+  NET.re = { code: NET.code, id: NET.room.me, until: performance.now() + NET_RE_MS, timer: 0 };
+  netUi(); netRetry(NET.re);
+}
+async function netRetry(re) {
+  if (NET.re !== re) return;
+  if (performance.now() > re.until) { netDropped(); return; }
+  try {
+    const d = await Store.call('POST', `rooms/${re.code}/ticket`);
+    if (NET.re === re) await netConnect(re.code, d.ticket, re);
+  } catch (e) {
+    if (NET.re !== re) return;
+    if (e.status >= 400 && e.status < 500 && e.status !== 429) { netDropped(); return; }   // the room closed, or it won't have you back
+    re.timer = setTimeout(() => netRetry(re), 2000);
+  }
+}
+// Back in the room. The same player, still on the hunt: carry on. Otherwise the hunt went on without you.
+function netRejoined(m, old) {
+  if (!q || !q.net) return;
+  const me = m.members.find(x => x.id === m.me), on = m.me === old && m.phase === 'hunt' && !!me && me.hunt, runner = m.runner ?? m.host;
+  if (q.net === 'host') {
+    if (on && runner === m.me) netResync(); else netHuntLost('The party went on without you. Your hunt carries on here.');
+    return;
+  }
+  if (!on) { netHuntLost('Lost the connection to the hunt'); return; }
+  if (runner !== NET.runner) { netHunterLeft(netHunter(NET.runner)); NET.runner = runner; }   // someone took over while you were gone
+  NET.downAt = performance.now();
 }
 function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
 setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a hidden tab draws no frames: keep telling the room you're there
@@ -4505,7 +4556,7 @@ function netSendInfo() {
   const R = NET.room, qd = R && R.quest && R.phase === 'town' && QUEST_BY_ID[R.quest.id], why = (qd && netWhyNot(qd, true)) || null;
   const gear = myGear(), key = JSON.stringify(gear) + G.save.rank + why;
   if (key !== NET.infoKey) {
-    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank, why });
+    NET.infoKey = key; netSend({ t: 'info', gear, rank: G.save.rank, why, cap: 1 });
     // changed into gear the posted quest doesn't allow: you're not ready any more
     const me = R && R.members.find(m => m.id === R.me);
     if (why && me && me.ready && R.me !== netPoster(R)) { netSend({ t: 'ready', v: false }); toast(netWhyNot(qd), 7000); }
@@ -4554,16 +4605,20 @@ function netMessage(data) {
     case 'self': if (q && q.net === 'guest') netSelf(m); break;
     case 'up': if (q && q.net === 'host') netUp(m); break;
     case 'gone': if (q && q.net === 'host') netGone(m.from); break;
+    case 'away': if (q && q.net === 'host') netAway(m.id); if (q && q.net) netChatAdd({ sys: `${m.name} lost connection.` }); break;
+    case 'back': if (q && q.net === 'host') netBack(m.from); break;
+    case 'runner': netRunner(m); break;
     case 'hostleft': if (q && q.net === 'guest') netHuntLost('The party leader left the room'); else toast('The party leader left.'); break;
     case 'chat': netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('click'); break;
     case 'kick': NET.gone.add(m.id); netChatAdd({ sys: `${m.name} was removed from the room.` }); break;
   }
 }
 function netRoom(m) {
-  const was = NET.room; NET.room = m; NET.me = m.me;
-  if (was) {                                                         // who came and went, for the chat
-    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) netChatAdd({ sys: `${x.name} joined.` });
-    for (const y of was.members) if (!m.members.some(x => x.id === y.id) && !NET.gone.delete(y.id)) netChatAdd({ sys: `${y.name} left.` });
+  const was = NET.room, reId = NET.reId, held = l => r => (l.away || []).some(a => a.id === r.id); NET.room = m; NET.me = m.me; NET.reId = 0;
+  if (reId) netRejoined(m, reId);
+  if (was && !reId) {                                                // who came and went, for the chat (someone whose place is held hasn't left yet)
+    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) { if (!held(was)(x)) netChatAdd({ sys: `${x.name} joined.` }); else if (q && q.net) netChatAdd({ sys: `${x.name} is back.` }); }
+    for (const y of [...was.members, ...(was.away || [])]) if (!m.members.some(x => x.id === y.id) && !held(m)(y) && !NET.gone.delete(y.id)) netChatAdd({ sys: `${y.name} left.` });
   }
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
   if (was && was.host !== m.host && m.host === m.me && !(q && q.net)) toast('You’re the host now');
@@ -4617,6 +4672,10 @@ function townPeers() {
 // Runs every animation frame: ping, the town heartbeat, the room box.
 function netFrame(dt) {
   if (!NET.ws) return;
+  // Nothing heard for a while, not even an answer to a ping: the connection is dead even if nobody told the browser.
+  // (a long gap between frames means this tab was hidden or stuck, which says nothing about the connection)
+  const now = performance.now(); if (now - NET.frameAt > 1500) NET.inAt = now; NET.frameAt = now;
+  if (now - NET.inAt > NET_DEAD_MS) { const ws = NET.ws; NET.ws = null; try { ws.close(); } catch (e) {} netClosed({ code: 1006 }); return; }
   NET.pingT -= dt; if (NET.pingT <= 0) { NET.pingT = 2; netPing(); }
   if (G.mode === 'panel' && V && V.player) netTownTick(dt);
   netPeersTick(dt);
@@ -4626,7 +4685,7 @@ function netFrame(dt) {
 /* ---- the room box (top left): tag, ping, the posted quest and its ready check ---- */
 function netUi() {
   const box = $('mpBox'); if (!box) return;
-  const on = netOn() && (G.mode === 'village' || G.mode === 'quest');
+  const on = (netOn() || !!NET.re) && (G.mode === 'village' || G.mode === 'quest');
   box.hidden = !on; box.classList.toggle('q', G.mode === 'quest');
   if (!on) { if (NET.chatOpen) netChatClose(); return; }
   const R = NET.room, host = netHost(), qd = R.quest && QUEST_BY_ID[R.quest.id], min = Settings.data.mpMin;
@@ -4635,7 +4694,9 @@ function netUi() {
   let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span>`
     + (netChatOk() ? `<button type="button" data-mp="chat" class="mp-chatbtn">Chat${NET.unread ? `<i class="mp-unread">${NET.unread}</i>` : ''}${key('T')}</button>` : '')
     + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
-  if (G.mode === 'village') {
+  const wait = NET.re ? 'Connection lost. Reconnecting…' : q && q.net === 'guest' && NET.stall ? `Waiting for ${esc(netName(NET.runner) || 'the party leader')}…` : '';
+  if (wait) html += `<div class="mp-card mp-post"><span class="muted">${wait}</span></div>`;
+  else if (G.mode === 'village') {
     if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}${R.quest ? ` (${RANKS[R.quest.rank || 0].name})` : ''}.</span></div>`;
     else if (R.quest) {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
@@ -4724,7 +4785,7 @@ function netDepart(m) {
   const roster = order.map((id, hid) => { const mem = netMember(id) || {}; return { id, hid, name: mem.name || 'Player', gear: mem.gear || null }; });
   if (!order.includes(NET.me)) { toast('The party set off without you. They’ll be back.'); return; }
   if (q) return;
-  closeDialog();
+  NET.runner = host; closeDialog();
   if (NET.me === host) { G.netParty = roster; fadeTo(() => startQuest(m.quest.id)); }
   else fadeTo(() => startQuest(m.quest.id, { guest: roster }));
 }
@@ -4793,9 +4854,11 @@ function netFollow(p, dt) {
   p.flash = Math.max(0, p.flash - dt);
 }
 function netStartHost() {
-  NET.sent = { e: new Map(), p: new Map(), k: new Map(), z: new Set() }; NET.seq = 0; NET.downT = 0; NET.rec = []; NET.fwd = []; NET.flash = 0;
+  NET.sent = { e: new Map(), p: new Map(), k: new Map(), z: new Set() }; NET.seq = 0; NET.downT = 0; NET.rec = []; NET.fwd = []; NET.flash = 0; NET.flowKey = '';
   for (const p of q.hunters) if (p.remote) { p.netQ = []; p.patch = {}; p.stats0 = { kills: 0, dealt: 0 }; }
 }
+// Someone missed snapshots (they, or you, dropped for a moment): the next one carries everything.
+function netResync() { if (!NET.sent) return; NET.sent = { e: new Map(), p: new Map(), k: new Map(), z: new Set() }; NET.full = true; NET.downT = 0; }
 function netHunter(memberId) { return q && q.hunters.find(h => h.remote === memberId || h.mirror === memberId); }
 // A guest's report: where its hunter is and what it did. Hits and claims wait for the next step.
 function netUp(m) {
@@ -4804,10 +4867,18 @@ function netUp(m) {
   if (m.q) for (const a of m.q) p.netQ.push(a);
   if (m.v) { NET.replay = true; for (const ev of m.v) { netPlayEvent(ev); NET.fwd.push([p.hid, ev]); } NET.replay = false; }
 }
+function netHunterLeft(p) { if (p) { p.left = true; p.dead = true; p.downed = false; p.away = false; } }
 function netGone(id) {
   const p = netHunter(id); if (!p) return;
-  p.left = true; p.dead = true; p.downed = false;
+  netHunterLeft(p);
   banner(`${p.name} left the hunt`, '');
+}
+// A guest's connection dropped. Out of the fight until it's back (monsters leave it alone), but it doesn't count as down.
+function netAway(id) { const p = netHunter(id); if (p && !p.left) { netHunterLeft(p); p.away = true; } }
+function netBack(id) {
+  const p = netHunter(id); if (!p) return;
+  if (p.away) { p.away = false; p.left = false; p.netQ = []; p.patch = {}; }
+  netResync();
 }
 // Host, every step for each guest's hunter: follow its reports and apply what it did, in order.
 // A guest's game says how hard it hit. Keep that believable: no hit over 20x its weapon, no more than 80x its weapon a second.
@@ -4864,9 +4935,10 @@ function netHostTick(dt) {
     p.fxRep = { ...F };
   }
   // everyone down (some of them on other screens): the hunt is lost
-  if (q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead)) playerDie(q.player);
+  if (q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
   NET.downT -= dt; if (NET.downT > 0) return; NET.downT = 1 / 15;
   const snap = { t: 'down', s: ++NET.seq, g: netGlobals(), h: q.hunters.map(netHunterState) };
+  if (NET.full) { snap.f = 1; NET.full = false; }
   netDelta(snap, 'e', q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
   netDelta(snap, 'p', q.projs, NET.sent.p, pr => netSer(pr, NET_SKIP_P), pr => pr.nid || (pr.nid = NID++));
   netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K), k => k.nid || (k.nid = NID++));
@@ -4891,6 +4963,11 @@ function netGlobals() {
   if (q.gale) g.ga = [r2(q.gale.t), r1(q.gale.s), r2(q.gale.a)];
   if (q.ghosts && q.ghosts.length) g.gh = q.ghosts.map(gh => [r1(gh.x), r1(gh.y), r2(gh.face), r2(gh.clock), (gh.who || q.player).hid]);
   if (q.def.endless) g.en = [q.endCleared || 0, q.endPay || 0];   // the Endless Hunt: waves cleared and pay so far
+  // what's coming next, so another player's game can take over: sent when it changes
+  g.tm = [r2(q.timer), r2(q.spawnT), q.nextIsBoss ? 1 : 0];
+  const fw = { p: q.pending.map(a => a.type) };
+  if (q.def.endless) fw.e = [q.endMt || 0, q.endBudget || 0, q.endTempo || 1, q.endBossNext ? 1 : 0, q.endBag || null];
+  const fk = JSON.stringify(fw); if (fk !== NET.flowKey || NET.full) { NET.flowKey = fk; g.fw = fw; }
   return g;
 }
 // Effects (rings, slashes, after-images...) as plain data. Hero after-images carry the armor they show.
@@ -4922,7 +4999,7 @@ function netHostEnd(win) {
 
 /* ---- a hunt as guest ---- */
 function netStartGuest() {
-  NET.out = { q: [], v: [] }; NET.upT = 0; NET.rec = []; NET.lastSeq = 0; NET.skipP = new Set();
+  NET.out = { q: [], v: [] }; NET.upT = 0; NET.rec = []; NET.lastSeq = 0; NET.skipP = new Set(); NET.downAt = performance.now(); NET.stall = false; NET.stallT = 0;
   q.onPlayerAct = (k, p, aim) => { if (p === q.player) NET.out.q.push(['act', k, r2(p.swing ? p.swing.aim : p.face)]); };
 }
 // A hit your hunter landed: the host applies it (blocks, marks, the real number). You see the flash right away.
@@ -4936,6 +5013,7 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
 // A snapshot from the host.
 function netDown(m) {
   const now = performance.now(), mine = q.player.hid;
+  NET.downAt = now;
   if (m.g) netGlobalsIn(m.g);
   if (m.h) for (const a of m.h) { if (a[0] === mine) continue; const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now); }
   netMirror(m.e, m.ex, q.enemies, (id, d) => {
@@ -4945,9 +5023,20 @@ function netDown(m) {
   // (your own shots are already flying here, so the host's copies of them are left out, now and in later snapshots)
   netMirror(m.p, m.px, q.projs, (id, d) => d.kind ? { mirror: true, hit: new Set(), t: 0, life: 9 } : null, false, pr => pr.oh === mine && pr.team === 'player', NET.skipP);
   netMirror(m.k, m.kx, q.pickups, (id, d) => d.item ? { mirror: true, vx: 0, vy: 0, vz: 0, t: 1 } : null);
-  if (m.z) for (const [id, d] of m.z) { const h = netApplyFields({ nid: id, mirror: true }, d); if (h.type === 'ring' || h.type === 'circle' || h.type === 'puddle' || h.type === 'whirl' || h.type === 'lane') q.hazards.push(h); }
+  if (m.z) for (const [id, d] of m.z) { if (m.f && q.hazards.some(h => h.nid === id)) continue; const h = netApplyFields({ nid: id, mirror: true }, d); if (h.type === 'ring' || h.type === 'circle' || h.type === 'puddle' || h.type === 'whirl' || h.type === 'lane') q.hazards.push(h); }
   if (m.zx) { const gone = new Set(m.zx); q.hazards = q.hazards.filter(h => !gone.has(h.nid)); }
+  if (m.f) netPrune(m);
   if (m.v) { NET.replay = true; for (const [o, ev] of m.v) if (o !== mine) netPlayEvent(ev); NET.replay = false; }
+}
+// A full snapshot lists everything there is, so anything it doesn't list ended while the snapshots weren't reaching you.
+function netPrune(m) {
+  const ids = l => new Set((l || []).map(a => a[0])), E = ids(m.e), P = ids(m.p), K = ids(m.k), Z = ids(m.z);
+  q.enemies = q.enemies.filter(e => E.has(e.id));
+  q.projs = q.projs.filter(pr => pr.mine || P.has(pr.nid));
+  q.pickups = q.pickups.filter(k => K.has(k.nid));
+  q.hazards = q.hazards.filter(h => Z.has(h.nid));
+  for (const id of NET.skipP) if (!P.has(id)) NET.skipP.delete(id);
+  if (q.boss && !E.has(q.boss.id)) { q.boss = null; $('bossBar').hidden = true; }
 }
 function netApplyFields(o, d) {
   for (const k in d) { if (k.endsWith('~')) { try { o[k.slice(0, -1)] = JSON.parse(d[k]); } catch (e) {} } else o[k] = d[k]; }
@@ -4998,6 +5087,8 @@ function netGlobalsIn(g) {
   q.ghosts = (g.gh || []).map(a => ({ x: a[0], y: a[1], face: a[2], clock: a[3], who: q.hunters[a[4]] || q.player }));
   if (g.b && (!q.boss || q.boss.id !== g.b)) { const b = q.enemies.find(e => e.id === g.b); if (b) netBossIn(b); }
   if (g.en) { q.endCleared = g.en[0]; q.endPay = g.en[1]; if (!g.b && q.boss) { q.boss = null; $('bossBar').hidden = true; } }   // a god down mid-run
+  if (g.tm) { q.timer = g.tm[0]; q.spawnT = g.tm[1]; q.nextIsBoss = !!g.tm[2]; }
+  if (g.fw) { q.pending = g.fw.p.map(type => ({ type })); if (g.fw.e) { [q.endMt, q.endBudget, q.endTempo] = g.fw.e; q.endBossNext = !!g.fw.e[3]; q.endBag = g.fw.e[4]; } }
 }
 // Messages meant only for your hunter: damage the host judged, heals, effects, a revive, a pull.
 function netSelf(m) {
@@ -5076,6 +5167,10 @@ function guestTick(dt) {
   if (done) { q.endT -= dt; if (q.endT <= 0) { finishQuest(q.phase === 'victory'); return; } }
   followCam(p, dt);
   G.shake = Math.max(0, G.shake - dt * 18);
+  // no snapshots for a while: say so here, and ask the room whether the player running the hunt is still there
+  const late = !done && !NET.re && performance.now() - NET.downAt > 4000;
+  if (late !== NET.stall) { NET.stall = late; netUi(); }
+  if (late && (NET.stallT -= dt) <= 0) { NET.stallT = 4; netSend({ t: 'stall' }); }
   NET.upT -= dt;
   if (NET.upT <= 0) {
     NET.upT = 1 / 20;
@@ -5086,6 +5181,48 @@ function guestTick(dt) {
     netSend(m);
   }
   Input.endFrame();
+}
+// The player running the hunt didn't come back, so the room named who runs it now.
+function netRunner(m) {
+  NET.runner = m.id; NET.downAt = performance.now();
+  if (!q || q.net !== 'guest') return;
+  netHunterLeft(netHunter(m.old));
+  if (m.id === NET.me) netTakeOver(); else netChatAdd({ sys: `${netName(m.id) || 'Another player'}’s game runs the hunt now.` });
+}
+// Your game takes over the hunt. Monsters and gods were only copies here, so each is made properly and given everything the
+// snapshots said. What was never sent (shots in the air, who a monster was after) starts fresh; shots from the old host are gone.
+function netTakeOver() {
+  const bossId = q.boss && q.boss.id, skip = new Set([...NET_SKIP_E, 'def', 'mirror', 'netGone']);
+  q.enemies = q.enemies.filter(e => !e.dead).map(m => {
+    const e = m.boss ? makeBoss(m.type, m.x, m.y, m.rank) : makeEnemy(m.type, m.x, m.y, m.tier, m.rank);
+    for (const k in m) if (!skip.has(k) && m[k] !== undefined) e[k] = m[k];
+    if (m._tx !== undefined) { e.x = m._tx; e.y = m._ty; }
+    e.trampled = new Set(); e.trailD = 0;
+    if (q.endTempo && !e.boss) e.tempo *= q.endTempo;
+    return e;
+  });
+  const b = q.boss = q.enemies.find(e => e.id === bossId) || null;
+  q.onPlayerAct = null; q.ghosts = [];
+  if (b) {
+    if (b.state === 'summon') { b.state = 'idle'; b.st = .6; }        // the list of who it was calling wasn't sent
+    b.tossOut = false; b.fireT = 0; b.boltT = .3; b.beamCd = 0;
+    if (q.def.endless && q.endMt) { const f = Math.max(1, rawDmg(1, q.endMt) / rawDmg(1, b.tier)); b.dm *= f; b.dmgMul *= f; }
+    if (b.def.titan) q.onPlayerAct = (k, h, aim) => { if (q.boss && !q.boss.dead) titanAct(q.boss, k, h, aim); };
+    if (b.type === 'rhea') b.decoys = q.enemies.filter(e => e.type === 'bundle');
+  }
+  for (const e of q.enemies) {                                        // what links them to their god doesn't travel
+    if (e.type === 'bundle' && b) { e.rhea = b; e.onDeath = rheaBundleBroken; e.dmg = tD(b, .18); }
+    if (e.type === 'typhon_head') { e.typhon = b; e.onDeath = typhonHeadDown; }
+  }
+  q.projs = q.projs.filter(pr => pr.mine);
+  for (const l of [q.pickups, q.hazards]) for (const o of l) delete o.mirror;
+  for (const e of q.enemies) EID = Math.max(EID, e.id + 1);
+  for (const o of [...q.pickups, ...q.hazards, ...q.projs]) if (o.nid) NID = Math.max(NID, o.nid + 1);
+  for (const id of NET.skipP || []) NID = Math.max(NID, id + 1);
+  for (const h of q.hunters) if (h.mirror) { h.remote = h.mirror; delete h.mirror; }
+  q.net = 'host'; NET.stall = false; NET.out = null;
+  netStartHost(); netResync();
+  netUi(); netChatAdd({ sys: 'Your game runs the hunt now.' });
 }
 // The hunt can't go on: the host left, or you lost the connection. You keep what you picked up.
 function netHuntLost(why) {
@@ -5650,7 +5787,7 @@ function downed(p = q.player) {
     return;
   }
   if (q.net === 'guest') { knockDown(p); return; }               // the host decides when the whole party is down
-  if (q.hunters.length > 1 && q.hunters.some(h => h !== p && !h.dead) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
+  if (q.hunters.length > 1 && q.hunters.some(h => h !== p && (!h.dead || h.away)) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
   playerDie(p);
 }
 // Shields: hoplites, automatons (while not mid-attack) and Athena (while watching you) block hits from the front.
@@ -10944,7 +11081,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'),
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
