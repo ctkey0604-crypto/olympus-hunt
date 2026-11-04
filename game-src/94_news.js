@@ -32,6 +32,7 @@ const NEWS = [
       'The Armory’s shield card has a Take off button.',
     ],
     fixed: [
+      'A co-op hunt no longer freezes for everyone when the player leading it switches to another tab or window.',
       'Ground rings and warning circles now hit exactly where they’re drawn, not above or below them.',
       'Rooms with a player whose connection died (a sleeping PC) clear out, and old duplicate rooms no longer stay in the list.',
       'The room box shows again right after you leave a menu, and gear warnings update straight away.',

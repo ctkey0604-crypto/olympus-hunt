@@ -425,6 +425,7 @@ function netFollow(p, dt) {
 function netStartHost() {
   NET.sent = { e: new Map(), p: new Map(), k: new Map(), z: new Set() }; NET.seq = 0; NET.downT = 0; NET.rec = []; NET.fwd = []; NET.flash = 0; NET.flowKey = '';
   for (const p of q.hunters) if (p.remote) { p.netQ = []; p.patch = {}; p.stats0 = { kills: 0, dealt: 0 }; }
+  huntClockStart();
 }
 // Someone missed snapshots (they, or you, dropped for a moment): the next one carries everything.
 function netResync() { if (!NET.sent) return; NET.sent = { e: new Map(), p: new Map(), k: new Map(), z: new Set() }; NET.full = true; NET.downT = 0; }

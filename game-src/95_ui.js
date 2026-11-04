@@ -962,15 +962,38 @@ const DEBUG = { speed: 1 };
 // The game moves in steps of 1/60 s; the screen is only redrawn after a step (or the first time it shows a new hunt or
 // place). A 120 or 144 Hz screen used to draw the same picture two or three times between steps.
 let shown = null;
+// A hidden tab gets no frames (a covered window only a few), so a co-op hunt run from one would stop for everyone. While it's
+// the one running a hunt, a small worker keeps time instead: browsers slow a hidden page's own timers to once a second, but
+// not a worker's. Whichever turns up first after a gap, a frame or the worker, catches the hunt up to real time.
+// Your hunter stands idle, like any paused player online. Alone on the hunt, it waits for you as before.
+let clockRan = false, huntClock = null, clockUrl = null;
+function huntClockStart() {
+  if (huntClock) return;
+  const timer = () => { const t = setInterval(huntClockTick, 50); huntClock = { stop: () => clearInterval(t) }; };
+  try {
+    clockUrl = clockUrl || URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 50)'], { type: 'text/javascript' }));
+    const w = new Worker(clockUrl);
+    w.onmessage = huntClockTick; w.onerror = () => { w.terminate(); timer(); };
+    huntClock = { stop: () => w.terminate() };
+  } catch (e) { timer(); }
+}
+function huntClockTick() {
+  if (!q || q.net !== 'host') { if (huntClock) huntClock.stop(); huntClock = null; return; }
+  const now = performance.now();
+  if (DEBUG.noClock || now - last < 250 || G.mode !== 'quest' || !q.hunters.some(h => h.remote && !h.left)) return;
+  acc += Math.min(1.2, (now - last) / 1000) * DEBUG.speed; last = now; clockRan = true;
+  for (let n = 0; acc >= STEP && n < 90; n++) { acc -= STEP; tick(STEP); if (G.mode !== 'quest' || !q || q.net !== 'host') break; }
+}
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (huntClock) huntClockTick();
+  const dt = Math.max(0, Math.min(.1, (now - last) / 1000)); last = Math.max(last, now);
   netFrame(dt);
   CG.gameplay((G.mode === 'quest' || G.mode === 'village') && !G.paused && !document.hidden);
   if (G.mode === 'quest' && q) {
     let n = 0;
     if (!G.paused || q.net) { acc += dt * DEBUG.speed; while (acc >= STEP && n < 6 * DEBUG.speed) { acc -= STEP; (q.net === 'guest' ? guestTick : tick)(STEP); n++; if (G.mode !== 'quest' || !q) break; } }
-    if (G.mode === 'quest' && q && (n || shown !== q)) { shown = q; renderQuest(); updateHud(); }
+    if (G.mode === 'quest' && q && (n || clockRan || shown !== q)) { shown = q; clockRan = false; renderQuest(); updateHud(); }
   } else if (G.mode === 'village' && V) {
     let n = 0;
     if (!G.paused) { acc += dt; while (acc >= STEP && n < 6) { acc -= STEP; tickVillage(STEP); n++; if (G.mode !== 'village') break; } }
