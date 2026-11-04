@@ -889,10 +889,12 @@ const ITEMS = {
 // Weapon kinds = how a weapon plays. dmgM converts the tier's expected damage into this kind's hit.
 const KINDS = {
   sword:   { label: 'Sword',        melee: true,  oneHand: true,  dmgM: 1,    reach: 22, arc: 2.2, windup: .05, active: .13, cooldown: .32, knock: 85,  moveMul: .55, hitstop: .035, shake: 1, sfx: 'swing', blurb: 'Quick, wide swing. Works with a shield.' },
-  spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.2,  reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .44, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
-  hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.6,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
+  spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.25, reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .42, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
+  hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.3,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', blurb: 'Ranged shots that auto-aim. No shield.' },
+  // A bow's safety is paid for with its damage: tap for weak quick shots, or stand and hold to draw a full-power one.
+  // draw: seconds to full power. quick / full: damage of a tapped and a fully drawn shot. drawMul: walking speed while drawing.
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one (you walk slowly while drawing). No shield.' },
 };
 
 const ABILITIES = {
@@ -996,6 +998,11 @@ const PERK_TEXT = {
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
   phase: () => 'Dashes carry you 15% further', lightning: v => `Every ${v}th hit calls down lightning`,
+  glass: v => `Glass Cannon: +${Math.round(v * 100)}% damage, but ${Math.round(v * 100)}% less health`,
+  momentum: v => `Momentum: each hit adds +${Math.round(v * 100)}% damage, up to +30%, until you get hurt`,
+  bulwark: () => 'Bulwark: double guard meter, but dashes go 30% shorter',
+  juggernaut: () => 'Juggernaut: +30% health and no knockback, but you move 15% slower',
+  steady: v => `Steady Aim: fully drawn bow shots deal +${Math.round(v * 100)}%, quick shots ${Math.round(v * 100)}% less`,
 };
 
 // Shields: only with one-handed weapons (sword, spear). Hold Guard to block from the front.
@@ -1637,6 +1644,8 @@ const PERK_SCALE = {
 // High and God Rank armor sits on that rank's expected defense, plus the set's Low Rank lead over the curve grown a little
 // (x1.5, x2). Multiplying the whole number instead let early sets run away: Hermes' set ended up the strongest in God Rank.
 function rankDef(def, ch, r) { return Math.max(1, Math.round(tierD(ch + RANKS[r].off) + (def - tierD(ch)) * (1 + .5 * r))); }
+// God Rank builds: sets with no four-piece bonus of their own get one here, with a real cost, so they're worth choosing.
+const BUILD_PERKS = { spartan: { glass: .25 }, reveler: { momentum: .03 }, hoplite: { bulwark: 1 }, cyclops: { juggernaut: 1 }, huntress: { steady: .25 } };
 function scalePerks(perks, r, ch) {
   if (!perks) return undefined;
   const out = {}, off = RANKS[r].off;
@@ -1671,7 +1680,7 @@ function scalePerks(perks, r, ch) {
       if (set.start) continue;
       const colors = {}; for (const [slot, cols] of Object.entries(set.colors)) colors[slot] = cols.map((c, i) => rankColor(c, r, i === 2));
       const four = scalePerks(set.four, r, set.ch) || {};
-      if (r === 2) four.godBane = Math.round(((four.godBane || 0) + .1) * 100) / 100;
+      if (r === 2) { four.godBane = Math.round(((four.godBane || 0) + .1) * 100) / 100; Object.assign(four, BUILD_PERKS[sid]); }
       ARMOR_SETS[rid(sid, r)] = { ...set, name: R.gear + set.name, ch: set.ch + R.off, rank: r, base: sid, colors,
         def: rankDef(set.def, set.ch, r), hp: Math.round(set.hp + tierH(set.ch + R.off) - tierH(set.ch)),
         recipe: rankRecipe(set.recipe, r), two: scalePerks(set.two, r, set.ch), four: Object.keys(four).length ? four : undefined };
@@ -1709,7 +1718,7 @@ Object.assign(ENEMIES, {
                  proj: { kind: 'typhonfire', speed: 130 }, near: 0, far: 999, cd: [1.8, 2.6], colors: ['#6b7a4a', '#45512f', '#ff5a3c'], loot: [] },
 });
 Object.assign(PLURALS, { typhon_head: 'Serpent Heads' });
-BOSSES.typhon = { name: 'Typhon', title: 'Father of Monsters', tier: 17, titan: true, custom: true, final: true, r: 13, sprite: 'typhon', arrivalHeals: 3,
+BOSSES.typhon = { name: 'Typhon', title: 'Father of Monsters', tier: 17, titan: true, custom: true, final: true, r: 13, sprite: 'typhon', arrivalHeals: 1,
                   colors: ['#ff8a2b', '#6b7a4a', '#ffd463'], loot: [['storm_heart', 1], ['typhon_scale', 1, 3, 5]], dmgScale: 1.15 };
 QUESTS.push({ id: TYPHON_Q, base: 'typhon_hunt', god: 'typhon', titan: true, final: true, rank: 2, tier: 17 + RANKS[2].off, boss: 'typhon',
   name: 'The Father of Monsters', arena: 'etna',
@@ -1730,6 +1739,15 @@ ARMOR_SETS.typhonic = { titan: true, name: 'Typhonic', ch: 17 + RANKS[2].off, ra
 /* ============================== FINISH DATA ============================== */
 // Numbers worked out from the tables above, for every rank.
 for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w.kind].dmgM);
+
+// God Rank armor sits closer together, so a set gets picked for what it does: the weaker sets come halfway up to the best
+// forged set. Nothing gets weaker, and Typhonic and refining still lead.
+{
+  const top = ARMOR_SETS.gr_timeless;
+  for (const set of Object.values(ARMOR_SETS)) if (set.rank === 2 && set !== ARMOR_SETS.typhonic && set.def < top.def) {
+    set.def = Math.round(lerp(set.def, top.def, .5)); set.hp = Math.round(lerp(set.hp, top.hp, .5));
+  }
+}
 
 // Build the 4 pieces of every set. Piece ids look like "winged:head".
 const PIECES = {};
@@ -1792,6 +1810,7 @@ const BOSS_TUNE = {
   themis: { hp: [0.87, 1.0, 0.89], dmg: [0.87, 1.0, 0.89] },
   rhea: { hp: [1.24, 1.25, 1.14], dmg: [1.24, 1.25, 1.14] },
   cronus: { hp: [0.87, 0.88, 0.75], dmg: [0.87, 0.88, 0.75] },
+  typhon: { hp: [1, 1, 1.25], dmg: [1, 1, 1.1] },
 };
 for (const [id, t] of Object.entries(BOSS_TUNE)) if (BOSSES[id]) BOSSES[id].tune = t;
 
@@ -4385,8 +4404,10 @@ function botThink(p, dt) {
       }
     }
     if (tgt) {
-      const orbit = B.t * .5 + p.hid * 1.7, R = melee ? tgt.r + K.reach * .55 + 2 : 105;
+      const orbit = B.t * .5 + p.hid * 1.7, far = !melee && DEBUG.botFar, R = melee ? tgt.r + K.reach * .55 + 2 : far ? 150 : 105;
       goX = tgt.x + Math.cos(orbit) * R; goY = tgt.y + Math.sin(orbit) * R * .8; want = 3;
+      // botFar: plays a bow the way a person does, keeping away from whatever it's shooting
+      if (far && Math.hypot(tgt.x - p.x, tgt.y - p.y) < 125) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); goX = p.x + Math.cos(a) * 40; goY = p.y + Math.sin(a) * 40; }
     }
   }
   if (goX !== null) {
@@ -5019,7 +5040,7 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
   NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0]);
-  e.flash = .12;
+  e.flash = .12; if (fp) momentumHit(q.player);
   return true;
 }
 // A snapshot from the host.
@@ -5285,6 +5306,10 @@ function playerStats(save = G.save) {
     dodgeDist: 1 + (perks.dodgeDist || 0), abilityCd: Math.min(.5, perks.abilityCd || 0),
     guardMax: shield ? shield.meter * 10 * (1 + (perks.guard || 0)) : 0,
   };
+  // God Rank build bonuses (17_ranks.js)
+  if (perks.glass) { st.mul += perks.glass; st.maxHp = Math.round(st.maxHp * (1 - perks.glass)); }
+  if (perks.bulwark) { st.guardMax *= 2; st.dodgeDist *= .7; }
+  if (perks.juggernaut) { st.maxHp = Math.round(st.maxHp * 1.3); st.speed *= .85; st.kbRes = 1; }
   // a Tavern meal (85_rooms.js), until the hunt it was eaten for is over
   const M = save.meal && MEALS[save.meal];
   if (M) {
@@ -5429,14 +5454,19 @@ function updateHunter(p, dt) {
   } else if (p.guarding && p.bufDodge > 0 && canDash(p)) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
   else if (p.guarding && p.bufAtk > 0 && p.bashCd <= 0) { shieldBash(p); p.bufAtk = 0; }
   else if (p.swing && p.bufDodge > 0 && canDash(p) && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
-  let spd = st.speed * (p.swing ? K.moveMul : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? (F.heavy > 0 ? .45 : .6) : 1);
+  let spd = st.speed * (p.swing ? (p.swing.draw > 0 ? K.drawMul : K.moveMul) : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? (F.heavy > 0 ? .45 : .6) : 1);
   p.vx = mv.x * spd; p.vy = mv.y * spd;
   p.moving = !!(mv.x || mv.y);
   if (p.moving) { if (!p.swing && !p.guarding) p.face = Math.atan2(mv.y, mv.x); p.walkT += dt; }
   moveEntity(p, (p.vx + p.kbx) * dt, (p.vy + p.kby) * dt);
   if (p.swing) {
     const s = p.swing; s.t += dt;
-    if (!s.fired && s.t >= s.windup) { s.fired = true; releaseAttack(p, s); }
+    if (!s.fired && s.t >= s.windup) {
+      if (!K.melee && (I.atkHeld || I.mouseHeld) && s.draw < s.drawMax) {   // a bow held back: keep drawing, keep following the target
+        s.draw += dt; s.windup = s.t; s.aim = p.face = attackAim(p);
+        if (s.draw >= s.drawMax) { burst(p.x + Math.cos(s.aim) * 8, p.y - 8, 4, ['#ffd463', '#fff6d8'], 40); Sound.play('clink'); }
+      } else { s.fired = true; releaseAttack(p, s); }
+    }
     if (s.t >= s.windup + s.active) p.swing = null;
   }
   if (F.spin > 0) {                                     // Whirlwind keeps spinning while you move
@@ -5479,17 +5509,27 @@ function drinkPotion(id, p = q && q.player) {
 function dmgMul(p) {
   let m = p.st.mul * (p.fx.str > 0 ? 1.25 : 1);
   if (p.st.perks.berserk && p.hp < p.st.maxHp * .4) m *= 1 + p.st.perks.berserk;
+  if (p.st.perks.momentum && p.mom) m *= 1 + Math.min(.3, p.mom * p.st.perks.momentum);
   return m;
 }
-function startAttack(p) {
+// Momentum: each hit you land stacks up, and getting hurt clears it (hurtHunter0).
+function momentumHit(p) {
+  const v = p.st.perks.momentum; if (!v) return;
+  p.mom = (p.mom || 0) + 1;
+  if (Math.abs(p.mom * v - .3) < .001 && isLocal(p)) { addText(p.x, p.y - 22, 'MAX', '#ebc152'); Sound.play('clink'); }
+}
+// Where an attack points. Bows only lock on at 165 (the mouse can still aim further), so long shots take aim.
+function attackAim(p) {
   const K = p.st.kind;
-  let aim;
-  if (p.bufMouse) aim = aimAssist(p, mouseAim(p), K);
-  else if (p.in.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 215); aim = t === null ? aimAssist(p, p.face, K) : t; }
-  else aim = aimAssist(p, p.face, K);
+  if (p.bufMouse) return aimAssist(p, mouseAim(p), K);
+  if (p.in.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 165); return t === null ? aimAssist(p, p.face, K) : t; }
+  return aimAssist(p, p.face, K);
+}
+function startAttack(p) {
+  const K = p.st.kind, aim = attackAim(p);
   p.face = aim; p.swingSide = -p.swingSide;
   const fast = (p.fx.frenzy > 0 ? .71 : 1) * (p.fx.killRush > 0 ? .77 : 1);
-  p.swing = { t: 0, windup: K.windup * fast, active: K.active, aim, fired: false, side: p.swingSide };
+  p.swing = { t: 0, windup: K.windup * fast, active: K.active, aim, fired: false, side: p.swingSide, draw: 0, drawMax: (K.draw || 0) * fast };
   p.atkCd = K.cooldown * fast;
 }
 function releaseAttack(p, s) {
@@ -5501,7 +5541,12 @@ function releaseAttack(p, s) {
   Sound.play(K.sfx);
   p.strikes++; if (q.onPlayerAct) q.onPlayerAct('attack', p);
   if (p.fx.echo > 0) p.echoes.push({ t: .32, aim: s.aim, dmg: dmg * .45 });
-  if (!K.melee) { spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed, dmg, 'arrow', 'player', { r: 2.5, life: .95, pierce: w.pierce || 0 }); return; }
+  if (!K.melee) {
+    const k = s.drawMax ? clamp(s.draw / s.drawMax, 0, 1) : 0, full = k >= 1, sa = p.st.perks.steady || 0;
+    dmg *= lerp(K.quick, K.full, k) * (full ? 1 + sa : k < .2 ? 1 - sa : 1);
+    spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed * (1 + .3 * k), dmg, 'arrow', 'player', { r: full ? 3.5 : 2.5, life: .95, pierce: (w.pierce || 0) + (full ? 1 : 0) });
+    return;
+  }
   const hits = meleeHit(p, s.aim, dmg, riposte);
   if (hits) p.comboT = .8;
   if (riposte && hits) { burst(p.x + Math.cos(s.aim) * 12, p.y - 6 + Math.sin(s.aim) * 8, 10, ['#ffffff', '#ebc152'], 90); if (isLocal(p)) addShake(2); }
@@ -5723,7 +5768,7 @@ function hurtHunter0(p, dmg, ang, knock, o) {
   }
   if (o.proj) dmg *= 1 - st.projRes;
   const taken = Math.max(1, Math.round(dmg * 20 / (20 + st.def)));
-  p.hp -= taken; p.invuln = .8; p.flash = .15;
+  p.hp -= taken; p.invuln = .8; p.flash = .15; p.mom = 0;
   const k = knock * (1 - st.kbRes);
   p.kbx += Math.cos(ang) * k; p.kby += Math.sin(ang) * k;
   p.fx.sleep = 0; p.fx.drowsy = 0;
@@ -5851,6 +5896,7 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
 // Set bonuses and skills that trigger when you land a hit.
 function onPlayerHit(e, dmg) {
   const p = q.actor || q.player, P = p.st.perks;
+  momentumHit(p);
   const steal = (P.lifesteal || 0) + (p.fx.heart > 0 ? .12 : 0);
   if (steal) { p.stealAcc = (p.stealAcc || 0) + Math.min(dmg * steal, p.st.maxHp * .05); if (p.stealAcc >= 1) { const n = Math.floor(p.stealAcc); p.stealAcc -= n; healHunter(p, n, false); } }
   if (P.burn) { e.burnT = 2; e.burnBy = p; }
@@ -8858,8 +8904,8 @@ function drawTyphonWorld(S, b) {
 TITAN_AI.typhon = function (b, dt, c) {
   const p = b.tgt, P2 = b.phase >= 2, P3 = b.phase >= 3, D = pct => tD(b, pct);
   if (titanCommon(b, dt, 'Typhon tears free', 'His serpent heads are waking up')) return;
-  // Below a quarter of his health he stops holding back: the mountain erupts around you for the rest of the fight.
-  if (b.phase === 2 && b.hp <= b.maxHp * .25) {
+  // Below a third of his health he stops holding back: the mountain erupts around you for the rest of the fight.
+  if (b.phase === 2 && b.hp <= b.maxHp * .35) {
     b.phase = 3; Music.level(3); b.state = 'enrage'; b.st = 1.6; b.invuln = 1.6; titanStill(b); b.headT = Math.min(b.headT ?? 0, 3);
     banner('The hundred heads roar', 'Etna is erupting', true); Sound.play('roar'); addShake(7); G.flash = .2;
     return;
@@ -8869,7 +8915,7 @@ TITAN_AI.typhon = function (b, dt, c) {
   b.ward = heads.length ? .3 : 0;
   b.label = heads.length ? `${heads.length} serpent head${heads.length > 1 ? 's' : ''} left · shielded` : null;
   if (P2) b.headT = (b.headT ?? 0) - dt;
-  if (P3) { b.eruptT = (b.eruptT ?? 2) - dt; if (b.eruptT <= 0 && !p.dead) { b.eruptT = rand(3.2, 4.2); typhonErupt(b, D); } }
+  if (P3) { b.eruptT = (b.eruptT ?? 2) - dt; if (b.eruptT <= 0 && !p.dead) { b.eruptT = rand(2.6, 3.4); typhonErupt(b, D); } }
   switch (b.state) {
     case 'idle':
       titanWalk(b, c, 100, P2 ? 38 : 32, dt); b.st -= dt;
@@ -8877,11 +8923,13 @@ TITAN_AI.typhon = function (b, dt, c) {
         if (P2 && b.headT <= 0 && !heads.length) { b.state = 'summonHeads'; b.st = 1.2; Sound.play('roar'); addShake(4); break; }
         const opts = ['breath', 'volley', 'mountain', 'coil', 'breath'];
         if (P2) opts.push('gale', 'mountain');
+        if (P3) opts.push('hundred', 'hundred');
         const pick = pickAttack(b, opts);
         if (pick === 'breath') { b.state = 'breathAim'; b.st = P2 ? .8 : .95; Sound.play('telegraph'); }
         else if (pick === 'volley') { b.state = 'volley'; b.st = .7; Sound.play('telegraph'); }
         else if (pick === 'mountain') { b.state = 'heave'; b.st = 1; Sound.play('telegraph'); }
         else if (pick === 'coil') { b.state = 'coil'; b.st = .85; Sound.play('telegraph'); }
+        else if (pick === 'hundred') { b.state = 'hundredAim'; b.st = 1; Sound.play('telegraph'); banner('The hundred heads draw breath', ''); }
         else { b.state = 'galeAim'; b.st = .7; Sound.play('telegraph'); }
       }
       break;
@@ -8897,7 +8945,7 @@ TITAN_AI.typhon = function (b, dt, c) {
         const k = 1 - b.st / b.breathMax, a = b.aim + Math.sin(k * Math.PI * 2) * .5;
         spawnProj(b.x + Math.cos(a) * 18, b.y + Math.sin(a) * 12, a, 165, D(.11), 'typhonfire', 'enemy', { r: 4, life: 1.6, src: b });
       }
-      if (b.st <= 0) { b.state = 'recover'; b.st = 1; }
+      if (b.st <= 0) { b.state = 'recover'; b.st = .7; }
       break;
     }
     case 'volley':                                             // every head spits a fireball that hangs, then flies at you
@@ -8905,7 +8953,7 @@ TITAN_AI.typhon = function (b, dt, c) {
       if (b.st <= 0) {
         const n = 6 + (P2 ? 2 : 0);
         for (let i = 0; i < n; i++) { const h = typhonHeadWorld(b, i % 6); spawnProj(h.x, h.y, 0, 0, D(.13), 'typhonfire', 'enemy', { r: 4, life: 4, src: b, ghost: true, delay: .3 + i * .14, launch: 175 }); }
-        Sound.play('charm'); b.state = 'recover'; b.st = 1.2;
+        Sound.play('charm'); b.state = 'recover'; b.st = .85;
       }
       break;
     case 'heave':                                              // he tears a piece off the mountain and throws it
@@ -8915,24 +8963,33 @@ TITAN_AI.typhon = function (b, dt, c) {
         const at = aoeAt(p);
         addCircleHazard(at.x, at.y, 34, 1.3, D(.3), 'etna', { then: h => { addPuddle(h.x, h.y, 26, 6, 'lava', .025); addShake(5); burst(h.x, h.y - 6, 18, ['#ff8a2b', '#ffd463', '#5a3e32'], 120); } });
         for (let i = 0; i < (P2 ? 6 : 4); i++) { const a = rand(0, Math.PI * 2), d = rand(50, 130); addCircleHazard(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d * .8, 13, 1 + i * .1, D(.15), 'etna', { small: true }); }
-        Sound.play('roar'); addShake(3); b.state = 'recover'; b.st = 1.2;
+        Sound.play('roar'); addShake(3); b.state = 'recover'; b.st = .9;
       }
       break;
     case 'coil':                                               // his tail lashes out in rings
       titanStill(b); b.st -= dt;
-      if (b.st <= 0) { quakeRings(b, D, P2 ? [[36, 12, .25], [62, 16, .5], [90, 20, .75], [118, 24, 1]] : [[36, 12, .3], [62, 16, .55], [90, 20, .8]]); b.state = 'recover'; b.st = 1.1; }
+      if (b.st <= 0) { quakeRings(b, D, P2 ? [[36, 12, .25], [62, 16, .5], [90, 20, .75], [118, 24, 1]] : [[36, 12, .3], [62, 16, .55], [90, 20, .8]]); b.state = 'recover'; b.st = .8; }
       break;
     case 'galeAim': titanStill(b); b.st -= dt; b.frame = 2; if (b.st <= 0) { b.state = 'gale'; b.st = 2.6; q.gale = { t: 2.6, s: 72, a: 0 }; b.boltT = .2; Sound.play('roar'); } break;
     case 'gale':                                               // his wings blow you away while lightning finds you
       titanStill(b); b.st -= dt; b.boltT -= dt; b.frame = 2;
       if (b.boltT <= 0 && !p.dead) { b.boltT = .5; addCircleHazard(p.x + rand(-16, 16), p.y + rand(-12, 12), 15, .75, D(.16), 'bolt'); }
-      if (b.st <= 0) { q.gale = null; b.state = 'recover'; b.st = .9; }
+      if (b.st <= 0) { q.gale = null; b.state = 'recover'; b.st = .65; }
+      break;
+    case 'hundredAim': titanStill(b); b.st -= dt; b.frame = 2; if (b.st <= 0) { b.state = 'hundred'; b.st = 3; b.fireT = 0; b.spin = rand(0, Math.PI * 2); Sound.play('roar'); addShake(4); } break;
+    case 'hundred':                                            // every head breathes at once: four arms of fire wheel around him, with lanes to slip through
+      titanStill(b); b.st -= dt; b.fireT -= dt; b.frame = 2;
+      if (b.fireT <= 0) {
+        b.fireT = .14; b.spin += .3;
+        for (let i = 0; i < 4; i++) { const a = b.spin + i / 4 * Math.PI * 2; spawnProj(b.x + Math.cos(a) * 18, b.y + Math.sin(a) * 12, a, 125, D(.12), 'typhonfire', 'enemy', { r: 4, life: 3.2, src: b }); }
+      }
+      if (b.st <= 0) { b.state = 'recover'; b.st = .8; }
       break;
     case 'summonHeads': {                                      // serpent heads burst out of the ground; he is shielded until they're cut down
       titanStill(b); b.st -= dt; b.frame = 2;
       if (Math.random() < .4) burst(b.x + rand(-30, 30), b.y - rand(10, 60), 1, ['#ff8a2b', '#ffd463'], 60);
       if (b.st <= 0) {
-        const n = P3 ? 4 : 3, off = rand(0, Math.PI * 2);
+        const n = P3 ? 5 : 4, off = rand(0, Math.PI * 2);
         for (let i = 0; i < n; i++) {
           const a = off + i / n * Math.PI * 2, r = rand(95, 130);
           const e = makeEnemy('typhon_head', clamp(b.x + Math.cos(a) * r, IPX.minX + 16, IPX.maxX - 16), clamp(b.y + Math.sin(a) * r * .8, IPX.minY + 16, IPX.maxY - 16));
@@ -8964,7 +9021,7 @@ function typhonHeadDown(e) {
   Sound.play('kill'); burst(e.x, e.y - 6, 18, ['#6b7a4a', '#ff8a2b', '#ffd463'], 110);
   q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 18, life: .3, max: .3, c: '#ff8a2b' }); (q.actor || e.lastBy || q.player).stats.kills++;
   if (!b || b.dead || q.enemies.some(o => o.type === 'typhon_head' && !o.dead)) return;
-  b.ward = 0; b.label = null; b.state = 'reel'; b.st = 3; b.vx = b.vy = 0; setVuln(b, 1.35, 3); b.headT = b.phase >= 3 ? 14 : 20;
+  b.ward = 0; b.label = null; b.state = 'reel'; b.st = 3; b.vx = b.vy = 0; setVuln(b, 1.35, 3); b.headT = b.phase >= 3 ? 10 : 15;
   banner('Typhon reels', 'His heads are down. Hit him now'); Sound.play('break'); addShake(6); G.flash = .12;
 }
 // Runs every step of his fight: the wind from his wings pushes you away from him.
@@ -10051,6 +10108,11 @@ const NEWS = [
       'Options moved to the pause menu (Esc).',
       'Online hunts need the rank and the earlier quests for them, and no gear from a higher rank. The board and the room box now say exactly what to clear or take off.',
       'Smoother on Chromebooks and older laptops: hunts take far less work to draw, and the music is made ahead instead of note by note.',
+      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. He also drops fewer healing charms when he arrives.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Hammers hit a little softer. Spears hit a little harder and faster.',
+      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
+      'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
       '“Low Rank” is now called Normal Rank.',
       'Online saves are checked by the server. A save that couldn’t come from real play isn’t stored online (it stays on your device).',
       'Shorter, clearer multiplayer messages. The room code shows in one place.',
@@ -11119,7 +11181,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter,
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
