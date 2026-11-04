@@ -713,7 +713,7 @@ function setPaused(v) {
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
   const road = !!(inQuest && q && q.def.prologue);
   $('btnAbandon').textContent = road ? 'Skip the tutorial' : 'Abandon quest';
-  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : 'Leave now? You keep the parts you picked up, but you get no reward.';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
   $('btnAbandonYes').textContent = road ? 'Go to the village' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');

@@ -12,7 +12,7 @@ const NEWS = [
       'Rooms hold up to six players. With five or six, the maps are bigger, more monsters come, monsters and gods think faster, and gods switch targets sooner and drop strikes on more of the party.',
       'The host can name the room at the Oracle, and the name shows in the room list.',
       'Room chat: in a room, press T (or tap Chat) to talk to everyone. H (or Hide) shrinks the room box when it’s in the way.',
-      'Dropped out of a hunt? Your game gets back in on its own within 20 seconds and carries on. If the player leading the hunt doesn’t come back, another player’s game takes it over and the hunt goes on.',
+      'Dropped out of a hunt? Your game gets back in on its own within 20 seconds and carries on. If the player leading the hunt leaves or doesn’t come back, another player’s game takes it over and the hunt goes on.',
       'The room’s host can kick a player from the Oracle’s room panel. A kicked player can’t rejoin that room.',
       'Anyone in a room can post a hunt now, and whoever posts it leads the party out.',
       'Gods and Titans fight smarter in a party: a mark shows who they’re after, a raised shield up close pulls them onto you, and they stop chasing someone far away while someone else hits them up close.',

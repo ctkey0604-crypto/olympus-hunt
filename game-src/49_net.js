@@ -102,8 +102,11 @@ async function netRetry(re) {
 }
 // Back in the room. The same player, still on the hunt: carry on. Otherwise the hunt went on without you.
 function netRejoined(m, old) {
-  if (!q || !q.net) return;
   const me = m.members.find(x => x.id === m.me), on = m.me === old && m.phase === 'hunt' && !!me && me.hunt, runner = m.runner ?? m.host;
+  if (!q || !q.net) {                                                // you left the hunt while the connection was down: say so now
+    if (on) netSend(runner !== m.me ? { t: 'leave' } : { t: m.hand ? 'handoff' : 'end' });
+    return;
+  }
   if (q.net === 'host') {
     if (on && runner === m.me) netResync(); else netHuntLost('The party went on without you. Your hunt carries on here.');
     return;
@@ -562,10 +565,18 @@ function netPlayEvent(ev) {
 }
 // The host's hunt ended (results): tell the room, so everyone's back in town.
 function netHostEnd(win) {
-  if (!q || q.net !== 'host') return;
+  if (!q || q.net !== 'host' || (!win && netHandOn())) return;
   netRec(['Q', win ? 1 : 0]); NET.downT = 0; netHostTick(0);
   netSend({ t: 'end' }); NET.rec = null; NET.sent = null;
 }
+// Leaving a hunt you run before it's over, with others still on it: it goes on without you, and you stay in the room.
+function netHandOn() {
+  if (q.phase === 'victory' || q.phase === 'defeat' || !NET.room || !NET.room.hand || !q.hunters.some(h => h.remote && !h.left)) return false;
+  NET.downT = 0; netHostTick(0);                                     // one last snapshot: where things stand, for whoever takes over
+  netSend({ t: 'handoff' }); NET.rec = null; NET.sent = null;
+  return true;
+}
+addEventListener('pagehide', ev => { if (!ev.persisted && q && q.net === 'host') netHandOn(); });   // closing the tab or reloading it is leaving too
 
 /* ---- a hunt as guest ---- */
 function netStartGuest() {
@@ -752,11 +763,12 @@ function guestTick(dt) {
   }
   Input.endFrame();
 }
-// The player running the hunt didn't come back, so the room named who runs it now.
+// The player running the hunt left it or didn't come back, so the room named who runs it now.
 function netRunner(m) {
   NET.runner = m.id; NET.downAt = performance.now();
   if (!q || q.net !== 'guest') return;
   netHunterLeft(netHunter(m.old));
+  banner(`${netName(m.old) || 'The party leader'} left the hunt`, '');
   if (m.id === NET.me) netTakeOver(); else netChatAdd({ sys: `${netName(m.id) || 'Another player'}’s game runs the hunt now.` });
 }
 // Your game takes over the hunt. Monsters and gods were only copies here, so each is made properly and given everything the
