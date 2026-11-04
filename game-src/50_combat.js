@@ -544,7 +544,7 @@ function downed(p = q.player) {
     return;
   }
   if (q.net === 'guest') { knockDown(p); return; }               // the host decides when the whole party is down
-  if (q.hunters.length > 1 && q.hunters.some(h => h !== p && !h.dead) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
+  if (q.hunters.length > 1 && q.hunters.some(h => h !== p && (!h.dead || h.away)) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
   playerDie(p);
 }
 // Shields: hoplites, automatons (while not mid-attack) and Athena (while watching you) block hits from the front.
