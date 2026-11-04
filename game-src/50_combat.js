@@ -29,6 +29,10 @@ function playerStats(save = G.save) {
     dodgeDist: 1 + (perks.dodgeDist || 0), abilityCd: Math.min(.5, perks.abilityCd || 0),
     guardMax: shield ? shield.meter * 10 * (1 + (perks.guard || 0)) : 0,
   };
+  // God Rank build bonuses (17_ranks.js)
+  if (perks.glass) { st.mul += perks.glass; st.maxHp = Math.round(st.maxHp * (1 - perks.glass)); }
+  if (perks.bulwark) { st.guardMax *= 2; st.dodgeDist *= .7; }
+  if (perks.juggernaut) { st.maxHp = Math.round(st.maxHp * 1.3); st.speed *= .85; st.kbRes = 1; }
   // a Tavern meal (85_rooms.js), until the hunt it was eaten for is over
   const M = save.meal && MEALS[save.meal];
   if (M) {
@@ -173,14 +177,19 @@ function updateHunter(p, dt) {
   } else if (p.guarding && p.bufDodge > 0 && canDash(p)) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
   else if (p.guarding && p.bufAtk > 0 && p.bashCd <= 0) { shieldBash(p); p.bufAtk = 0; }
   else if (p.swing && p.bufDodge > 0 && canDash(p) && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
-  let spd = st.speed * (p.swing ? K.moveMul : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? (F.heavy > 0 ? .45 : .6) : 1);
+  let spd = st.speed * (p.swing ? (p.swing.draw > 0 ? K.drawMul : K.moveMul) : 1) * (p.guarding ? .65 : 1) * (F.slow > 0 ? (F.heavy > 0 ? .45 : .6) : 1);
   p.vx = mv.x * spd; p.vy = mv.y * spd;
   p.moving = !!(mv.x || mv.y);
   if (p.moving) { if (!p.swing && !p.guarding) p.face = Math.atan2(mv.y, mv.x); p.walkT += dt; }
   moveEntity(p, (p.vx + p.kbx) * dt, (p.vy + p.kby) * dt);
   if (p.swing) {
     const s = p.swing; s.t += dt;
-    if (!s.fired && s.t >= s.windup) { s.fired = true; releaseAttack(p, s); }
+    if (!s.fired && s.t >= s.windup) {
+      if (!K.melee && (I.atkHeld || I.mouseHeld) && s.draw < s.drawMax) {   // a bow held back: keep drawing, keep following the target
+        s.draw += dt; s.windup = s.t; s.aim = p.face = attackAim(p);
+        if (s.draw >= s.drawMax) { burst(p.x + Math.cos(s.aim) * 8, p.y - 8, 4, ['#ffd463', '#fff6d8'], 40); Sound.play('clink'); }
+      } else { s.fired = true; releaseAttack(p, s); }
+    }
     if (s.t >= s.windup + s.active) p.swing = null;
   }
   if (F.spin > 0) {                                     // Whirlwind keeps spinning while you move
@@ -223,17 +232,27 @@ function drinkPotion(id, p = q && q.player) {
 function dmgMul(p) {
   let m = p.st.mul * (p.fx.str > 0 ? 1.25 : 1);
   if (p.st.perks.berserk && p.hp < p.st.maxHp * .4) m *= 1 + p.st.perks.berserk;
+  if (p.st.perks.momentum && p.mom) m *= 1 + Math.min(.3, p.mom * p.st.perks.momentum);
   return m;
 }
-function startAttack(p) {
+// Momentum: each hit you land stacks up, and getting hurt clears it (hurtHunter0).
+function momentumHit(p) {
+  const v = p.st.perks.momentum; if (!v) return;
+  p.mom = (p.mom || 0) + 1;
+  if (Math.abs(p.mom * v - .3) < .001 && isLocal(p)) { addText(p.x, p.y - 22, 'MAX', '#ebc152'); Sound.play('clink'); }
+}
+// Where an attack points. Bows only lock on at 165 (the mouse can still aim further), so long shots take aim.
+function attackAim(p) {
   const K = p.st.kind;
-  let aim;
-  if (p.bufMouse) aim = aimAssist(p, mouseAim(p), K);
-  else if (p.in.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 215); aim = t === null ? aimAssist(p, p.face, K) : t; }
-  else aim = aimAssist(p, p.face, K);
+  if (p.bufMouse) return aimAssist(p, mouseAim(p), K);
+  if (p.in.autoAim) { const t = autoTarget(p, K.melee ? K.reach + 26 : 165); return t === null ? aimAssist(p, p.face, K) : t; }
+  return aimAssist(p, p.face, K);
+}
+function startAttack(p) {
+  const K = p.st.kind, aim = attackAim(p);
   p.face = aim; p.swingSide = -p.swingSide;
   const fast = (p.fx.frenzy > 0 ? .71 : 1) * (p.fx.killRush > 0 ? .77 : 1);
-  p.swing = { t: 0, windup: K.windup * fast, active: K.active, aim, fired: false, side: p.swingSide };
+  p.swing = { t: 0, windup: K.windup * fast, active: K.active, aim, fired: false, side: p.swingSide, draw: 0, drawMax: (K.draw || 0) * fast };
   p.atkCd = K.cooldown * fast;
 }
 function releaseAttack(p, s) {
@@ -245,7 +264,12 @@ function releaseAttack(p, s) {
   Sound.play(K.sfx);
   p.strikes++; if (q.onPlayerAct) q.onPlayerAct('attack', p);
   if (p.fx.echo > 0) p.echoes.push({ t: .32, aim: s.aim, dmg: dmg * .45 });
-  if (!K.melee) { spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed, dmg, 'arrow', 'player', { r: 2.5, life: .95, pierce: w.pierce || 0 }); return; }
+  if (!K.melee) {
+    const k = s.drawMax ? clamp(s.draw / s.drawMax, 0, 1) : 0, full = k >= 1, sa = p.st.perks.steady || 0;
+    dmg *= lerp(K.quick, K.full, k) * (full ? 1 + sa : k < .2 ? 1 - sa : 1);
+    spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed * (1 + .3 * k), dmg, 'arrow', 'player', { r: full ? 3.5 : 2.5, life: .95, pierce: (w.pierce || 0) + (full ? 1 : 0) });
+    return;
+  }
   const hits = meleeHit(p, s.aim, dmg, riposte);
   if (hits) p.comboT = .8;
   if (riposte && hits) { burst(p.x + Math.cos(s.aim) * 12, p.y - 6 + Math.sin(s.aim) * 8, 10, ['#ffffff', '#ebc152'], 90); if (isLocal(p)) addShake(2); }
@@ -467,7 +491,7 @@ function hurtHunter0(p, dmg, ang, knock, o) {
   }
   if (o.proj) dmg *= 1 - st.projRes;
   const taken = Math.max(1, Math.round(dmg * 20 / (20 + st.def)));
-  p.hp -= taken; p.invuln = .8; p.flash = .15;
+  p.hp -= taken; p.invuln = .8; p.flash = .15; p.mom = 0;
   const k = knock * (1 - st.kbRes);
   p.kbx += Math.cos(ang) * k; p.kby += Math.sin(ang) * k;
   p.fx.sleep = 0; p.fx.drowsy = 0;
@@ -595,6 +619,7 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
 // Set bonuses and skills that trigger when you land a hit.
 function onPlayerHit(e, dmg) {
   const p = q.actor || q.player, P = p.st.perks;
+  momentumHit(p);
   const steal = (P.lifesteal || 0) + (p.fx.heart > 0 ? .12 : 0);
   if (steal) { p.stealAcc = (p.stealAcc || 0) + Math.min(dmg * steal, p.st.maxHp * .05); if (p.stealAcc >= 1) { const n = Math.floor(p.stealAcc); p.stealAcc -= n; healHunter(p, n, false); } }
   if (P.burn) { e.burnT = 2; e.burnBy = p; }

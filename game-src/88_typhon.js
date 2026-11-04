@@ -159,8 +159,8 @@ function drawTyphonWorld(S, b) {
 TITAN_AI.typhon = function (b, dt, c) {
   const p = b.tgt, P2 = b.phase >= 2, P3 = b.phase >= 3, D = pct => tD(b, pct);
   if (titanCommon(b, dt, 'Typhon tears free', 'His serpent heads are waking up')) return;
-  // Below a quarter of his health he stops holding back: the mountain erupts around you for the rest of the fight.
-  if (b.phase === 2 && b.hp <= b.maxHp * .25) {
+  // Below a third of his health he stops holding back: the mountain erupts around you for the rest of the fight.
+  if (b.phase === 2 && b.hp <= b.maxHp * .35) {
     b.phase = 3; Music.level(3); b.state = 'enrage'; b.st = 1.6; b.invuln = 1.6; titanStill(b); b.headT = Math.min(b.headT ?? 0, 3);
     banner('The hundred heads roar', 'Etna is erupting', true); Sound.play('roar'); addShake(7); G.flash = .2;
     return;
@@ -170,7 +170,7 @@ TITAN_AI.typhon = function (b, dt, c) {
   b.ward = heads.length ? .3 : 0;
   b.label = heads.length ? `${heads.length} serpent head${heads.length > 1 ? 's' : ''} left · shielded` : null;
   if (P2) b.headT = (b.headT ?? 0) - dt;
-  if (P3) { b.eruptT = (b.eruptT ?? 2) - dt; if (b.eruptT <= 0 && !p.dead) { b.eruptT = rand(3.2, 4.2); typhonErupt(b, D); } }
+  if (P3) { b.eruptT = (b.eruptT ?? 2) - dt; if (b.eruptT <= 0 && !p.dead) { b.eruptT = rand(2.6, 3.4); typhonErupt(b, D); } }
   switch (b.state) {
     case 'idle':
       titanWalk(b, c, 100, P2 ? 38 : 32, dt); b.st -= dt;
@@ -178,11 +178,13 @@ TITAN_AI.typhon = function (b, dt, c) {
         if (P2 && b.headT <= 0 && !heads.length) { b.state = 'summonHeads'; b.st = 1.2; Sound.play('roar'); addShake(4); break; }
         const opts = ['breath', 'volley', 'mountain', 'coil', 'breath'];
         if (P2) opts.push('gale', 'mountain');
+        if (P3) opts.push('hundred', 'hundred');
         const pick = pickAttack(b, opts);
         if (pick === 'breath') { b.state = 'breathAim'; b.st = P2 ? .8 : .95; Sound.play('telegraph'); }
         else if (pick === 'volley') { b.state = 'volley'; b.st = .7; Sound.play('telegraph'); }
         else if (pick === 'mountain') { b.state = 'heave'; b.st = 1; Sound.play('telegraph'); }
         else if (pick === 'coil') { b.state = 'coil'; b.st = .85; Sound.play('telegraph'); }
+        else if (pick === 'hundred') { b.state = 'hundredAim'; b.st = 1; Sound.play('telegraph'); banner('The hundred heads draw breath', ''); }
         else { b.state = 'galeAim'; b.st = .7; Sound.play('telegraph'); }
       }
       break;
@@ -198,7 +200,7 @@ TITAN_AI.typhon = function (b, dt, c) {
         const k = 1 - b.st / b.breathMax, a = b.aim + Math.sin(k * Math.PI * 2) * .5;
         spawnProj(b.x + Math.cos(a) * 18, b.y + Math.sin(a) * 12, a, 165, D(.11), 'typhonfire', 'enemy', { r: 4, life: 1.6, src: b });
       }
-      if (b.st <= 0) { b.state = 'recover'; b.st = 1; }
+      if (b.st <= 0) { b.state = 'recover'; b.st = .7; }
       break;
     }
     case 'volley':                                             // every head spits a fireball that hangs, then flies at you
@@ -206,7 +208,7 @@ TITAN_AI.typhon = function (b, dt, c) {
       if (b.st <= 0) {
         const n = 6 + (P2 ? 2 : 0);
         for (let i = 0; i < n; i++) { const h = typhonHeadWorld(b, i % 6); spawnProj(h.x, h.y, 0, 0, D(.13), 'typhonfire', 'enemy', { r: 4, life: 4, src: b, ghost: true, delay: .3 + i * .14, launch: 175 }); }
-        Sound.play('charm'); b.state = 'recover'; b.st = 1.2;
+        Sound.play('charm'); b.state = 'recover'; b.st = .85;
       }
       break;
     case 'heave':                                              // he tears a piece off the mountain and throws it
@@ -216,24 +218,33 @@ TITAN_AI.typhon = function (b, dt, c) {
         const at = aoeAt(p);
         addCircleHazard(at.x, at.y, 34, 1.3, D(.3), 'etna', { then: h => { addPuddle(h.x, h.y, 26, 6, 'lava', .025); addShake(5); burst(h.x, h.y - 6, 18, ['#ff8a2b', '#ffd463', '#5a3e32'], 120); } });
         for (let i = 0; i < (P2 ? 6 : 4); i++) { const a = rand(0, Math.PI * 2), d = rand(50, 130); addCircleHazard(at.x + Math.cos(a) * d, at.y + Math.sin(a) * d * .8, 13, 1 + i * .1, D(.15), 'etna', { small: true }); }
-        Sound.play('roar'); addShake(3); b.state = 'recover'; b.st = 1.2;
+        Sound.play('roar'); addShake(3); b.state = 'recover'; b.st = .9;
       }
       break;
     case 'coil':                                               // his tail lashes out in rings
       titanStill(b); b.st -= dt;
-      if (b.st <= 0) { quakeRings(b, D, P2 ? [[36, 12, .25], [62, 16, .5], [90, 20, .75], [118, 24, 1]] : [[36, 12, .3], [62, 16, .55], [90, 20, .8]]); b.state = 'recover'; b.st = 1.1; }
+      if (b.st <= 0) { quakeRings(b, D, P2 ? [[36, 12, .25], [62, 16, .5], [90, 20, .75], [118, 24, 1]] : [[36, 12, .3], [62, 16, .55], [90, 20, .8]]); b.state = 'recover'; b.st = .8; }
       break;
     case 'galeAim': titanStill(b); b.st -= dt; b.frame = 2; if (b.st <= 0) { b.state = 'gale'; b.st = 2.6; q.gale = { t: 2.6, s: 72, a: 0 }; b.boltT = .2; Sound.play('roar'); } break;
     case 'gale':                                               // his wings blow you away while lightning finds you
       titanStill(b); b.st -= dt; b.boltT -= dt; b.frame = 2;
       if (b.boltT <= 0 && !p.dead) { b.boltT = .5; addCircleHazard(p.x + rand(-16, 16), p.y + rand(-12, 12), 15, .75, D(.16), 'bolt'); }
-      if (b.st <= 0) { q.gale = null; b.state = 'recover'; b.st = .9; }
+      if (b.st <= 0) { q.gale = null; b.state = 'recover'; b.st = .65; }
+      break;
+    case 'hundredAim': titanStill(b); b.st -= dt; b.frame = 2; if (b.st <= 0) { b.state = 'hundred'; b.st = 3; b.fireT = 0; b.spin = rand(0, Math.PI * 2); Sound.play('roar'); addShake(4); } break;
+    case 'hundred':                                            // every head breathes at once: four arms of fire wheel around him, with lanes to slip through
+      titanStill(b); b.st -= dt; b.fireT -= dt; b.frame = 2;
+      if (b.fireT <= 0) {
+        b.fireT = .14; b.spin += .3;
+        for (let i = 0; i < 4; i++) { const a = b.spin + i / 4 * Math.PI * 2; spawnProj(b.x + Math.cos(a) * 18, b.y + Math.sin(a) * 12, a, 125, D(.12), 'typhonfire', 'enemy', { r: 4, life: 3.2, src: b }); }
+      }
+      if (b.st <= 0) { b.state = 'recover'; b.st = .8; }
       break;
     case 'summonHeads': {                                      // serpent heads burst out of the ground; he is shielded until they're cut down
       titanStill(b); b.st -= dt; b.frame = 2;
       if (Math.random() < .4) burst(b.x + rand(-30, 30), b.y - rand(10, 60), 1, ['#ff8a2b', '#ffd463'], 60);
       if (b.st <= 0) {
-        const n = P3 ? 4 : 3, off = rand(0, Math.PI * 2);
+        const n = P3 ? 5 : 4, off = rand(0, Math.PI * 2);
         for (let i = 0; i < n; i++) {
           const a = off + i / n * Math.PI * 2, r = rand(95, 130);
           const e = makeEnemy('typhon_head', clamp(b.x + Math.cos(a) * r, IPX.minX + 16, IPX.maxX - 16), clamp(b.y + Math.sin(a) * r * .8, IPX.minY + 16, IPX.maxY - 16));
@@ -265,7 +276,7 @@ function typhonHeadDown(e) {
   Sound.play('kill'); burst(e.x, e.y - 6, 18, ['#6b7a4a', '#ff8a2b', '#ffd463'], 110);
   q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: 18, life: .3, max: .3, c: '#ff8a2b' }); (q.actor || e.lastBy || q.player).stats.kills++;
   if (!b || b.dead || q.enemies.some(o => o.type === 'typhon_head' && !o.dead)) return;
-  b.ward = 0; b.label = null; b.state = 'reel'; b.st = 3; b.vx = b.vy = 0; setVuln(b, 1.35, 3); b.headT = b.phase >= 3 ? 14 : 20;
+  b.ward = 0; b.label = null; b.state = 'reel'; b.st = 3; b.vx = b.vy = 0; setVuln(b, 1.35, 3); b.headT = b.phase >= 3 ? 10 : 15;
   banner('Typhon reels', 'His heads are down. Hit him now'); Sound.play('break'); addShake(6); G.flash = .12;
 }
 // Runs every step of his fight: the wind from his wings pushes you away from him.

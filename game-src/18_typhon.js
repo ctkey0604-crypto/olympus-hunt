@@ -14,7 +14,7 @@ Object.assign(ENEMIES, {
                  proj: { kind: 'typhonfire', speed: 130 }, near: 0, far: 999, cd: [1.8, 2.6], colors: ['#6b7a4a', '#45512f', '#ff5a3c'], loot: [] },
 });
 Object.assign(PLURALS, { typhon_head: 'Serpent Heads' });
-BOSSES.typhon = { name: 'Typhon', title: 'Father of Monsters', tier: 17, titan: true, custom: true, final: true, r: 13, sprite: 'typhon', arrivalHeals: 3,
+BOSSES.typhon = { name: 'Typhon', title: 'Father of Monsters', tier: 17, titan: true, custom: true, final: true, r: 13, sprite: 'typhon', arrivalHeals: 1,
                   colors: ['#ff8a2b', '#6b7a4a', '#ffd463'], loot: [['storm_heart', 1], ['typhon_scale', 1, 3, 5]], dmgScale: 1.15 };
 QUESTS.push({ id: TYPHON_Q, base: 'typhon_hunt', god: 'typhon', titan: true, final: true, rank: 2, tier: 17 + RANKS[2].off, boss: 'typhon',
   name: 'The Father of Monsters', arena: 'etna',

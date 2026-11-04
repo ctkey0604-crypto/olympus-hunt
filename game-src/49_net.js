@@ -588,7 +588,7 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
   NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0]);
-  e.flash = .12;
+  e.flash = .12; if (fp) momentumHit(q.player);
   return true;
 }
 // A snapshot from the host.

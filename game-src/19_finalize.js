@@ -2,6 +2,15 @@
 // Numbers worked out from the tables above, for every rank.
 for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w.kind].dmgM);
 
+// God Rank armor sits closer together, so a set gets picked for what it does: the weaker sets come halfway up to the best
+// forged set. Nothing gets weaker, and Typhonic and refining still lead.
+{
+  const top = ARMOR_SETS.gr_timeless;
+  for (const set of Object.values(ARMOR_SETS)) if (set.rank === 2 && set !== ARMOR_SETS.typhonic && set.def < top.def) {
+    set.def = Math.round(lerp(set.def, top.def, .5)); set.hp = Math.round(lerp(set.hp, top.hp, .5));
+  }
+}
+
 // Build the 4 pieces of every set. Piece ids look like "winged:head".
 const PIECES = {};
 // Boots with a power of their own. Double dash: dash twice in a row, but dashes recharge slower, and these boots
@@ -63,6 +72,7 @@ const BOSS_TUNE = {
   themis: { hp: [0.87, 1.0, 0.89], dmg: [0.87, 1.0, 0.89] },
   rhea: { hp: [1.24, 1.25, 1.14], dmg: [1.24, 1.25, 1.14] },
   cronus: { hp: [0.87, 0.88, 0.75], dmg: [0.87, 0.88, 0.75] },
+  typhon: { hp: [1, 1, 1.25], dmg: [1, 1, 1.1] },
 };
 for (const [id, t] of Object.entries(BOSS_TUNE)) if (BOSSES[id]) BOSSES[id].tune = t;
 

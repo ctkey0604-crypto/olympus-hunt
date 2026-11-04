@@ -163,10 +163,12 @@ const ITEMS = {
 // Weapon kinds = how a weapon plays. dmgM converts the tier's expected damage into this kind's hit.
 const KINDS = {
   sword:   { label: 'Sword',        melee: true,  oneHand: true,  dmgM: 1,    reach: 22, arc: 2.2, windup: .05, active: .13, cooldown: .32, knock: 85,  moveMul: .55, hitstop: .035, shake: 1, sfx: 'swing', blurb: 'Quick, wide swing. Works with a shield.' },
-  spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.2,  reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .44, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
-  hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.6,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
+  spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.25, reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .42, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
+  hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.3,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', blurb: 'Ranged shots that auto-aim. No shield.' },
+  // A bow's safety is paid for with its damage: tap for weak quick shots, or stand and hold to draw a full-power one.
+  // draw: seconds to full power. quick / full: damage of a tapped and a fully drawn shot. drawMul: walking speed while drawing.
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one (you walk slowly while drawing). No shield.' },
 };
 
 const ABILITIES = {
@@ -270,6 +272,11 @@ const PERK_TEXT = {
   burn: () => 'Your hits set enemies on fire', berserk: v => `Below 40% health, deal +${Math.round(v * 100)}% damage`,
   stunHit: v => `${Math.round(v * 100)}% of hits briefly stun`, thorns: v => `Melee attackers take ${Math.round(v * 100)}% of their damage back`,
   phase: () => 'Dashes carry you 15% further', lightning: v => `Every ${v}th hit calls down lightning`,
+  glass: v => `Glass Cannon: +${Math.round(v * 100)}% damage, but ${Math.round(v * 100)}% less health`,
+  momentum: v => `Momentum: each hit adds +${Math.round(v * 100)}% damage, up to +30%, until you get hurt`,
+  bulwark: () => 'Bulwark: double guard meter, but dashes go 30% shorter',
+  juggernaut: () => 'Juggernaut: +30% health and no knockback, but you move 15% slower',
+  steady: v => `Steady Aim: fully drawn bow shots deal +${Math.round(v * 100)}%, quick shots ${Math.round(v * 100)}% less`,
 };
 
 // Shields: only with one-handed weapons (sword, spear). Hold Guard to block from the front.

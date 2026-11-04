@@ -27,6 +27,8 @@ const PERK_SCALE = {
 // High and God Rank armor sits on that rank's expected defense, plus the set's Low Rank lead over the curve grown a little
 // (x1.5, x2). Multiplying the whole number instead let early sets run away: Hermes' set ended up the strongest in God Rank.
 function rankDef(def, ch, r) { return Math.max(1, Math.round(tierD(ch + RANKS[r].off) + (def - tierD(ch)) * (1 + .5 * r))); }
+// God Rank builds: sets with no four-piece bonus of their own get one here, with a real cost, so they're worth choosing.
+const BUILD_PERKS = { spartan: { glass: .25 }, reveler: { momentum: .03 }, hoplite: { bulwark: 1 }, cyclops: { juggernaut: 1 }, huntress: { steady: .25 } };
 function scalePerks(perks, r, ch) {
   if (!perks) return undefined;
   const out = {}, off = RANKS[r].off;
@@ -61,7 +63,7 @@ function scalePerks(perks, r, ch) {
       if (set.start) continue;
       const colors = {}; for (const [slot, cols] of Object.entries(set.colors)) colors[slot] = cols.map((c, i) => rankColor(c, r, i === 2));
       const four = scalePerks(set.four, r, set.ch) || {};
-      if (r === 2) four.godBane = Math.round(((four.godBane || 0) + .1) * 100) / 100;
+      if (r === 2) { four.godBane = Math.round(((four.godBane || 0) + .1) * 100) / 100; Object.assign(four, BUILD_PERKS[sid]); }
       ARMOR_SETS[rid(sid, r)] = { ...set, name: R.gear + set.name, ch: set.ch + R.off, rank: r, base: sid, colors,
         def: rankDef(set.def, set.ch, r), hp: Math.round(set.hp + tierH(set.ch + R.off) - tierH(set.ch)),
         recipe: rankRecipe(set.recipe, r), two: scalePerks(set.two, r, set.ch), four: Object.keys(four).length ? four : undefined };

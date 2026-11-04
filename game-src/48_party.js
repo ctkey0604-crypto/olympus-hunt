@@ -219,8 +219,10 @@ function botThink(p, dt) {
       }
     }
     if (tgt) {
-      const orbit = B.t * .5 + p.hid * 1.7, R = melee ? tgt.r + K.reach * .55 + 2 : 105;
+      const orbit = B.t * .5 + p.hid * 1.7, far = !melee && DEBUG.botFar, R = melee ? tgt.r + K.reach * .55 + 2 : far ? 150 : 105;
       goX = tgt.x + Math.cos(orbit) * R; goY = tgt.y + Math.sin(orbit) * R * .8; want = 3;
+      // botFar: plays a bow the way a person does, keeping away from whatever it's shooting
+      if (far && Math.hypot(tgt.x - p.x, tgt.y - p.y) < 125) { const a = Math.atan2(p.y - tgt.y, p.x - tgt.x); goX = p.x + Math.cos(a) * 40; goY = p.y + Math.sin(a) * 40; }
     }
   }
   if (goX !== null) {
