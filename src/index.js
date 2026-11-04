@@ -263,7 +263,7 @@ function roomName(v) {
 //   info {gear, rank}   town {..}   post {quest}   ready {v}   cancel   depart {ids, cfg}   end   leave
 //   up {..} (a guest's own hunter, hits, claims: goes to the host)   down {..} / to {id, m} (the host's snapshots and events)
 //   chat {text}   kick {id} (host only: that player is removed and can't rejoin this room)   name {name} (host only: rename it)
-//   stall (a guest in a hunt has had no snapshots for a while)
+//   stall (a guest in a hunt has had no snapshots for a while)   handoff (leaving the hunt you run: it goes on, you stay in the room)
 // To players: room {..} on every change, the relayed messages with from = sender's id, chat {from, name, text},
 // kick {id, name} (to the others), err {msg}. A kicked player's connection closes with code 4002.
 // A dropped connection: away {id, name} to everyone and their place is held (meta.away). They reconnect with re=<their id>
@@ -332,7 +332,7 @@ export class Room extends DurableObject {
 
   roomMsg(forId) {
     const M = this.meta;
-    return JSON.stringify({ t: 'room', v: 3, code: M.code, name: M.name || '', host: M.host, runner: M.runner ?? null, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
+    return JSON.stringify({ t: 'room', v: 3, hand: 1, code: M.code, name: M.name || '', host: M.host, runner: M.runner ?? null, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
       members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear, why: m.why || null })),
       away: this.awayList().map(a => ({ id: a.id, name: a.name })) });
   }
@@ -398,6 +398,11 @@ export class Room extends DurableObject {
       }
       case 'leave': me.hunt = false; ws.serializeAttachment(me); M.hunt = (M.hunt || []).filter(i => i !== me.id); await this.save(); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
       case 'end': if (runs) await this.endHunt(); return;
+      case 'handoff':
+        if (M.phase !== 'hunt' || !runs) return;
+        me.hunt = false; ws.serializeAttachment(me); M.hunt = (M.hunt || []).filter(i => i !== me.id);
+        if (await this.handOn(me)) { await this.save(); this.broadcastRoom(); await this.toLobby(); }
+        return;
       case 'pub': if (isHost) { M.pub = !!m.v; await this.save(); this.broadcastRoom(); await this.toLobby(); } return;
       case 'name': if (isHost) { M.name = roomName(m.name); await this.save(); this.broadcastRoom(); await this.toLobby(); } return;   // the host renames the room
       case 'chat': {                                                 // room chat: to everyone, the sender included, so all see the same order
@@ -444,13 +449,18 @@ export class Room extends DurableObject {
     const runner = M.runner ?? M.host, hunting = M.phase === 'hunt';
     if (me.id === M.host) M.host = (left[0] || away[0]).id;          // the host left: the oldest player hosts now
     if (hunting) M.hunt = (M.hunt || []).filter(i => i !== me.id);
-    if (hunting && me.id === runner) {                               // the next player on the hunt whose game can take it over
-      const next = M.hunt.map(id => left.find(a => a.id === id && a.hunt && a.cap)).find(Boolean);
-      if (!next) { for (const o of this.sockets()) this.send(o, { t: 'hostleft' }); await this.endHunt(); return; }
-      M.runner = next.id;
-      for (const o of this.sockets()) this.send(o, { t: 'runner', id: next.id, old: me.id });
-    } else if (hunting && me.hunt) { const h = this.byId(runner); if (h) this.send(h, { t: 'gone', from: me.id }); }
+    if (hunting && me.id === runner) { if (!(await this.handOn(me))) return; }
+    else if (hunting && me.hunt) { const h = this.byId(runner); if (h) this.send(h, { t: 'gone', from: me.id }); }
     await this.save(); this.broadcastRoom(); await this.toLobby();
+  }
+  // The player running the hunt is off it: the next player on it whose game can take over runs it now. Nobody can: it ends.
+  async handOn(me) {
+    const M = this.meta, left = this.members(), others = this.sockets().filter(o => o.deserializeAttachment().id !== me.id);
+    const next = M.hunt.map(id => left.find(a => a.id === id && a.hunt && a.cap)).find(Boolean);
+    if (!next) { for (const o of others) this.send(o, { t: 'hostleft' }); await this.endHunt(); return false; }
+    M.runner = next.id;
+    for (const o of others) this.send(o, { t: 'runner', id: next.id, old: me.id });
+    return true;
   }
   // A room restarting closes every connection and no close event comes: anyone on the hunt with no connection and no held
   // place gets one now.
