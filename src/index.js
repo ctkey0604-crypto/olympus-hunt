@@ -212,6 +212,9 @@ function checkSave(s, prev, now) {
 /* ---------- multiplayer rooms ---------- */
 // Room codes: 5 letters, no I or O so nobody mixes them up with 1 and 0.
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ', CODE_RE = /^[A-Z]{5}$/, ROOM_MAX = 6;
+// A lost connection isn't a goodbye: a player's place is held this long. STALL_MS: how long the player running a hunt can go
+// quiet (no snapshot, no ping) before the room stops waiting on them.
+const HOLD_MS = 20000, STALL_MS = 12000;
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 const lobbyStub = env => env.LOBBY.get(env.LOBBY.idFromName('main'));
 function newCode() { const b = crypto.getRandomValues(new Uint8Array(5)); return [...b].map(x => CODE_ABC[x % CODE_ABC.length]).join(''); }
@@ -260,8 +263,12 @@ function roomName(v) {
 //   info {gear, rank}   town {..}   post {quest}   ready {v}   cancel   depart {ids, cfg}   end   leave
 //   up {..} (a guest's own hunter, hits, claims: goes to the host)   down {..} / to {id, m} (the host's snapshots and events)
 //   chat {text}   kick {id} (host only: that player is removed and can't rejoin this room)   name {name} (host only: rename it)
+//   stall (a guest in a hunt has had no snapshots for a while)
 // To players: room {..} on every change, the relayed messages with from = sender's id, chat {from, name, text},
 // kick {id, name} (to the others), err {msg}. A kicked player's connection closes with code 4002.
+// A dropped connection: away {id, name} to everyone and their place is held (meta.away). They reconnect with re=<their id>
+// and keep that id; the player running the hunt gets back {from}. Not back in time: gone {from}, or if it was the player
+// running the hunt, runner {id, old} names who runs it now (hostleft if nobody can).
 export class Room extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -273,9 +280,10 @@ export class Room extends DurableObject {
   async save() { await this.ctx.storage.put('meta', this.meta); }
   sockets() { return this.ctx.getWebSockets().filter(ws => { try { return !!ws.deserializeAttachment(); } catch { return false; } }); }
   members() { return this.sockets().map(ws => ws.deserializeAttachment()).sort((a, b) => a.at - b.at); }
+  awayList() { return Object.values((this.meta && this.meta.away) || {}); }          // the players whose place is being held
 
   async init({ code, owner, pub, rank, name }) {
-    if (this.meta && this.sockets().length) return { ok: false };
+    if (this.meta && (this.sockets().length || this.awayList().length)) return { ok: false };
     this.meta = { code, owner: owner.key, pub, rank, name: name || '', host: 0, quest: null, phase: 'town', hunt: [], created: Date.now(), nextId: 1, tickets: {} };
     await this.save();
     await this.ctx.storage.setAlarm(Date.now() + 60000);   // nobody turned up: close it
@@ -284,7 +292,7 @@ export class Room extends DurableObject {
   async ticket(who) {
     if (!this.meta) return { error: 'That room doesn’t exist (or it closed).', status: 404 };
     if ((this.meta.banned || []).includes(who.key)) return { error: 'The host removed you from that room.', status: 403 };
-    const others = this.members().filter(m => m.key !== who.key);
+    const others = [...this.members(), ...this.awayList()].filter(m => m.key !== who.key);
     if (others.length >= ROOM_MAX) return { error: 'That room is full.', status: 409 };
     const now = Date.now(), t = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
     for (const [k, v] of Object.entries(this.meta.tickets)) if (v.exp < now) delete this.meta.tickets[k];
@@ -299,32 +307,41 @@ export class Room extends DurableObject {
     const tk = this.meta.tickets[t];
     if (!tk || tk.exp < Date.now()) return new Response('Bad or old ticket.', { status: 403 });
     delete this.meta.tickets[t];
+    const M = this.meta, re = Number(url.searchParams.get('re')) || 0, replaced = [];
+    let back = null;                                                 // re: their id before the drop. They carry on as that player.
+    this.missing();
     for (const ws of this.ctx.getWebSockets()) {                    // the same account in a second tab replaces the first
-      const a = ws.deserializeAttachment(); if (a && a.key === tk.key) { ws.serializeAttachment(null); try { ws.close(4001, 'Joined from somewhere else'); } catch {} }
+      const a = ws.deserializeAttachment(); if (a && a.key === tk.key) { if (a.id === re) back = a; else replaced.push(a); ws.serializeAttachment(null); try { ws.close(4001, 'Joined from somewhere else'); } catch {} }
     }
-    if (this.sockets().length >= ROOM_MAX) { await this.save(); return new Response('That room is full.', { status: 409 }); }
+    for (const a of this.awayList()) if (a.key === tk.key) { delete M.away[a.id]; if (a.id === re) back = a; else replaced.push(a); }
+    if (!back && this.sockets().length + this.awayList().length >= ROOM_MAX) { await this.save(); return new Response('That room is full.', { status: 409 }); }
     const pair = new WebSocketPair(), [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
-    const me = { id: this.meta.nextId++, key: tk.key, name: tk.name, at: Date.now(), ready: false, hunt: false, rank: 0, gear: null };
+    const me = back ? { ...back, at: Date.now(), hunt: M.phase === 'hunt' && (M.hunt || []).includes(back.id) }
+      : { id: M.nextId++, key: tk.key, name: tk.name, at: Date.now(), ready: false, hunt: false, rank: 0, gear: null };
+    delete me.until;
     server.serializeAttachment(me);
-    if (!this.members().some(m => m.id === this.meta.host)) this.meta.host = me.id;   // first one in hosts
+    if (!this.members().some(m => m.id === M.host) && !(M.away || {})[M.host]) M.host = me.id;   // first one in hosts
     await this.save();
+    if (back && me.hunt) { const h = this.byId(M.runner ?? M.host); if (h && h !== server) this.send(h, { t: 'back', from: me.id }); }
     this.broadcastRoom(); await this.toLobby();
-    await this.ctx.storage.setAlarm(Date.now() + 60000);
+    for (const a of replaced) await this.lost(a);                    // started over (a reload, a second tab): the old one is gone for good
+    await this.wake();
     return new Response(null, { status: 101, webSocket: client });
   }
 
   roomMsg(forId) {
     const M = this.meta;
-    return JSON.stringify({ t: 'room', v: 3, code: M.code, name: M.name || '', host: M.host, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
-      members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear, why: m.why || null })) });
+    return JSON.stringify({ t: 'room', v: 3, code: M.code, name: M.name || '', host: M.host, runner: M.runner ?? null, me: forId, pub: M.pub, rank: M.rank, quest: M.quest, phase: M.phase, hunt: M.hunt,
+      members: this.members().map(m => ({ id: m.id, name: m.name, ready: m.ready, hunt: m.hunt, rank: m.rank, gear: m.gear, why: m.why || null })),
+      away: this.awayList().map(a => ({ id: a.id, name: a.name })) });
   }
   broadcastRoom() { for (const ws of this.sockets()) { const a = ws.deserializeAttachment(); try { ws.send(this.roomMsg(a.id)); } catch {} } }
   send(ws, o) { try { ws.send(typeof o === 'string' ? o : JSON.stringify(o)); } catch {} }
   byId(id) { return this.sockets().find(ws => ws.deserializeAttachment().id === id); }
 
   async webSocketMessage(ws, raw) {
-    if (typeof raw !== 'string' || raw.length > 64000) return;
+    if (typeof raw !== 'string' || raw.length > 200000) return;       // (one full snapshot after a drop can be big)
     const me = ws.deserializeAttachment(); if (!me || !this.meta) return;
     let m; try { m = JSON.parse(raw); } catch { return; }
     const M = this.meta, isHost = me.id === M.host, runs = me.id === (M.runner ?? M.host);   // runs: the player whose game runs the hunt (who posted it)
@@ -334,7 +351,15 @@ export class Room extends DurableObject {
       }
       case 'down': {                                                 // the host's hunt snapshot: to everyone in the hunt
         if (!runs) return; const s = JSON.stringify(m);
+        this.downAt = Date.now();
         for (const o of this.sockets()) if (o !== ws && o.deserializeAttachment().hunt) this.send(o, s);
+        return;
+      }
+      case 'stall': {                                                // no snapshots for a guest: is the player running the hunt still there?
+        if (M.phase !== 'hunt' || runs) return;
+        const h = this.byId(M.runner ?? M.host); if (!h) return;
+        const a = h.deserializeAttachment(); let ts = null; try { ts = this.ctx.getWebSocketAutoResponseTimestamp(h); } catch {}
+        if (Date.now() - Math.max(ts ? ts.getTime() : 0, a.at || 0, this.downAt || 0) > STALL_MS) await this.dropped(h, 4003, 'No answer', true);
         return;
       }
       case 'to': { if (!runs) return; const o = this.byId(m.id); if (o) this.send(o, m.m); return; }   // the host to one player
@@ -345,7 +370,7 @@ export class Room extends DurableObject {
       }
       case 'info': {                                                 // what you look like and carry (drawn by the others), and your rank
         const g = m.gear && typeof m.gear === 'object' ? JSON.stringify(m.gear) : null;
-        me.gear = g && g.length < 1200 ? JSON.parse(g) : null; me.rank = clampInt(m.rank, 0, 2);
+        me.gear = g && g.length < 1200 ? JSON.parse(g) : null; me.rank = clampInt(m.rank, 0, 2); me.cap = m.cap === 1 ? 1 : 0;   // cap 1: their game can take over a hunt
         me.why = typeof m.why === 'string' ? m.why.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').slice(0, 40) : null;   // why they can't take the posted hunt
         ws.serializeAttachment(me);
         this.broadcastRoom(); if (me.id === M.host) await this.toLobby(); return;
@@ -364,14 +389,14 @@ export class Room extends DurableObject {
       case 'depart': {
         if (M.phase !== 'town' || !M.quest || (M.quest.by ?? M.host) !== me.id) return;   // whoever posted it departs
         const ids = this.members().filter(a => a.id === me.id || a.ready).map(a => a.id);
-        M.phase = 'hunt'; M.hunt = ids; M.runner = me.id;
-        for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.hunt = ids.includes(a.id); o.serializeAttachment(a); }
+        M.phase = 'hunt'; M.hunt = ids; M.runner = me.id; M.crew = {};
+        for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.hunt = ids.includes(a.id); o.serializeAttachment(a); if (a.hunt) M.crew[a.id] = { key: a.key, name: a.name }; }
         await this.save();
         const s = JSON.stringify({ t: 'depart', quest: M.quest, ids, cfg: m.cfg || null, from: me.id });
         for (const o of this.sockets()) this.send(o, s);
         this.broadcastRoom(); await this.toLobby(); return;
       }
-      case 'leave': me.hunt = false; ws.serializeAttachment(me); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
+      case 'leave': me.hunt = false; ws.serializeAttachment(me); M.hunt = (M.hunt || []).filter(i => i !== me.id); await this.save(); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
       case 'end': if (runs) await this.endHunt(); return;
       case 'pub': if (isHost) { M.pub = !!m.v; await this.save(); this.broadcastRoom(); await this.toLobby(); } return;
       case 'name': if (isHost) { M.name = roomName(m.name); await this.save(); this.broadcastRoom(); await this.toLobby(); } return;   // the host renames the room
@@ -395,30 +420,59 @@ export class Room extends DurableObject {
     }
   }
   async endHunt() {
-    const M = this.meta; M.phase = 'town'; M.quest = null; M.hunt = []; M.runner = null;
+    const M = this.meta; M.phase = 'town'; M.quest = null; M.hunt = []; M.runner = null; M.crew = null;
     for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.ready = false; a.hunt = false; o.serializeAttachment(a); }
+    for (const a of this.awayList()) a.ready = a.hunt = false;
     await this.save(); this.broadcastRoom(); await this.toLobby();
   }
-  async webSocketClose(ws, code) { await this.dropped(ws); }
-  async webSocketError(ws) { await this.dropped(ws); }
-  async dropped(ws, code = 1000, reason = 'bye') {
+  // Code 1000 is the game saying goodbye. Anything else is a connection lost, so their place is held.
+  async webSocketClose(ws, code) { await this.dropped(ws, 1000, 'bye', code !== 1000); }
+  async webSocketError(ws) { await this.dropped(ws, 1000, 'bye', true); }
+  async dropped(ws, code = 1000, reason = 'bye', hold = false) {
     const me = ws.deserializeAttachment(); if (!me || !this.meta) return;
     try { ws.serializeAttachment(null); } catch {} try { ws.close(code, reason); } catch {}
-    const M = this.meta, left = this.members();
-    if (!left.length) { await this.closeRoom(); return; }
-    const runner = M.runner ?? M.host;
-    if (me.id === M.host) M.host = left[0].id;                       // the host left: the oldest player hosts now
-    if (M.phase === 'hunt' && me.id === runner) { for (const o of this.sockets()) this.send(o, { t: 'hostleft' }); await this.endHunt(); return; }
-    if (M.phase === 'hunt' && me.hunt) { const h = this.byId(runner); if (h) this.send(h, { t: 'gone', from: me.id }); }
+    if (!hold) { await this.lost(me); return; }
+    const M = this.meta;
+    (M.away = M.away || {})[me.id] = { ...me, until: Date.now() + HOLD_MS };
+    for (const o of this.sockets()) this.send(o, { t: 'away', id: me.id, name: me.name });
+    await this.save(); this.broadcastRoom(); await this.toLobby(); await this.wake();
+  }
+  // Someone is gone for good: hand on what they held.
+  async lost(me) {
+    const M = this.meta, left = this.members(), away = this.awayList();
+    if (!left.length && !away.length) { await this.closeRoom(); return; }
+    const runner = M.runner ?? M.host, hunting = M.phase === 'hunt';
+    if (me.id === M.host) M.host = (left[0] || away[0]).id;          // the host left: the oldest player hosts now
+    if (hunting) M.hunt = (M.hunt || []).filter(i => i !== me.id);
+    if (hunting && me.id === runner) {                               // the next player on the hunt whose game can take it over
+      const next = M.hunt.map(id => left.find(a => a.id === id && a.hunt && a.cap)).find(Boolean);
+      if (!next) { for (const o of this.sockets()) this.send(o, { t: 'hostleft' }); await this.endHunt(); return; }
+      M.runner = next.id;
+      for (const o of this.sockets()) this.send(o, { t: 'runner', id: next.id, old: me.id });
+    } else if (hunting && me.hunt) { const h = this.byId(runner); if (h) this.send(h, { t: 'gone', from: me.id }); }
     await this.save(); this.broadcastRoom(); await this.toLobby();
   }
+  // A room restarting closes every connection and no close event comes: anyone on the hunt with no connection and no held
+  // place gets one now.
+  missing() {
+    const M = this.meta; if (M.phase !== 'hunt') return;
+    for (const id of M.hunt || []) {
+      const c = (M.crew || {})[id]; if (!c || this.byId(id) || (M.away || {})[id]) continue;
+      (M.away = M.away || {})[id] = { id, key: c.key, name: c.name, at: Date.now(), ready: false, hunt: true, rank: 0, gear: null, until: Date.now() + HOLD_MS };
+    }
+  }
+  async expire() {                                                   // held places that have run out
+    const now = Date.now();
+    for (const a of this.awayList()) if (a.until <= now) { delete this.meta.away[a.id]; await this.lost(a); if (!this.meta) return; }
+  }
+  async wake() { await this.ctx.storage.setAlarm(Math.min(Date.now() + 30000, ...this.awayList().map(a => a.until + 50))); }   // the next alarm: 30 s, or when a held place runs out
   async closeRoom() {
     const code = this.meta && this.meta.code;
     this.meta = null; await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm();
     if (code) try { await lobbyStub(this.env).remove(code); } catch {}
   }
   async toLobby() {
-    const M = this.meta; if (!M) return; const mem = this.members(), host = mem.find(m => m.id === M.host);
+    const M = this.meta; if (!M) return; const mem = [...this.members(), ...this.awayList()], host = mem.find(m => m.id === M.host);
     try {
       await lobbyStub(this.env).update({ code: M.code, name: M.name || '', pub: M.pub, host: host ? host.name : '', n: mem.length, max: ROOM_MAX,
         hostKey: host ? host.key : '', rank: host ? host.rank : M.rank, phase: M.phase, quest: M.quest ? M.quest.name : null, created: M.created });
@@ -427,8 +481,9 @@ export class Room extends DurableObject {
   async alarm() {                                                    // every 30 s: drop dead connections, tell the lobby
     if (!this.meta) return;
     await this.sweep(); if (!this.meta) return;
-    if (!this.sockets().length) { await this.closeRoom(); return; }
-    await this.toLobby(); await this.ctx.storage.setAlarm(Date.now() + 30000);
+    this.missing(); await this.expire(); if (!this.meta) return;
+    if (!this.sockets().length && !this.awayList().length) { await this.closeRoom(); return; }
+    await this.save(); await this.toLobby(); await this.wake();
   }
   // A connection that stopped answering (a PC asleep, a dropped network) still looks open. Players ping every 2 s,
   // every 10 s from a hidden tab, so 90 s of silence means they're gone.
@@ -439,7 +494,7 @@ export class Room extends DurableObject {
       if (now - Math.max(ts ? ts.getTime() : 0, a.at || 0) > 90000) await this.dropped(ws);
     }
   }
-  async isOpen() { if (this.meta) await this.sweep(); return !!(this.meta && this.sockets().length && this.sockets().length < ROOM_MAX); }
+  async isOpen() { if (this.meta) await this.sweep(); const n = this.sockets().length + this.awayList().length; return !!(this.meta && n && n < ROOM_MAX); }
 }
 
 // The public room list. Rooms check in when something changes and once a minute; ones that go quiet drop off.
