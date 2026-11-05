@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="Olympus Hunt">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;500;600;700&display=swap"><!-- never holds up the page on a slow connection -->
 <style>
 /* Layout: one full-viewport stage for the village and the hunts; building menus are full-screen
    panels on black glaze, framed by a terracotta meander band like black-figure pottery. */
@@ -289,6 +289,7 @@ textarea:focus{outline:2px solid var(--gold)}
 #guardBar.broken>i{background:var(--blood)}
 .fb{max-width:520px;margin:6px auto 0;background:var(--glaze-2);box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .fb-row{display:grid;grid-template-columns:2.2em 1fr 4.5em 4.5em;gap:10px;align-items:center;padding:9px 16px;font-variant-numeric:tabular-nums}
+.fb.two .fb-row{grid-template-columns:2.2em 1fr 6.5em}
 .fb-row+.fb-row{box-shadow:inset 0 1px 0 var(--line)}
 .fb-row>span:nth-child(3),.fb-row>:nth-child(4){text-align:right}
 .fb-row>b:first-child{font-family:var(--font-display);font-weight:400;font-size:1.5em;line-height:1;color:var(--bone-mute)}
@@ -383,6 +384,19 @@ textarea:focus{outline:2px solid var(--gold)}
 .vote-banner span{background:linear-gradient(100deg,#ffd463 42%,#fff6d8 50%,#ffd463 58%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:voteGlint 6s linear infinite}
 @keyframes voteGlint{from{background-position:100% 0}to{background-position:0 0}}
 @media (prefers-reduced-motion:reduce){.vote-banner span{animation:none}}
+/* the owner's dashboard */
+.owner-wrap{max-width:1100px}
+.ow-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px}
+.ow-card{display:grid;gap:2px;padding:12px 14px;background:var(--glaze-2);box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);border-radius:var(--rad)}
+.ow-card b{font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1;color:var(--gold)}.ow-card span{color:var(--bone-dim);font-size:.85rem}
+.ow-split{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:14px}
+.ow-bar{display:grid;grid-template-columns:minmax(0,1.3fr) 1fr 2.5em;gap:8px;align-items:center;font-size:.85rem;padding:2px 0}.ow-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ow-bar i{display:block;height:8px;background:#000;box-shadow:0 0 0 1px var(--line)}.ow-bar u{display:block;height:100%;background:var(--clay)}.ow-bar b{text-align:right;font-variant-numeric:tabular-nums}
+.ow-find{width:100%;margin-bottom:10px;padding:8px 10px;border:0;background:#000a;color:var(--bone);font:inherit;box-shadow:0 0 0 2px var(--line);user-select:text;-webkit-user-select:text}
+.ow-scroll{overflow-x:auto;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);border-radius:var(--rad);margin-bottom:10px}
+.ow-table{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums;background:var(--glaze-2);white-space:nowrap}
+.ow-table th,.ow-table td{padding:7px 10px;text-align:left;box-shadow:inset 0 -1px 0 var(--line)}.ow-table th{color:var(--bone-mute);font-weight:400}
+.ow-table button{all:unset;cursor:pointer;color:var(--bone-mute)}.ow-table button.on{color:var(--gold)}.ow-table button:hover{color:var(--bone)}
 .vote-lead{margin:0 0 14px;color:var(--bone-dim)}
 .vote-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media (max-width:640px){.vote-grid{grid-template-columns:1fr}}
@@ -532,6 +546,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .mp-btns kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}
 .mp-warn{color:#ff8a7a}
 #mpRoom{display:grid;gap:calc(var(--px)*2)}
+#mpPing.weak{color:#ff8a7a}
 .mp-chatbtn{font:inherit;font-size:.9em;border:0;padding:0 0 0 calc(var(--px)*2);margin-left:calc(var(--px)*1);background:none;color:var(--gold);cursor:pointer;box-shadow:-1px 0 0 var(--line)}
 .mp-chatbtn:hover{color:var(--bone)}
 .mp-unread{font-style:normal;font-weight:700;background:var(--clay);color:#160e0b;padding:0 .35em;margin-left:.3em}
@@ -698,6 +713,7 @@ input[type=range]{accent-color:var(--clay)}
       <button class="btn big" id="btnPlay" type="button">Play</button>
       <button class="btn ghost" id="btnSaves" type="button">Saves</button>
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
+      <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
     <button class="vote-banner" id="btnVote" type="button"><span>Vote on update 1.1!</span></button>
@@ -718,6 +734,13 @@ input[type=range]{accent-color:var(--clay)}
     <div class="acct" id="acctBox" hidden></div>
     <p class="muted" id="saveStatus" style="margin:0">Loading saves…</p>
     <div class="slots" id="slotList"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrOwner" hidden>
+  <div class="wrap owner-wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnOwnerBack">Back</button><h2>Owner dashboard</h2><button class="btn ghost small" type="button" id="btnOwnerRefresh">Refresh</button></div>
+    <div id="ownerBody"></div>
   </div>
 </section>
 
@@ -758,7 +781,7 @@ input[type=range]{accent-color:var(--clay)}
     <h3>Parts carried home</h3>
     <div class="res-loot" id="resLoot"></div>
     <p class="muted" id="resNote" style="margin:0"></p>
-    <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
+    <div class="row"><button class="btn" id="btnResNext" type="button" hidden>Next quest</button><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
   </div>
 </section>
 
@@ -966,6 +989,7 @@ const ABILITIES = {
   sunburst:    { name: 'Sunburst',        cd: 7, desc: 'Fire a ring of sunlight in every direction.' },
   whirlwind:   { name: 'Whirlwind',       cd: 6, desc: 'Spin and hit everything around you three times.' },
   tidal:       { name: 'Tidal Wave',      cd: 7, desc: 'A wave rolls out from you and shoves everything far back.' },
+  trident_throw: { name: 'Trident Throw', cd: 7, desc: 'Hurl the trident through everything ahead. It crashes down in a wave, then flies back and hits again on the way.' },
   quake:       { name: 'Earthquake',      cd: 8, desc: 'Spikes burst from the ground around you and stun what they hit.' },
   eruption:    { name: 'Eruption',        cd: 8, desc: 'Fire bursts under the five nearest enemies.' },
   deathmark:   { name: 'Death Mark',      cd: 9, desc: 'Enemies near you take 30% more damage for 6 seconds.' },
@@ -997,7 +1021,7 @@ const WEAPONS = {
   ares_warblade:   { name: 'Warblade of Ares',      kind: 'sword',   wt: 8,    ability: 'whirlwind', recipe: { items: { war_ember: 3, war_token: 2, bloodied_bronze: 4 }, cost: 2200 }, desc: 'It wants to be swung.' },
   retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'Everyone gets what they deserve.' },
   coral_daggers:   { name: 'Coral Daggers',         kind: 'daggers', wt: 8.5,  recipe: { items: { crab_shell: 6, triton_scale: 3, giant_claw: 1 }, cost: 1600 }, desc: 'Grown, not forged.' },
-  trident:         { name: 'Trident of the Deep',   kind: 'spear',   wt: 9,    ability: 'tidal', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. It drips forever.' },
+  trident:         { name: 'Trident of the Deep',   kind: 'spear',   wt: 9,    ability: 'trident_throw', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. Throw it and it comes back.' },
   peacock_bow:     { name: 'Peacock Bow',           kind: 'bow',     wt: 9.5,  pierce: 2, recipe: { items: { peacock_plume: 6, royal_gold: 3, argus_eye: 1 }, cost: 1900 }, desc: 'Fletched with eye-feathers.' },
   hera_scepter:    { name: 'Scepter of Hera',       kind: 'hammer',  wt: 10,   ability: 'quake', recipe: { items: { regal_plume: 3, queen_token: 2, royal_gold: 4 }, cost: 3000 }, desc: 'The queen’s scepter. Heavier than a throne.' },
   discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'Its arrows never fly quite straight. They don’t need to.' },
@@ -1872,6 +1896,13 @@ const BOSS_TUNE = {
   typhon: { hp: [1, 1, 1.25], dmg: [1, 1, 1.1] },
 };
 for (const [id, t] of Object.entries(BOSS_TUNE)) if (BOSSES[id]) BOSSES[id].tune = t;
+// A step up on top of that: every Titan rises toward Hyperion, the hardest of them, and the gods a little. [health, damage]
+const BOSS_STEP = { atlas: [1.15, 1.1], oceanus: [1.2, 1.12], coeus: [1.12, 1.1], mnemosyne: [1.25, 1.05], themis: [1.12, 1.1], rhea: [1.08, 1.08], cronus: [1.12, 1.1] };
+for (const [id, B] of Object.entries(BOSSES)) {
+  if (id === 'hyperion' || id === 'typhon') continue;
+  const [hp, dmg] = BOSS_STEP[id] || [1.06, 1.05], t = B.tune || { hp: [1, 1, 1], dmg: [1, 1, 1] };
+  B.tune = { hp: t.hp.map(v => v * hp), dmg: t.dmg.map(v => v * dmg) };
+}
 
 // Generated arenas: obstacles and the hidden nook come out the same every time.
 for (const [id, A] of Object.entries(ARENAS)) {
@@ -2771,11 +2802,20 @@ const Store = {
     return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(e => {
       if (e && e.check) { this.refused(e.message); return; }      // the server's save checks said no: sending it again won't help
       if (!this.pending[n]) this.pending[n] = data;
+      if (!this.timers[n]) this.timers[n] = setTimeout(() => this.push(n), 20000);   // it's safe on this device: keep trying
     });
   },
   // Said once per reason: the save stays on this device, the account keeps its last good copy.
   refused(msg) { if (this.refusedMsg === msg) return; this.refusedMsg = msg; if (typeof toast === 'function') toast(msg + ' It’s still saved on this device.', 7000); },
   flush(keepalive = false) { return Promise.all(Object.keys(this.pending).map(n => this.push(n, keepalive))); },
+  // Reaching your account can take a while on a bad connection. Starting over isn't the answer: a new game would replace the save
+  // the account holds. true: fine to go on. false: signed in, nothing on this device, and the account can't be reached.
+  async reachable() {
+    if (!this.user) return true;
+    const slow = setTimeout(() => { if (typeof toast === 'function') toast('Reaching your account…', 6000); }, 1500);
+    await this.refresh(); clearTimeout(slow);
+    return !!this.remote || [1, 2, 3].some(n => this.readLocal(n));
+  },
   /* ---- Claude artifact cloud ---- */
   ref(n) { return this.cloud.doc('data/users/' + this.uid + '/slot' + n); },
   async load(n) {
@@ -2830,6 +2870,7 @@ const Store = {
 // Anything not yet sent goes up when the tab closes or hides.
 addEventListener('pagehide', () => Store.flush(true));
 document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flush(true); });
+addEventListener('online', () => Store.flush());                     // saves that couldn't be sent go up as soon as the connection is back
 
 const LOADOUT_MAX = 5, LOADOUT_NAME_MAX = 20;                 // saved gear sets, kept in the chest at home
 function newSave() {
@@ -2841,6 +2882,7 @@ function newSave() {
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
            meal: null,                                              // a Tavern meal waiting for the next hunt
            loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
+           finishTime: 0,                                           // play time, in seconds, when Typhon first fell: the speedrun board
            hero: 'boy' };                                           // 'boy' or 'girl', picked in Options
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
@@ -2890,6 +2932,7 @@ function sanitize(s) {
   out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
   if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
+  out.finishTime = !out.cleared[TYPHON_Q] ? 0 : Math.max(0, num(s.finishTime, 0)) || out.playtime;   // finished before this was kept: the play time so far is the closest there is
   out.meal = typeof s.meal === 'string' && MEALS[s.meal] ? s.meal : null;
   out.hero = s.hero === 'girl' ? 'girl' : 'boy';
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {
@@ -4667,6 +4710,7 @@ function netRejoined(m, old) {
 }
 function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
 setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a hidden tab draws no frames: keep telling the room you're there
+addEventListener('online', () => { if (NET.re) { clearTimeout(NET.re.timer); netRetry(NET.re); } });        // the connection's back: don't wait for the next retry
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
@@ -4842,7 +4886,7 @@ function netUi() {
   }
   $('mpRoom').innerHTML = html;
 }
-function netUiPing() { const el = $('mpPing'); if (el) el.textContent = NET.ping ? NET.ping + ' ms' : ''; }
+function netUiPing() { const el = $('mpPing'); if (el) { el.textContent = NET.ping ? NET.ping + ' ms' : ''; el.classList.toggle('weak', NET.ping > 250); } }
 
 /* ---- room chat (under the room box): T or the Chat button to type, Enter sends, Esc closes ---- */
 const CHAT_MAX = 120, CHAT_KEEP = 40, CHAT_SHOW = 5, CHAT_FADE = 9000;
@@ -4929,12 +4973,15 @@ const NET_SKIP_E = new Set(['def', 'tgt', 'tgtT', 'tok', 'tokH', 'threat', 'last
 const NET_SKIP_P = new Set(['hit', 'src', 'owner', 'group', 'px', 'py', 'boom', 'homing', 't', 'life', 'nid', 'fall', 'mine', 'lgone']);
 const NET_SKIP_K = new Set(['vx', 'vy', 'vz', 't', 'to', 'nid', 'home']);
 const netRound = (k, v) => typeof v === 'number' ? r2(v) : v && typeof v === 'object' && (v.def || v.st || v.save || v instanceof Map || v instanceof Set || typeof v === 'function') ? undefined : v;
-function netSer(o, skip) {
+// coarse (monsters, pickups): a whole pixel and a fifth of a second are plenty, and most fields then stop changing every snapshot.
+function netSer(o, skip, coarse = false) {
   const r = {};
   for (const k in o) {
     if (skip.has(k)) continue;
     const v = o[k], t = typeof v;
     if (v === null || v === undefined) r[k] = null;
+    else if (coarse && t === 'number' && (k === 'x' || k === 'y')) r[k] = Math.round(v);
+    else if (coarse && t === 'number' && k === 'st') r[k] = Math.round(v * 5) / 5;
     else if (t === 'number') r[k] = r2(v);
     else if (t === 'string' || t === 'boolean') r[k] = v;
     else if (t === 'object' && !(v.def || v.st || v.save || v instanceof Map || v instanceof Set)) { try { r[k + '~'] = JSON.stringify(v, netRound); } catch (e) {} }
@@ -4978,7 +5025,7 @@ function netApplyHunter(p, a, now) {
 // Smoothly follows a hunter someone else controls (a guest on the host's screen, anyone else on a guest's).
 function netFollow(p, dt) {
   const R = p.rep; if (!R) return;
-  const age = Math.min(.12, (performance.now() - R.at) / 1000), tx = R.x + R.vx * age, ty = R.y + R.vy * age;
+  const age = Math.min(clamp((NET.gap || 0) * 1.6, .12, .3), (performance.now() - R.at) / 1000), tx = R.x + R.vx * age, ty = R.y + R.vy * age;
   if (Math.hypot(tx - p.x, ty - p.y) > 48) { p.x = tx; p.y = ty; }
   else { const k = Math.min(1, dt * 14); p.x += (tx - p.x) * k; p.y += (ty - p.y) * k; }
   if (p.swing) p.swing.t += dt;
@@ -4996,6 +5043,7 @@ function netHunter(memberId) { return q && q.hunters.find(h => h.remote === memb
 function netUp(m) {
   const p = netHunter(m.from); if (!p || p.left) return;
   if (m.h) netApplyHunter(p, m.h, performance.now());
+  if (m.pg) p.pingRep = +m.pg || 0;                                  // their ping, so the snapshots can slow down for them
   if (m.q) for (const a of m.q) p.netQ.push(a);
   if (m.v) { NET.replay = true; for (const ev of m.v) { netPlayEvent(ev); NET.fwd.push([p.hid, ev]); } NET.replay = false; }
 }
@@ -5043,7 +5091,7 @@ function netRemoteStep(p, dt) {
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
     else if (k === 'pj') {                                       // one of its shots, for everyone else to see (it does no damage here)
       spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p, pierce: clamp(Math.floor(+a[8] || 0), 0, 20) });
-      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid;
+      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid; if (pr.kind === 'trident') pr.boom = { t: TRIDENT_OUT, src: p };
     }
   }
 }
@@ -5053,7 +5101,13 @@ function netHurtRemote(p, dmg, ang, knock, o) {
   const f = (o.proj ? 1 : 0) | (o.unblockable ? 2 : 0) | (o.melee ? 4 : 0);
   netTo(p, 'hurt', [Math.round(dmg), r2(ang), Math.round(knock), f, o.src && o.src.id ? o.src.id : 0]);
 }
-// After each host step: send what changed. Snapshots go out 15 times a second.
+// Snapshots a second: 15 on a good connection, fewer when anyone in the party has a slow one or this game can't send them fast enough.
+function netSnapRate(queued) {
+  let worst = NET.ping || 0;
+  for (const h of q.hunters) if (h.remote && !h.left) worst = Math.max(worst, h.pingRep || 0);
+  return queued > 65536 ? 5 : queued > 16384 || worst > 400 ? 7.5 : worst > 200 ? 10 : 15;
+}
+// After each host step: send what changed.
 function netHostTick(dt) {
   if (!q || q.net !== 'host') return;
   for (const f of q.fx) if (!f._n) { f._n = 1; netRec(['f', netFxOut(f)]); }
@@ -5069,12 +5123,14 @@ function netHostTick(dt) {
   }
   // everyone down (some of them on other screens): the hunt is lost
   if (!q.pv && q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
-  NET.downT -= dt; if (NET.downT > 0) return; NET.downT = 1 / 15;
+  // a struggling connection gets fewer snapshots rather than a growing queue of late ones
+  const queued = (NET.ws && NET.ws.bufferedAmount) || 0;
+  NET.downT -= dt; if (NET.downT > 0 || queued > 262144) return; NET.downT = 1 / netSnapRate(queued);
   const snap = { t: 'down', s: ++NET.seq, g: netGlobals(), h: q.hunters.map(netHunterState) };
   if (NET.full) { snap.f = 1; NET.full = false; }
-  netDelta(snap, 'e', q.pv ? [] : q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
+  netDelta(snap, 'e', q.pv ? [] : q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E, true), e => e.id);
   netDelta(snap, 'p', q.projs, NET.sent.p, pr => netSer(pr, NET_SKIP_P), pr => pr.nid || (pr.nid = NID++));
-  netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K), k => k.nid || (k.nid = NID++));
+  netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K, true), k => k.nid || (k.nid = NID++));
   const zs = [], zid = new Set();                               // ground marks: sent once when they appear, then only their removal
   for (const h of q.hazards) { const id = h.nid || (h.nid = NID++); zid.add(id); if (!NET.sent.z.has(id)) { NET.sent.z.add(id); zs.push([id, netSer(h, new Set(['nid', 'then', 'hits']))]); } }
   const zx = []; for (const id of NET.sent.z) if (!zid.has(id)) { zx.push(id); NET.sent.z.delete(id); }
@@ -5156,6 +5212,7 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
 // A snapshot from the host.
 function netDown(m) {
   const now = performance.now(), mine = q.player.hid;
+  if (NET.downAt) { const gap = Math.min(.5, (now - NET.downAt) / 1000); NET.gap = NET.gap ? NET.gap * .85 + gap * .15 : gap; }   // how far apart snapshots really arrive
   NET.downAt = now;
   if (m.g) netGlobalsIn(m.g);
   if (m.h) for (const a of m.h) { if (a[0] === mine) continue; const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now); }
@@ -5302,8 +5359,8 @@ function guestTick(dt) {
     const low = !p.dead && p.hp / p.st.maxHp < .3;
     if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0;
   }
-  // everyone else glides toward where the host last saw them
-  const k = Math.min(1, dt * 15);
+  // everyone else glides toward where the host last saw them, slower when snapshots are further apart, so a bad connection looks less jumpy
+  const k = Math.min(1, dt * clamp(1.2 / (NET.gap || .066), 5, 15));
   for (const e of q.enemies) {
     if (e._tx !== undefined) { const ox = e.x; e.x += (e._tx - e.x) * k; e.y += (e._ty - e.y) * k; if (Math.abs(e.x - ox) > .05) e.walkT += dt; }
     e.st = (e.st || 0) - dt; e.flash = Math.max(0, (e.flash || 0) - dt);
@@ -5320,8 +5377,10 @@ function guestTick(dt) {
   if (late && (NET.stallT -= dt) <= 0) { NET.stallT = 4; netSend({ t: 'stall' }); }
   NET.upT -= dt;
   if (NET.upT <= 0) {
-    NET.upT = 1 / 20;
+    const slow = (NET.ping || 0) > 300 || ((NET.ws && NET.ws.bufferedAmount) || 0) > 8192;
+    NET.upT = slow ? 1 / 10 : 1 / 20;
     const O = NET.out, m = { t: 'up', h: netHunterState(p) };
+    NET.pgT = (NET.pgT || 0) - 1; if (NET.pgT <= 0) { NET.pgT = 20; if (NET.ping) m.pg = NET.ping; }
     if (O.q.length) m.q = O.q.splice(0);
     if (O.v.length) m.v = O.v.splice(0).slice(-60);
     for (const f of q.fx) if (!f._n) { f._n = 1; (m.v = m.v || []).push(['f', netFxOut(f)]); }
@@ -5797,6 +5856,9 @@ function useAbility(p, mv) {
     if (!targets.length) targets.push({ x: p.x + Math.cos(p.face) * 40, y: p.y + Math.sin(p.face) * 40 });
     targets.forEach((e, i) => q.pspikes.push({ x: e.x, y: e.y, t: -.55 - i * .08, dmg: T * 4.2, hit: false, sky: true, r: 18, cast, owner: p }));
     Sound.play('telegraph');
+  } else if (id === 'trident_throw') {
+    const a = aim(); p.face = a; Sound.play('swing');
+    spawnProj(p.x + Math.cos(a) * 8, p.y + Math.sin(a) * 8, a, 290, W * 1.3, 'trident', 'player', { r: 6, life: 2.4, pierce: 99, ghost: true, boom: { t: TRIDENT_OUT, src: p } });
   } else if (id === 'solar_lance') {
     const a = aim(), len = 230, x0 = p.x, y0 = p.y - 6, x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len; p.face = a;
     q.fx.push({ t: 'beamfx', x: x0, y: y0, a, len, life: .35, max: .35, c: '#ffd463' }); flash(.06); Sound.play('beam');
@@ -5997,6 +6059,7 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
   dmg = Math.max(1, Math.round(dmg * rand(.9, 1.1)));
   if (e.stun > 0 && !e.boss) dmg = Math.round(dmg * 1.25);
+  if (e.def.role === 'dummy') dmg = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + p.st.def))), Math.ceil(p.st.maxHp * PVP_MAX_HIT));   // practice: what the same hit does in a fight, to someone in your armor
   e.hp -= dmg; e.flash = .12;
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
@@ -6072,6 +6135,15 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
                  owner: team === 'player' ? o.owner || q.actor || q.player : null });
   if (q.net === 'guest' && team === 'player') netOwnShot(q.projs[q.projs.length - 1]);
 }
+// Where a thrown trident turns for home, a wave breaks and shoves everything back.
+const TRIDENT_OUT = .45;                                   // seconds out before it turns
+function tridentCrash(pr) {
+  const by = pr.owner || q.player, was = q.actor;
+  q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: '#57c2b0' }); burst(pr.x, pr.y - 4, 14, ['#57c2b0', '#e6f2ff', '#2c7a70'], 90); Sound.play('splash');
+  q.actor = by;
+  for (const e of q.enemies) if (targetable(e) && edist(pr, e) < 56 + e.r) damageEnemy(e, pr.dmg * .5, Math.atan2(e.y - pr.y, e.x - pr.x), 300, true);
+  q.actor = was;
+}
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
   if (pr.split) { const s = pr.split; for (let i = 0; i < s.n; i++) spawnProj(pr.px, pr.py, i / s.n * Math.PI * 2, s.speed, s.dmg, s.kind, pr.team, { r: 2, life: 1.6 }); burst(pr.px, pr.py - 6, 10, ['#ffd463', '#ffffff'], 90); Sound.play('zap'); }
@@ -6101,7 +6173,8 @@ function updateProjs(dt) {
       if (best) { const b = bodyPt(best, pr.x, pr.y), cur = Math.atan2(pr.vy, pr.vx), want = Math.atan2(b.y - pr.y, b.x - pr.x), sp = Math.hypot(pr.vx, pr.vy);
         const na = cur + clamp(angDiff(cur, want), -pr.homing * dt, pr.homing * dt); pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp; }
     }
-    if (pr.kind === 'godweapon' && pr.boom && pr.t > pr.boom.t) {          // a thrown god weapon turns round and flies back to its owner
+    if ((pr.kind === 'godweapon' || pr.kind === 'trident') && pr.boom && pr.t > pr.boom.t) {   // a thrown god weapon turns round and flies back to its owner
+      if (pr.kind === 'trident' && !pr.boom.back) { pr.boom.back = true; pr.hit = new Set(); if (!pr.vis) tridentCrash(pr); }   // the trident crashes down, then hits again on the way home
       const s = pr.boom.src, a = Math.atan2(s.y - 6 - pr.y, s.x - pr.x), sp = Math.min(380, Math.hypot(pr.vx, pr.vy) + 520 * dt);
       pr.vx = Math.cos(a) * sp; pr.vy = Math.sin(a) * sp; pr.life = Math.max(pr.life, .5);
       if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; continue; }
@@ -7286,6 +7359,7 @@ const LAWS = {
   peace:     ['Law of Peace', 'Do not strike'],
   motion:    ['Law of Motion', 'Keep moving'],
   measure:   ['Law of Measure', 'No more than 3 strikes in a row'],
+  presence:  ['Law of Presence', 'Stay close to her'],
 };
 
 const TITAN_AI = {
@@ -7316,15 +7390,15 @@ const TITAN_AI = {
         break;
       case 'stomp':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { quakeRings(b, D); b.state = 'recover'; b.st = 1.1; }
+        if (b.st <= 0) { quakeRings(b, D, b.phase >= 2 ? [[34, 10, .3], [60, 14, .55], [88, 18, .8], [116, 22, 1.05]] : undefined); b.state = 'recover'; b.st = 1.1; }
         break;
       case 'throwAim':
         titanStill(b); b.st -= dt;
         if (b.st > b.lockAt) { b.aim = Math.atan2(c.dy, c.dx); b.flip = c.dx < 0; }
         if (b.st <= 0) {
-          spawnProj(b.x + Math.cos(b.aim) * 20, b.y + Math.sin(b.aim) * 20, b.aim, 180 + 20 * b.rank, D(.3), 'globe', 'enemy', { r: 16, life: 4.2, knock: 320, src: b, bounce: 2 + b.rank });
+          spawnProj(b.x + Math.cos(b.aim) * 20, b.y + Math.sin(b.aim) * 20, b.aim, 180 + 20 * b.rank, D(.3), 'globe', 'enemy', { r: 16, life: 4.2, knock: 320, src: b, bounce: 2 + b.rank + (b.phase >= 2 ? 1 : 0) });
           b.globe = false; Sound.play('roar'); addShake(4);
-          b.state = 'unburdened'; b.st = 2.6; setVuln(b, 1.3, 2.6);
+          b.state = 'unburdened'; b.st = 2; setVuln(b, 1.3, 2);
         }
         break;
       case 'unburdened':                                           // arms empty, breathing hard: hit him now
@@ -7354,7 +7428,7 @@ const TITAN_AI = {
         titanWalk(b, c, 125, 36, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, P2 ? ['beams', 'flare', 'orbs', 'beams', 'blink'] : ['beams', 'flare', 'orbs', 'beams']);
-          if (pick === 'beams') { const n = (P2 ? 3 : 2) + (b.rank >= 2 ? 1 : 0); b.beams = { a: Math.atan2(c.dy, c.dx) + Math.PI / n, dir: Math.random() < .5 ? 1 : -1, n, w: P2 ? 1.05 : .8 }; b.state = 'beamsAim'; b.st = 1; Sound.play('telegraph'); }
+          if (pick === 'beams') { const n = (P2 ? 3 : 2) + (b.rank >= 2 ? 1 : 0); b.beams = { a: Math.atan2(c.dy, c.dx) + Math.PI / n, dir: Math.random() < .5 ? 1 : -1, n, w: P2 ? .95 : .8 }; b.state = 'beamsAim'; b.st = 1.15; Sound.play('telegraph'); }
           else if (pick === 'flare') { b.state = 'flare'; b.st = P2 ? 2 : 2.4; b.flareMax = b.st; Sound.play('beam'); if (!q.seenFlare) { q.seenFlare = true; banner('Hyperion gathers the dawn', 'Get an obelisk between you and him'); } }
           else if (pick === 'orbs') { b.state = 'orbs'; b.st = .7; b.count = P2 ? 2 : 1; }
           else { b.state = 'blinkOut'; b.st = .4; Sound.play('dodge'); }
@@ -7403,7 +7477,7 @@ const TITAN_AI = {
   oceanus(b, dt, c) {
     const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (!q.current) q.current = { a: rand(0, Math.PI * 2), s: 26, next: null, t: 6 };
-    const C = q.current; C.s = (b.phase >= 2 ? 38 : 26) + 6 * b.rank;
+    const C = q.current; C.s = (b.phase >= 2 ? 42 : 28) + 6 * b.rank;
     C.t -= dt;
     if (C.t <= 1.6 && C.next === null) { C.next = C.a + (Math.random() < .5 ? 1 : -1) * rand(1.6, 2.6); Sound.play('splash'); }
     if (C.t <= 0) { C.a = C.next; C.next = null; C.t = b.phase >= 2 ? 6 : 8; }
@@ -7439,15 +7513,18 @@ const TITAN_AI = {
       case 'tide': {                                               // walls of water roll across the arena, with gaps
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
-          const horiz = Math.random() < .5, lanes = 7, gaps = new Set(shuffle([...Array(lanes).keys()]).slice(0, 2 + (b.rank >= 2 ? 0 : 1)));
-          for (let i = 0; i < lanes; i++) {
-            if (gaps.has(i)) continue;
-            if (horiz) { const y = IPX.minY + 14 + i * ((IPX.maxY - IPX.minY - 28) / (lanes - 1)), right = Math.random() < .5;
-              q.hazards.push({ type: 'lane', kind: 'wave', x0: right ? IPX.minX - 8 : IPX.maxX + 8, y0: y, x1: right ? IPX.maxX + 8 : IPX.minX - 8, y1: y, t: 0, delay: 1, dmg: D(.16), speed: 190 }); }
-            else { const x = IPX.minX + 14 + i * ((IPX.maxX - IPX.minX - 28) / (lanes - 1)), down = Math.random() < .5;
-              q.hazards.push({ type: 'lane', kind: 'wave', x0: x, y0: down ? IPX.minY - 8 : IPX.maxY + 8, x1: x, y1: down ? IPX.maxY + 8 : IPX.minY - 8, t: 0, delay: 1, dmg: D(.16), speed: 190 }); }
+          const first = Math.random() < .5, lanes = 7;
+          for (const [horiz, delay] of b.phase >= 2 ? [[first, 1], [!first, 2.1]] : [[first, 1]]) {   // once he floods, a second wall crosses the first
+            const gaps = new Set(shuffle([...Array(lanes).keys()]).slice(0, 2 + (b.rank >= 2 ? 0 : 1)));
+            for (let i = 0; i < lanes; i++) {
+              if (gaps.has(i)) continue;
+              if (horiz) { const y = IPX.minY + 14 + i * ((IPX.maxY - IPX.minY - 28) / (lanes - 1)), right = Math.random() < .5;
+                q.hazards.push({ type: 'lane', kind: 'wave', x0: right ? IPX.minX - 8 : IPX.maxX + 8, y0: y, x1: right ? IPX.maxX + 8 : IPX.minX - 8, y1: y, t: 0, delay, dmg: D(.16), speed: 190 }); }
+              else { const x = IPX.minX + 14 + i * ((IPX.maxX - IPX.minX - 28) / (lanes - 1)), down = Math.random() < .5;
+                q.hazards.push({ type: 'lane', kind: 'wave', x0: x, y0: down ? IPX.minY - 8 : IPX.maxY + 8, x1: x, y1: down ? IPX.maxY + 8 : IPX.minY - 8, t: 0, delay, dmg: D(.16), speed: 190 }); }
+            }
           }
-          Sound.play('telegraph'); b.state = 'recover'; b.st = 1.2;
+          Sound.play('telegraph'); b.state = 'recover'; b.st = b.phase >= 2 ? 1.8 : 1.2;
         }
         break;
       }
@@ -7467,9 +7544,9 @@ const TITAN_AI = {
         titanWalk(b, c, 115, 40, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, ['foresee', 'stars', 'lance', 'foresee']);
-          if (pick === 'foresee') { b.state = 'foresee'; b.st = .45; b.count = 3 + b.rank + (b.readT > 0 ? 1 : 0); }
+          if (pick === 'foresee') { b.state = 'foresee'; b.st = .45; b.count = 4 + b.rank + (b.readT > 0 ? 1 : 0); }
           else if (pick === 'stars') { b.state = 'stars'; b.st = .6; }
-          else { b.state = 'lance'; b.st = .5; b.count = P2 ? 3 : 1; }
+          else { b.state = 'lance'; b.st = .5; b.count = b.phase >= 2 && b.rank >= 1 ? 5 : P2 ? 3 : 1; }
         }
         break;
       case 'foresee':                                              // each mark lands where you'll be, not where you are
@@ -7496,7 +7573,7 @@ const TITAN_AI = {
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
           const t = predict(.6), base = Math.atan2(t.y - b.y, t.x - b.x);
-          for (let i = 0; i < b.count; i++) { const a = base + (b.count > 1 ? (i - 1) * .32 : 0), len = 700; q.hazards.push({ type: 'lane', kind: 'bolt', col: '#9fd0ff', x0: b.x, y0: b.y, x1: b.x + Math.cos(a) * len, y1: b.y + Math.sin(a) * len, t: 0, delay: .75, dmg: D(.24) }); }
+          for (let i = 0; i < b.count; i++) { const a = base + (i - (b.count - 1) / 2) * .32, len = 700; q.hazards.push({ type: 'lane', kind: 'bolt', col: '#9fd0ff', x0: b.x, y0: b.y, x1: b.x + Math.cos(a) * len, y1: b.y + Math.sin(a) * len, t: 0, delay: .75, dmg: D(.24) }); }
           Sound.play('telegraph'); b.state = 'recover'; b.st = 1;
         }
         break;
@@ -7518,7 +7595,7 @@ const TITAN_AI = {
           if (pick === 'echo' && p.mem && p.mem.length > 30) { b.state = 'echo'; b.st = .9; Sound.play('charm'); }
           else if (pick === 'mist') { b.state = 'mist'; b.st = .5; }
           else if (pick === 'recall' && p.mem && p.mem.length > 30) { b.state = 'recall'; b.st = 1.15; b.recallFrom = G.time; Sound.play('telegraph'); }
-          else { b.state = 'orbs'; b.st = .6; }
+          else { b.state = 'orbs'; b.st = .6; b.count = 0; }
         }
         break;
       case 'echo':
@@ -7539,7 +7616,11 @@ const TITAN_AI = {
         break;
       case 'orbs':
         titanStill(b); b.st -= dt; b.frame = 2;
-        if (b.st <= 0) { const n = 9 + b.rank * 2, off = rand(0, 1); for (let i = 0; i < n; i++) spawnProj(b.x, b.y - 16, off + i / n * Math.PI * 2, 70, D(.11), 'dream', 'enemy', { r: 3, life: 4.5, homing: .9, src: b }); Sound.play('ability'); b.state = 'recover'; b.st = .8; }
+        if (b.st <= 0) {
+          const n = 9 + b.rank * 2, off = rand(0, 1); for (let i = 0; i < n; i++) spawnProj(b.x, b.y - 16, off + i / n * Math.PI * 2, 70, D(.11), 'dream', 'enemy', { r: 3, life: 4.5, homing: .9, src: b }); Sound.play('ability');
+          b.count = b.count > 0 ? b.count - 1 : b.phase >= 2 ? 1 : 0;                // once she remembers more, a second ring follows
+          if (b.count > 0) b.st = .6; else { b.state = 'recover'; b.st = .8; }
+        }
         break;
       case 'recall':                                               // she pulls you back to where you were a moment ago
         titanStill(b); b.st -= dt; b.frame = 2;
@@ -7571,6 +7652,10 @@ const TITAN_AI = {
       if (L.id === 'motion') for (const h of q.hunters) {           // every hunter has to keep moving (key 'still' for you)
         if (h.dead || !b.law) continue; const k = h.hid ? 'still' + h.hid : 'still';
         if (h.moving || h.dodgeT > 0) L[k] = 0; else { L[k] = (L[k] || 0) + dt; if (L[k] > 1) themisJudge(b, h); }
+      }
+      if (L.id === 'presence') for (const h of q.hunters) {         // no standing off with a bow: stray too far for too long and she judges you
+        if (h.dead || !b.law) continue; const k = h.hid ? 'far' + h.hid : 'far';
+        if (Math.hypot(h.x - b.x, h.y - b.y) < 130) L[k] = 0; else { L[k] = (L[k] || 0) + dt; if (L[k] > 1.5) themisJudge(b, h); }
       }
       if (b.law && L.t <= 0) {                                     // the law was kept: her scales favour you
         b.law = null; b.lawT = P2 ? 7 : 9; b.label = null;
@@ -7633,11 +7718,11 @@ const TITAN_AI = {
         titanWalk(b, c, 95, 40, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const lions = q.enemies.filter(e => !e.dead && e.type === 'lion').length;
-          const pick = pickAttack(b, lions < 2 ? ['hide', 'lions', 'quake', 'stones', 'hide'] : ['hide', 'quake', 'stones', 'hide']);
+          const pick = pickAttack(b, lions < 2 + b.rank ? ['hide', 'lions', 'quake', 'stones', 'hide'] : ['hide', 'quake', 'stones', 'hide']);
           if (pick === 'hide') { b.state = 'wrap'; b.st = .8; Sound.play('charm'); }
           else if (pick === 'lions') { b.state = 'lions'; b.st = .8; Sound.play('roar'); }
           else if (pick === 'quake') { b.state = 'quake'; b.st = .85; Sound.play('telegraph'); }
-          else { b.state = 'stones'; b.st = .5; }
+          else { b.state = 'stones'; b.st = .5; b.count = 0; }
         }
         break;
       case 'wrap':
@@ -7649,9 +7734,9 @@ const TITAN_AI = {
         if (b.st <= 0) { summonAround(b, ['lion', 'lion'], 'Rhea calls her lions'); b.state = 'recover'; b.st = .7; }
         break;
       case 'quake': titanStill(b); b.st -= dt; if (b.st <= 0) { quakeRings(b, D); b.state = 'recover'; b.st = 1.1; } break;
-      case 'stones':
+      case 'stones':                                               // when she stops playing, a second fall lands where you ran to
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 7) + 2 * b.rank, 15, 1, D(.17), 'stone', 110); b.state = 'recover'; b.st = .9; }
+        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 7) + 2 * b.rank, 15, 1, D(.17), 'stone', 110); b.count = b.count > 0 ? b.count - 1 : b.phase >= 2 ? 1 : 0; if (b.count > 0) b.st = .8; else { b.state = 'recover'; b.st = .9; } }
         break;
       case 'dazed': titanStill(b); b.st -= dt; if (b.st <= 0) { b.state = 'idle'; b.st = .5; } break;
     }
@@ -7675,7 +7760,7 @@ const TITAN_AI = {
         for (let i = 0; i < 6; i++) q.fx.push({ t: 'after', spr: 'cronus', flip: b.flip, x: b.x + rand(-30, 30), y: b.y + rand(-20, 20), life: .5, max: .5, gold: true, scale: TITAN_SCALE });
       }
     } else if (b.hgT <= 0 && b.state === 'idle' && !p.dead) {
-      b.hg = { t: P2 ? 6 : 7, max: P2 ? 6 : 7, need: b.maxHp * (.07 + .01 * b.rank), dealt: 0, hp0: b.hp, x: b.x, y: b.y };
+      b.hg = { t: P2 ? 6 : 7, max: P2 ? 6 : 7, need: b.maxHp * (.08 + .01 * b.rank), dealt: 0, hp0: b.hp, x: b.x, y: b.y };
       banner('Cronus turns the hourglass', 'Hit him hard before the sand runs out'); Sound.play('telegraph');
     }
     b.label = b.hg ? `Hourglass: ${Math.min(100, Math.round(b.hg.dealt / b.hg.need * 100))}% broken · ${Math.ceil(b.hg.t)}s` : null;
@@ -7684,7 +7769,7 @@ const TITAN_AI = {
         titanWalk(b, c, 70, 42, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, ['sweep', 'throw', 'blades', 'field', 'sweep']);
-          if (pick === 'sweep') { b.state = 'sweepAim'; b.st = P2 ? .75 : .9; b.count = P2 ? 2 : 1; Sound.play('telegraph'); }
+          if (pick === 'sweep') { b.state = 'sweepAim'; b.st = P2 ? .75 : .9; b.count = b.phase >= 2 && b.rank >= 1 ? 3 : P2 ? 2 : 1; Sound.play('telegraph'); }
           else if (pick === 'throw') { b.state = 'throw'; b.st = .6; }
           else if (pick === 'blades') { b.state = 'blades'; b.st = .5; }
           else { b.state = 'field'; b.st = .5; }
@@ -7714,7 +7799,8 @@ const TITAN_AI = {
         if (b.st <= 0) {
           const n = 10 + 2 * b.rank, off = rand(0, 1);
           for (let i = 0; i < n; i++) { const a = off + i / n * Math.PI * 2, x = p.x + Math.cos(a) * 74, y = p.y + Math.sin(a) * 74 * .8; spawnProj(x, y, a + Math.PI, 0, D(.13), 'blade', 'enemy', { r: 3, life: 4, src: b, ghost: true, delay: 1.1, launch: 210 }); }
-          Sound.play('perfect'); b.state = 'recover'; b.st = 1.1;
+          if (b.phase >= 2) for (let i = 0; i < n; i++) { const a = off + (i + .5) / n * Math.PI * 2, x = p.x + Math.cos(a) * 104, y = p.y + Math.sin(a) * 104 * .8; spawnProj(x, y, a + Math.PI, 0, D(.13), 'blade', 'enemy', { r: 3, life: 4, src: b, ghost: true, delay: 1.5, launch: 210 }); }   // a wider ring a beat behind the first
+          Sound.play('perfect'); b.state = 'recover'; b.st = b.phase >= 2 ? 1.5 : 1.1;
         }
         break;
       }
@@ -7903,7 +7989,7 @@ function startQuest(id, opts = {}) {
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
   if (def.practice) {                                      // practice explains itself once, the first time you ever go in
-    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`, 8); }
+    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(`${touchMode ? 'Attack and dash with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`}. Hits here do what they’d do to a player in your armor`, 9); }
   } else if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
@@ -8263,7 +8349,7 @@ function pvpFinish(quit = false) {
   const title = $('resTitle'); title.textContent = quit ? 'You left the fight' : wonIt ? 'Victory' : 'Defeat'; title.className = 'res-title ' + (wonIt ? 'win' : 'lose');
   $('resStats').innerHTML = `<div><span>Rounds won</span><b>${P.wins[me.team] || 0}</b></div><div><span>Kills</span><b>${mine[0]}</b></div><div><span>Deaths</span><b>${mine[1]}</b></div><div><span>Damage dealt</span><b>${Math.round(q.stats.dealt)}</b></div>`;
   $('resUnlock').innerHTML = ''; $('resLoot').innerHTML = `<div class="muted">Fights pay nothing. They’re for the glory.</div>`; $('resNote').textContent = '';
-  $('btnResAgain').hidden = true; G.lastQuest = null; G.arenaBack = true;
+  $('btnResAgain').hidden = true; resNextButton(null); G.lastQuest = null; G.arenaBack = true;
   G.mode = 'results'; q = null; show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);
 }
@@ -8278,16 +8364,30 @@ function renderArena() {
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
+// The leaderboards at the Coliseum: fights, the fastest run to Typhon, and the deepest Endless wave.
+const BOARD_TABS = { fights: 'Fights', speed: 'Speedrun', endless: 'Endless' };
+const BOARD_HOW = {
+  fights: 'Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.',
+  speed: 'Play time from your first step to Typhon’s fall. Your best save counts.',
+  endless: 'The deepest wave reached in the Endless Hunt. Your best save counts.',
+};
+const fmtRun = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = Math.floor(t % 60); return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; };
 function renderFightBoard() {
-  return `<div class="fb" id="pvpBoard"><p class="fb-note">Looking…</p></div>
-    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.</p>`;
+  const tab = BOARD_TABS[G.boardTab] ? G.boardTab : 'fights';
+  return `<div class="board-top"><div class="seg">${Object.entries(BOARD_TABS).map(([k, name]) => `<button type="button" data-fbtab="${k}" aria-pressed="${tab === k}">${name}</button>`).join('')}</div></div>
+    <div class="fb${tab === 'fights' ? '' : ' two'}" id="pvpBoard"><p class="fb-note">Looking…</p></div>
+    <p class="fb-how">${esc(BOARD_HOW[tab])}</p>`;
 }
 async function pvpBoardLoad() {
+  const tab = BOARD_TABS[G.boardTab] ? G.boardTab : 'fights', me = String(Store.user || '').toLowerCase();
+  const rows = (head, list, cells) => `<div class="fb-row fb-head">${head.map(h => `<span>${h}</span>`).join('')}</div>` + list.map((p, i) => `<div class="fb-row${p.name.toLowerCase() === me ? ' me' : ''}"><b>${i + 1}</b><span class="fb-name">${esc(p.name)}</span>${cells(p)}</div>`).join('');
   try {
-    const list = (await Store.call('GET', 'pvp/board')).board || [], box = $('pvpBoard'); if (!box) return;
-    const me = String(Store.user || '').toLowerCase();
-    box.innerHTML = !list.length ? `<p class="fb-note">Nobody has fought here yet.</p>` : `<div class="fb-row fb-head"><span></span><span>Player</span><span>K/D</span><span>Score</span></div>`
-      + list.map((p, i) => `<div class="fb-row${p.name.toLowerCase() === me ? ' me' : ''}"><b>${i + 1}</b><span class="fb-name">${esc(p.name)}</span><span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b></div>`).join('');
+    const list = tab === 'fights' ? (await Store.call('GET', 'pvp/board')).board || [] : (await Store.call('GET', 'boards'))[tab] || [], box = $('pvpBoard');
+    if (!box || (BOARD_TABS[G.boardTab] ? G.boardTab : 'fights') !== tab) return;     // you've moved on to another tab
+    box.innerHTML = !list.length ? `<p class="fb-note">${tab === 'fights' ? 'Nobody has fought here yet.' : tab === 'speed' ? 'Nobody has a run on the board yet.' : 'Nobody has a wave on the board yet.'}</p>`
+      : tab === 'fights' ? rows(['', 'Player', 'K/D', 'Score'], list, p => `<span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b>`)
+      : tab === 'speed' ? rows(['', 'Player', 'Time'], list, p => `<b class="fb-score">${fmtRun(p.time)}</b>`)
+      : rows(['', 'Player', 'Wave'], list, p => `<b class="fb-score">${p.wave}</b>`);
   } catch (e) { if ($('pvpBoard')) $('pvpBoard').innerHTML = `<p class="fb-note">The board can’t be read right now. Check your connection.</p>`; }
 }
 /* ---- drawing ---- */
@@ -8444,7 +8544,7 @@ const ROOMS = {
             ['dummy', 23.5, 9.6], ['dummy', 26.5, 9.6], ['dummy', 25, 11.4],
             ['amphora', 3.8, 16.8], ['amphora', 4.8, 17.5], ['crate', 3.8, 18], ['barrel', 31.4, 16.6, 'water'], ['barrel', 30.4, 17.6, 'water'], ['crate', 31.6, 18]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
-    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 190 }, { id: 'dummy2', name: 'practice mode', kind: 'practice', x: 384, y: 162 }, { id: 'dummy3', name: 'practice mode', kind: 'practice', x: 432, y: 162 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
+    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 190 }, { id: 'dummy2', name: 'practice mode', kind: 'practice', x: 384, y: 162 }, { id: 'dummy3', name: 'practice mode', kind: 'practice', x: 432, y: 162 }, { id: 'fights', name: 'the leaderboards', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
@@ -8693,7 +8793,7 @@ const PANEL_INFO = {
   shrine:  { title: 'Hestia’s Hearth' },
   oracle:  { title: 'The Oracle' },
   arena:   { title: 'The Coliseum' },
-  pvpboard: { title: 'The fight board' },
+  pvpboard: { title: 'Leaderboards' },
 };
 // Rank progress. A rank is done when every god (side gods too) and every Titan has been hunted on it.
 const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].every(id => save.cleared[rid(id, r)]);
@@ -10015,7 +10115,7 @@ const GOD_HELD = { artemis: ['bow', '#d5dbe5'], dionysus: ['thyrsus', '#4e8a3a']
 function drawThrown(H, sx, sy, a, t) {
   const [kind, col] = H || ['spear', '#c7ccd1'];
   if (kind === 'hammer' || kind === 'sword') a = t * 16;
-  const ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca, L = kind === 'hammer' ? 7 : kind === 'sword' ? 8 : 12;
+  const ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca, L = kind === 'hammer' ? 7 : kind === 'sword' ? 8 : kind === 'trident' ? 10 : 12;
   const shaft = kind === 'scepter' ? '#e9c04f' : kind === 'sword' ? col : '#8a5a34', bx = sx - ca * L, by = sy - sa * L, fx = sx + ca * L, fy = sy + sa * L;
   pxLine(bx, by + 1, fx, fy + 1, '#140d0b'); pxLine(bx, by, fx, fy, shaft);
   switch (kind) {
@@ -10131,6 +10231,14 @@ function drawProj(pr, S) {
       jagged(x0, y0, x1, y1, '#ffffff', 3, 5, seed); break;
     }
     case 'godweapon': drawThrown(pr.weapon, sx, y, a, pr.t); break;
+    case 'trident': {                                       // Poseidon's trident, thrown: a gold shaft, three teal prongs, and a trail of drops
+      const x0 = sx - ca * 10, y0 = y - sa * 10, x1 = sx + ca * 6, y1 = y + sa * 6, nx = -sa, ny = ca, tip = (o, l) => [x1 + nx * o + ca * l, y1 + ny * o + sa * l];   // the size it is in the player's hand: 20 long, 5 wide
+      pxLine(x0 + nx, y0 + ny, x1 + nx, y1 + ny, '#140d0b'); pxLine(x0, y0, x1, y1, '#e9c04f');
+      pxLine(...tip(-2, 0), ...tip(2, 0), '#2c7a70');
+      for (const [o, l] of [[-2, 3], [2, 3], [0, 4]]) { pxLine(...tip(o, 0), ...tip(o, l), '#57c2b0'); ctx.fillStyle = '#e6f2ff'; const [tx, ty] = tip(o, l); ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1); }
+      if (Math.random() < .5) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: rand(-14, 14), vy: rand(-6, 14), g: 90, life: .3, max: .3, c: Math.random() < .5 ? '#57c2b0' : '#e6f2ff', s: 1 });
+      break;
+    }
     case 'orb': pxEllipse(sx, y, 4, 4, '#140d0b'); pxEllipse(sx, y, 3, 3, Math.floor(pr.t * 10) % 2 ? '#57c2b0' : '#3c8f82'); ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
     case 'zspark': ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 2, y - 2, 4, 4); ctx.fillStyle = Math.floor(pr.t * 20) % 2 ? '#ffffff' : '#ffd463'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
     case 'heart': { ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, y - 2, 7, 4); ctx.fillRect(sx - 2, y + 2, 5, 1); ctx.fillRect(sx - 1, y + 3, 3, 1); const [c1] = PROJ_COL.heart; ctx.fillStyle = c1; ctx.fillRect(sx - 2, y - 1, 2, 2); ctx.fillRect(sx + 1, y - 1, 2, 2); ctx.fillRect(sx - 1, y + 1, 3, 1); ctx.fillRect(sx, y + 2, 1, 1); ctx.fillRect(sx, y, 1, 1); break; }
@@ -10366,7 +10474,7 @@ function hudReset() {
   $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
   $('guardBar').hidden = !st.shield; $('drawBar').hidden = !st.kind.draw;
-  $('hudLoot').parentElement.hidden = !!(q.def.practice || q.def.pvp);     // nothing drops there
+  $('hudLoot').parentElement.hidden = $('potionBar').hidden = !!(q.def.practice || q.def.pvp);     // nothing drops there, and potions don't work
 }
 function updateHud() {
   const p = q.player;
@@ -10632,6 +10740,9 @@ function drawGhost(gh, S) {
 const NEWS = [
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
+      'The Trident of the Deep can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back.',
+      'Leaderboards at the Coliseum: fights, speedrun and Endless, all on one board.',
+      'A Next quest button on the quest complete screen, when you’re playing alone.',
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
@@ -10660,6 +10771,9 @@ const NEWS = [
       'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
       'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Every Titan is tougher and has a new trick, and the gods are a little tougher too. Hyperion’s beams turn slightly slower and give you a moment longer to read them.',
+      'Practice now shows what your hits would do in a fight, against someone in your armor.',
+      'Online play copes better with a slow connection: fewer, smaller updates when anyone’s connection struggles, and saves that couldn’t be sent try again by themselves.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
       'Hammers hit a little softer. Spears hit a little harder and faster.',
       'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
@@ -10697,6 +10811,75 @@ function renderNews() {
     <div class="news-head"><h3>${esc(n.title)}</h3><span class="muted">${esc(n.v)} · ${esc(n.date)}</span></div>
     ${list('New', n.new)}${list('Changed', n.changed)}${list('Fixed', n.fixed)}</article>`).join('');
 }
+/* ============================== THE OWNER'S DASHBOARD ============================== */
+// Where players are and how recently they played, for the account named owner. This page only hides a button: the server is what
+// decides, and it refuses everyone else. It shows game progress, never anything about signing in.
+const isOwner = () => String(Store.user || '').toLowerCase() === 'owner';
+const DAY_MS = 86400000;
+let ownerData = null, ownerVote = null, ownerMsg = '', ownerSort = 'saved', ownerFind = '';
+const fmtHours = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60; return h ? `${h}h ${m}m` : `${m}m`; };
+function fmtAgo(ms) {
+  if (!ms) return 'never';
+  const m = Math.floor(ms / 60000); if (m < 60) return m < 2 ? 'just now' : `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); return d < 60 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`;
+}
+// One line per account: its most recently played save, and what it's up to.
+function ownerPlayers(d) {
+  const by = new Map();
+  for (const r of d.rows) {
+    const key = r.name; if (by.has(key) && !(r.saved_at > by.get(key).saved)) continue;
+    let cleared = {}; try { cleared = r.cleared ? JSON.parse(r.cleared) : {}; } catch (e) {}
+    const rank = r.rank || 0, done = !!cleared[TYPHON_Q], saved = r.saved_at || 0;
+    const next = saved && !done ? nextQuest({ rank, cleared, stairs: !!r.stairs }) : null;
+    by.set(key, { name: r.display, joined: r.created || 0, saved, rank, play: r.play || 0, money: r.money || 0, wave: r.wave || 0, finish: r.finish || 0, hunts: Object.keys(cleared).length, done,
+                  where: !saved ? 'No save yet' : done ? 'Beat Typhon' : next ? next.name : 'Ready for the next rank' });
+  }
+  return [...by.values()];
+}
+function renderOwner() {
+  const box = $('ownerBody');
+  if (!ownerData) { box.innerHTML = `<p class="vote-lead">${esc(ownerMsg || 'Looking…')}</p>`; return; }
+  const now = ownerData.now, all = ownerPlayers(ownerData), seen = n => all.filter(p => p.saved && now - p.saved < n * DAY_MS).length;
+  const saved = all.filter(p => p.saved), played = saved.reduce((a, p) => a + p.play, 0), done = all.filter(p => p.done).length;
+  const card = (label, value) => `<div class="ow-card"><b>${esc(String(value))}</b><span>${esc(label)}</span></div>`;
+  const bars = (rows, total) => rows.map(([name, n]) => `<div class="ow-bar"><span>${esc(name)}</span><i><u style="width:${total ? Math.round(n / total * 100) : 0}%"></u></i><b>${n}</b></div>`).join('');
+  const ranks = [...RANKS.map((R, i) => [R.name, saved.filter(p => !p.done && p.rank === i).length]), ['Beat Typhon', done], ['No save yet', all.length - saved.length]];
+  const stuck = new Map(); for (const p of saved) if (!p.done && now - p.saved > 7 * DAY_MS) stuck.set(p.where, (stuck.get(p.where) || 0) + 1);   // gone quiet for a week: where they stopped
+  const stops = [...stuck.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8), votes = ownerVote && ownerVote.counts ? VOTE.map(o => [o.name, ownerVote.counts[o.id] || 0]) : [];
+  const voteAll = votes.reduce((a, v) => a + v[1], 0), find = ownerFind.toLowerCase();
+  const KEYS = { saved: p => -p.saved, name: p => p.name.toLowerCase(), rank: p => -(p.done ? 9 : p.rank), hunts: p => -p.hunts, play: p => -p.play, joined: p => -p.joined };
+  const list = all.filter(p => !find || p.name.toLowerCase().includes(find) || p.where.toLowerCase().includes(find)).sort((a, b) => { const x = KEYS[ownerSort](a), y = KEYS[ownerSort](b); return x < y ? -1 : x > y ? 1 : 0; }).slice(0, 200);
+  const th = (k, name) => `<th><button type="button" data-owsort="${k}" class="${ownerSort === k ? 'on' : ''}">${name}</button></th>`;
+  box.innerHTML = `<div class="ow-cards">${card('Accounts', all.length)}${card('Played today', seen(1))}${card('This week', seen(7))}${card('This month', seen(30))}${card('Beat Typhon', done)}${card('Average play', saved.length ? fmtHours(played / saved.length) : '0m')}</div>
+    <div class="ow-split"><div class="opt"><h3>Where they are</h3>${bars(ranks, all.length)}</div>
+    <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
+    <div class="opt"><h3>Vote for update 1.1</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
+    <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
+    <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}</tr></thead>
+    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
+    <p class="muted" style="font-size:.85rem">Last played means the last time a save reached the server. Showing up to 200 players, newest save first.</p>`;
+}
+async function ownerLoad() {
+  ownerMsg = ''; ownerData = null; renderOwner();
+  try {
+    await Store.ready;
+    const [players, vote] = await Promise.all([Store.call('GET', 'owner/players'), Store.call('GET', 'vote').catch(() => null)]);
+    ownerData = players; ownerVote = vote;
+  } catch (e) { ownerMsg = e.status === 404 ? 'This is only for the owner account.' : e.message || 'The dashboard can’t be reached right now.'; }
+  renderOwner();
+}
+function openOwner() { G.mode = 'owner'; show('scrOwner'); ownerLoad(); }
+function closeOwner() { Sound.play('click'); G.mode = 'title'; show('scrTitle'); }
+$('btnOwner').onclick = () => { Sound.init(); Sound.play('click'); openOwner(); };
+$('btnOwnerBack').onclick = closeOwner;
+$('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
+$('ownerBody').addEventListener('click', ev => { const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); } });
+$('ownerBody').addEventListener('input', ev => {
+  if (ev.target.id !== 'ownerFind') return;
+  ownerFind = ev.target.value; const at = ev.target.selectionStart; renderOwner();
+  const inp = $('ownerFind'); if (inp) { inp.focus(); inp.setSelectionRange(at, at); }
+});
 /* ============================== THE COMMUNITY VOTE ============================== */
 // Players pick what update 1.1 will be, from the banner on the title screen. One vote per account, and it can be changed while the vote is
 // open. The totals show once you've voted, so nobody just follows the leader. The server keeps the count (Lobby.vote), and its
@@ -10773,7 +10956,8 @@ function drawTitleArt() {
 }
 // Play: straight back into the last save (or a new hunter in the first free slot). Saves: the full list.
 async function playNow() {
-  await Store.ready; if (Store.user) await Store.refresh();
+  await Store.ready;
+  if (!(await Store.reachable())) { toast('Can’t reach your saves right now. Check your connection and try again.', 7000); return; }
   let n = Settings.data.lastSlot, s = n ? await Store.load(n) : null;
   if (!s) { n = 0; for (let k = 1; k <= 3; k++) { const t = await Store.load(k); if (t) { n = k; s = t; break; } } }
   if (!n) n = 1;
@@ -10788,6 +10972,7 @@ async function updateTitleSub() {
   const n = Settings.data.lastSlot; let s = n ? await Store.load(n) : null;
   if (s && G.save && G.slot === n) s = G.save;   // back from playing: the save in hand is the newest
   $('titleSub').textContent = s ? `Continues save ${n} · ${huntTally(s)}` : '';
+  $('btnOwner').hidden = !isOwner();
   $('inviteNote').hidden = !G.invite;
   if (G.invite) $('inviteNote').textContent = Store.api && !Store.user ? `You’ve been invited to a hunt! Press Play to sign in and join room ${G.invite}.` : `You’ve been invited to a hunt! Press Play to join room ${G.invite}.`;
 }
@@ -10820,7 +11005,7 @@ async function renderSlots() {
   await Store.ready;
   if (Store.user) await Store.refresh();
   renderAccount();
-  $('saveStatus').textContent = G.invite ? (Store.user ? `Pick a save to join room ${G.invite}.` : `Sign in or create an account to join room ${G.invite}, then pick a save.`)
+  $('saveStatus').textContent = Store.user && !Store.remote ? 'Can’t reach your account right now. These are the saves on this device.' : G.invite ? (Store.user ? `Pick a save to join room ${G.invite}.` : `Sign in or create an account to join room ${G.invite}, then pick a save.`)
     : Store.user ? 'Saves sync to your account and also stay in this browser.'
     : CG.data ? 'CrazyGames keeps your saves. Sign in to CrazyGames and they follow you to any device.'
     : Store.cloud ? 'Saves sync to your Claude account and also stay in this browser.'
@@ -10904,7 +11089,7 @@ function slotCard(n, s) {
     const btn = ev.target.closest('button'); if (!btn) return;
     const a = btn.dataset.a; Sound.init(); Sound.play('click');
     if (a === 'continue') { G.slot = n; G.save = s; G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
-    else if (a === 'new') { G.slot = n; G.save = newSave(); persist(true); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
+    else if (a === 'new') { if (Store.user && !Store.remote) { toast('Can’t reach your account right now, and a new game could replace a save there. Try again in a moment.', 7000); return; } G.slot = n; G.save = newSave(); persist(true); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
     else if (a === 'delete') { el.querySelector('.slot-actions').innerHTML = `<span class="warn">Delete save ${n} for good?</span><button class="btn danger" type="button" data-a="confirmdel">Delete</button><button class="btn ghost" type="button" data-a="canceldel">Keep it</button>`; }
     else if (a === 'confirmdel') { await Store.del(n); renderSlots(); }
     else if (a === 'canceldel') renderSlots();
@@ -11305,6 +11490,7 @@ $('scrHub').addEventListener('click', ev => {
   }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.fbtab) { G.boardTab = t.dataset.fbtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.chesttab) { G.chestTab = t.dataset.chesttab; G.ldArm = null; Sound.play('click'); renderHub(); return; }
   if (t.dataset.ldnew || t.dataset.ldover) {                 // what you're wearing goes in a new loadout, or over an old one
     const i = t.dataset.ldover ? +t.dataset.ldover : s.loadouts.length, old = s.loadouts[i];
@@ -11410,6 +11596,7 @@ function finishQuest(win) {
   let best = false;
   if (win) {
     s.money += d.reward; s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
+    if (d.id === TYPHON_Q && !s.finishTime) s.finishTime = Math.round(s.playtime);       // the speedrun board: first step to Typhon's fall
     const t = Math.max(1, Math.round(q.elapsed)); if (!s.best[d.id] || t < s.best[d.id]) { best = !!s.best[d.id]; s.best[d.id] = t; }
   }
   // the Endless Hunt only ends in a fall (or leaving): it pays for the waves cleared and keeps the record
@@ -11449,9 +11636,20 @@ function finishQuest(win) {
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
     : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
+  const next = win && !run && !wasNet && !netOn() ? nextQuest(s, d.id) : null;           // on your own, a win offers the next hunt (a room picks its own)
+  resNextButton(next);
   G.mode = 'results'; q = null;
   show('scrResults');
-  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
+  setTimeout(() => { if (G.mode === 'results') $(next ? 'btnResNext' : 'btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
+}
+// The hunt to go on next: the first one on your rank you can take and haven't cleared, looking on from the one you just finished.
+function nextQuest(s = G.save, after = null) {
+  const list = QUESTS.filter(x => x.rank === (s.rank || 0) && !x.endless && !s.cleared[x.id] && isUnlocked(x, s)), at = QUESTS.findIndex(x => x.id === after);
+  return list.find(x => QUESTS.indexOf(x) > at) || list[0] || null;
+}
+function resNextButton(next) {
+  const b = $('btnResNext'); b.hidden = !next; G.nextQuestId = next ? next.id : null; $('btnResContinue').classList.toggle('ghost', !!next);
+  if (next) b.textContent = `Next quest: ${next.name}`;
 }
 
 /* ---- the Oracle: hunting with others ---- */
@@ -11659,6 +11857,7 @@ function endCredits() {
 }
 $('btnCreditsSkip').onclick = () => { Sound.play('click'); endCredits(); };
 $('btnCreditsDone').onclick = () => { Sound.play('click'); endCredits(); };
+$('btnResNext').onclick = () => { Sound.play('click'); const id = G.nextQuestId; if (id && isUnlocked(QUEST_BY_ID[id])) CG.midgameAd(() => fadeTo(() => startQuest(id))); };
 $('btnResAgain').onclick = () => { Sound.play('click'); const id = G.lastQuest; if (id && isUnlocked(QUEST_BY_ID[id])) CG.midgameAd(() => fadeTo(() => startQuest(id))); };
 
 /* ============================== EVENTS =================================== */
@@ -11672,6 +11871,7 @@ addEventListener('keydown', e => {
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
   if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
   if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
+  if (G.mode === 'owner') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeOwner(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();
@@ -11847,7 +12047,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
@@ -11861,6 +12061,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   clearBots: () => { G.partyBots = []; }, PARTY_SCALE, botLocal: v => { G.botLocal = !!v; },   // botLocal: your own hunter plays itself (for bot parties)
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
+  damageEnemy, resNextButton, updatePotionBar,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },
   godMode: () => { if (q) { q.player.invuln = 9999; q.player.hp = 1e6; } },
   DEBUG,
