@@ -203,6 +203,8 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 .seg button{background:transparent;border:0;color:var(--bone-dim);font:600 .95rem var(--font-ui);padding:8px 14px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--clay);color:#160e0b}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.grid.meal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:520px){.grid.meal-grid{grid-template-columns:1fr}}
 .gear{background:var(--glaze-2);padding:14px;display:grid;gap:10px;align-content:start;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .gear.equipped{box-shadow:0 0 0 2px #000,0 0 0 4px var(--clay)}
 .gear-head{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
@@ -487,6 +489,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 /* online: what stops you posting a hunt (under its button on the board) */
 .qwarn{margin:0;padding:8px 10px;background:#3a1a14;color:#ffb3a6;box-shadow:inset 3px 0 0 #d9493b;border-radius:var(--rad-sm)}
 .mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
+.mp-sides{display:flex;gap:calc(var(--px)*3)}
+.mp-sides button{flex:1 1 0;min-width:0;font:inherit;text-align:left;border:0;padding:calc(var(--px)*.8) calc(var(--px)*3);background:var(--glaze-3);color:var(--bone-mute);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none;overflow-wrap:anywhere}
+.mp-sides b{display:block;font-weight:600}.mp-sides .side0 b{color:#ff8a7a}.mp-sides .side1 b{color:#8fc4f5}
+.mp-sides button.on{color:var(--bone);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000,0 0 0 max(2px,calc(var(--px)*1.2)) var(--gold)}
 .mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
 .mp-btns button.hot{background:var(--clay);color:#160e0b}
 .mp-btns kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}

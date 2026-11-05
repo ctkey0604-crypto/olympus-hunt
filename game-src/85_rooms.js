@@ -16,12 +16,49 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
 // The Coliseum's floor, for practice and for fights between players.
-Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null,
-  obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14]] } });
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null, dress: (x, R) => paintColiseum(x, R, .75),
+  obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14],
+              ['brazier', 5, 5], ['brazier', 40, 5], ['brazier', 5, 24], ['brazier', 40, 24]] } });
+// Dressing the Coliseum: tiers of seats around the walls, banners over the parapet, and a ring raked into the sand.
+const CROWD_CLOTH = ['#c0412e', '#4f8fc7', '#e9c04f', '#7fa548', '#efe7d4', '#9a6bc0', '#cf6a2f', '#5e7d35'], CROWD_SKIN = ['#e8b796', '#d6a07a', '#a8714e', '#7a4f36'], CROWD_HAIR = ['#2c1d17', '#5a3a22', '#8a6a3a', '#d8ceb7'];
+function paintStands(x, R, bx, by, bw, bh, crowd) {
+  const pick = a => a[R() * a.length | 0];
+  x.fillStyle = '#6f6554'; x.fillRect(bx, by, bw, bh);
+  for (let y = by, row = 0; y < by + bh; y += 9, row++) {
+    for (let px = bx + 1 + (row % 2) * 3; px < bx + bw - 3; px += 4 + (R() * 3 | 0)) {
+      if (R() > crowd) continue;
+      x.fillStyle = pick(CROWD_CLOTH); x.fillRect(px, y + 3, 3, 4);
+      x.fillStyle = pick(CROWD_SKIN); x.fillRect(px, y + 1, 3, 2);
+      if (R() < .7) { x.fillStyle = pick(CROWD_HAIR); x.fillRect(px, y + 1, 3, 1); }
+    }
+    x.fillStyle = '#a69a80'; x.fillRect(bx, y + 7, bw, 1); x.fillStyle = '#4f4638'; x.fillRect(bx, y + 8, bw, 1);
+  }
+}
+function paintColiseum(x, R, crowd, gate) {
+  const W = WORLD_W, H = WORLD_H, B = IPX, fy = B.minY - 22, side = B.minX - 20, low = B.maxY + 12, K = '#1a1210';
+  paintStands(x, R, 0, 0, W, fy, crowd);
+  for (const sx of [0, W - side]) paintStands(x, R, sx, fy + 10, side, H - fy - 10, crowd);
+  const skip = gate ? [gate.x * TILE - 6, (gate.x + gate.w) * TILE + 6] : null;
+  if (skip) { paintStands(x, R, side, low, skip[0] - side, H - low, crowd); paintStands(x, R, skip[1], low, W - side - skip[1], H - low, crowd); }
+  else paintStands(x, R, side, low, W - side * 2, H - low, crowd);
+  const cap = (px, py, w, h) => { x.fillStyle = K; x.fillRect(px, py, w, h); };                     // the parapet between the seats and the sand
+  cap(side - 2, fy + 10, 2, H - fy - 10); cap(W - side, fy + 10, 2, H - fy - 10);
+  if (skip) { cap(side, low - 2, skip[0] - side, 2); cap(skip[1], low - 2, W - side - skip[1], 2); } else cap(side, low - 2, W - side * 2, 2);
+  for (let px = B.minX + 44; px < B.maxX - 40; px += 96) {                                          // a red banner every so often, hung over the frieze
+    if (gate && Math.abs(px + 5 - W / 2) < 40) continue;                                             // the fight board has that bit of wall
+    for (let i = 0; i < 26; i++) { const n = i < 21 ? 0 : i - 20; x.fillStyle = K; x.fillRect(px - 1 + n, fy - 6 + i, 11 - n * 2, 1); if (i < 25) { x.fillStyle = i < 21 ? '#c0412e' : '#8f2e1e'; x.fillRect(px + n, fy - 6 + i, 9 - n * 2, 1); } }
+    x.fillStyle = '#e9c04f'; x.fillRect(px, fy - 5, 9, 1); x.fillRect(px + 3, fy + 3, 3, 3); x.fillRect(px + 4, fy + 2, 1, 5); x.fillRect(px + 2, fy + 4, 5, 1);
+  }
+  const cx = W / 2, cy = (B.minY + B.maxY) / 2, rx = (B.maxX - B.minX) * .36, ry = (B.maxY - B.minY) * .38;
+  const ring = (a, b, c, dash) => { const n = Math.ceil((a + b) * 3.2); x.fillStyle = c; for (let i = 0; i < n; i++) { if (dash && i % dash < dash / 2) continue; const t = i / n * Math.PI * 2; x.fillRect(Math.round(cx + Math.cos(t) * a), Math.round(cy + Math.sin(t) * b), 2, 1); } };
+  for (let k = 1; k < 6; k++) ring(rx * k / 6, ry * k / 6, '#bfa97c', 10);                          // the rake's lines
+  ring(rx + 3, ry + 2, '#d8c7a0'); ring(rx, ry, '#a8553a'); ring(rx - 3, ry - 2, '#a8553a', 12);    // the fighting circle, marked out in red
+  ring(rx * .14, ry * .14, '#a8553a'); ring(rx * .09, ry * .09, '#c9a046');
+}
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
-  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 },
+  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 }, brazier: { w: 10, h: 6 },
 });
 const ROOMS = {
   forge: { name: 'The Forge', theme: 'forgeroom', sub: 'Dion makes your gear at the anvil',
@@ -45,8 +82,8 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
-  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22,
-    props: [['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22, paint: (x, R, gate) => paintColiseum(x, R, .18, gate),
+    props: [['brazier', 14.5, 17.4], ['brazier', 20.5, 17.4], ['brazier', 15, 3.6], ['brazier', 20, 3.6], ['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
     spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 440, y: 202 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
@@ -58,6 +95,7 @@ function buildRoom(id) {
   const gate = { x: D.wt / 2 - 1, y: D.ht - 3, w: 2 }, layers = genLayers(D.theme, null, { gate, seed: id, axis: WORLD_W / 2 });
   const gx = layers.ground.getContext('2d');
   for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
+  if (D.paint) D.paint(gx, mulberry(hashStr(id + ':paint')), gate);
   const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
@@ -141,6 +179,15 @@ const PROP_ART = {
   },
   chestbox(o, sx, sy) { pxEllipse(sx, sy + 1, 9, 2, 'rgba(0,0,0,.3)'); drawSpr('chest', 0, sx, sy, false); },
   dummy(o, sx, sy) { pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)'); drawSpr('dummy', 0, sx, sy, false); },
+  brazier(o, sx, sy) {                                 // a bronze bowl on a post, burning
+    const K = OUTLINE, f = Math.floor(G.time * 7 + o.seed) % 3; pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 2, sy - 9, 4, 10); ctx.fillRect(sx - 5, sy - 1, 10, 3); ctx.fillRect(sx - 7, sy - 13, 14, 6);
+    ctx.fillStyle = '#6b5a3a'; ctx.fillRect(sx - 1, sy - 8, 2, 8); ctx.fillRect(sx - 4, sy, 8, 1);
+    ctx.fillStyle = '#a8842a'; ctx.fillRect(sx - 6, sy - 12, 12, 4); ctx.fillStyle = '#d8ae3e'; ctx.fillRect(sx - 6, sy - 12, 12, 1); ctx.fillStyle = '#6b5a1f'; ctx.fillRect(sx - 6, sy - 9, 12, 1);
+    ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 5, sy - 14, 10, 2);
+    ctx.fillStyle = '#ff8a2b'; ctx.fillRect(sx - 4 + f, sy - 16, 7, 3); ctx.fillRect(sx - 2, sy - 18 - (f === 1 ? 1 : 0), 4, 3);
+    ctx.fillStyle = '#ffd463'; ctx.fillRect(sx - 2 + f % 2, sy - 16, 3, 2); ctx.fillRect(sx - 1, sy - 17, 1 + f % 2, 1);
+  },
   furnace(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 24, 3, 'rgba(0,0,0,.35)');
     ctx.fillStyle = K; ctx.fillRect(sx - 23, sy - 30, 46, 31); ctx.fillRect(sx - 7, sy - 44, 14, 15);
@@ -202,7 +249,7 @@ function renderTavern() {
   const s = G.save, cur = s.meal && MEALS[s.meal];
   const card = ([id, M]) => {
     const cost = mealCost(id), mine = s.meal === id;
-    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b><span>${M.food ? 'Food' : 'Drink'}</span></div></div>
+    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b></div></div>
       <p class="desc">${esc(M.desc)}</p>
       <div class="stats"><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${cur || s.money < cost ? 'disabled' : ''}>${mine ? 'You ate this' : cur ? 'You’ve already eaten' : 'Order'}</button></div></article>`;
@@ -210,8 +257,8 @@ function renderTavern() {
   const list = Object.entries(MEALS);
   return `<p class="muted" style="margin:0 0 12px">One meal or drink per hunt. It lasts your next hunt, then you can order again.</p>
     ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(cur.name)}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
-    <p class="sub">Food</p><div class="grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
-    <p class="sub" style="margin-top:14px">Drinks</p><div class="grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
+    <p class="sub">Food</p><div class="grid meal-grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
+    <p class="sub" style="margin-top:14px">Drinks</p><div class="grid meal-grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
 }
 // Eating it, right there in the Tavern: a few bites (or sips), crumbs or drops, then a little tune and a sparkle.
 // You stand still while you eat. V.eat = { meal, t, dur, bites: times left to play a bite sound }.

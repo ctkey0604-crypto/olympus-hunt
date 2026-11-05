@@ -545,13 +545,39 @@ function drawProj(pr, S) {
 }
 
 /* ---- village and temple rendering ---- */
+function roofTiles(sx, sy, W, h) {
+  ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, h);
+  for (let y = sy + 3; y < sy + h; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
+  for (let y = sy; y < sy + h - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
+  ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
+}
+// The Temple's front: a low marble gable over the columns, a painted field inside it with a gold sun, and gilded ornaments
+// on its three points, all in front of a tiled roof running back.
+function drawTempleGable(sx, sy, W, foot) {
+  const K = '#1a1210', mid = Math.round(sx + W / 2), H = foot - sy, slope = W / 2 / H;
+  const gable = (top, bottom, c) => { ctx.fillStyle = c; const half = (bottom - top) * slope; for (let y = top; y < bottom; y++) { const w = Math.round((y - top + 1) / (bottom - top) * half); ctx.fillRect(mid - w, y, w * 2, 1); } };
+  roofTiles(sx, sy, W, H);
+  gable(sy, foot, K); gable(sy + 2, foot, '#efe7d4'); gable(sy + 4, foot, '#c9bda4'); gable(sy + 9, foot - 3, K); gable(sy + 10, foot - 3, '#3f5f8a');
+  ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, foot - 3, W, 3);
+  const c = foot - 12;                                                       // the sun, and laurel running out to the corners of the field
+  ctx.fillStyle = '#e9c04f'; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ctx.fillRect(Math.round(mid + Math.cos(a) * 10) - 1, Math.round(c + Math.sin(a) * 8), 2, 1); }
+  pxEllipse(mid, c, 7, 6, K); pxEllipse(mid, c, 6, 5, '#e9c04f'); pxEllipse(mid - 1, c - 1, 3, 2, '#ffd463');
+  for (const dir of [-1, 1]) for (let i = 0; i < 5; i++) {
+    const lx = mid + dir * (18 + i * 9), ly = foot - 6 - (i % 2);
+    ctx.fillStyle = '#c9a032'; ctx.fillRect(lx - 3, foot - 6, 7, 1); ctx.fillStyle = '#e9c04f'; ctx.fillRect(lx - 1, ly - 1, 3, 1);
+  }
+  for (const [ox, oy] of [[mid, sy - 2], [sx + 4, foot - 4], [sx + W - 4, foot - 4]]) {
+    ctx.fillStyle = K; ctx.fillRect(ox - 3, oy - 2, 6, 7); ctx.fillRect(ox - 2, oy - 3, 4, 9);
+    ctx.fillStyle = '#c9a032'; ctx.fillRect(ox - 2, oy - 1, 4, 5); ctx.fillStyle = '#ffd463'; ctx.fillRect(ox - 1, oy - 2, 2, 3);
+  }
+}
 function drawBuilding(b, sx, sy) {
   const W = b.box.w, H = b.box.h, F = 26, RH = H - F, t = G.time;
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(sx + 4, sy + H, W, 4);
   if (b.kind === 'temple') {
     ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
-    ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, sy, W, RH);
-    for (let y = sy + 4; y < sy + RH; y += 5) { ctx.fillStyle = '#c9bda4'; ctx.fillRect(sx, y, W, 1); }
+    drawTempleGable(sx, sy, W, sy + RH - 12);
+    ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, sy + RH - 12, W, 12);
     ctx.fillStyle = '#1a1210'; ctx.fillRect(sx, sy + RH - 12, W, 9);
     for (let px = sx; px < sx + W; px += 6) { ctx.fillStyle = '#c35f2a'; ctx.fillRect(px, sy + RH - 11, 5, 1); ctx.fillRect(px + 4, sy + RH - 11, 1, 5); ctx.fillRect(px + 1, sy + RH - 7, 4, 1); ctx.fillRect(px + 1, sy + RH - 9, 1, 3); ctx.fillRect(px, sy + RH - 5, 6, 1); }
     ctx.fillStyle = '#2a1e19'; ctx.fillRect(sx + 4, sy + RH, W - 8, F - 4);
@@ -563,10 +589,7 @@ function drawBuilding(b, sx, sy) {
   if (b.kind === 'coliseum') { drawColiseum(b, sx, sy, W, H, t); return; }
   const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : b.kind === 'tavern' ? ['#c9b48f', '#a8926c'] : ['#e6d9bd', '#cbbd9f'];
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
-  ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
-  for (let y = sy + 3; y < sy + RH; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
-  for (let y = sy; y < sy + RH - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
-  ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
+  roofTiles(sx, sy, W, RH);
   ctx.fillStyle = '#6b2c12'; ctx.fillRect(sx, sy + RH - 2, W, 2);
   ctx.fillStyle = wall[0]; ctx.fillRect(sx, sy + RH, W, F);
   ctx.fillStyle = wall[1]; ctx.fillRect(sx, sy + RH, W, 2); ctx.fillRect(sx, sy + H - 3, W, 3);
@@ -733,6 +756,7 @@ function hudReset() {
   $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
   $('guardBar').hidden = !st.shield; $('drawBar').hidden = !st.kind.draw;
+  $('hudLoot').parentElement.hidden = !!(q.def.practice || q.def.pvp);     // nothing drops there
 }
 function updateHud() {
   const p = q.player;

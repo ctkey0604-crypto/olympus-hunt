@@ -62,7 +62,7 @@ function netConnect(code, ticket, re = null) {
   });
 }
 function netLeave(quiet) {
-  const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0;
+  const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0; NET.side = null;
   if (NET.re) clearTimeout(NET.re.timer); NET.re = null; NET.reId = 0;
   if (ws) try { ws.close(1000, 'left'); } catch (e) {}
   netChatClose();
@@ -120,7 +120,9 @@ setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a 
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
-  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null, hero: s.hero === 'girl' ? 'girl' : 'boy' };
+  const gear = { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null, hero: s.hero === 'girl' ? 'girl' : 'boy' };
+  if (NET.side === 0 || NET.side === 1) gear.side = NET.side;                  // the side you picked for a team fight
+  return gear;
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
@@ -278,6 +280,7 @@ function netUi() {
       html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qr}">${RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
         <div class="mp-who">${R.members.map(m => { const ok = m.ready || m.id === poster, no = !ok && m.id !== R.me && m.why;   // ✓ ready, · not yet, ✗ can't take it (and why)
           return `<span class="${ok ? 'ok' : no ? 'no' : ''}">${ok ? '✓' : no ? '✗' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}${no ? ` <i>${esc(m.why)}</i>` : ''}</span>`; }).join('')}</div>
+        ${qd && qd.pvp && qd.mode === 'team' ? pvpSideBox(R) : ''}
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
@@ -335,6 +338,7 @@ function netBannerAction(a) {
   if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
   if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why, 7000); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
+  else if (a === 'side0' || a === 'side1') { NET.side = +a[4]; netSendInfo(); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
   else if (a === 'wait') { NET.confirm = false; netUi(); }
   else if (a === 'depart' || a === 'go') {

@@ -4,7 +4,7 @@
 const NEWS = [
   { v: '1.1', date: 'November 2026', title: 'The Coliseum',
     new: [
-      'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds.',
+      'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
@@ -15,7 +15,7 @@ const NEWS = [
     changed: [
       'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
       'Hammers hit a little softer. Spears hit a little harder and faster.',
       'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',

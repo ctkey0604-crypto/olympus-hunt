@@ -186,9 +186,9 @@ function updateHunter(p, dt) {
   if (p.swing) {
     const s = p.swing; s.t += dt;
     if (!s.fired && s.t >= s.windup) {
-      if (!K.melee && (I.atkHeld || I.mouseHeld) && s.draw < s.drawMax) {   // a bow held back: keep drawing, keep following the target
-        s.draw += dt; s.windup = s.t; s.aim = p.face = attackAim(p);
-        if (s.draw >= s.drawMax) { burst(p.x + Math.cos(s.aim) * 8, p.y - 8, 4, ['#ffd463', '#fff6d8'], 40); Sound.play('clink'); }
+      if (!K.melee && (I.atkHeld || I.mouseHeld)) {                         // a bow held back: keep drawing, keep following the target, and fire when you let go
+        s.windup = s.t; s.aim = p.face = attackAim(p);
+        if (s.draw < s.drawMax) { s.draw += dt; if (s.draw >= s.drawMax) { burst(p.x + Math.cos(s.aim) * 8, p.y - 8, 4, ['#ffd463', '#fff6d8'], 40); Sound.play('clink'); } }
       } else { s.fired = true; releaseAttack(p, s); }
     }
     if (s.t >= s.windup + s.active) p.swing = null;

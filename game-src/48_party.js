@@ -231,7 +231,8 @@ function botThink(p, dt) {
   } else { const c = q.player; if (c && !c.dead && Math.hypot(c.x - p.x, c.y - p.y) > 40) { const a = Math.atan2(c.y - p.y, c.x - p.x); I.mx = Math.cos(a); I.my = Math.sin(a); } }
   if (tgt) {
     const d = edist(p, tgt) - tgt.r;
-    I.atkHeld = d < (melee ? K.reach + 8 : 220); I.atk = I.atkHeld && !B.held; B.held = I.atkHeld;
+    I.atkHeld = d < (melee ? K.reach + 8 : 220) && !(p.swing && p.swing.drawMax && p.swing.draw >= p.swing.drawMax);   // a full bow lets go
+    I.atk = I.atkHeld && !B.held; B.held = I.atkHeld;
     if (p.abilCd <= 0 && p.st.weapon.ability && d < (melee ? 60 : 180) && Math.random() < .03) I.abil = true;
   }
   // danger: marked ground about to go off under you, shots about to land, a god lining up a dash at you

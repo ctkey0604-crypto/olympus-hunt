@@ -29,6 +29,7 @@ function startQuest(id, opts = {}) {
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
   const layers = genLayers(A.theme, A.secret, { seed: def.arena });
   if (A.paint) A.paint(layers.ground.getContext('2d'), mulberry(hashStr(def.arena + ':paint')));
+  if (A.dress) A.dress(layers.ground.getContext('2d'), mulberry(hashStr(def.arena + ':dress')));   // like paint, but for an arena that still grows with the party
   const s = A.secret;
   q = { def, arena: A, theme: A.theme, ground: layers.ground, cover: layers.cover, coverRect: layers.rect, obstacles,
         world: makeWorld(obstacles.map(o => o.box), s ? [s] : []), weather: T.weather || null, night: !!T.night, fog: [],
@@ -44,6 +45,7 @@ function startQuest(id, opts = {}) {
   q.player.stats = q.stats; q.player.loot = q.loot; q.player.tok = q.tokUse;    // your numbers are the quest's numbers
   if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
   else q.hunters.push(q.player);
+  if (roster) roster.forEach((r, i) => { q.hunters[i].side = r.gear && r.gear.side; });   // the side picked for a team fight
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
   if (G.save.meal && !def.prologue && !def.practice && !def.pvp) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
@@ -59,7 +61,7 @@ function startQuest(id, opts = {}) {
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
   if (def.pvp) pvpSetup();
-  if (q.player.st.kind.draw && !Settings.data.drawTip && !def.prologue) { Settings.data.drawTip = true; Settings.save(); showHint(`Hold ${touchMode ? 'attack' : kbd(Input.bind.attack[0])} to draw a stronger shot. The bar under your health shows how far, and you walk slowly while drawing.`, 9); }
+  if (q.player.st.kind.draw && !Settings.data.drawTip && !def.prologue) { Settings.data.drawTip = true; Settings.save(); showHint(`Hold ${touchMode ? 'attack' : kbd(Input.bind.attack[0])} to draw a stronger shot, and let go to fire. The bar under your health shows how far, and you walk slowly while drawing.`, 9); }
   netUi();
 }
 function startWave(i) {

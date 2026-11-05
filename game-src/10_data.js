@@ -168,7 +168,7 @@ const KINDS = {
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
   // A bow's safety is paid for with its damage: tap for weak quick shots, or stand and hold to draw a full-power one.
   // draw: seconds to full power. quick / full: damage of a tapped and a fully drawn shot. drawMul: walking speed while drawing.
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one (you walk slowly while drawing). No shield.' },
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one and let go to fire (you walk slowly while drawing). No shield.' },
 };
 
 const ABILITIES = {

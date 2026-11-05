@@ -19,11 +19,27 @@ for (const mode of Object.keys(PVP_MODES)) RANKS.forEach((R, r) => {
 });
 let shotHit = false;                                                     // the hit being handled came from a shot, not a swing
 
+// Who ends up on which side of a team fight. Players pick from the room box; anyone who hasn't goes to the smaller side, and
+// neither side is ever left empty. Every game works this out from the same list, so they all agree.
+function pvpSides(picks) {
+  const teams = picks.map(s => s === 0 || s === 1 ? s : null), n = [0, 0];
+  teams.forEach(t => { if (t !== null) n[t]++; });
+  teams.forEach((t, i) => { if (t === null) { const s = n[1] < n[0] ? 1 : 0; teams[i] = s; n[s]++; } });
+  if (teams.length > 1 && (!n[0] || !n[1])) teams[teams.length - 1] = n[0] ? 1 : 0;
+  return teams;
+}
+// The two sides in the room box. Click one to join it; you can change until the fight starts.
+function pvpSideBox(R) {
+  const poster = netPoster(R), list = [...R.members].sort((a, b) => (b.id === poster) - (a.id === poster)), teams = pvpSides(list.map(m => m.gear && m.gear.side));
+  const mine = teams[list.findIndex(m => m.id === R.me)], names = s => list.filter((m, i) => teams[i] === s).map(m => esc(m.name)).join(', ');
+  return `<div class="mp-sides">${PVP_TEAMS.map((name, s) => `<button type="button" data-mp="side${s}" class="side${s}${mine === s ? ' on' : ''}"><b>${name}</b>${names(s)}</button>`).join('')}</div>`;
+}
 function pvpSetup() {
   const P = q.pv = { round: 1, wins: {}, ph: 'ready', t: PVP_READY, kd: q.hunters.map(() => [0, 0]), log: [], last: null, champ: null };
   q.blessed = false; q.phase = 'pvp'; q.pvpT = new Map();
-  for (const h of q.hunters) {
-    h.team = q.def.mode === 'team' ? h.hid % 2 : h.hid; P.wins[h.team] = 0;
+  const sides = pvpSides(q.hunters.map(h => h.side));
+  for (const [i, h] of q.hunters.entries()) {
+    h.team = q.def.mode === 'team' ? sides[i] : h.hid; P.wins[h.team] = 0;
     h.st = playerStats({ ...(h.save || G.save), meal: null }); h.hp = h.st.maxHp;
     const e = { id: -(h.hid + 1), pvp: h, type: 'pvp', def: PVP_LOOK, x: h.x, y: h.y, r: 5, h: 14, hp: 1, maxHp: 1, state: 'move', st: 0, stun: 0, flash: 0, kbx: 0, kby: 0, kbRes: 1, markT: 0, burnT: 0, face: 0, dead: false, alpha: 1 };
     q.pvpT.set(e.id, e);
@@ -172,7 +188,7 @@ function pvpFinish(quit = false) {
 function renderArena() {
   const R = NET.room;
   if (!netOn() || R.members.length < 2) return `<div class="empty-note">You need a room with at least two players. Talk to the Oracle in the square.</div>`;
-  const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides, picked by join order. You can’t hurt your own side.'}</p><div class="stack">`
+  const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides. Pick yours from the room box once the fight is posted. You can’t hurt your own side.'}</p><div class="stack">`
     + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('') + `</div></div>`).join('');
   return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p><div class="opts">${rows}</div>`;
 }
@@ -181,7 +197,7 @@ $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[dat
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
 function renderFightBoard() {
   return `<div class="fb" id="pvpBoard"><p class="fb-note">Looking…</p></div>
-    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you.</p>`;
+    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.</p>`;
 }
 async function pvpBoardLoad() {
   try {
