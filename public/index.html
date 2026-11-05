@@ -285,6 +285,10 @@ textarea:focus{outline:2px solid var(--gold)}
 #guardBar{width:calc(var(--px)*60);height:calc(var(--px)*3)}
 #guardBar>i{background:var(--aegean)}
 #guardBar.broken>i{background:var(--blood)}
+#drawBar{height:calc(var(--px)*4)}
+#drawBar>i{width:0;transition:none;background:#cf6a2f}
+#drawBar.half>i{background:#ffd463}
+#drawBar.full>i{background:#fff6d8;box-shadow:0 0 calc(var(--px)*3) #ffd463}
 .status-row{display:flex;gap:calc(var(--px)*2);flex-wrap:wrap}
 .st-tag{font-size:.75em;padding:0 calc(var(--px)*2);background:#000a;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;color:var(--bone)}
 .st-tag.bad{color:#ff8a7a}.st-tag.good{color:var(--olive)}
@@ -575,6 +579,7 @@ input[type=range]{accent-color:var(--clay)}
         <div class="hud-top">
           <div class="hud-hp">
             <div class="bar" id="hpBar"><s id="hpGhost"></s><i id="hpFill"></i><span id="hpText">100</span></div>
+            <div class="bar" id="drawBar" hidden><i id="drawFill"></i></div>
             <div class="pips">
               <span class="pip" id="pipDodge"><i><u></u></i><b>Dash</b></span>
               <span class="pip" id="pipAbil" hidden><i><u></u></i><b id="abilName">Skill</b></span>
@@ -3622,9 +3627,9 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
 // Each road: its width, then points it curves through.
 const ROADS = [
   [40, [424, 138], [424, 210], [420, 300], [428, 400], [424, 480], [424, 560]],                   // the main street, from the Temple to the gate
-  [24, [248, 150], [258, 182], [300, 206], [352, 232], [392, 262]],                               // up to the Forge
-  [28, [168, 340], [186, 368], [250, 366], [310, 332], [362, 306]],                               // out to the Coliseum
-  [22, [308, 338], [318, 400], [304, 454], [272, 468], [248, 456]],                               // round to the Market's door
+  [24, [248, 150], [282, 170], [322, 198], [358, 232], [392, 262]],                               // up to the Forge
+  [28, [168, 308], [184, 336], [246, 344], [306, 326], [360, 306]],                               // out to the Coliseum
+  [22, [306, 326], [318, 400], [304, 454], [272, 468], [248, 456]],                               // round to the Market's door
   [24, [648, 214], [640, 240], [590, 262], [540, 282], [498, 294]],                               // across to the Tavern
   [22, [490, 340], [540, 392], [600, 438], [640, 446], [664, 424]],                               // down to your home
 ];
@@ -4377,7 +4382,7 @@ function knockDown(p) {
   p.dead = true; p.downed = true; p.reviveT = 0; p.swing = null; p.guarding = false; p.dodgeT = p.dashT = 0; p.fx.charm = 0; p.flurryT = 0; p.echoes = [];
   if (q.faints !== null && q.faints !== undefined) q.faints--;
   burst(p.x, p.y - 6, 14, ['#c0412e', '#e9c04f', '#f3e9d4'], 80); Sound.play('hurt');
-  if (isLocal(p)) banner('You’re down', 'A teammate can get you back up'); else addText(p.x, p.y - 22, '!', '#ff6b5a');
+  if (isLocal(p)) banner('You’re down', q.pv ? 'Wait for the next round' : 'A teammate can get you back up'); else addText(p.x, p.y - 22, '!', '#ff6b5a');
 }
 function reviveHunter(p) {
   if (p.remote) { netTo(p, 'rev', 1); p.reviveHold = performance.now() + 1500; }
@@ -4389,7 +4394,7 @@ function reviveHunter(p) {
   NET.personal--;
 }
 function updateRevives(dt) {
-  if (q.phase === 'victory' || q.phase === 'defeat') return;
+  if (q.phase === 'victory' || q.phase === 'defeat' || q.pv) return;
   for (const p of q.hunters) {
     if (!p.downed) continue;
     const helper = q.hunters.some(h => !h.dead && Math.hypot(h.x - p.x, h.y - p.y) < REVIVE_R);
@@ -4622,6 +4627,7 @@ function gearAbove(r, s = G.save) {
 // Why you can't take a hunt online, in full (with what to do about it), or null. short: a few words for the others' list.
 function netWhyNot(qd, short = false) {
   const s = G.save, qr = qd.rank || 0; if (!s) return null;
+  if (qd.pvp) { const high = gearAbove(qr, s); return !high.length ? null : short ? 'gear too strong' : `This fight allows ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`; }
   if ((s.rank || 0) < qr) return short ? `needs ${RANKS[qr].name}` : `This is a ${RANKS[qr].name} hunt, and you haven’t reached ${RANKS[qr].name} yet. Hunt every god and Titan on ${RANKS[(s.rank || 0)].name}, then talk to Kleon.`;
   if (qd.titan && !s.stairs) return short ? 'hasn’t opened the Titans' : 'You haven’t opened the Titans’ hall yet. Hunt every god first; the stairway under the temple opens after that.';
   const miss = (qd.requires || []).filter(r => !s.cleared[r]);
@@ -4742,6 +4748,7 @@ function netUi() {
     + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
   const wait = NET.re ? 'Connection lost. Reconnecting…' : q && q.net === 'guest' && NET.stall ? `Waiting for ${esc(netName(NET.runner) || 'the party leader')}…` : '';
   if (wait) html += `<div class="mp-card mp-post"><span class="muted">${wait}</span></div>`;
+  else if (q && q.pv) html += `<div class="mp-card mp-post"><span class="muted">${esc(pvpScore())}</span></div>`;
   else if (G.mode === 'village') {
     if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}${R.quest ? ` (${RANKS[R.quest.rank || 0].name})` : ''}.</span></div>`;
     else if (R.quest) {
@@ -4756,7 +4763,7 @@ function netUi() {
           : `<div class="mp-btns">${why && !(me && me.ready) ? `<button type="button" data-mp="ready" class="no">Can’t join yet</button>`
             : `<button type="button" data-mp="ready" class="${me && me.ready ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>`}${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
-    } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it.' : 'Waiting for players to join.'}</span></div>`;
+    } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it, or see Agon at the Coliseum for a fight.' : 'Waiting for players to join.'}</span></div>`;
   }
   $('mpRoom').innerHTML = html;
 }
@@ -4812,6 +4819,7 @@ function netBannerAction(a) {
   else if (a === 'depart' || a === 'go') {
     const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why, 7000); return; }
     const poster = netPoster(R), all = R.members.every(m => m.ready || m.id === poster);
+    if (qd && qd.pvp && R.members.filter(m => m.ready || m.id === poster).length < 2) { toast('Nobody else is ready yet.'); return; }
     if (!all && a !== 'go') { NET.confirm = true; netUi(); return; }
     NET.confirm = false; G.save && persist(true); netSend({ t: 'depart' }); Sound.play('click');
   }
@@ -4823,7 +4831,7 @@ function netPost(id) {
   if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
   const why = netWhyNot(qd); if (why) { toast(why, 7000); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
-  closePanel(); toast('Hunt posted.');
+  closePanel(); toast(qd.pvp ? 'Fight posted. Everyone ready up.' : 'Hunt posted.');
 }
 // The host departed: everyone who readied up starts the same hunt.
 function netDepart(m) {
@@ -4942,16 +4950,17 @@ function netRemoteStep(p, dt) {
   const Q = p.netQ.splice(0);
   for (const a of Q) {
     const k = a[0];
-    if (k === 'h') { const e = q.enemies.find(x => x.id === a[1]); if (e) damageEnemy(e, netCap(p, a[2]), a[3], a[4], !!a[5], a[6] !== 0); }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
+    if (k === 'h') { const e = a[1] < 0 ? q.pvpT && q.pvpT.get(a[1]) : q.enemies.find(x => x.id === a[1]); if (e) { shotHit = !!a[7]; damageEnemy(e, netCap(p, a[2]), a[3], a[4], !!a[5], a[6] !== 0); shotHit = false; } }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
     else if (k === 'c') {                                        // something its skills did to a monster
-      const e = q.enemies.find(x => x.id === a[1]); if (!e || e.dead) continue;
+      const e = a[1] < 0 ? q.pvpT && q.pvpT.get(a[1]) : q.enemies.find(x => x.id === a[1]); if (!e || e.dead || (e.pvp && e.pvp.team === p.team)) continue;
       if (a[2] === 'stun' && !e.boss) e.stun = Math.max(e.stun, a[3]);
       else if (a[2] === 'mark') e.markT = Math.max(e.markT || 0, a[3]);
       else if (a[2] === 'burn') { e.burnT = Math.max(e.burnT || 0, a[3]); e.burnBy = p; }
       else if (a[2] === 'kb') { e.kbx += a[3] * (e.kbRes ?? 1); e.kby += a[4] * (e.kbRes ?? 1); }
       else if (a[2] === 'move' && !e.boss && e.state !== 'spawn') e.state = 'move';
     }
-    else if (k === 'ts') q.timeStop = Math.max(q.timeStop, a[1]);
+    else if (k === 'pv') { const e = q.pvpT && q.pvpT.get(a[1]); if (e) pvpParried(e); }   // it parried someone
+    else if (k === 'ts') { if (q.pv) pvpFreeze(p); else q.timeStop = Math.max(q.timeStop, a[1]); }
     else if (k === 'act') { if (q.onPlayerAct) q.onPlayerAct(a[1], p, a[2]); }
     else if (k === 'ph') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') killProj(pr); }   // a shot hit it on its screen
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
@@ -4982,11 +4991,11 @@ function netHostTick(dt) {
     p.fxRep = { ...F };
   }
   // everyone down (some of them on other screens): the hunt is lost
-  if (q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
+  if (!q.pv && q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
   NET.downT -= dt; if (NET.downT > 0) return; NET.downT = 1 / 15;
   const snap = { t: 'down', s: ++NET.seq, g: netGlobals(), h: q.hunters.map(netHunterState) };
   if (NET.full) { snap.f = 1; NET.full = false; }
-  netDelta(snap, 'e', q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
+  netDelta(snap, 'e', q.pv ? [] : q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
   netDelta(snap, 'p', q.projs, NET.sent.p, pr => netSer(pr, NET_SKIP_P), pr => pr.nid || (pr.nid = NID++));
   netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K), k => k.nid || (k.nid = NID++));
   const zs = [], zid = new Set();                               // ground marks: sent once when they appear, then only their removal
@@ -5010,6 +5019,7 @@ function netGlobals() {
   if (q.gale) g.ga = [r2(q.gale.t), r1(q.gale.s), r2(q.gale.a)];
   if (q.ghosts && q.ghosts.length) g.gh = q.ghosts.map(gh => [r1(gh.x), r1(gh.y), r2(gh.face), r2(gh.clock), (gh.who || q.player).hid]);
   if (q.def.endless) g.en = [q.endCleared || 0, q.endPay || 0];   // the Endless Hunt: waves cleared and pay so far
+  if (q.pv) g.pv = { ...q.pv, t: r1(q.pv.t) };                     // a fight: rounds, score, kills
   // what's coming next, so another player's game can take over: sent when it changes
   g.tm = [r2(q.timer), r2(q.spawnT), q.nextIsBoss ? 1 : 0];
   const fw = { p: q.pending.map(a => a.type) };
@@ -5035,7 +5045,7 @@ function netPlayEvent(ev) {
   else if (k === 'm') { if (Music[ev[1]]) Music[ev[1]](...ev[2]); }
   else if (k === 'L') { if (q && q.net === 'guest') { q.loot[ev[1]] = (q.loot[ev[1]] || 0) + 1; feed(ev[1]); } }
   else if (k === 'C') { if (q && q.net === 'guest' && !q.chestFound) { q.chestFound = true; q.chestMoney += chestReward(q.def, !G.save.chests[q.def.id]).money; } }
-  else if (k === 'Q') { if (q && q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netHuntLost('The host ended the hunt'); }
+  else if (k === 'Q') { if (q && q.pv) pvpFinish(); else if (q && q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netHuntLost('The host ended the hunt'); }
 }
 // The host's hunt ended (results): tell the room, so everyone's back in town.
 function netHostEnd(win) {
@@ -5059,9 +5069,10 @@ function netStartGuest() {
 }
 // A hit your hunter landed: the host applies it (blocks, marks, the real number). You see the flash right away.
 function netGuestHit(e, dmg, ang, knock, ub, fp) {
+  if (e.pvp && e.untargetable) return false;
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
-  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0]);
+  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0, shotHit ? 1 : 0]); if (e.pvp) pvpShowHit(e.pvp, dmg);
   e.flash = .12; if (fp) momentumHit(q.player);
   return true;
 }
@@ -5086,7 +5097,7 @@ function netDown(m) {
 // A full snapshot lists everything there is, so anything it doesn't list ended while the snapshots weren't reaching you.
 function netPrune(m) {
   const ids = l => new Set((l || []).map(a => a[0])), E = ids(m.e), P = ids(m.p), K = ids(m.k), Z = ids(m.z);
-  q.enemies = q.enemies.filter(e => E.has(e.id));
+  q.enemies = q.enemies.filter(e => e.pvp || E.has(e.id));
   q.projs = q.projs.filter(pr => pr.mine || P.has(pr.nid));
   q.pickups = q.pickups.filter(k => K.has(k.nid));
   q.hazards = q.hazards.filter(h => Z.has(h.nid));
@@ -5142,6 +5153,7 @@ function netGlobalsIn(g) {
   q.ghosts = (g.gh || []).map(a => ({ x: a[0], y: a[1], face: a[2], clock: a[3], who: q.hunters[a[4]] || q.player }));
   if (g.b && (!q.boss || q.boss.id !== g.b)) { const b = q.enemies.find(e => e.id === g.b); if (b) netBossIn(b); }
   if (g.en) { q.endCleared = g.en[0]; q.endPay = g.en[1]; if (!g.b && q.boss) { q.boss = null; $('bossBar').hidden = true; } }   // a god down mid-run
+  if (g.pv) { const ph = q.pv.ph + q.pv.round; Object.assign(q.pv, g.pv); if (ph !== q.pv.ph + q.pv.round) netUi(); }
   if (g.tm) { q.timer = g.tm[0]; q.spawnT = g.tm[1]; q.nextIsBoss = !!g.tm[2]; }
   if (g.fw) { q.pending = g.fw.p.map(type => ({ type })); if (g.fw.e) { [q.endMt, q.endBudget, q.endTempo] = g.fw.e; q.endBossNext = !!g.fw.e[3]; q.endBag = g.fw.e[4]; } }
 }
@@ -5150,9 +5162,11 @@ function netSelf(m) {
   const p = q.player;
   if (m.hurt) for (const [dmg, ang, knock, f, src] of m.hurt) hurtHunter(p, dmg, ang, knock, { proj: !!(f & 1), unblockable: !!(f & 2), melee: !!(f & 4), src: src ? q.enemies.find(e => e.id === src) : null });
   if (m.heal) healHunter(p, m.heal);
-  if (m.fx) { for (const k of ['charm', 'confuse', 'killRush', 'sleep', 'slow']) if (m.fx[k]) p.fx[k] = Math.max(p.fx[k], m.fx[k]); if (m.fx.from) p.charmFrom = q.enemies.find(e => e.id === m.fx.from) || p.charmFrom; }
+  if (m.fx) { for (const k of ['charm', 'confuse', 'killRush', 'sleep', 'slow', 'burn']) if (m.fx[k]) p.fx[k] = Math.max(p.fx[k], m.fx[k]); if (m.fx.from) p.charmFrom = q.enemies.find(e => e.id === m.fx.from) || p.charmFrom; }
   if (m.rev && p.downed) reviveHunter(p);
   if (m.rc && !p.dead) { q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 }); p.x = m.rc[0]; p.y = m.rc[1]; p.dodgeT = 0; p.dashT = 0; G.flash = .15; }
+  if (m.kb) { p.kbx += m.kb[0]; p.kby += m.kb[1]; }
+  if (m.rs && q.pv) pvpReset(p, m.rs[0], m.rs[1]);                 // the next round: back to your corner
   if (m.kl) p.stats.kills += m.kl;
   if (m.dl) p.stats.dealt += m.dl;
 }
@@ -5198,6 +5212,7 @@ function guestTick(dt) {
   G.flash = Math.max(0, G.flash - dt); G.hitstop = Math.max(0, G.hitstop - dt);
   const p = q.player, done = q.phase === 'victory' || q.phase === 'defeat';
   if (!done) {
+    if (q.pv && pvpGuestTick(dt)) return;
     netClaimsBefore();
     p.in = G.botLocal ? botThink(p, dt) : localInput();
     q.actor = p; NET.rec = NET.out.v; updateHunter(p, dt); q.actor = null;
@@ -5250,6 +5265,7 @@ function netRunner(m) {
 function netTakeOver() {
   const bossId = q.boss && q.boss.id, skip = new Set([...NET_SKIP_E, 'def', 'mirror', 'netGone']);
   q.enemies = q.enemies.filter(e => !e.dead).map(m => {
+    if (m.pvp) return m;
     const e = m.boss ? makeBoss(m.type, m.x, m.y, m.rank) : makeEnemy(m.type, m.x, m.y, m.tier, m.rank);
     for (const k in m) if (!skip.has(k) && m[k] !== undefined) e[k] = m[k];
     if (m._tx !== undefined) { e.x = m._tx; e.y = m._ty; }
@@ -5519,7 +5535,7 @@ function shieldBash(p) {
 function drinkPotion(id, p = q && q.player) {
   const s = p && p.save || G.save, P = POTIONS[id];
   if (!p || p.dead || q.phase === 'victory' || p.potionCd > 0) return;
-  if (!(s.potions[id] > 0) || q.def.practice) { Sound.play('clink'); return; }
+  if (!(s.potions[id] > 0) || q.def.practice || q.pv) { Sound.play('clink'); return; }
   if (id === 'health' && p.hp >= p.st.maxHp) { addText(p.x, p.y - 20, '+0', '#9bbb55'); return; }
   s.potions[id]--; p.potionCd = .4; Sound.play(id === 'health' ? 'heal' : 'ability');
   if (id === 'health') healHunter(p, Math.round(p.st.maxHp * .4));
@@ -5668,7 +5684,7 @@ function useAbility(p, mv) {
     for (const e of q.enemies) if (targetable(e) && edist(p, e) < 90 + e.r) { damageEnemy(e, W * .6, eang(p, e), 420, true); }
   } else if (id === 'quake') {
     shake(5); Sound.play('thud');
-    [[26, 8, 0], [46, 12, .12], [66, 16, .24]].forEach(([r, n, d]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; q.pspikes.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: -d, dmg: W * 1.1, hit: false, owner: p }); } });
+    [[26, 8, 0], [46, 12, .12], [66, 16, .24]].forEach(([r, n, d]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; q.pspikes.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: -d - .01, dmg: W * 1.1, hit: false, owner: p }); } });
   } else if (id === 'eruption') {
     const targets = near(150, 5);
     for (const e of targets) q.pspikes.push({ x: e.x, y: e.y, t: -.35, dmg: T * 2.8, hit: false, fire: true, r: 16, cast, owner: p });
@@ -5758,6 +5774,7 @@ function hurtHunter(p, dmg, ang, knock = 140, o = {}) {
 function hurtHunter0(p, dmg, ang, knock, o) {
   const st = p.st, me = isLocal(p);
   if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
+  if (q.pv && p.dodgeT > .08) { addText(p.x, p.y - 20, 'miss', '#e6f2ff'); return 0; }   // except a well-timed dash in a fight
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
@@ -5789,11 +5806,11 @@ function hurtHunter0(p, dmg, ang, knock, o) {
     }
   }
   if (o.proj) dmg *= 1 - st.projRes;
-  const taken = Math.max(1, Math.round(dmg * 20 / (20 + st.def)));
-  p.hp -= taken; p.invuln = .8; p.flash = .15; p.mom = 0;
+  const taken = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + st.def))), q.pv ? Math.ceil(st.maxHp * PVP_MAX_HIT) : 1e9);
+  p.hp -= taken; p.invuln = q.pv ? PVP_GUARD : .8; p.flash = .15; p.mom = 0;
   const k = knock * (1 - st.kbRes);
   p.kbx += Math.cos(ang) * k; p.kby += Math.sin(ang) * k;
-  p.fx.sleep = 0; p.fx.drowsy = 0;
+  if (!q.pv) p.fx.sleep = 0; p.fx.drowsy = 0;
   if (me) { addShake(4); G.hitstop = Math.max(G.hitstop, .06); Sound.play('hurt'); }
   addText(p.x, p.y - 18, '-' + taken, '#ff6b5a');
   burst(p.x, p.y - 6, 6, ['#d9493b', '#f0e4cc'], 70);
@@ -5832,6 +5849,7 @@ function perfectBlockHit(p, o, ang) {
   const pr = o.projObj;
   if (pr) { if (sh.perk === 'reflect' || p.st.perks.reflectPerfect) reflectProj(pr, p); return; }
   const src = o.src;
+  if (src && src.pvp) pvpParried(src);
   if (src && !src.dead) {
     if (!src.boss) { src.stun = Math.max(src.stun, sh.perk === 'bash' ? 1.4 : .8); src.state = 'move'; }
     const kb = src.boss ? 60 : sh.perk === 'bash' ? 320 : 180, a = Math.atan2(src.y - p.y, src.x - p.x);
@@ -5866,7 +5884,7 @@ function downed(p = q.player) {
     banner('Hestia’s blessing', 'You rise again');
     return;
   }
-  if (q.net === 'guest') { knockDown(p); return; }               // the host decides when the whole party is down
+  if (q.net === 'guest' || q.pv) { knockDown(p); return; }       // the host decides when the whole party is down
   if (q.hunters.length > 1 && q.hunters.some(h => h !== p && (!h.dead || h.away)) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
   playerDie(p);
 }
@@ -5878,6 +5896,7 @@ function shieldBlocks(e, ang) {
 }
 function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true) {
   if (q.net === 'guest') return netGuestHit(e, dmg, ang, knock, unblockable, fromPlayer);   // a guest's hits are applied by the host
+  if (e.pvp) return pvpHit(e, dmg, ang, knock, unblockable, fromPlayer);
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.state === 'bones') { if (fromPlayer) finishBones(e); return true; }
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
@@ -6039,7 +6058,7 @@ function updateProjs(dt) {
         if (!targetable(e) || pr.hit.has(e.id)) continue;
         if (edist(pr, e) < pr.r + e.r + 1) {
           if (pr.group) { const n = pr.group.get(e.id) || 0; if (n >= 3) continue; pr.group.set(e.id, n + 1); }   // a volley hits one target with at most 3 arrows
-          pr.hit.add(e.id); damageEnemy(e, pr.dmg * (pr.fall || 1), Math.atan2(pr.vy, pr.vx), KINDS.bow.knock); Sound.play('hit');
+          pr.hit.add(e.id); shotHit = true; damageEnemy(e, pr.dmg * (pr.fall || 1), Math.atan2(pr.vy, pr.vx), KINDS.bow.knock); shotHit = false; Sound.play('hit');
           if (pr.kind === 'arrow' || pr.kind === 'piercer') pr.fall = (pr.fall || 1) * (pr.kind === 'piercer' ? .8 : .7);   // each enemy it goes through takes less
           if (pr.pierce-- <= 0) { killProj(pr); break; }
         }
@@ -7763,10 +7782,10 @@ const WEIGHT = { fodder: 1, medium: 2, heavy: 4 };
 const BUDGET = 12;
 
 function startQuest(id, opts = {}) {
-  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
+  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !def.pvp && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
-  if (def.prologue) Music.play('road'); else if (def.practice) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
+  if (def.prologue) Music.play('road'); else if (def.practice || def.pvp) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
   const roster = opts.guest || (G.netParty || null); G.netParty = null;
@@ -7792,7 +7811,7 @@ function startQuest(id, opts = {}) {
   if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
   else q.hunters.push(q.player);
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
-  if (G.save.meal && !def.prologue && !def.practice) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
+  if (G.save.meal && !def.prologue && !def.practice && !def.pvp) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.mode = 'quest'; G.paused = false; G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0; G.dialog = null;
@@ -7805,6 +7824,8 @@ function startQuest(id, opts = {}) {
   if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
+  if (def.pvp) pvpSetup();
+  if (q.player.st.kind.draw && !Settings.data.drawTip && !def.prologue) { Settings.data.drawTip = true; Settings.save(); showHint(`Hold ${touchMode ? 'attack' : kbd(Input.bind.attack[0])} to draw a stronger shot. The bar under your health shows how far, and you walk slowly while drawing.`, 9); }
   netUi();
 }
 function startWave(i) {
@@ -7951,6 +7972,8 @@ function tick(dt) {
   G.slowmo = Math.min(1, G.slowmo + dt * (q.phase !== 'victory' && q.phase !== 'defeat' ? 1.5 : .35));
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
+  if (q.pv) pvpHostTick(sdt);
+  if (!q) { Input.endFrame(); return; }
   updateHunters(sdt); tutHunt(sdt);
   { const p = q.player, low = !p.dead && p.hp / p.st.maxHp < .3 && q.phase !== 'victory';   // a heartbeat when you're nearly down
     if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0; }
@@ -7958,7 +7981,7 @@ function tick(dt) {
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
   for (const h of q.hunters) h.tok.melee = h.tok.ranged = 0;       // attack turns are counted per hunter (q.tokUse is yours)
   for (const e of q.enemies) { if (e.tok && TOK_STATES.has(e.state) && !e.dead) (e.tokH || q.player).tok[e.tok]++; else e.tok = null; }
-  for (const e of q.enemies) if (!e.dead) { if (e.boss) updateBoss(e, sdt); else if (!frozen) updateEnemy(e, sdt); else e.flash = 0; }
+  for (const e of q.enemies) if (!e.dead) { if (e.pvp) continue; if (e.boss) updateBoss(e, sdt); else if (!frozen) updateEnemy(e, sdt); else e.flash = 0; }
   q.enemies = q.enemies.filter(e => !e.dead);
   updateProjs(sdt); if (!frozen) updateHazards(sdt); updatePSpikes(sdt); updatePickups(sdt);
   if (q.weather === 'embers' && Math.random() < .5) q.parts.push({ x: G.cam.x + rand(0, VIEW_W), y: G.cam.y + VIEW_H + 4, vx: rand(-8, 8), vy: rand(-40, -20), g: 0, life: 3, max: 3, c: Math.random() < .5 ? '#ff7a2b' : '#ffd463', s: 1 });
@@ -7975,6 +7998,207 @@ function tick(dt) {
 }
 
 
+/* ============================== THE COLISEUM: PLAYER AGAINST PLAYER ============================== */
+// A fight is a hunt with no monsters, so it runs on everything co-op already has: the room's post, ready and depart, the host's
+// game running the match, reconnecting and takeover. The rank of a fight only limits equipment, and real gear counts.
+// Every game keeps a stand-in "monster" for each hunter (q.pvpT), and the opponents of your own hunter sit in q.enemies, so
+// swings, arrows, skills and auto-aim all work unchanged. A hit on a stand-in becomes a hit on that hunter, judged by their own
+// game (blocks, dodges). No potions, meals, blessings or revives. Best of three rounds; the last side standing takes a round.
+const PVP_WINS = 2, PVP_READY = 3, PVP_ROUND_END = 2.5, PVP_ROUND_MAX = 90, PVP_DONE = 3;
+const PVP_GUARD = .25, PVP_STAGGER = .6, PVP_KNOCK = .6;                // protection after a hit (.8 in hunts), a parried attacker's stagger
+const PVP_STUN = .7, PVP_STUN_GAP = 2;                                  // the longest a stun lasts, and the time before another can land
+const PVP_DMG = [1, 1, 1];                                              // damage in fights, by rank of gear
+const PVP_MAX_HIT = .2;                                                 // no one hit takes more than this share of your health, so nobody gets flattened
+const PVP_MODES = { duel: 'Duel', team: 'Team fight' }, PVP_TEAMS = ['Red', 'Blue'];
+const PVP_LOOK = { name: 'Player', cls: 'medium', colors: ['#d9493b', '#f0e4cc'], loot: [] };
+const pvpId = (mode, r) => `pvp_${mode}_${r}`;
+for (const mode of Object.keys(PVP_MODES)) RANKS.forEach((R, r) => {
+  const id = pvpId(mode, r);
+  QUEST_BY_ID[id] = { id, base: id, pvp: true, mode, name: PVP_MODES[mode], god: 'ares', arena: 'coliseum', rank: r, tier: 13 + R.off, mt: 13 + R.off, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
+});
+let shotHit = false;                                                     // the hit being handled came from a shot, not a swing
+
+function pvpSetup() {
+  const P = q.pv = { round: 1, wins: {}, ph: 'ready', t: PVP_READY, kd: q.hunters.map(() => [0, 0]), log: [], last: null, champ: null };
+  q.blessed = false; q.phase = 'pvp'; q.pvpT = new Map();
+  for (const h of q.hunters) {
+    h.team = q.def.mode === 'team' ? h.hid % 2 : h.hid; P.wins[h.team] = 0;
+    h.st = playerStats({ ...(h.save || G.save), meal: null }); h.hp = h.st.maxHp;
+    const e = { id: -(h.hid + 1), pvp: h, type: 'pvp', def: PVP_LOOK, x: h.x, y: h.y, r: 5, h: 14, hp: 1, maxHp: 1, state: 'move', st: 0, stun: 0, flash: 0, kbx: 0, kby: 0, kbRes: 1, markT: 0, burnT: 0, face: 0, dead: false, alpha: 1 };
+    q.pvpT.set(e.id, e);
+  }
+  for (const e of q.pvpT.values()) if (e.pvp.team !== q.player.team) q.enemies.push(e);
+  pvpSpawn(); pvpSync();
+  netUi();
+}
+// Everyone back to their corner, at full health. On a guest's game this comes as a message from the host.
+function pvpSpawn() {
+  const n = q.hunters.length, cx = WORLD_W / 2, cy = WORLD_H / 2, teams = q.def.mode === 'team', count = [0, 0];
+  for (const h of q.hunters) {
+    const a = h.hid / n * Math.PI * 2 + Math.PI, i = teams ? count[h.team]++ : 0;
+    const x = teams ? cx + (h.team ? 190 : -190) : cx + Math.cos(a) * 190, y = teams ? cy - 40 + i * 40 : cy + Math.sin(a) * 110;
+    if (h === q.player || !q.net || q.net === 'host') pvpReset(h, x, y);
+    if (h.remote) { netTo(h, 'rs', [Math.round(x), Math.round(y)]); h.reviveHold = performance.now() + 1500; }
+  }
+}
+function pvpReset(h, x, y) {
+  Object.assign(h, { x, y, vx: 0, vy: 0, kbx: 0, kby: 0, dead: false, downed: false, hp: h.st.maxHp, invuln: 1.2, swing: null, dodgeT: 0, dashT: 0, abilCd: 0, mom: 0, scored: false, lastBy: null, echoes: [], flurryT: 0, guarding: false, guardBreak: 0, guard: h.st.guardMax });
+  for (const k in h.fx) h.fx[k] = 0;
+}
+function pvpSync(dt = 0) {
+  const open = q.pv.ph === 'fight', host = q.net !== 'guest';
+  for (const e of q.pvpT.values()) {
+    const h = e.pvp;
+    if (host && open && !h.dead && !h.left) pvpEffects(e, h);          // what skills did to the stand-in happens to the hunter
+    e.x = h.x; e.y = h.y; e.untargetable = !open || h.dead || !!h.left;
+    e.stun = 0; e.burnT = 0; e.kbx = e.kby = 0; e.markT = Math.max(0, (e.markT || 0) - dt);
+  }
+}
+// Stuns are short and can't be chained, so a skill opens a window instead of ending the fight.
+function pvpEffects(e, h) {
+  if (e.stun > 0) pvpStun(h, e.stun);
+  if (e.burnT > 0) pvpFx(h, { burn: Math.min(2, e.burnT) });
+  if (e.kbx || e.kby) {
+    const k = PVP_KNOCK * (1 - h.st.kbRes), x = Math.round(e.kbx * k), y = Math.round(e.kby * k);
+    if (h.remote) netTo(h, 'kb', [x, y]); else { h.kbx += x; h.kby += y; }
+  }
+}
+function pvpFx(h, o) {
+  if (h.remote) { const P = h.patch || (h.patch = {}); P.fx = { ...P.fx, ...o }; return; }
+  for (const k in o) h.fx[k] = Math.max(h.fx[k], o[k]);
+}
+function pvpStun(h, t) {
+  if (h.stunAt > G.time - PVP_STUN_GAP) return;
+  h.stunAt = G.time; pvpFx(h, { sleep: Math.min(PVP_STUN, t) });
+}
+// Stop Time holds the other side still for a moment.
+function pvpFreeze(by) { for (const h of q.hunters) if (h.team !== by.team && !h.dead && !h.left) pvpStun(h, PVP_STUN); }
+// A hit landed on a hunter's stand-in. The host applies it (a guest's game sent it here); the hunter's own game judges it.
+function pvpHit(e, dmg, ang, knock, ub, fp) {
+  const t = e.pvp, by = q.actor || q.player;
+  if (q.pv.ph !== 'fight' || t.dead || t.left || by.dead || by === t || by.team === t.team) return false;
+  if (Math.hypot(by.x - t.x, by.y - t.y) > 340) return false;           // nothing reaches that far: a game that says so is lying
+  dmg = Math.max(1, Math.round(dmg * PVP_DMG[q.def.rank] * (e.markT > 0 ? 1.3 : 1) * rand(.9, 1.1)));
+  const r = hurtHunter(t, dmg, ang, knock * PVP_KNOCK, { src: q.pvpT.get(-(by.hid + 1)), melee: !shotHit, proj: shotHit, unblockable: ub });
+  if (!r) return false;
+  t.lastBy = by; by.stats.dealt += dmg;
+  hitSparks(t.x, t.y - 8, ang, false);
+  if (isLocal(by)) pvpShowHit(t, dmg);
+  if (fp) onPlayerHit(e, dmg);
+  return true;
+}
+// The number you see when your hit lands: what it'll do after their armor.
+function pvpShowHit(t, dmg) {
+  const was = NET.replay; NET.replay = true;
+  addText(t.x, t.y - 22, String(Math.max(1, Math.round(dmg * 20 / (20 + t.st.def)))), '#f0e4cc');
+  NET.replay = was;
+}
+// A perfect block staggers whoever swung, so timing beats gear.
+function pvpParried(src) {
+  if (q.net === 'guest') { NET.out.q.push(['pv', src.id]); return; }
+  const h = src.pvp; if (h) pvpFx(h, { sleep: PVP_STAGGER });
+}
+const pvpSideName = T => q.def.mode === 'team' ? PVP_TEAMS[T] : (q.hunters.find(h => h.team === +T) || {}).name || 'Player';
+function pvpScore() {
+  const P = q.pv, sides = Object.keys(P.wins);
+  return `Round ${P.round} · ` + sides.map(T => `${pvpSideName(T)} ${P.wins[T]}`).join(', ');
+}
+// The match, on the host: rounds start, kills count, the last side standing takes the round.
+function pvpHostTick(dt) {
+  pvpSync(dt);
+  if (q.timeStop > 0) { q.timeStop = 0; pvpFreeze(q.player); }           // your own Stop Time (a guest's comes in its report)
+  const P = q.pv; P.t -= dt;
+  if (P.ph === 'ready') { if (P.t <= 0) { P.ph = 'fight'; P.t = PVP_ROUND_MAX; pvpSync(); banner('Fight!', ''); Sound.play('roar'); netUi(); } return; }
+  if (P.ph === 'fight') {
+    for (const h of q.hunters) if (h.dead && !h.scored && !h.left) {
+      h.scored = true; P.kd[h.hid][1]++;
+      if (h.lastBy) { P.kd[h.lastBy.hid][0]++; P.log.push([h.lastBy.hid, h.hid]); banner(`${h.lastBy.name} took down ${h.name}`, ''); }
+    }
+    const standing = q.hunters.filter(h => !h.dead && !h.left), sides = new Set(standing.map(h => h.team));
+    if (sides.size > 1 && P.t > 0) return;
+    let w = sides.size === 1 ? [...sides][0] : null;
+    if (P.t <= 0) {                                                     // out of time: the side with the most health left takes it
+      const hp = {}; for (const h of standing) hp[h.team] = (hp[h.team] || 0) + h.hp / h.st.maxHp;
+      w = Object.keys(hp).sort((a, b) => hp[b] - hp[a]).map(Number)[0] ?? null;
+    }
+    P.last = w; if (w !== null) P.wins[w]++;
+    P.ph = 'end'; P.t = PVP_ROUND_END; G.slowmo = .4;
+    banner(w === null ? 'Nobody stands' : `${pvpSideName(w)} takes the round`, pvpScore());
+    netUi(); return;
+  }
+  if (P.ph === 'end' && P.t <= 0) {
+    const sides = new Set(q.hunters.filter(h => !h.left).map(h => h.team)), champ = Object.keys(P.wins).map(Number).find(T => P.wins[T] >= PVP_WINS);
+    if (champ !== undefined || sides.size < 2) {
+      P.champ = champ !== undefined ? champ : sides.size ? [...sides][0] : null; P.ph = 'done'; P.t = PVP_DONE;
+      banner(P.champ === null ? 'The fight is over' : `${pvpSideName(P.champ)} wins the fight`, '', true); Sound.play('win');
+    } else { P.round++; P.ph = 'ready'; P.t = PVP_READY; pvpSpawn(); banner(`Round ${P.round}`, ''); }
+    netUi(); return;
+  }
+  if (P.ph === 'done' && P.t <= 0) pvpFinish();
+}
+// One step on a guest's game: the stand-ins follow the hunters, and if the host's last word never comes, the fight still ends.
+function pvpGuestTick(dt) {
+  pvpSync(dt);
+  if (q.pv.ph === 'done') { q.pv.t -= dt; if (q.pv.t < -2) { pvpFinish(); return true; } }
+  return false;
+}
+// For the board: each game reports only its own losses, who took it down and who beat it. Nobody can report their own wins,
+// and walking out counts as a loss.
+function pvpReport(quit) {
+  const P = q.pv, me = q.player, idOf = h => h === me ? NET.me : h.remote || h.mirror, tally = {};
+  for (const [k, v] of P.log) if (v === me.hid && k !== me.hid) { const id = q.hunters[k] && idOf(q.hunters[k]); if (id) tally[id] = (tally[id] || 0) + 1; }
+  const won = !quit && P.champ === me.team, beat = won ? [] : q.hunters.filter(h => h.team !== me.team && !h.left && (quit || h.team === P.champ)).map(idOf).filter(Boolean);
+  netSend({ t: 'pvpres', deaths: Object.entries(tally).map(([id, n]) => [+id, n]), beat });
+}
+// The end of the fight on your screen. quit: you walked out of it.
+function pvpFinish(quit = false) {
+  if (!q || !q.pv) return;
+  const P = q.pv, me = q.player, wonIt = !quit && P.ph === 'done' && P.champ === me.team, mine = P.kd[me.hid] || [0, 0];
+  if (quit || P.ph === 'done') pvpReport(quit);
+  if (q.net === 'host') netHostEnd(P.ph === 'done'); else if (q.net === 'guest' && quit) netSend({ t: 'leave' });
+  CG.gameplay(false);
+  $('resQuest').innerHTML = `<span style="color:${RANKS[q.def.rank].col}">${RANKS[q.def.rank].name} gear</span> · ${esc(PVP_MODES[q.def.mode])}`;
+  const title = $('resTitle'); title.textContent = quit ? 'You left the fight' : wonIt ? 'Victory' : 'Defeat'; title.className = 'res-title ' + (wonIt ? 'win' : 'lose');
+  $('resStats').innerHTML = `<div><span>Rounds won</span><b>${P.wins[me.team] || 0}</b></div><div><span>Kills</span><b>${mine[0]}</b></div><div><span>Deaths</span><b>${mine[1]}</b></div><div><span>Damage dealt</span><b>${Math.round(q.stats.dealt)}</b></div>`;
+  $('resUnlock').innerHTML = ''; $('resLoot').innerHTML = `<div class="muted">Fights pay nothing. They’re for the glory.</div>`; $('resNote').textContent = '';
+  $('btnResAgain').hidden = true; G.lastQuest = null; G.arenaBack = true;
+  G.mode = 'results'; q = null; show('scrResults');
+  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);
+}
+/* ---- Agon's panel ---- */
+function renderArena() {
+  const R = NET.room;
+  if (!netOn() || R.members.length < 2) return `<div class="empty-note">You need a room with at least two players. Talk to the Oracle in the square.</div>`;
+  const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides, picked by join order. You can’t hurt your own side.'}</p><div class="stack">`
+    + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('') + `</div></div>`).join('');
+  return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p><div class="opts">${rows}</div>`;
+}
+$('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
+/* ---- the fight board ---- */
+const pvpTier = r => r >= 1400 ? 'Champion' : r >= 1200 ? 'Gold' : r >= 1050 ? 'Silver' : 'Bronze';
+async function pvpBoardLoad() {
+  const box = $('pvpBoard'); if (!box) return;
+  try {
+    const list = (await Store.call('GET', 'pvp/board')).board || [];
+    if (!$('pvpBoard')) return;
+    $('pvpBoard').innerHTML = list.length ? list.map((p, i) => `<div class="or-row"><b>${i + 1}. ${esc(p.name)}</b><span>${esc(pvpTier(p.r))}</span><span>Rating ${p.r}</span><span>K/D ${p.d ? (p.k / p.d).toFixed(2) : p.k}</span><span class="muted">${p.k} kills, ${p.d} deaths</span><span class="muted">${p.w}W ${p.l}L</span></div>`).join('') : 'Nobody has fought here yet.';
+  } catch (e) { if ($('pvpBoard')) $('pvpBoard').textContent = 'The board can’t be read right now. Check your connection.'; }
+}
+/* ---- drawing ---- */
+// In a fight the stand-ins aren't drawn, and a small arrow marks who's on which side.
+function renderQuest() {
+  if (!q) return;
+  if (!q.pv) { renderQuest0(); return; }
+  const E = q.enemies; q.enemies = [];
+  try { renderQuest0(); } finally { q.enemies = E; }
+  const [cx, cy] = camOffset();
+  for (const h of q.hunters) {
+    if (h === q.player || h.dead || h.left) continue;
+    const x = Math.round(h.x - cx), y = Math.round(h.y - cy) - 30;
+    ctx.fillStyle = OUTLINE; ctx.fillRect(x - 3, y - 1, 7, 3); ctx.fillRect(x - 2, y + 2, 5, 1);
+    ctx.fillStyle = h.team === q.player.team ? '#7fe08a' : '#ff5a3c'; ctx.fillRect(x - 2, y, 5, 2); ctx.fillRect(x - 1, y + 2, 3, 1);
+  }
+}
 /* ============================== INSIDE THE BUILDINGS ============================== */
 // The Forge, the Tavern, Melita's Market and your home are rooms you walk into, one screen each (the Temple has its own
 // builder in 85_village.js). A room is data: its floor and walls (a theme), furniture (props), who works there (npcs),
@@ -7993,8 +8217,8 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
 // The Coliseum's floor, for practice and for fights between players.
-Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 30, ht: 20, secret: null,
-  obstacles: [['column', 8, 6], ['column', 21, 6], ['column', 8, 13], ['column', 21, 13]] } });
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null,
+  obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14]] } });
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
@@ -8022,17 +8246,17 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
-  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time',
-    props: [['rack', 4.5, 3.5], ['rack', 6.5, 3.5], ['armorstand', 17, 3.7, 'iron'], ['armorstand', 19, 3.7, 'bronze'], ['dummy', 17.5, 8], ['amphora', 3.6, 10.2], ['barrel', 20, 10, 'water']],
-    npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 120, y: 100 }],
-    spots: [{ id: 'dummy', name: 'the practice dummy', kind: 'practice', x: 288, y: 148 }] },
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22,
+    props: [['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
+    npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
+    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 440, y: 202 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
-for (const R of Object.values(ROOMS)) { R.wt = 24; R.ht = 15; }
+for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
 function buildRoom(id) {
   const D = ROOMS[id];
   const props = D.props.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers(D.theme, null, { gate: { x: 11, y: 12, w: 2 }, seed: id, axis: WORLD_W / 2 });
+  const gate = { x: D.wt / 2 - 1, y: D.ht - 3, w: 2 }, layers = genLayers(D.theme, null, { gate, seed: id, axis: WORLD_W / 2 });
   const gx = layers.ground.getContext('2d');
   for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
   const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
@@ -8040,7 +8264,7 @@ function buildRoom(id) {
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
   return { id, name: D.name, theme: D.theme, sub: D.sub, music: Music.songs['room_' + id] ? 'room_' + id : 'akros', exitTo: 'village',
-           world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: 11, y: 12, w: 2, h: 2 }]),
+           world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: gate.x, y: gate.y, w: 2, h: 2 }]),
            ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 function paintRug(x, rx, ry, w, h, c1, c2) {
@@ -8056,7 +8280,7 @@ ROLES.dummy = (e, dt) => { e.vx = e.vy = e.kbx = e.kby = 0; e.stun = 0; if (e.hp
 const PRACTICE = { id: 'practice', base: 'practice', practice: true, name: 'Practice', god: 'ares', arena: 'coliseum', rank: 0, tier: 1, mt: 1, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
 function startPractice() {
   startQuest(PRACTICE); q.phase = 'practice';
-  const d = makeEnemy('dummy', tc(15), tc(7)); d.state = 'move'; q.enemies.push(d);
+  const d = makeEnemy('dummy', tc(23), tc(11)); d.state = 'move'; q.enemies.push(d);
 }
 function endPractice() { fadeTo(() => enterPlace('coliseum', 'practice')); }
 // Sitting down at a tavern table: you take the seat and stay there. Order from it if you like, or just walk off to get up.
@@ -8235,15 +8459,15 @@ const VILLAGE_W = 52, VILLAGE_H = 34, VILLAGE_MID = 26;              // the stre
 const BUILDINGS = [
   { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 20.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
   { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 12, y: 4, w: 7,  h: 5, goes: 'forge' },
-  { id: 'coliseum', name: 'The Coliseum',       kind: 'coliseum', x: 4, y: 13, w: 13, h: 8, goes: 'coliseum' },
+  { id: 'coliseum', name: 'The Coliseum',       kind: 'coliseum', x: 4, y: 11, w: 13, h: 8, goes: 'coliseum' },
   { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 37, y: 8, w: 7,  h: 5, goes: 'tavern' },
   { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 12, y: 24, w: 6, h: 4, goes: 'market' },
   { id: 'home',   name: 'Your Home',            kind: 'home',   x: 38, y: 22, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
   ['fountain', 26, 18], ['board', 31, 16], ['stall', 20, 23], ['stall', 33, 23], ['crate', 22, 24], ['amphora', 23, 24], ['amphora', 35, 24], ['crate', 36, 25], ['cart', 20, 28],
-  ['column', 8, 22], ['column', 12, 22], ['brokencol', 3, 22], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
-  ['olive', 5, 5], ['tree', 8, 8], ['olive', 4, 10], ['olive', 10, 11], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
+  ['column', 8, 20], ['column', 12, 20], ['brokencol', 3, 21], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
+  ['olive', 5, 5], ['tree', 8, 7], ['olive', 3, 8], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
   ['olive', 47, 18], ['pine', 46, 21], ['olive', 5, 25], ['tree', 8, 28], ['pine', 4, 29], ['olive', 11, 30], ['olive', 17, 30], ['tree', 21, 12], ['olive', 31, 12],
   ['olive', 32, 29], ['pine', 37, 28], ['tree', 41, 30], ['olive', 47, 27], ['rock', 15, 22], ['rock', 39, 19], ['stump', 43, 17], ['stump', 18, 11], ['rock', 28, 28],
 ];
@@ -8260,6 +8484,8 @@ const PANEL_INFO = {
   options: { title: 'Options' },
   shrine:  { title: 'Hestia’s Hearth' },
   oracle:  { title: 'The Oracle' },
+  arena:   { title: 'The Coliseum' },
+  pvpboard: { title: 'The fight board' },
 };
 // Rank progress. A rank is done when every god (side gods too) and every Titan has been hunted on it.
 const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].every(id => save.cleared[rid(id, r)]);
@@ -8319,7 +8545,7 @@ function npcLines(n) {
     case 'arena': {
       if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The dummy is free any time, if you want to try out your gear.'];
       if (NET.room.members.length < 2) return ['You have a room, but nobody in it to fight.', 'You need at least two players. Share your room code or find another room at the Oracle, then come back.'];
-      return ['Your room is here and the sand is raked.', 'The gates aren’t open yet. Practice on the dummy until they are.'];
+      return ['Your room is here and the sand is raked.', 'Pick your fight. The gear rank you choose is the limit: anything stronger comes off first.'];
     }
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
@@ -8463,7 +8689,7 @@ function startInteract(t) {
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
-    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : n.id === 'arena' && netOn() && NET.room.members.length >= 2 ? 'arena' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'seat') sitAt(t);
   else if (t.kind === 'practice') fadeTo(startPractice);
@@ -9290,8 +9516,7 @@ function drawHazards(S) {
 // A hunt's things to draw, sorted by depth: entries are a kind and a thing, kept and reused between frames.
 const DRAW_LIST = [], DRAW_POOL = [], byDrawY = (a, b) => a.y - b.y;
 function drawAdd(y, k, o) { const i = DRAW_LIST.length, e = DRAW_POOL[i] || (DRAW_POOL[i] = { y: 0, k: 0, o: null }); e.y = y; e.k = k; e.o = o; DRAW_LIST.push(e); }
-function renderQuest() {
-  if (!q) return;
+function renderQuest0() {
   const [cx, cy] = camOffset();
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.drawImage(q.ground, -cx, -cy);
@@ -9908,7 +10133,7 @@ function hudReset() {
   $('pipAbil').hidden = !ab; if (ab) $('abilName').textContent = ABILITIES[ab].name + key('ability');
   $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
-  $('guardBar').hidden = !st.shield;
+  $('guardBar').hidden = !st.shield; $('drawBar').hidden = !st.kind.draw;
 }
 function updateHud() {
   const p = q.player;
@@ -9916,6 +10141,10 @@ function updateHud() {
   if (hudCache.hpW !== w) { hudCache.hpW = w; $('hpFill').style.width = w; $('hpGhost').style.width = w; }
   $('hpBar').classList.toggle('low', frac < .3);
   setText('hpText', `${Math.ceil(p.hp)} / ${p.st.maxHp}`);
+  if (p.st.kind.draw) {                                  // how far your bow is drawn: amber as it fills, bright at full power
+    const s = p.swing, k = s && s.drawMax ? clamp(s.draw / s.drawMax, 0, 1) : 0, dw = Math.round(k * 100) + '%';
+    if (hudCache.dw !== dw) { hudCache.dw = dw; $('drawFill').style.width = dw; $('drawBar').className = 'bar' + (k >= .95 ? ' full' : k >= .5 ? ' half' : ''); }
+  }
   $('pipDodge').classList.toggle('cool', !canDash(p));
   const dl = 'Dash' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
   if (hudCache.dl !== dl) { hudCache.dl = dl; $('pipDodge').querySelector('b').textContent = dl; }
@@ -10168,15 +10397,20 @@ function drawGhost(gh, S) {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
-  { v: '1.1', date: 'November 2026', title: 'The Coliseum and a bigger Akros',
+  { v: '1.1', date: 'November 2026', title: 'The Coliseum',
     new: [
-      'The Coliseum now stands in Akros. Walk in, meet Agon the Arena Master and try your gear on the practice dummy. Fights between players are coming.',
+      'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds.',
+      'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
+      'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
+      'The fight board in the Coliseum ranks players by rating, with kills and deaths beside it. Beating a better player earns more.',
+      'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
     ],
     changed: [
       'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Earthquake’s first ring of spikes now fires. It never did before.',
       'Hammers hit a little softer. Spears hit a little harder and faster.',
       'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
     ] },
@@ -10412,6 +10646,8 @@ function renderHub() {
   else if (G.panel === 'market') body.innerHTML = renderMarket();
   else if (G.panel === 'tavern') body.innerHTML = renderTavern();
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
+  else if (G.panel === 'arena') body.innerHTML = renderArena();
+  else if (G.panel === 'pvpboard') { body.innerHTML = '<div class="opt wide"><p class="muted">Rating decides the order: beating a better player earns more. Tiers: Bronze, Silver, Gold, Champion.</p><div id="pvpBoard" class="muted">Looking…</div></div>'; pvpBoardLoad(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -10828,6 +11064,7 @@ $('scrHub').addEventListener('click', ev => {
 });
 
 function finishQuest(win) {
+  if (q.pv) { pvpFinish(true); return; }
   const s = G.save, d = q.def, wasNet = q.net;
   if (q.net === 'host') netHostEnd(win); else if (q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netSend({ t: 'leave' });
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
@@ -10944,10 +11181,10 @@ function setPaused(v) {
   G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
-  const road = !!(inQuest && q && q.def.prologue), prac = !!(inQuest && q && q.def.practice);
-  $('btnAbandon').textContent = road ? 'Skip the tutorial' : prac ? 'Leave practice' : 'Abandon quest';
-  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : prac ? 'Head back to the Coliseum?' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
-  $('btnAbandonYes').textContent = road ? 'Go to the village' : prac ? 'Leave practice' : 'Leave the quest';
+  const road = !!(inQuest && q && q.def.prologue), prac = !!(inQuest && q && q.def.practice), fight = !!(inQuest && q && q.pv);
+  $('btnAbandon').textContent = road ? 'Skip the tutorial' : prac ? 'Leave practice' : fight ? 'Leave the fight' : 'Abandon quest';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : prac ? 'Head back to the Coliseum?' : fight ? 'Leave the fight? It goes on without you.' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
+  $('btnAbandonYes').textContent = road ? 'Go to the village' : prac ? 'Leave practice' : fight ? 'Leave the fight' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = fsEl() ? 'Exit fullscreen' : 'Fullscreen';
@@ -11024,6 +11261,7 @@ $('btnNews').onclick = () => { Sound.init(); Sound.play('click'); openNews('scrT
 $('btnNewsBack').onclick = closeNews;
 $('btnResContinue').onclick = () => {
   Sound.play('click');
+  if (G.arenaBack) { G.arenaBack = false; fadeTo(() => enterPlace('coliseum', 'arena')); return; }
   // Typhon just fell for the first time: roll the credits before going home
   if (G.lastQuest === TYPHON_Q && G.save.cleared[TYPHON_Q] && !G.save.legend) { fadeTo(() => showCredits(() => enterVillage('gate'))); return; }
   CG.midgameAd(() => fadeTo(() => enterVillage('gate')));
@@ -11270,7 +11508,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
