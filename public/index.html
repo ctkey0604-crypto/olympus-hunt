@@ -374,14 +374,23 @@ textarea:focus{outline:2px solid var(--gold)}
 .btn.big{font-size:1.3rem;padding:14px 38px}
 .title-sub{margin:-6px 0 0;font-size:.9rem;min-height:1.3em}
 .invite-note{margin:0;padding:6px 12px;background:#000a;color:var(--gold);box-shadow:0 0 0 2px #000,0 0 0 3px var(--gold);font-size:.95rem}
-/* the banner on the title screen: a king's striped headdress in gold and lapis, with a slow glint */
-.egypt{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:500px;padding:11px 14px;overflow:hidden;background:#1d3a6b;color:#ffd463;font-family:var(--font-display);font-size:1.75rem;line-height:1;letter-spacing:.04em;text-shadow:2px 2px 0 #0b1830;box-shadow:0 0 0 2px #000,0 0 0 4px #c9a032,0 0 0 6px #000}
-.egypt::before,.egypt::after{content:"";position:absolute;left:0;right:0;height:4px;background:repeating-linear-gradient(90deg,#e9c04f 0 8px,#2c5684 8px 16px)}
-.egypt::before{top:0}.egypt::after{bottom:0}
-.egypt canvas{flex:none;height:24px;width:auto;image-rendering:pixelated}
-.egypt span{background:linear-gradient(100deg,#ffd463 42%,#fff6d8 50%,#ffd463 58%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;animation:egyptGlint 6s linear infinite}
-@keyframes egyptGlint{from{background-position:100% 0}to{background-position:0 0}}
-@media (prefers-reduced-motion:reduce){.egypt span{animation:none}}
+/* the community vote: a banner on the title screen, in red and gold with a slow glint, and the screen it opens */
+.vote-banner{position:relative;display:block;width:100%;max-width:500px;padding:12px 14px;border:0;overflow:hidden;cursor:pointer;background:#6b2416;color:#ffd463;font-family:var(--font-display);font-size:1.75rem;line-height:1;letter-spacing:.04em;box-shadow:0 0 0 2px #000,0 0 0 4px #c9a032,0 0 0 6px #000;transition:background .15s}
+.vote-banner:hover,.vote-banner:focus-visible{background:#8f2e1e;outline:0}
+.vote-banner::before,.vote-banner::after{content:"";position:absolute;left:0;right:0;height:4px;background:repeating-linear-gradient(90deg,#e9c04f 0 8px,#3a1208 8px 16px)}
+.vote-banner::before{top:0}.vote-banner::after{bottom:0}
+.vote-banner span{background:linear-gradient(100deg,#ffd463 42%,#fff6d8 50%,#ffd463 58%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:voteGlint 6s linear infinite}
+@keyframes voteGlint{from{background-position:100% 0}to{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.vote-banner span{animation:none}}
+.vote-lead{margin:0 0 14px;color:var(--bone-dim)}
+.vote-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:640px){.vote-grid{grid-template-columns:1fr}}
+.vote-card{display:flex;flex-direction:column;gap:10px;padding:14px;background:var(--glaze-2);box-shadow:0 0 0 2px #000,0 0 0 4px var(--line),inset 4px 0 0 var(--c)}
+.vote-card.on{box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold),inset 4px 0 0 var(--c)}
+.vote-card h3{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.9rem;line-height:1;letter-spacing:.03em;color:var(--c)}
+.vote-card p{flex:1;margin:0;color:var(--bone-dim)}
+.vote-bar{height:10px;background:#000;box-shadow:0 0 0 1px var(--line)}.vote-bar i{display:block;height:100%;background:var(--c)}
+.vote-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:2em}.vote-row b{color:var(--gold)}
 .invite-row{display:flex;gap:8px;align-items:center;margin:0 0 12px}
 .invite-row input{flex:1 1 auto;min-width:0;background:#000a;border:0;box-shadow:0 0 0 2px var(--line);color:var(--bone);font:inherit;padding:6px 8px;user-select:text;-webkit-user-select:text}
 .load-name{width:100%;background:transparent;border:0;border-bottom:2px solid var(--line);color:var(--bone);font:400 1.55rem/1 var(--font-display);letter-spacing:.03em;padding:0 0 4px;user-select:text;-webkit-user-select:text}
@@ -427,7 +436,7 @@ textarea:focus{outline:2px solid var(--gold)}
   .logo{font-size:clamp(38px,12vh,72px)}
   #titleArt{width:min(380px,80%)}
   .title-wrap{gap:8px}
-  .egypt{font-size:1.35rem;padding:9px 12px;max-width:420px}.egypt canvas{height:18px}
+  .vote-banner{font-size:1.4rem;padding:9px 12px;max-width:420px}
   .btn.big{padding:11px 30px}
 }
 /* first-steps tutorial: the goal line, prompts that wait for you, and a glow on the button to press */
@@ -691,7 +700,7 @@ input[type=range]{accent-color:var(--clay)}
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
-    <div class="egypt" role="note"><canvas id="egyptAnkh" width="9" height="12" aria-hidden="true"></canvas><span>Egyptian update coming soon!</span><canvas id="egyptPyr" width="17" height="12" aria-hidden="true"></canvas></div>
+    <button class="vote-banner" id="btnVote" type="button"><span>Vote on update 1.1!</span></button>
     <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
     <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
     <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
@@ -699,7 +708,7 @@ input[type=range]{accent-color:var(--clay)}
     <div class="controls" id="titleControls" aria-label="Controls"></div>
     <p class="tip keys-only" id="titleTip"></p>
     <div class="meander" style="width:100%"></div>
-    <p class="build-tag">Version 1.1</p>
+    <p class="build-tag">Version 1.0</p>
   </div>
 </section>
 
@@ -709,6 +718,13 @@ input[type=range]{accent-color:var(--clay)}
     <div class="acct" id="acctBox" hidden></div>
     <p class="muted" id="saveStatus" style="margin:0">Loading saves…</p>
     <div class="slots" id="slotList"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrVote" hidden>
+  <div class="wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnVoteBack">Back</button><h2>What should update 1.1 be?</h2></div>
+    <div id="voteBody"></div>
   </div>
 </section>
 
@@ -10611,28 +10627,18 @@ function drawGhost(gh, S) {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
-  { v: '1.1', date: 'November 2026', title: 'The Coliseum',
+  { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
+      'Community vote: help pick what update 1.1 will be, from the banner on the title screen.',
       'Invite links: press Invite in the room box and send the link. Friends land right in your room.',
       'Saved loadouts: keep up to five gear sets in the chest at home and swap between them in one click.',
       'Forager’s Figs at the Tavern: 25% more drops on your next hunt. In a room, everyone gets the extra drops.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
-    ],
-    changed: [
-      'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
-      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
-      'Earthquake’s first ring of spikes now fires. It never did before.',
-      'Hammers hit a little softer. Spears hit a little harder and faster.',
-      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
-    ] },
-  { v: '1.0', date: 'November 2026', title: 'The full release',
-    new: [
       'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
       'The Tavern: take a seat or order at the counter. One meal or drink per hunt gives you a small boost for it: more health, damage or defense, or faster dashes or skills.',
       'Your home has a chest that holds everything you bring back from your hunts.',
@@ -10648,6 +10654,12 @@ const NEWS = [
       'This What’s new list.',
     ],
     changed: [
+      'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
+      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Earthquake’s first ring of spikes now fires. It never did before.',
+      'Hammers hit a little softer. Spears hit a little harder and faster.',
+      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
       'Dion works inside the Forge now, Phaedra runs the Tavern, and Melita has her own shop.',
       'Kleon hands out the hunts, with his notice board right beside him.',
       'Options moved to the pause menu (Esc).',
@@ -10682,6 +10694,48 @@ function renderNews() {
     <div class="news-head"><h3>${esc(n.title)}</h3><span class="muted">${esc(n.v)} · ${esc(n.date)}</span></div>
     ${list('New', n.new)}${list('Changed', n.changed)}${list('Fixed', n.fixed)}</article>`).join('');
 }
+/* ============================== THE COMMUNITY VOTE ============================== */
+// Players pick what update 1.1 will be, from the banner on the title screen. One vote per account, and it can be changed while the vote is
+// open. The totals show once you've voted, so nobody just follows the leader. The server keeps the count (Lobby.vote), and its
+// POLL lists these same ids.
+const VOTE = [
+  { id: 'egypt',  name: 'Egypt',        col: '#e9c04f', desc: 'Sail to a new land with its own gods and a new rank. Hunt Set, Anubis and Ra along the Nile.' },
+  { id: 'norse',  name: 'The North',    col: '#8fc4f5', desc: 'Cross the frozen sea to Asgard. Hunt Thor, Loki and the frost giants.' },
+  { id: 'harder', name: 'Cursed Hunts', col: '#ff8a7a', desc: 'Stronger versions of the gods you know, with new attacks, plus a New Game+ for your old saves.' },
+];
+let voteData = null, voteBusy = false, voteMsg = '';
+function renderVote() {
+  const d = voteData, mine = d && d.mine, n = id => (d && d.counts[id]) || 0, total = VOTE.reduce((a, o) => a + n(o.id), 0);
+  const pct = id => total ? Math.round(n(id) / total * 100) : 0, votes = c => `${c} ${c === 1 ? 'vote' : 'votes'}`;
+  const lead = !Store.api ? '' : voteMsg || (!d ? 'Looking…' : mine ? `Thanks for voting! ${votes(total)} so far. You can change yours while the vote is open.`
+    : Store.user ? 'Pick the one you want most. You can change your mind while the vote is open.' : 'Sign in to vote. Each account gets one vote.');
+  const card = o => `<article class="vote-card${mine === o.id ? ' on' : ''}" style="--c:${o.col}"><h3>${esc(o.name)}</h3><p>${esc(o.desc)}</p>
+    ${mine ? `<div class="vote-bar"><i style="width:${pct(o.id)}%"></i></div><div class="vote-row"><span>${pct(o.id)}% · ${votes(n(o.id))}</span>${mine === o.id ? '<b>Your vote</b>' : `<button class="btn ghost small" type="button" data-vote="${o.id}" ${voteBusy ? 'disabled' : ''}>Change to this</button>`}</div>`
+      : d && Store.user ? `<button class="btn" type="button" data-vote="${o.id}" ${voteBusy ? 'disabled' : ''}>Vote</button>` : ''}</article>`;
+  $('voteBody').innerHTML = `${lead ? `<p class="vote-lead">${esc(lead)}</p>` : ''}<div class="vote-grid">${VOTE.map(card).join('')}</div>
+    ${Store.api && d && !Store.user ? '<div class="row" style="margin-top:14px"><button class="btn" type="button" data-votesign="1">Sign in to vote</button></div>' : ''}`;
+}
+async function voteLoad() {
+  voteData = null; voteMsg = ''; renderVote();
+  await Store.ready; if (!Store.api) { renderVote(); return; }
+  try { voteData = await Store.call('GET', 'vote'); } catch (e) { voteMsg = 'The vote can’t be reached right now. Check your connection.'; }
+  renderVote();
+}
+async function voteCast(id) {
+  if (voteBusy) return;
+  voteBusy = true; voteMsg = ''; renderVote();
+  try { voteData = await Store.call('POST', 'vote', { choice: id }); Sound.play('jingle'); } catch (e) { voteMsg = e.message || 'Your vote didn’t go through. Try again.'; }
+  voteBusy = false; renderVote();
+}
+function openVote() { G.mode = 'vote'; show('scrVote'); voteLoad(); }
+function closeVote() { Sound.play('click'); G.mode = 'title'; show('scrTitle'); }
+$('btnVote').onclick = () => { Sound.init(); Sound.play('click'); openVote(); };
+$('btnVoteBack').onclick = closeVote;
+$('voteBody').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.vote) { Sound.play('click'); voteCast(b.dataset.vote); }
+  else if (b.dataset.votesign) { Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); }
+});
 /* ============================== MENUS ==================================== */
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
 // The menus have their own theme; the town's plays only in town (What's new opened from Options keeps the place's music).
@@ -11614,6 +11668,7 @@ addEventListener('keydown', e => {
   if (G.mode === 'credits') { if ((e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); endCredits(); } return; }
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
   if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
+  if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();
@@ -11771,14 +11826,6 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
-// The little gold ankh and pyramid on the title screen's banner.
-(function drawEgypt() {
-  const a = $('egyptAnkh').getContext('2d'), ankh = ['...###...', '..#...#..', '..#...#..', '..#...#..', '...#.#...', '#########', '....#....', '....#....', '....#....', '....#....', '....#....', '....#....'];
-  a.fillStyle = '#ffd463'; ankh.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') a.fillRect(x, y, 1, 1); }));
-  const p = $('egyptPyr').getContext('2d');
-  for (let y = 0; y < 10; y++) { const w = y + 1; p.fillStyle = '#ffd463'; p.fillRect(10 - w, y + 2, w, 1); p.fillStyle = '#c9a032'; p.fillRect(10, y + 2, w, 1); if (y % 3 === 2) { p.fillStyle = '#8f6a1c'; p.fillRect(10 - w, y + 2, w * 2, 1); } }
-  p.fillStyle = '#ff8a2b'; p.fillRect(1, 0, 3, 3); p.fillStyle = '#ffd463'; p.fillRect(2, 1, 1, 1);
-})();
 Music.play('menu');
 // The menu theme from the moment the page loads. Browsers only allow sound before the first click, tap or key press on
 // sites people use a lot (Chrome remembers), so try right away; otherwise the very first input anywhere switches it on,
@@ -11797,7 +11844,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
