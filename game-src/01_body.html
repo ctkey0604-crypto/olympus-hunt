@@ -82,7 +82,7 @@
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
-    <div class="egypt" role="note"><canvas id="egyptAnkh" width="9" height="12" aria-hidden="true"></canvas><span>Egyptian update coming soon!</span><canvas id="egyptPyr" width="17" height="12" aria-hidden="true"></canvas></div>
+    <button class="vote-banner" id="btnVote" type="button"><span>Vote on update 1.1!</span></button>
     <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
     <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
     <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
@@ -90,7 +90,7 @@
     <div class="controls" id="titleControls" aria-label="Controls"></div>
     <p class="tip keys-only" id="titleTip"></p>
     <div class="meander" style="width:100%"></div>
-    <p class="build-tag">Version 1.1</p>
+    <p class="build-tag">Version 1.0</p>
   </div>
 </section>
 
@@ -100,6 +100,13 @@
     <div class="acct" id="acctBox" hidden></div>
     <p class="muted" id="saveStatus" style="margin:0">Loading saves…</p>
     <div class="slots" id="slotList"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrVote" hidden>
+  <div class="wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnVoteBack">Back</button><h2>What should update 1.1 be?</h2></div>
+    <div id="voteBody"></div>
   </div>
 </section>
 

@@ -2,28 +2,18 @@
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
-  { v: '1.1', date: 'November 2026', title: 'The Coliseum',
+  { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
+      'Community vote: help pick what update 1.1 will be, from the banner on the title screen.',
       'Invite links: press Invite in the room box and send the link. Friends land right in your room.',
       'Saved loadouts: keep up to five gear sets in the chest at home and swap between them in one click.',
       'Forager’s Figs at the Tavern: 25% more drops on your next hunt. In a room, everyone gets the extra drops.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
-    ],
-    changed: [
-      'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
-      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
-      'Earthquake’s first ring of spikes now fires. It never did before.',
-      'Hammers hit a little softer. Spears hit a little harder and faster.',
-      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
-    ] },
-  { v: '1.0', date: 'November 2026', title: 'The full release',
-    new: [
       'Walk into the buildings of Akros: the Forge, the Tavern, Melita’s Market and your home.',
       'The Tavern: take a seat or order at the counter. One meal or drink per hunt gives you a small boost for it: more health, damage or defense, or faster dashes or skills.',
       'Your home has a chest that holds everything you bring back from your hunts.',
@@ -39,6 +29,12 @@ const NEWS = [
       'This What’s new list.',
     ],
     changed: [
+      'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
+      'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Earthquake’s first ring of spikes now fires. It never did before.',
+      'Hammers hit a little softer. Spears hit a little harder and faster.',
+      'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
       'Dion works inside the Forge now, Phaedra runs the Tavern, and Melita has her own shop.',
       'Kleon hands out the hunts, with his notice board right beside him.',
       'Options moved to the pause menu (Esc).',

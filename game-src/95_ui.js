@@ -930,6 +930,7 @@ addEventListener('keydown', e => {
   if (G.mode === 'credits') { if ((e.code === 'Escape' || e.code === 'Enter' || e.code === 'Space') && !e.repeat) { e.preventDefault(); endCredits(); } return; }
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
   if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
+  if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();
@@ -1087,14 +1088,6 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
-// The little gold ankh and pyramid on the title screen's banner.
-(function drawEgypt() {
-  const a = $('egyptAnkh').getContext('2d'), ankh = ['...###...', '..#...#..', '..#...#..', '..#...#..', '...#.#...', '#########', '....#....', '....#....', '....#....', '....#....', '....#....', '....#....'];
-  a.fillStyle = '#ffd463'; ankh.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') a.fillRect(x, y, 1, 1); }));
-  const p = $('egyptPyr').getContext('2d');
-  for (let y = 0; y < 10; y++) { const w = y + 1; p.fillStyle = '#ffd463'; p.fillRect(10 - w, y + 2, w, 1); p.fillStyle = '#c9a032'; p.fillRect(10, y + 2, w, 1); if (y % 3 === 2) { p.fillStyle = '#8f6a1c'; p.fillRect(10 - w, y + 2, w * 2, 1); } }
-  p.fillStyle = '#ff8a2b'; p.fillRect(1, 0, 3, 3); p.fillStyle = '#ffd463'; p.fillRect(2, 1, 1, 1);
-})();
 Music.play('menu');
 // The menu theme from the moment the page loads. Browsers only allow sound before the first click, tap or key press on
 // sites people use a lot (Chrome remembers), so try right away; otherwise the very first input anywhere switches it on,
@@ -1113,7 +1106,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
