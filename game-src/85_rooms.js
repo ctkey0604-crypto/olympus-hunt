@@ -130,7 +130,7 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
-  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22, paint: (x, R, gate) => paintColiseum(x, R, gate),
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The practice room is free any time', wt: 36, ht: 22, paint: (x, R, gate) => paintColiseum(x, R, gate),
     props: [['firebowl', 15, 3.8], ['firebowl', 20, 3.8], ['board', 17.5, 3.4], ['firebowl', 14.5, 17.4], ['firebowl', 20.5, 17.4],
             ['rack', 3.8, 3.5], ['rack', 5.2, 3.5], ['rack', 11.6, 3.5], ['armorstand', 23.4, 3.7, 'iron'], ['armorstand', 29.6, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'],
             ['column', 7, 8], ['column', 7, 14], ['column', 28, 8], ['column', 28, 14],
