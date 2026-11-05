@@ -212,6 +212,8 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 .seg button{background:transparent;border:0;color:var(--bone-dim);font:600 .95rem var(--font-ui);padding:8px 14px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--clay);color:#160e0b}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.grid.meal-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:520px){.grid.meal-grid{grid-template-columns:1fr}}
 .gear{background:var(--glaze-2);padding:14px;display:grid;gap:10px;align-content:start;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .gear.equipped{box-shadow:0 0 0 2px #000,0 0 0 4px var(--clay)}
 .gear-head{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
@@ -496,6 +498,10 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 /* online: what stops you posting a hunt (under its button on the board) */
 .qwarn{margin:0;padding:8px 10px;background:#3a1a14;color:#ffb3a6;box-shadow:inset 3px 0 0 #d9493b;border-radius:var(--rad-sm)}
 .mp-btns{display:flex;gap:calc(var(--px)*3);flex-wrap:wrap}
+.mp-sides{display:flex;gap:calc(var(--px)*3)}
+.mp-sides button{flex:1 1 0;min-width:0;font:inherit;text-align:left;border:0;padding:calc(var(--px)*.8) calc(var(--px)*3);background:var(--glaze-3);color:var(--bone-mute);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none;overflow-wrap:anywhere}
+.mp-sides b{display:block;font-weight:600}.mp-sides .side0 b{color:#ff8a7a}.mp-sides .side1 b{color:#8fc4f5}
+.mp-sides button.on{color:var(--bone);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000,0 0 0 max(2px,calc(var(--px)*1.2)) var(--gold)}
 .mp-btns button{font:inherit;font-weight:600;border:0;padding:calc(var(--px)*.8) calc(var(--px)*4);background:var(--glaze-3);color:var(--bone);cursor:pointer;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;text-shadow:none}
 .mp-btns button.hot{background:var(--clay);color:#160e0b}
 .mp-btns kbd{font-family:var(--font-ui);font-size:.8em;color:var(--gold);background:#000;padding:0 .3em}
@@ -913,7 +919,7 @@ const KINDS = {
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
   // A bow's safety is paid for with its damage: tap for weak quick shots, or stand and hold to draw a full-power one.
   // draw: seconds to full power. quick / full: damage of a tapped and a fully drawn shot. drawMul: walking speed while drawing.
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one (you walk slowly while drawing). No shield.' },
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one and let go to fire (you walk slowly while drawing). No shield.' },
 };
 
 const ABILITIES = {
@@ -4457,7 +4463,8 @@ function botThink(p, dt) {
   } else { const c = q.player; if (c && !c.dead && Math.hypot(c.x - p.x, c.y - p.y) > 40) { const a = Math.atan2(c.y - p.y, c.x - p.x); I.mx = Math.cos(a); I.my = Math.sin(a); } }
   if (tgt) {
     const d = edist(p, tgt) - tgt.r;
-    I.atkHeld = d < (melee ? K.reach + 8 : 220); I.atk = I.atkHeld && !B.held; B.held = I.atkHeld;
+    I.atkHeld = d < (melee ? K.reach + 8 : 220) && !(p.swing && p.swing.drawMax && p.swing.draw >= p.swing.drawMax);   // a full bow lets go
+    I.atk = I.atkHeld && !B.held; B.held = I.atkHeld;
     if (p.abilCd <= 0 && p.st.weapon.ability && d < (melee ? 60 : 180) && Math.random() < .03) I.abil = true;
   }
   // danger: marked ground about to go off under you, shots about to land, a god lining up a dash at you
@@ -4555,7 +4562,7 @@ function netConnect(code, ticket, re = null) {
   });
 }
 function netLeave(quiet) {
-  const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0;
+  const ws = NET.ws; NET.ws = null; NET.room = null; NET.peers = {}; NET.peerObj = {}; NET.ping = 0; NET.side = null;
   if (NET.re) clearTimeout(NET.re.timer); NET.re = null; NET.reId = 0;
   if (ws) try { ws.close(1000, 'left'); } catch (e) {}
   netChatClose();
@@ -4613,7 +4620,9 @@ setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a 
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
-  return { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null, hero: s.hero === 'girl' ? 'girl' : 'boy' };
+  const gear = { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null, hero: s.hero === 'girl' ? 'girl' : 'boy' };
+  if (NET.side === 0 || NET.side === 1) gear.side = NET.side;                  // the side you picked for a team fight
+  return gear;
 }
 function netSendInfo() {
   if (!NET.ws || !G.save) return;
@@ -4771,6 +4780,7 @@ function netUi() {
       html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qr}">${RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
         <div class="mp-who">${R.members.map(m => { const ok = m.ready || m.id === poster, no = !ok && m.id !== R.me && m.why;   // ✓ ready, · not yet, ✗ can't take it (and why)
           return `<span class="${ok ? 'ok' : no ? 'no' : ''}">${ok ? '✓' : no ? '✗' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}${no ? ` <i>${esc(m.why)}</i>` : ''}</span>`; }).join('')}</div>
+        ${qd && qd.pvp && qd.mode === 'team' ? pvpSideBox(R) : ''}
         ${why && !(me && me.ready) ? `<div class="mp-warn">${esc(why)}</div>` : ''}
         ${mine ? (NET.confirm ? `<div class="mp-warn">Not everyone is ready. Leave without them?</div><div class="mp-btns"><button type="button" data-mp="go">Depart anyway</button><button type="button" data-mp="wait">Wait</button></div>`
           : `<div class="mp-btns"><button type="button" data-mp="depart" class="${all ? 'hot' : ''}">Depart${touchMode ? '' : ' <kbd>Enter</kbd>'}</button><button type="button" data-mp="cancel">Cancel</button></div>`)
@@ -4828,6 +4838,7 @@ function netBannerAction(a) {
   if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;
   if (a === 'ready') { const me = R.members.find(m => m.id === R.me), qd = QUEST_BY_ID[R.quest.id], why = !(me && me.ready) && qd && netWhyNot(qd); if (why) { toast(why, 7000); return; } netSend({ t: 'ready', v: !(me && me.ready) }); Sound.play('click'); }
+  else if (a === 'side0' || a === 'side1') { NET.side = +a[4]; netSendInfo(); Sound.play('click'); }
   else if (a === 'cancel') { NET.confirm = false; netSend({ t: 'cancel' }); Sound.play('click'); }
   else if (a === 'wait') { NET.confirm = false; netUi(); }
   else if (a === 'depart' || a === 'go') {
@@ -5515,9 +5526,9 @@ function updateHunter(p, dt) {
   if (p.swing) {
     const s = p.swing; s.t += dt;
     if (!s.fired && s.t >= s.windup) {
-      if (!K.melee && (I.atkHeld || I.mouseHeld) && s.draw < s.drawMax) {   // a bow held back: keep drawing, keep following the target
-        s.draw += dt; s.windup = s.t; s.aim = p.face = attackAim(p);
-        if (s.draw >= s.drawMax) { burst(p.x + Math.cos(s.aim) * 8, p.y - 8, 4, ['#ffd463', '#fff6d8'], 40); Sound.play('clink'); }
+      if (!K.melee && (I.atkHeld || I.mouseHeld)) {                         // a bow held back: keep drawing, keep following the target, and fire when you let go
+        s.windup = s.t; s.aim = p.face = attackAim(p);
+        if (s.draw < s.drawMax) { s.draw += dt; if (s.draw >= s.drawMax) { burst(p.x + Math.cos(s.aim) * 8, p.y - 8, 4, ['#ffd463', '#fff6d8'], 40); Sound.play('clink'); } }
       } else { s.fired = true; releaseAttack(p, s); }
     }
     if (s.t >= s.windup + s.active) p.swing = null;
@@ -7811,6 +7822,7 @@ function startQuest(id, opts = {}) {
   const obstacles = A.obstacles.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
   const layers = genLayers(A.theme, A.secret, { seed: def.arena });
   if (A.paint) A.paint(layers.ground.getContext('2d'), mulberry(hashStr(def.arena + ':paint')));
+  if (A.dress) A.dress(layers.ground.getContext('2d'), mulberry(hashStr(def.arena + ':dress')));   // like paint, but for an arena that still grows with the party
   const s = A.secret;
   q = { def, arena: A, theme: A.theme, ground: layers.ground, cover: layers.cover, coverRect: layers.rect, obstacles,
         world: makeWorld(obstacles.map(o => o.box), s ? [s] : []), weather: T.weather || null, night: !!T.night, fog: [],
@@ -7826,6 +7838,7 @@ function startQuest(id, opts = {}) {
   q.player.stats = q.stats; q.player.loot = q.loot; q.player.tok = q.tokUse;    // your numbers are the quest's numbers
   if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
   else q.hunters.push(q.player);
+  if (roster) roster.forEach((r, i) => { q.hunters[i].side = r.gear && r.gear.side; });   // the side picked for a team fight
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
   if (G.save.meal && !def.prologue && !def.practice && !def.pvp) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
@@ -7841,7 +7854,7 @@ function startQuest(id, opts = {}) {
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
   if (def.pvp) pvpSetup();
-  if (q.player.st.kind.draw && !Settings.data.drawTip && !def.prologue) { Settings.data.drawTip = true; Settings.save(); showHint(`Hold ${touchMode ? 'attack' : kbd(Input.bind.attack[0])} to draw a stronger shot. The bar under your health shows how far, and you walk slowly while drawing.`, 9); }
+  if (q.player.st.kind.draw && !Settings.data.drawTip && !def.prologue) { Settings.data.drawTip = true; Settings.save(); showHint(`Hold ${touchMode ? 'attack' : kbd(Input.bind.attack[0])} to draw a stronger shot, and let go to fire. The bar under your health shows how far, and you walk slowly while drawing.`, 9); }
   netUi();
 }
 function startWave(i) {
@@ -8035,11 +8048,27 @@ for (const mode of Object.keys(PVP_MODES)) RANKS.forEach((R, r) => {
 });
 let shotHit = false;                                                     // the hit being handled came from a shot, not a swing
 
+// Who ends up on which side of a team fight. Players pick from the room box; anyone who hasn't goes to the smaller side, and
+// neither side is ever left empty. Every game works this out from the same list, so they all agree.
+function pvpSides(picks) {
+  const teams = picks.map(s => s === 0 || s === 1 ? s : null), n = [0, 0];
+  teams.forEach(t => { if (t !== null) n[t]++; });
+  teams.forEach((t, i) => { if (t === null) { const s = n[1] < n[0] ? 1 : 0; teams[i] = s; n[s]++; } });
+  if (teams.length > 1 && (!n[0] || !n[1])) teams[teams.length - 1] = n[0] ? 1 : 0;
+  return teams;
+}
+// The two sides in the room box. Click one to join it; you can change until the fight starts.
+function pvpSideBox(R) {
+  const poster = netPoster(R), list = [...R.members].sort((a, b) => (b.id === poster) - (a.id === poster)), teams = pvpSides(list.map(m => m.gear && m.gear.side));
+  const mine = teams[list.findIndex(m => m.id === R.me)], names = s => list.filter((m, i) => teams[i] === s).map(m => esc(m.name)).join(', ');
+  return `<div class="mp-sides">${PVP_TEAMS.map((name, s) => `<button type="button" data-mp="side${s}" class="side${s}${mine === s ? ' on' : ''}"><b>${name}</b>${names(s)}</button>`).join('')}</div>`;
+}
 function pvpSetup() {
   const P = q.pv = { round: 1, wins: {}, ph: 'ready', t: PVP_READY, kd: q.hunters.map(() => [0, 0]), log: [], last: null, champ: null };
   q.blessed = false; q.phase = 'pvp'; q.pvpT = new Map();
-  for (const h of q.hunters) {
-    h.team = q.def.mode === 'team' ? h.hid % 2 : h.hid; P.wins[h.team] = 0;
+  const sides = pvpSides(q.hunters.map(h => h.side));
+  for (const [i, h] of q.hunters.entries()) {
+    h.team = q.def.mode === 'team' ? sides[i] : h.hid; P.wins[h.team] = 0;
     h.st = playerStats({ ...(h.save || G.save), meal: null }); h.hp = h.st.maxHp;
     const e = { id: -(h.hid + 1), pvp: h, type: 'pvp', def: PVP_LOOK, x: h.x, y: h.y, r: 5, h: 14, hp: 1, maxHp: 1, state: 'move', st: 0, stun: 0, flash: 0, kbx: 0, kby: 0, kbRes: 1, markT: 0, burnT: 0, face: 0, dead: false, alpha: 1 };
     q.pvpT.set(e.id, e);
@@ -8188,7 +8217,7 @@ function pvpFinish(quit = false) {
 function renderArena() {
   const R = NET.room;
   if (!netOn() || R.members.length < 2) return `<div class="empty-note">You need a room with at least two players. Talk to the Oracle in the square.</div>`;
-  const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides, picked by join order. You can’t hurt your own side.'}</p><div class="stack">`
+  const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides. Pick yours from the room box once the fight is posted. You can’t hurt your own side.'}</p><div class="stack">`
     + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('') + `</div></div>`).join('');
   return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p><div class="opts">${rows}</div>`;
 }
@@ -8197,7 +8226,7 @@ $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[dat
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
 function renderFightBoard() {
   return `<div class="fb" id="pvpBoard"><p class="fb-note">Looking…</p></div>
-    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you.</p>`;
+    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.</p>`;
 }
 async function pvpBoardLoad() {
   try {
@@ -8240,12 +8269,49 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
 // The Coliseum's floor, for practice and for fights between players.
-Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null,
-  obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14]] } });
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null, dress: (x, R) => paintColiseum(x, R, .75),
+  obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14],
+              ['brazier', 5, 5], ['brazier', 40, 5], ['brazier', 5, 24], ['brazier', 40, 24]] } });
+// Dressing the Coliseum: tiers of seats around the walls, banners over the parapet, and a ring raked into the sand.
+const CROWD_CLOTH = ['#c0412e', '#4f8fc7', '#e9c04f', '#7fa548', '#efe7d4', '#9a6bc0', '#cf6a2f', '#5e7d35'], CROWD_SKIN = ['#e8b796', '#d6a07a', '#a8714e', '#7a4f36'], CROWD_HAIR = ['#2c1d17', '#5a3a22', '#8a6a3a', '#d8ceb7'];
+function paintStands(x, R, bx, by, bw, bh, crowd) {
+  const pick = a => a[R() * a.length | 0];
+  x.fillStyle = '#6f6554'; x.fillRect(bx, by, bw, bh);
+  for (let y = by, row = 0; y < by + bh; y += 9, row++) {
+    for (let px = bx + 1 + (row % 2) * 3; px < bx + bw - 3; px += 4 + (R() * 3 | 0)) {
+      if (R() > crowd) continue;
+      x.fillStyle = pick(CROWD_CLOTH); x.fillRect(px, y + 3, 3, 4);
+      x.fillStyle = pick(CROWD_SKIN); x.fillRect(px, y + 1, 3, 2);
+      if (R() < .7) { x.fillStyle = pick(CROWD_HAIR); x.fillRect(px, y + 1, 3, 1); }
+    }
+    x.fillStyle = '#a69a80'; x.fillRect(bx, y + 7, bw, 1); x.fillStyle = '#4f4638'; x.fillRect(bx, y + 8, bw, 1);
+  }
+}
+function paintColiseum(x, R, crowd, gate) {
+  const W = WORLD_W, H = WORLD_H, B = IPX, fy = B.minY - 22, side = B.minX - 20, low = B.maxY + 12, K = '#1a1210';
+  paintStands(x, R, 0, 0, W, fy, crowd);
+  for (const sx of [0, W - side]) paintStands(x, R, sx, fy + 10, side, H - fy - 10, crowd);
+  const skip = gate ? [gate.x * TILE - 6, (gate.x + gate.w) * TILE + 6] : null;
+  if (skip) { paintStands(x, R, side, low, skip[0] - side, H - low, crowd); paintStands(x, R, skip[1], low, W - side - skip[1], H - low, crowd); }
+  else paintStands(x, R, side, low, W - side * 2, H - low, crowd);
+  const cap = (px, py, w, h) => { x.fillStyle = K; x.fillRect(px, py, w, h); };                     // the parapet between the seats and the sand
+  cap(side - 2, fy + 10, 2, H - fy - 10); cap(W - side, fy + 10, 2, H - fy - 10);
+  if (skip) { cap(side, low - 2, skip[0] - side, 2); cap(skip[1], low - 2, W - side - skip[1], 2); } else cap(side, low - 2, W - side * 2, 2);
+  for (let px = B.minX + 44; px < B.maxX - 40; px += 96) {                                          // a red banner every so often, hung over the frieze
+    if (gate && Math.abs(px + 5 - W / 2) < 40) continue;                                             // the fight board has that bit of wall
+    for (let i = 0; i < 26; i++) { const n = i < 21 ? 0 : i - 20; x.fillStyle = K; x.fillRect(px - 1 + n, fy - 6 + i, 11 - n * 2, 1); if (i < 25) { x.fillStyle = i < 21 ? '#c0412e' : '#8f2e1e'; x.fillRect(px + n, fy - 6 + i, 9 - n * 2, 1); } }
+    x.fillStyle = '#e9c04f'; x.fillRect(px, fy - 5, 9, 1); x.fillRect(px + 3, fy + 3, 3, 3); x.fillRect(px + 4, fy + 2, 1, 5); x.fillRect(px + 2, fy + 4, 5, 1);
+  }
+  const cx = W / 2, cy = (B.minY + B.maxY) / 2, rx = (B.maxX - B.minX) * .36, ry = (B.maxY - B.minY) * .38;
+  const ring = (a, b, c, dash) => { const n = Math.ceil((a + b) * 3.2); x.fillStyle = c; for (let i = 0; i < n; i++) { if (dash && i % dash < dash / 2) continue; const t = i / n * Math.PI * 2; x.fillRect(Math.round(cx + Math.cos(t) * a), Math.round(cy + Math.sin(t) * b), 2, 1); } };
+  for (let k = 1; k < 6; k++) ring(rx * k / 6, ry * k / 6, '#bfa97c', 10);                          // the rake's lines
+  ring(rx + 3, ry + 2, '#d8c7a0'); ring(rx, ry, '#a8553a'); ring(rx - 3, ry - 2, '#a8553a', 12);    // the fighting circle, marked out in red
+  ring(rx * .14, ry * .14, '#a8553a'); ring(rx * .09, ry * .09, '#c9a046');
+}
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
-  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 },
+  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 }, brazier: { w: 10, h: 6 },
 });
 const ROOMS = {
   forge: { name: 'The Forge', theme: 'forgeroom', sub: 'Dion makes your gear at the anvil',
@@ -8269,8 +8335,8 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
-  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22,
-    props: [['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22, paint: (x, R, gate) => paintColiseum(x, R, .18, gate),
+    props: [['brazier', 14.5, 17.4], ['brazier', 20.5, 17.4], ['brazier', 15, 3.6], ['brazier', 20, 3.6], ['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
     spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 440, y: 202 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
@@ -8282,6 +8348,7 @@ function buildRoom(id) {
   const gate = { x: D.wt / 2 - 1, y: D.ht - 3, w: 2 }, layers = genLayers(D.theme, null, { gate, seed: id, axis: WORLD_W / 2 });
   const gx = layers.ground.getContext('2d');
   for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
+  if (D.paint) D.paint(gx, mulberry(hashStr(id + ':paint')), gate);
   const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
@@ -8365,6 +8432,15 @@ const PROP_ART = {
   },
   chestbox(o, sx, sy) { pxEllipse(sx, sy + 1, 9, 2, 'rgba(0,0,0,.3)'); drawSpr('chest', 0, sx, sy, false); },
   dummy(o, sx, sy) { pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)'); drawSpr('dummy', 0, sx, sy, false); },
+  brazier(o, sx, sy) {                                 // a bronze bowl on a post, burning
+    const K = OUTLINE, f = Math.floor(G.time * 7 + o.seed) % 3; pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 2, sy - 9, 4, 10); ctx.fillRect(sx - 5, sy - 1, 10, 3); ctx.fillRect(sx - 7, sy - 13, 14, 6);
+    ctx.fillStyle = '#6b5a3a'; ctx.fillRect(sx - 1, sy - 8, 2, 8); ctx.fillRect(sx - 4, sy, 8, 1);
+    ctx.fillStyle = '#a8842a'; ctx.fillRect(sx - 6, sy - 12, 12, 4); ctx.fillStyle = '#d8ae3e'; ctx.fillRect(sx - 6, sy - 12, 12, 1); ctx.fillStyle = '#6b5a1f'; ctx.fillRect(sx - 6, sy - 9, 12, 1);
+    ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 5, sy - 14, 10, 2);
+    ctx.fillStyle = '#ff8a2b'; ctx.fillRect(sx - 4 + f, sy - 16, 7, 3); ctx.fillRect(sx - 2, sy - 18 - (f === 1 ? 1 : 0), 4, 3);
+    ctx.fillStyle = '#ffd463'; ctx.fillRect(sx - 2 + f % 2, sy - 16, 3, 2); ctx.fillRect(sx - 1, sy - 17, 1 + f % 2, 1);
+  },
   furnace(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 24, 3, 'rgba(0,0,0,.35)');
     ctx.fillStyle = K; ctx.fillRect(sx - 23, sy - 30, 46, 31); ctx.fillRect(sx - 7, sy - 44, 14, 15);
@@ -8426,7 +8502,7 @@ function renderTavern() {
   const s = G.save, cur = s.meal && MEALS[s.meal];
   const card = ([id, M]) => {
     const cost = mealCost(id), mine = s.meal === id;
-    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b><span>${M.food ? 'Food' : 'Drink'}</span></div></div>
+    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b></div></div>
       <p class="desc">${esc(M.desc)}</p>
       <div class="stats"><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${cur || s.money < cost ? 'disabled' : ''}>${mine ? 'You ate this' : cur ? 'You’ve already eaten' : 'Order'}</button></div></article>`;
@@ -8434,8 +8510,8 @@ function renderTavern() {
   const list = Object.entries(MEALS);
   return `<p class="muted" style="margin:0 0 12px">One meal or drink per hunt. It lasts your next hunt, then you can order again.</p>
     ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(cur.name)}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
-    <p class="sub">Food</p><div class="grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
-    <p class="sub" style="margin-top:14px">Drinks</p><div class="grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
+    <p class="sub">Food</p><div class="grid meal-grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
+    <p class="sub" style="margin-top:14px">Drinks</p><div class="grid meal-grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
 }
 // Eating it, right there in the Tavern: a few bites (or sips), crumbs or drops, then a little tune and a sparkle.
 // You stand still while you eat. V.eat = { meal, t, dur, bites: times left to play a bite sound }.
@@ -9972,13 +10048,39 @@ function drawProj(pr, S) {
 }
 
 /* ---- village and temple rendering ---- */
+function roofTiles(sx, sy, W, h) {
+  ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, h);
+  for (let y = sy + 3; y < sy + h; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
+  for (let y = sy; y < sy + h - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
+  ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
+}
+// The Temple's front: a low marble gable over the columns, a painted field inside it with a gold sun, and gilded ornaments
+// on its three points, all in front of a tiled roof running back.
+function drawTempleGable(sx, sy, W, foot) {
+  const K = '#1a1210', mid = Math.round(sx + W / 2), H = foot - sy, slope = W / 2 / H;
+  const gable = (top, bottom, c) => { ctx.fillStyle = c; const half = (bottom - top) * slope; for (let y = top; y < bottom; y++) { const w = Math.round((y - top + 1) / (bottom - top) * half); ctx.fillRect(mid - w, y, w * 2, 1); } };
+  roofTiles(sx, sy, W, H);
+  gable(sy, foot, K); gable(sy + 2, foot, '#efe7d4'); gable(sy + 4, foot, '#c9bda4'); gable(sy + 9, foot - 3, K); gable(sy + 10, foot - 3, '#3f5f8a');
+  ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, foot - 3, W, 3);
+  const c = foot - 12;                                                       // the sun, and laurel running out to the corners of the field
+  ctx.fillStyle = '#e9c04f'; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ctx.fillRect(Math.round(mid + Math.cos(a) * 10) - 1, Math.round(c + Math.sin(a) * 8), 2, 1); }
+  pxEllipse(mid, c, 7, 6, K); pxEllipse(mid, c, 6, 5, '#e9c04f'); pxEllipse(mid - 1, c - 1, 3, 2, '#ffd463');
+  for (const dir of [-1, 1]) for (let i = 0; i < 5; i++) {
+    const lx = mid + dir * (18 + i * 9), ly = foot - 6 - (i % 2);
+    ctx.fillStyle = '#c9a032'; ctx.fillRect(lx - 3, foot - 6, 7, 1); ctx.fillStyle = '#e9c04f'; ctx.fillRect(lx - 1, ly - 1, 3, 1);
+  }
+  for (const [ox, oy] of [[mid, sy - 2], [sx + 4, foot - 4], [sx + W - 4, foot - 4]]) {
+    ctx.fillStyle = K; ctx.fillRect(ox - 3, oy - 2, 6, 7); ctx.fillRect(ox - 2, oy - 3, 4, 9);
+    ctx.fillStyle = '#c9a032'; ctx.fillRect(ox - 2, oy - 1, 4, 5); ctx.fillStyle = '#ffd463'; ctx.fillRect(ox - 1, oy - 2, 2, 3);
+  }
+}
 function drawBuilding(b, sx, sy) {
   const W = b.box.w, H = b.box.h, F = 26, RH = H - F, t = G.time;
   ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(sx + 4, sy + H, W, 4);
   if (b.kind === 'temple') {
     ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
-    ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, sy, W, RH);
-    for (let y = sy + 4; y < sy + RH; y += 5) { ctx.fillStyle = '#c9bda4'; ctx.fillRect(sx, y, W, 1); }
+    drawTempleGable(sx, sy, W, sy + RH - 12);
+    ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, sy + RH - 12, W, 12);
     ctx.fillStyle = '#1a1210'; ctx.fillRect(sx, sy + RH - 12, W, 9);
     for (let px = sx; px < sx + W; px += 6) { ctx.fillStyle = '#c35f2a'; ctx.fillRect(px, sy + RH - 11, 5, 1); ctx.fillRect(px + 4, sy + RH - 11, 1, 5); ctx.fillRect(px + 1, sy + RH - 7, 4, 1); ctx.fillRect(px + 1, sy + RH - 9, 1, 3); ctx.fillRect(px, sy + RH - 5, 6, 1); }
     ctx.fillStyle = '#2a1e19'; ctx.fillRect(sx + 4, sy + RH, W - 8, F - 4);
@@ -9990,10 +10092,7 @@ function drawBuilding(b, sx, sy) {
   if (b.kind === 'coliseum') { drawColiseum(b, sx, sy, W, H, t); return; }
   const wall = b.kind === 'forge' ? ['#a99d86', '#8f8470'] : b.kind === 'tavern' ? ['#c9b48f', '#a8926c'] : ['#e6d9bd', '#cbbd9f'];
   ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 1, sy - 1, W + 2, H + 2);
-  ctx.fillStyle = '#b5532a'; ctx.fillRect(sx, sy, W, RH);
-  for (let y = sy + 3; y < sy + RH; y += 4) { ctx.fillStyle = '#8f3f1d'; ctx.fillRect(sx, y, W, 1); }
-  for (let y = sy; y < sy + RH - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
-  ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
+  roofTiles(sx, sy, W, RH);
   ctx.fillStyle = '#6b2c12'; ctx.fillRect(sx, sy + RH - 2, W, 2);
   ctx.fillStyle = wall[0]; ctx.fillRect(sx, sy + RH, W, F);
   ctx.fillStyle = wall[1]; ctx.fillRect(sx, sy + RH, W, 2); ctx.fillRect(sx, sy + H - 3, W, 3);
@@ -10160,6 +10259,7 @@ function hudReset() {
   $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
   $('guardBar').hidden = !st.shield; $('drawBar').hidden = !st.kind.draw;
+  $('hudLoot').parentElement.hidden = !!(q.def.practice || q.def.pvp);     // nothing drops there
 }
 function updateHud() {
   const p = q.player;
@@ -10425,7 +10525,7 @@ function drawGhost(gh, S) {
 const NEWS = [
   { v: '1.1', date: 'November 2026', title: 'The Coliseum',
     new: [
-      'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds.',
+      'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
@@ -10436,7 +10536,7 @@ const NEWS = [
     changed: [
       'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
       'Hammers hit a little softer. Spears hit a little harder and faster.',
       'God Rank armor sits closer together, so more sets are worth wearing. Nothing got weaker.',
@@ -11535,7 +11635,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
