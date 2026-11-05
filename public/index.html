@@ -10812,9 +10812,9 @@ function renderNews() {
     ${list('New', n.new)}${list('Changed', n.changed)}${list('Fixed', n.fixed)}</article>`).join('');
 }
 /* ============================== THE OWNER'S DASHBOARD ============================== */
-// Where players are and how recently they played, for the account named owner. This page only hides a button: the server is what
+// Where players are and how recently they played, for the account named Theowner. This page only hides a button: the server is what
 // decides, and it refuses everyone else. It shows game progress, never anything about signing in.
-const isOwner = () => String(Store.user || '').toLowerCase() === 'owner';
+const isOwner = () => String(Store.user || '').toLowerCase() === 'theowner';
 const DAY_MS = 86400000;
 let ownerData = null, ownerVote = null, ownerMsg = '', ownerSort = 'saved', ownerFind = '';
 const fmtHours = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60; return h ? `${h}h ${m}m` : `${m}m`; };
