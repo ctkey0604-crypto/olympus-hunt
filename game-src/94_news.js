@@ -7,7 +7,7 @@ const NEWS = [
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
-      'The fight board in the Coliseum ranks players by rating, with kills and deaths beside it. Beating a better player earns more.',
+      'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
     ],

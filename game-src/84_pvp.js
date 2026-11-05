@@ -9,6 +9,7 @@ const PVP_GUARD = .25, PVP_STAGGER = .6, PVP_KNOCK = .6;                // prote
 const PVP_STUN = .7, PVP_STUN_GAP = 2;                                  // the longest a stun lasts, and the time before another can land
 const PVP_DMG = [1, 1, 1];                                              // damage in fights, by rank of gear
 const PVP_MAX_HIT = .2;                                                 // no one hit takes more than this share of your health, so nobody gets flattened
+const PVP_BOW_DUEL = 1.5;                                               // bow on bow only: two archers at range would take too long otherwise
 const PVP_MODES = { duel: 'Duel', team: 'Team fight' }, PVP_TEAMS = ['Red', 'Blue'];
 const PVP_LOOK = { name: 'Player', cls: 'medium', colors: ['#d9493b', '#f0e4cc'], loot: [] };
 const pvpId = (mode, r) => `pvp_${mode}_${r}`;
@@ -78,7 +79,8 @@ function pvpHit(e, dmg, ang, knock, ub, fp) {
   const t = e.pvp, by = q.actor || q.player;
   if (q.pv.ph !== 'fight' || t.dead || t.left || by.dead || by === t || by.team === t.team) return false;
   if (Math.hypot(by.x - t.x, by.y - t.y) > 340) return false;           // nothing reaches that far: a game that says so is lying
-  dmg = Math.max(1, Math.round(dmg * PVP_DMG[q.def.rank] * (e.markT > 0 ? 1.3 : 1) * rand(.9, 1.1)));
+  const bows = shotHit && by.st.kind.draw && t.st.kind.draw ? PVP_BOW_DUEL : 1;
+  dmg = Math.max(1, Math.round(dmg * PVP_DMG[q.def.rank] * bows * (e.markT > 0 ? 1.3 : 1) * rand(.9, 1.1)));
   const r = hurtHunter(t, dmg, ang, knock * PVP_KNOCK, { src: q.pvpT.get(-(by.hid + 1)), melee: !shotHit, proj: shotHit, unblockable: ub });
   if (!r) return false;
   t.lastBy = by; by.stats.dealt += dmg;
@@ -87,6 +89,7 @@ function pvpHit(e, dmg, ang, knock, ub, fp) {
   if (fp) onPlayerHit(e, dmg);
   return true;
 }
+const pvpShotTest = (e, dmg, by) => { shotHit = true; q.actor = by; const r = pvpHit(e, dmg, 0, 0, false, false); q.actor = null; shotHit = false; return r; };   // for the tests
 // The number you see when your hit lands: what it'll do after their armor.
 function pvpShowHit(t, dmg) {
   const was = NET.replay; NET.replay = true;
@@ -175,14 +178,18 @@ function renderArena() {
 }
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
-const pvpTier = r => r >= 1400 ? 'Champion' : r >= 1200 ? 'Gold' : r >= 1050 ? 'Silver' : 'Bronze';
+const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
+function renderFightBoard() {
+  return `<div class="fb" id="pvpBoard"><p class="fb-note">Looking…</p></div>
+    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you.</p>`;
+}
 async function pvpBoardLoad() {
-  const box = $('pvpBoard'); if (!box) return;
   try {
-    const list = (await Store.call('GET', 'pvp/board')).board || [];
-    if (!$('pvpBoard')) return;
-    $('pvpBoard').innerHTML = list.length ? list.map((p, i) => `<div class="or-row"><b>${i + 1}. ${esc(p.name)}</b><span>${esc(pvpTier(p.r))}</span><span>Rating ${p.r}</span><span>K/D ${p.d ? (p.k / p.d).toFixed(2) : p.k}</span><span class="muted">${p.k} kills, ${p.d} deaths</span><span class="muted">${p.w}W ${p.l}L</span></div>`).join('') : 'Nobody has fought here yet.';
-  } catch (e) { if ($('pvpBoard')) $('pvpBoard').textContent = 'The board can’t be read right now. Check your connection.'; }
+    const list = (await Store.call('GET', 'pvp/board')).board || [], box = $('pvpBoard'); if (!box) return;
+    const me = String(Store.user || '').toLowerCase();
+    box.innerHTML = !list.length ? `<p class="fb-note">Nobody has fought here yet.</p>` : `<div class="fb-row fb-head"><span></span><span>Player</span><span>K/D</span><span>Score</span></div>`
+      + list.map((p, i) => `<div class="fb-row${p.name.toLowerCase() === me ? ' me' : ''}"><b>${i + 1}</b><span class="fb-name">${esc(p.name)}</span><span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b></div>`).join('');
+  } catch (e) { if ($('pvpBoard')) $('pvpBoard').innerHTML = `<p class="fb-note">The board can’t be read right now. Check your connection.</p>`; }
 }
 /* ---- drawing ---- */
 // In a fight the stand-ins aren't drawn, and a small arrow marks who's on which side.

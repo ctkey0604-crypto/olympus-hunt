@@ -276,6 +276,20 @@ textarea:focus{outline:2px solid var(--gold)}
 #guardBar{width:calc(var(--px)*60);height:calc(var(--px)*3)}
 #guardBar>i{background:var(--aegean)}
 #guardBar.broken>i{background:var(--blood)}
+.fb{max-width:520px;margin:6px auto 0;background:var(--glaze-2);box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
+.fb-row{display:grid;grid-template-columns:2.2em 1fr 4.5em 4.5em;gap:10px;align-items:center;padding:9px 16px;font-variant-numeric:tabular-nums}
+.fb-row+.fb-row{box-shadow:inset 0 1px 0 var(--line)}
+.fb-row>span:nth-child(3),.fb-row>:nth-child(4){text-align:right}
+.fb-row>b:first-child{font-family:var(--font-display);font-weight:400;font-size:1.5em;line-height:1;color:var(--bone-mute)}
+.fb-row:nth-child(2)>b:first-child{color:var(--gold)}
+.fb-row:nth-child(3)>b:first-child{color:#d5dbe5}
+.fb-row:nth-child(4)>b:first-child{color:#cf6a2f}
+.fb-head{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute);padding-block:7px}
+.fb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fb-score{color:var(--gold);font-weight:600}
+.fb-row.me{background:var(--glaze-3);box-shadow:inset 3px 0 0 var(--gold)}
+.fb-note{margin:0;padding:22px 16px;text-align:center;color:var(--bone-dim)}
+.fb-how{max-width:520px;margin:14px auto 0;text-align:center;color:var(--bone-dim);font-size:.9rem}
 #drawBar{height:calc(var(--px)*4)}
 #drawBar>i{width:0;transition:none;background:#cf6a2f}
 #drawBar.half>i{background:#ffd463}

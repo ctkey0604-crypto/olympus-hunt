@@ -180,7 +180,7 @@ function renderHub() {
   else if (G.panel === 'tavern') body.innerHTML = renderTavern();
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else if (G.panel === 'arena') body.innerHTML = renderArena();
-  else if (G.panel === 'pvpboard') { body.innerHTML = '<div class="opt wide"><p class="muted">Rating decides the order: beating a better player earns more. Tiers: Bronze, Silver, Gold, Champion.</p><div id="pvpBoard" class="muted">Looking…</div></div>'; pvpBoardLoad(); }
+  else if (G.panel === 'pvpboard') { body.innerHTML = renderFightBoard(); pvpBoardLoad(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -1041,7 +1041,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
