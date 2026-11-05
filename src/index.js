@@ -45,10 +45,12 @@ async function route(req, env, url) {
   if (path === '/api/register' && method === 'POST') return register(req, env);
   if (path === '/api/login' && method === 'POST') return login(req, env);
   if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
+  if (path === '/api/vote' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).vote(null, who ? who.name : null)); }
 
   const user = await authed(req, env);
   if (!user) return json({ error: 'You are signed out. Sign in again.' }, 401);
   if (path === '/api/me' && method === 'GET') return json({ name: user.display });
+  if (path === '/api/vote' && method === 'POST') { const b = await readJson(req), r = await lobbyStub(env).vote(String(b.choice || ''), user.name); return json(r, r.error ? 400 : 200); }
   if (path.startsWith('/api/rooms')) { const r = await roomsAuthed(req, env, path, method, user); if (r) return r; }
   if (path === '/api/logout' && method === 'POST') {
     await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(user.tokenHash).run();
@@ -217,6 +219,8 @@ const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ', CODE_RE = /^[A-Z]{5}$/, ROOM_MAX = 
 const HOLD_MS = 20000, STALL_MS = 12000;
 // Coliseum fights: everyone starts on this rating, and the same two players only count this many times a day.
 const PVP_START = 1000, PVP_K = 24, PVP_KILLS_DAY = 30, PVP_WINS_DAY = 10;
+// The community vote on the title screen: what update 1.1 will be. A new poll needs a new id, and the game's list of choices has to match.
+const POLL = { id: 'next1', choices: ['egypt', 'norse', 'harder'] };
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 const lobbyStub = env => env.LOBBY.get(env.LOBBY.idFromName('main'));
 function newCode() { const b = crypto.getRandomValues(new Uint8Array(5)); return [...b].map(x => CODE_ABC[x % CODE_ABC.length]).join(''); }
@@ -557,6 +561,20 @@ export class Lobby extends DurableObject {
   async pvpBoard() {
     const all = [...(await this.ctx.storage.list({ prefix: 'p:' })).values()];
     return all.sort((x, y) => y.r - x.r || (y.k - y.d) - (x.k - x.d)).slice(0, 25).map(({ name, r, k, d, w, l }) => ({ name, r, k, d, w, l }));
+  }
+  // The community vote: one vote per account, and changing it moves the count. A null choice just reads the totals.
+  async vote(choice, who) {
+    const S = this.ctx.storage, at = 'v:' + POLL.id + ':', key = who ? at + 'u:' + who : null, counts = (await S.get(at + 'n')) || {};
+    let mine = key ? (await S.get(key)) || null : null;
+    if (choice !== null) {
+      if (!key || !POLL.choices.includes(choice)) return { error: 'That isn’t on the ballot.' };
+      if (choice !== mine) {
+        if (mine) counts[mine] = Math.max(0, (counts[mine] || 0) - 1);
+        counts[choice] = (counts[choice] || 0) + 1;
+        await S.put(at + 'n', counts); await S.put(key, choice); mine = choice;
+      }
+    }
+    return { poll: POLL.id, counts, mine };
   }
   async list() {
     const rooms = (await this.ctx.storage.get('rooms')) || {}, now = Date.now(); let changed = false;
