@@ -137,7 +137,7 @@ const ROOMS = {
             ['dummy', 23.5, 9.6], ['dummy', 26.5, 9.6], ['dummy', 25, 11.4],
             ['amphora', 3.8, 16.8], ['amphora', 4.8, 17.5], ['crate', 3.8, 18], ['barrel', 31.4, 16.6, 'water'], ['barrel', 30.4, 17.6, 'water'], ['crate', 31.6, 18]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
-    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 212 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
+    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 190 }, { id: 'dummy2', name: 'practice mode', kind: 'practice', x: 384, y: 162 }, { id: 'dummy3', name: 'practice mode', kind: 'practice', x: 432, y: 162 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
