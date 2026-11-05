@@ -97,7 +97,7 @@ async function route(req, env, url) {
 
 /* ---------- the owner's dashboard ---------- */
 // Game progress only: passwords, password hashes and session tokens are never selected. One row per save, newest first.
-const OWNER = 'owner', OWNER_ROWS = 600;
+const OWNER = 'theowner', OWNER_ROWS = 600;
 async function ownerReport(env) {
   const { results } = await env.DB.prepare(`SELECT u.name, u.display, u.created, s.slot, s.saved_at,
       json_extract(s.data, '$.rank') AS rank, json_extract(s.data, '$.playtime') AS play, json_extract(s.data, '$.money') AS money,
