@@ -5370,6 +5370,7 @@ function playerStats(save = G.save) {
     if (M.def) st.def = Math.max(st.def + 1, Math.round(st.def * (1 + M.def)));   // at least +1, even in starting clothes
     if (M.dash) st.dodgeCd *= 1 - M.dash;
     if (M.skill) st.abilityCd = Math.min(.5, st.abilityCd + M.skill);
+    if (M.drops) st.drops = M.drops;
   }
   return st;
 }
@@ -5993,7 +5994,8 @@ function finishBones(e) {
   killEnemy(e, { final: true });
 }
 function rollLoot(e, by = q.player) {
-  for (const [item, chance, min, max] of e.def.loot) if (Math.random() <= chance) { const n = randi(min || 1, max || 1); for (let i = 0; i < n; i++) spawnPickup(e.x, e.y, rid(item, e.rank || 0)); }
+  const more = Math.max(0, ...q.hunters.map(h => h.st.drops || 0));           // a more-drops meal: anyone's counts, since loot is shared
+  for (const [item, chance, min, max] of e.def.loot) if (Math.random() <= chance) { const n = randi(min || 1, max || 1); for (let i = 0; i < n; i++) { spawnPickup(e.x, e.y, rid(item, e.rank || 0)); if (more && Math.random() < more) spawnPickup(e.x, e.y, rid(item, e.rank || 0)); } }
   if (e.boss) return;
   const heal = (CLASS[e.def.cls] || CLASS.fodder).heal + (by.st.perks.healDrops || 0);
   if (Math.random() < heal) spawnPickup(e.x, e.y, '@heal');
@@ -8404,10 +8406,12 @@ const PROP_ART = {
 // One meal per hunt. It lasts your next hunt (online too) and is used up when that hunt starts; until then the menu is
 // closed to you, so nobody pays twice. Small on purpose: about what one more refine level or a set bonus gives, so no
 // monster needs to be any stronger for it. art: what you're seen eating or drinking.
+// drops: the chance each part that falls brings a second one. Loot is shared, so one plate feeds the whole party, and it doesn't stack.
 const MEALS = {
   stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
   skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
   bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
+  figs:    { name: 'Forager’s Figs',    short: 'Figs',       food: true,  art: 'figs',   price: 180, desc: '25% more drops on your next hunt.', drops: .25 },
   wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
   barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
 };
@@ -8470,6 +8474,7 @@ function drawEating(S, e = V.eat, p = V.player) {
   if (M.art === 'bowl') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#a3713f'); R(-2, -2, 5, 1, '#c35f2a'); if (Math.floor(e.t * 6) % 2) R(-1, -5, 1, 2, '#e6e1d6'); }
   else if (M.art === 'skewer') { R(-5, 0, 11, 1, '#c09a63'); for (const cx of [-4, -1, 2]) { R(cx, -2, 3, 4, K); R(cx + 1, -1, 1, 2, '#a3532a'); } }
   else if (M.art === 'bread') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#d9a35a'); R(-1, -2, 3, 1, '#e9c27a'); R(0, -1, 1, 1, '#4e5a3a'); }
+  else if (M.art === 'figs') { R(-4, 0, 9, 1, '#e6e1d6'); R(-3, 1, 7, 1, K); for (const cx of [-3, 1]) { R(cx, -3, 3, 3, '#6a3d86'); R(cx, -1, 3, 1, '#4a2a66'); R(cx, -3, 1, 1, '#a877c6'); R(cx + 1, -4, 1, 1, '#4e6e2b'); } }
   else if (M.art === 'cup') { R(-3, -3, 7, 3, K); R(-2, -3, 5, 2, '#c9a032'); R(-2, -3, 5, 1, '#e9a030'); R(0, 0, 1, 2, '#c9a032'); R(-1, 2, 3, 1, '#c9a032'); }
   else { R(-3, -4, 6, 7, K); R(-2, -3, 4, 5, '#9aa0a6'); R(-2, -4, 4, 1, '#c8e6c9'); R(2, -2, 2, 3, K); }
 }
@@ -10425,6 +10430,7 @@ const NEWS = [
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
+      'Forager’s Figs at the Tavern: 25% more drops on your next hunt. In a room, everyone gets the extra drops.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
     ],
     changed: [
@@ -11529,7 +11535,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
