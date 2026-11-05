@@ -360,7 +360,7 @@ textarea:focus{outline:2px solid var(--gold)}
 #bossBar.titan .boss-label b{font-size:1.9em}
 #bossBar[data-rank="1"] .bar>i{background:#e2603f}
 #bossBar[data-rank="2"] .bar>i{background:#b48cff}
-.rank-tag{font-size:.7em;letter-spacing:.14em;text-transform:uppercase;padding:0 calc(var(--px)*2);background:#000b;color:var(--bone-dim);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}
+.rank-tag{font-family:var(--font-display);font-size:1.05em;letter-spacing:.06em;line-height:1.1;text-shadow:none;padding:0 calc(var(--px)*2);background:#000b;color:var(--bone-dim);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}
 .rank-tag[data-rank="1"]{color:#ff8a6a}.rank-tag[data-rank="2"]{color:#c9a0ff}
 #vhud .vright{display:flex;gap:calc(var(--px)*4);align-items:baseline}
 #hint{position:absolute;left:50%;top:calc(var(--px)*22);transform:translateX(-50%);background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);box-shadow:0 0 0 max(1px,calc(var(--px)*.75)) var(--line);white-space:nowrap;font-size:.9em;max-width:calc(100% - var(--px)*12);overflow:hidden;text-overflow:ellipsis;animation:hintIn .25s ease-out}
@@ -393,11 +393,11 @@ textarea:focus{outline:2px solid var(--gold)}
 .credits-roll .lede{color:var(--bone-dim)}
 .credits-roll .thanks{margin-top:44px;font-family:var(--font-display);font-size:2.2rem;color:var(--clay-hi)}
 .credits-bar{display:flex;justify-content:flex-end;gap:8px;flex:0 0 auto}
-.gear .rk{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;padding:1px 6px;margin-left:6px;vertical-align:middle;background:#000}
+.gear .rk{font-family:var(--font-display);font-weight:400;font-size:1.05rem;letter-spacing:.06em;line-height:1.1;padding:0 6px;margin-left:6px;vertical-align:middle;background:#000}
 .gear .rk[data-rank="1"]{color:#ff8a6a}.gear .rk[data-rank="2"]{color:#c9a0ff}
 .chip.ready{color:#160e0b;background:var(--olive);box-shadow:none;font-weight:600}
 .res-best{color:var(--gold)}
-.slot .rank-tag{font-size:.75rem;margin-left:6px;vertical-align:middle}
+.slot .rank-tag{font-size:1.1rem;margin-left:6px;vertical-align:middle}
 .gear,.gear *{min-width:0}
 .gear .desc,.setbonus,.ability{overflow-wrap:anywhere}
 .equip{align-items:start}
@@ -489,7 +489,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 .mp-card{background:#000c;padding:calc(var(--px)*2) calc(var(--px)*4);display:grid;gap:calc(var(--px)*1.5);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) var(--line)}
 .mp-q{display:flex;gap:calc(var(--px)*3);align-items:baseline}.mp-q b{color:var(--gold)}
 /* the posted hunt's rank: a bold coloured band across the top of the card */
-.mp-rank{margin:calc(var(--px)*-2) calc(var(--px)*-4) 0;padding:calc(var(--px)*1) calc(var(--px)*4);font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:.9em;
+.mp-rank{margin:calc(var(--px)*-2) calc(var(--px)*-4) 0;padding:calc(var(--px)*.8) calc(var(--px)*4);font-family:var(--font-display);font-weight:400;letter-spacing:.07em;font-size:1.5em;line-height:1;text-shadow:none;
   background:#d8ccb4;color:#1a1210;border-radius:calc(var(--px)*1.2) calc(var(--px)*1.2) 0 0}
 .mp-rank[data-rank="1"]{background:#e2603f;color:#1a0d08}.mp-rank[data-rank="2"]{background:#b48cff;color:#1a0d2a}
 .mp-who{display:flex;flex-wrap:wrap;gap:0 calc(var(--px)*5);color:var(--bone-mute)}.mp-who .ok{color:var(--olive)}
