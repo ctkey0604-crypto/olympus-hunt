@@ -54,11 +54,12 @@ function tutPanel(kind) {
 }
 function tutStart() {
   if (!G.save || q.def.prologue) return;
+  tutH = { t: 0 };
+  if (q.def.practice || q.def.pvp) return;                  // only real hunts move the first steps along
   const first = tutOn() && G.save.tut <= TUT.DEPART;
   if (G.save.tut >= TUT.TALK && G.save.tut <= TUT.DEPART) tutSet(TUT.HUNT);
   else if (G.save.tut >= TUT.FORGE && G.save.tut < TUT.DONE && Object.keys(G.save.cleared).length) tutSet(TUT.DONE);
   if (first) { showHint('Clear every wave to finish the hunt. The parts you pick up go home with you', 7); $('hint').classList.add('tut'); }
-  tutH = { t: 0 };
 }
 function tutEnd(win) {
   if (!G.save || (q && q.def.prologue)) return;

@@ -57,7 +57,9 @@ function startQuest(id, opts = {}) {
   hudMode('quest'); hudReset();
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
-  if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
+  if (def.practice) {                                      // practice explains itself once, the first time you ever go in
+    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`, 8); }
+  } else if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
   if (def.pvp) pvpSetup();
