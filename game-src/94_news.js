@@ -9,6 +9,7 @@ const NEWS = [
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
+      'Forager’s Figs at the Tavern: 25% more drops on your next hunt. In a room, everyone gets the extra drops.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
     ],
     changed: [

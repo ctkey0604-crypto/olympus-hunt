@@ -41,6 +41,7 @@ function playerStats(save = G.save) {
     if (M.def) st.def = Math.max(st.def + 1, Math.round(st.def * (1 + M.def)));   // at least +1, even in starting clothes
     if (M.dash) st.dodgeCd *= 1 - M.dash;
     if (M.skill) st.abilityCd = Math.min(.5, st.abilityCd + M.skill);
+    if (M.drops) st.drops = M.drops;
   }
   return st;
 }
@@ -664,7 +665,8 @@ function finishBones(e) {
   killEnemy(e, { final: true });
 }
 function rollLoot(e, by = q.player) {
-  for (const [item, chance, min, max] of e.def.loot) if (Math.random() <= chance) { const n = randi(min || 1, max || 1); for (let i = 0; i < n; i++) spawnPickup(e.x, e.y, rid(item, e.rank || 0)); }
+  const more = Math.max(0, ...q.hunters.map(h => h.st.drops || 0));           // a more-drops meal: anyone's counts, since loot is shared
+  for (const [item, chance, min, max] of e.def.loot) if (Math.random() <= chance) { const n = randi(min || 1, max || 1); for (let i = 0; i < n; i++) { spawnPickup(e.x, e.y, rid(item, e.rank || 0)); if (more && Math.random() < more) spawnPickup(e.x, e.y, rid(item, e.rank || 0)); } }
   if (e.boss) return;
   const heal = (CLASS[e.def.cls] || CLASS.fodder).heal + (by.st.perks.healDrops || 0);
   if (Math.random() < heal) spawnPickup(e.x, e.y, '@heal');

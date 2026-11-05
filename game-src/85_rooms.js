@@ -182,10 +182,12 @@ const PROP_ART = {
 // One meal per hunt. It lasts your next hunt (online too) and is used up when that hunt starts; until then the menu is
 // closed to you, so nobody pays twice. Small on purpose: about what one more refine level or a set bonus gives, so no
 // monster needs to be any stronger for it. art: what you're seen eating or drinking.
+// drops: the chance each part that falls brings a second one. Loot is shared, so one plate feeds the whole party, and it doesn't stack.
 const MEALS = {
   stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
   skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
   bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
+  figs:    { name: 'Forager’s Figs',    short: 'Figs',       food: true,  art: 'figs',   price: 180, desc: '25% more drops on your next hunt.', drops: .25 },
   wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
   barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
 };
@@ -248,6 +250,7 @@ function drawEating(S, e = V.eat, p = V.player) {
   if (M.art === 'bowl') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#a3713f'); R(-2, -2, 5, 1, '#c35f2a'); if (Math.floor(e.t * 6) % 2) R(-1, -5, 1, 2, '#e6e1d6'); }
   else if (M.art === 'skewer') { R(-5, 0, 11, 1, '#c09a63'); for (const cx of [-4, -1, 2]) { R(cx, -2, 3, 4, K); R(cx + 1, -1, 1, 2, '#a3532a'); } }
   else if (M.art === 'bread') { R(-3, -2, 7, 4, K); R(-2, -1, 5, 2, '#d9a35a'); R(-1, -2, 3, 1, '#e9c27a'); R(0, -1, 1, 1, '#4e5a3a'); }
+  else if (M.art === 'figs') { R(-4, 0, 9, 1, '#e6e1d6'); R(-3, 1, 7, 1, K); for (const cx of [-3, 1]) { R(cx, -3, 3, 3, '#6a3d86'); R(cx, -1, 3, 1, '#4a2a66'); R(cx, -3, 1, 1, '#a877c6'); R(cx + 1, -4, 1, 1, '#4e6e2b'); } }
   else if (M.art === 'cup') { R(-3, -3, 7, 3, K); R(-2, -3, 5, 2, '#c9a032'); R(-2, -3, 5, 1, '#e9a030'); R(0, 0, 1, 2, '#c9a032'); R(-1, 2, 3, 1, '#c9a032'); }
   else { R(-3, -4, 6, 7, K); R(-2, -3, 4, 5, '#9aa0a6'); R(-2, -4, 4, 1, '#c8e6c9'); R(2, -2, 2, 3, K); }
 }
