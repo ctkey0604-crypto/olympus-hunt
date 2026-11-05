@@ -45,6 +45,7 @@ const LAWS = {
   peace:     ['Law of Peace', 'Do not strike'],
   motion:    ['Law of Motion', 'Keep moving'],
   measure:   ['Law of Measure', 'No more than 3 strikes in a row'],
+  presence:  ['Law of Presence', 'Stay close to her'],
 };
 
 const TITAN_AI = {
@@ -75,15 +76,15 @@ const TITAN_AI = {
         break;
       case 'stomp':
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { quakeRings(b, D); b.state = 'recover'; b.st = 1.1; }
+        if (b.st <= 0) { quakeRings(b, D, b.phase >= 2 ? [[34, 10, .3], [60, 14, .55], [88, 18, .8], [116, 22, 1.05]] : undefined); b.state = 'recover'; b.st = 1.1; }
         break;
       case 'throwAim':
         titanStill(b); b.st -= dt;
         if (b.st > b.lockAt) { b.aim = Math.atan2(c.dy, c.dx); b.flip = c.dx < 0; }
         if (b.st <= 0) {
-          spawnProj(b.x + Math.cos(b.aim) * 20, b.y + Math.sin(b.aim) * 20, b.aim, 180 + 20 * b.rank, D(.3), 'globe', 'enemy', { r: 16, life: 4.2, knock: 320, src: b, bounce: 2 + b.rank });
+          spawnProj(b.x + Math.cos(b.aim) * 20, b.y + Math.sin(b.aim) * 20, b.aim, 180 + 20 * b.rank, D(.3), 'globe', 'enemy', { r: 16, life: 4.2, knock: 320, src: b, bounce: 2 + b.rank + (b.phase >= 2 ? 1 : 0) });
           b.globe = false; Sound.play('roar'); addShake(4);
-          b.state = 'unburdened'; b.st = 2.6; setVuln(b, 1.3, 2.6);
+          b.state = 'unburdened'; b.st = 2; setVuln(b, 1.3, 2);
         }
         break;
       case 'unburdened':                                           // arms empty, breathing hard: hit him now
@@ -113,7 +114,7 @@ const TITAN_AI = {
         titanWalk(b, c, 125, 36, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, P2 ? ['beams', 'flare', 'orbs', 'beams', 'blink'] : ['beams', 'flare', 'orbs', 'beams']);
-          if (pick === 'beams') { const n = (P2 ? 3 : 2) + (b.rank >= 2 ? 1 : 0); b.beams = { a: Math.atan2(c.dy, c.dx) + Math.PI / n, dir: Math.random() < .5 ? 1 : -1, n, w: P2 ? 1.05 : .8 }; b.state = 'beamsAim'; b.st = 1; Sound.play('telegraph'); }
+          if (pick === 'beams') { const n = (P2 ? 3 : 2) + (b.rank >= 2 ? 1 : 0); b.beams = { a: Math.atan2(c.dy, c.dx) + Math.PI / n, dir: Math.random() < .5 ? 1 : -1, n, w: P2 ? .95 : .8 }; b.state = 'beamsAim'; b.st = 1.15; Sound.play('telegraph'); }
           else if (pick === 'flare') { b.state = 'flare'; b.st = P2 ? 2 : 2.4; b.flareMax = b.st; Sound.play('beam'); if (!q.seenFlare) { q.seenFlare = true; banner('Hyperion gathers the dawn', 'Get an obelisk between you and him'); } }
           else if (pick === 'orbs') { b.state = 'orbs'; b.st = .7; b.count = P2 ? 2 : 1; }
           else { b.state = 'blinkOut'; b.st = .4; Sound.play('dodge'); }
@@ -162,7 +163,7 @@ const TITAN_AI = {
   oceanus(b, dt, c) {
     const p = b.tgt, P2 = b.phase >= 2 || b.rank >= 1, D = pct => tD(b, pct);
     if (!q.current) q.current = { a: rand(0, Math.PI * 2), s: 26, next: null, t: 6 };
-    const C = q.current; C.s = (b.phase >= 2 ? 38 : 26) + 6 * b.rank;
+    const C = q.current; C.s = (b.phase >= 2 ? 42 : 28) + 6 * b.rank;
     C.t -= dt;
     if (C.t <= 1.6 && C.next === null) { C.next = C.a + (Math.random() < .5 ? 1 : -1) * rand(1.6, 2.6); Sound.play('splash'); }
     if (C.t <= 0) { C.a = C.next; C.next = null; C.t = b.phase >= 2 ? 6 : 8; }
@@ -198,15 +199,18 @@ const TITAN_AI = {
       case 'tide': {                                               // walls of water roll across the arena, with gaps
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
-          const horiz = Math.random() < .5, lanes = 7, gaps = new Set(shuffle([...Array(lanes).keys()]).slice(0, 2 + (b.rank >= 2 ? 0 : 1)));
-          for (let i = 0; i < lanes; i++) {
-            if (gaps.has(i)) continue;
-            if (horiz) { const y = IPX.minY + 14 + i * ((IPX.maxY - IPX.minY - 28) / (lanes - 1)), right = Math.random() < .5;
-              q.hazards.push({ type: 'lane', kind: 'wave', x0: right ? IPX.minX - 8 : IPX.maxX + 8, y0: y, x1: right ? IPX.maxX + 8 : IPX.minX - 8, y1: y, t: 0, delay: 1, dmg: D(.16), speed: 190 }); }
-            else { const x = IPX.minX + 14 + i * ((IPX.maxX - IPX.minX - 28) / (lanes - 1)), down = Math.random() < .5;
-              q.hazards.push({ type: 'lane', kind: 'wave', x0: x, y0: down ? IPX.minY - 8 : IPX.maxY + 8, x1: x, y1: down ? IPX.maxY + 8 : IPX.minY - 8, t: 0, delay: 1, dmg: D(.16), speed: 190 }); }
+          const first = Math.random() < .5, lanes = 7;
+          for (const [horiz, delay] of b.phase >= 2 ? [[first, 1], [!first, 2.1]] : [[first, 1]]) {   // once he floods, a second wall crosses the first
+            const gaps = new Set(shuffle([...Array(lanes).keys()]).slice(0, 2 + (b.rank >= 2 ? 0 : 1)));
+            for (let i = 0; i < lanes; i++) {
+              if (gaps.has(i)) continue;
+              if (horiz) { const y = IPX.minY + 14 + i * ((IPX.maxY - IPX.minY - 28) / (lanes - 1)), right = Math.random() < .5;
+                q.hazards.push({ type: 'lane', kind: 'wave', x0: right ? IPX.minX - 8 : IPX.maxX + 8, y0: y, x1: right ? IPX.maxX + 8 : IPX.minX - 8, y1: y, t: 0, delay, dmg: D(.16), speed: 190 }); }
+              else { const x = IPX.minX + 14 + i * ((IPX.maxX - IPX.minX - 28) / (lanes - 1)), down = Math.random() < .5;
+                q.hazards.push({ type: 'lane', kind: 'wave', x0: x, y0: down ? IPX.minY - 8 : IPX.maxY + 8, x1: x, y1: down ? IPX.maxY + 8 : IPX.minY - 8, t: 0, delay, dmg: D(.16), speed: 190 }); }
+            }
           }
-          Sound.play('telegraph'); b.state = 'recover'; b.st = 1.2;
+          Sound.play('telegraph'); b.state = 'recover'; b.st = b.phase >= 2 ? 1.8 : 1.2;
         }
         break;
       }
@@ -226,9 +230,9 @@ const TITAN_AI = {
         titanWalk(b, c, 115, 40, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, ['foresee', 'stars', 'lance', 'foresee']);
-          if (pick === 'foresee') { b.state = 'foresee'; b.st = .45; b.count = 3 + b.rank + (b.readT > 0 ? 1 : 0); }
+          if (pick === 'foresee') { b.state = 'foresee'; b.st = .45; b.count = 4 + b.rank + (b.readT > 0 ? 1 : 0); }
           else if (pick === 'stars') { b.state = 'stars'; b.st = .6; }
-          else { b.state = 'lance'; b.st = .5; b.count = P2 ? 3 : 1; }
+          else { b.state = 'lance'; b.st = .5; b.count = b.phase >= 2 && b.rank >= 1 ? 5 : P2 ? 3 : 1; }
         }
         break;
       case 'foresee':                                              // each mark lands where you'll be, not where you are
@@ -255,7 +259,7 @@ const TITAN_AI = {
         titanStill(b); b.st -= dt; b.frame = 2;
         if (b.st <= 0) {
           const t = predict(.6), base = Math.atan2(t.y - b.y, t.x - b.x);
-          for (let i = 0; i < b.count; i++) { const a = base + (b.count > 1 ? (i - 1) * .32 : 0), len = 700; q.hazards.push({ type: 'lane', kind: 'bolt', col: '#9fd0ff', x0: b.x, y0: b.y, x1: b.x + Math.cos(a) * len, y1: b.y + Math.sin(a) * len, t: 0, delay: .75, dmg: D(.24) }); }
+          for (let i = 0; i < b.count; i++) { const a = base + (i - (b.count - 1) / 2) * .32, len = 700; q.hazards.push({ type: 'lane', kind: 'bolt', col: '#9fd0ff', x0: b.x, y0: b.y, x1: b.x + Math.cos(a) * len, y1: b.y + Math.sin(a) * len, t: 0, delay: .75, dmg: D(.24) }); }
           Sound.play('telegraph'); b.state = 'recover'; b.st = 1;
         }
         break;
@@ -277,7 +281,7 @@ const TITAN_AI = {
           if (pick === 'echo' && p.mem && p.mem.length > 30) { b.state = 'echo'; b.st = .9; Sound.play('charm'); }
           else if (pick === 'mist') { b.state = 'mist'; b.st = .5; }
           else if (pick === 'recall' && p.mem && p.mem.length > 30) { b.state = 'recall'; b.st = 1.15; b.recallFrom = G.time; Sound.play('telegraph'); }
-          else { b.state = 'orbs'; b.st = .6; }
+          else { b.state = 'orbs'; b.st = .6; b.count = 0; }
         }
         break;
       case 'echo':
@@ -298,7 +302,11 @@ const TITAN_AI = {
         break;
       case 'orbs':
         titanStill(b); b.st -= dt; b.frame = 2;
-        if (b.st <= 0) { const n = 9 + b.rank * 2, off = rand(0, 1); for (let i = 0; i < n; i++) spawnProj(b.x, b.y - 16, off + i / n * Math.PI * 2, 70, D(.11), 'dream', 'enemy', { r: 3, life: 4.5, homing: .9, src: b }); Sound.play('ability'); b.state = 'recover'; b.st = .8; }
+        if (b.st <= 0) {
+          const n = 9 + b.rank * 2, off = rand(0, 1); for (let i = 0; i < n; i++) spawnProj(b.x, b.y - 16, off + i / n * Math.PI * 2, 70, D(.11), 'dream', 'enemy', { r: 3, life: 4.5, homing: .9, src: b }); Sound.play('ability');
+          b.count = b.count > 0 ? b.count - 1 : b.phase >= 2 ? 1 : 0;                // once she remembers more, a second ring follows
+          if (b.count > 0) b.st = .6; else { b.state = 'recover'; b.st = .8; }
+        }
         break;
       case 'recall':                                               // she pulls you back to where you were a moment ago
         titanStill(b); b.st -= dt; b.frame = 2;
@@ -330,6 +338,10 @@ const TITAN_AI = {
       if (L.id === 'motion') for (const h of q.hunters) {           // every hunter has to keep moving (key 'still' for you)
         if (h.dead || !b.law) continue; const k = h.hid ? 'still' + h.hid : 'still';
         if (h.moving || h.dodgeT > 0) L[k] = 0; else { L[k] = (L[k] || 0) + dt; if (L[k] > 1) themisJudge(b, h); }
+      }
+      if (L.id === 'presence') for (const h of q.hunters) {         // no standing off with a bow: stray too far for too long and she judges you
+        if (h.dead || !b.law) continue; const k = h.hid ? 'far' + h.hid : 'far';
+        if (Math.hypot(h.x - b.x, h.y - b.y) < 130) L[k] = 0; else { L[k] = (L[k] || 0) + dt; if (L[k] > 1.5) themisJudge(b, h); }
       }
       if (b.law && L.t <= 0) {                                     // the law was kept: her scales favour you
         b.law = null; b.lawT = P2 ? 7 : 9; b.label = null;
@@ -392,11 +404,11 @@ const TITAN_AI = {
         titanWalk(b, c, 95, 40, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const lions = q.enemies.filter(e => !e.dead && e.type === 'lion').length;
-          const pick = pickAttack(b, lions < 2 ? ['hide', 'lions', 'quake', 'stones', 'hide'] : ['hide', 'quake', 'stones', 'hide']);
+          const pick = pickAttack(b, lions < 2 + b.rank ? ['hide', 'lions', 'quake', 'stones', 'hide'] : ['hide', 'quake', 'stones', 'hide']);
           if (pick === 'hide') { b.state = 'wrap'; b.st = .8; Sound.play('charm'); }
           else if (pick === 'lions') { b.state = 'lions'; b.st = .8; Sound.play('roar'); }
           else if (pick === 'quake') { b.state = 'quake'; b.st = .85; Sound.play('telegraph'); }
-          else { b.state = 'stones'; b.st = .5; }
+          else { b.state = 'stones'; b.st = .5; b.count = 0; }
         }
         break;
       case 'wrap':
@@ -408,9 +420,9 @@ const TITAN_AI = {
         if (b.st <= 0) { summonAround(b, ['lion', 'lion'], 'Rhea calls her lions'); b.state = 'recover'; b.st = .7; }
         break;
       case 'quake': titanStill(b); b.st -= dt; if (b.st <= 0) { quakeRings(b, D); b.state = 'recover'; b.st = 1.1; } break;
-      case 'stones':
+      case 'stones':                                               // when she stops playing, a second fall lands where you ran to
         titanStill(b); b.st -= dt;
-        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 7) + 2 * b.rank, 15, 1, D(.17), 'stone', 110); b.state = 'recover'; b.st = .9; }
+        if (b.st <= 0) { rainAround(aoeAt(p), (P2 ? 9 : 7) + 2 * b.rank, 15, 1, D(.17), 'stone', 110); b.count = b.count > 0 ? b.count - 1 : b.phase >= 2 ? 1 : 0; if (b.count > 0) b.st = .8; else { b.state = 'recover'; b.st = .9; } }
         break;
       case 'dazed': titanStill(b); b.st -= dt; if (b.st <= 0) { b.state = 'idle'; b.st = .5; } break;
     }
@@ -434,7 +446,7 @@ const TITAN_AI = {
         for (let i = 0; i < 6; i++) q.fx.push({ t: 'after', spr: 'cronus', flip: b.flip, x: b.x + rand(-30, 30), y: b.y + rand(-20, 20), life: .5, max: .5, gold: true, scale: TITAN_SCALE });
       }
     } else if (b.hgT <= 0 && b.state === 'idle' && !p.dead) {
-      b.hg = { t: P2 ? 6 : 7, max: P2 ? 6 : 7, need: b.maxHp * (.07 + .01 * b.rank), dealt: 0, hp0: b.hp, x: b.x, y: b.y };
+      b.hg = { t: P2 ? 6 : 7, max: P2 ? 6 : 7, need: b.maxHp * (.08 + .01 * b.rank), dealt: 0, hp0: b.hp, x: b.x, y: b.y };
       banner('Cronus turns the hourglass', 'Hit him hard before the sand runs out'); Sound.play('telegraph');
     }
     b.label = b.hg ? `Hourglass: ${Math.min(100, Math.round(b.hg.dealt / b.hg.need * 100))}% broken · ${Math.ceil(b.hg.t)}s` : null;
@@ -443,7 +455,7 @@ const TITAN_AI = {
         titanWalk(b, c, 70, 42, dt); b.st -= dt;
         if (b.st <= 0 && !p.dead) {
           const pick = pickAttack(b, ['sweep', 'throw', 'blades', 'field', 'sweep']);
-          if (pick === 'sweep') { b.state = 'sweepAim'; b.st = P2 ? .75 : .9; b.count = P2 ? 2 : 1; Sound.play('telegraph'); }
+          if (pick === 'sweep') { b.state = 'sweepAim'; b.st = P2 ? .75 : .9; b.count = b.phase >= 2 && b.rank >= 1 ? 3 : P2 ? 2 : 1; Sound.play('telegraph'); }
           else if (pick === 'throw') { b.state = 'throw'; b.st = .6; }
           else if (pick === 'blades') { b.state = 'blades'; b.st = .5; }
           else { b.state = 'field'; b.st = .5; }
@@ -473,7 +485,8 @@ const TITAN_AI = {
         if (b.st <= 0) {
           const n = 10 + 2 * b.rank, off = rand(0, 1);
           for (let i = 0; i < n; i++) { const a = off + i / n * Math.PI * 2, x = p.x + Math.cos(a) * 74, y = p.y + Math.sin(a) * 74 * .8; spawnProj(x, y, a + Math.PI, 0, D(.13), 'blade', 'enemy', { r: 3, life: 4, src: b, ghost: true, delay: 1.1, launch: 210 }); }
-          Sound.play('perfect'); b.state = 'recover'; b.st = 1.1;
+          if (b.phase >= 2) for (let i = 0; i < n; i++) { const a = off + (i + .5) / n * Math.PI * 2, x = p.x + Math.cos(a) * 104, y = p.y + Math.sin(a) * 104 * .8; spawnProj(x, y, a + Math.PI, 0, D(.13), 'blade', 'enemy', { r: 3, life: 4, src: b, ghost: true, delay: 1.5, launch: 210 }); }   // a wider ring a beat behind the first
+          Sound.play('perfect'); b.state = 'recover'; b.st = b.phase >= 2 ? 1.5 : 1.1;
         }
         break;
       }

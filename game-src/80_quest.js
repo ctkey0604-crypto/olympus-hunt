@@ -58,7 +58,7 @@ function startQuest(id, opts = {}) {
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
   if (def.practice) {                                      // practice explains itself once, the first time you ever go in
-    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`, 8); }
+    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(`${touchMode ? 'Attack and dash with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`}. Hits here do what they’d do to a player in your armor`, 9); }
   } else if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();

@@ -32,7 +32,8 @@ function drawTitleArt() {
 }
 // Play: straight back into the last save (or a new hunter in the first free slot). Saves: the full list.
 async function playNow() {
-  await Store.ready; if (Store.user) await Store.refresh();
+  await Store.ready;
+  if (!(await Store.reachable())) { toast('Can’t reach your saves right now. Check your connection and try again.', 7000); return; }
   let n = Settings.data.lastSlot, s = n ? await Store.load(n) : null;
   if (!s) { n = 0; for (let k = 1; k <= 3; k++) { const t = await Store.load(k); if (t) { n = k; s = t; break; } } }
   if (!n) n = 1;
@@ -47,6 +48,7 @@ async function updateTitleSub() {
   const n = Settings.data.lastSlot; let s = n ? await Store.load(n) : null;
   if (s && G.save && G.slot === n) s = G.save;   // back from playing: the save in hand is the newest
   $('titleSub').textContent = s ? `Continues save ${n} · ${huntTally(s)}` : '';
+  $('btnOwner').hidden = !isOwner();
   $('inviteNote').hidden = !G.invite;
   if (G.invite) $('inviteNote').textContent = Store.api && !Store.user ? `You’ve been invited to a hunt! Press Play to sign in and join room ${G.invite}.` : `You’ve been invited to a hunt! Press Play to join room ${G.invite}.`;
 }
@@ -79,7 +81,7 @@ async function renderSlots() {
   await Store.ready;
   if (Store.user) await Store.refresh();
   renderAccount();
-  $('saveStatus').textContent = G.invite ? (Store.user ? `Pick a save to join room ${G.invite}.` : `Sign in or create an account to join room ${G.invite}, then pick a save.`)
+  $('saveStatus').textContent = Store.user && !Store.remote ? 'Can’t reach your account right now. These are the saves on this device.' : G.invite ? (Store.user ? `Pick a save to join room ${G.invite}.` : `Sign in or create an account to join room ${G.invite}, then pick a save.`)
     : Store.user ? 'Saves sync to your account and also stay in this browser.'
     : CG.data ? 'CrazyGames keeps your saves. Sign in to CrazyGames and they follow you to any device.'
     : Store.cloud ? 'Saves sync to your Claude account and also stay in this browser.'
@@ -163,7 +165,7 @@ function slotCard(n, s) {
     const btn = ev.target.closest('button'); if (!btn) return;
     const a = btn.dataset.a; Sound.init(); Sound.play('click');
     if (a === 'continue') { G.slot = n; G.save = s; G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
-    else if (a === 'new') { G.slot = n; G.save = newSave(); persist(true); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
+    else if (a === 'new') { if (Store.user && !Store.remote) { toast('Can’t reach your account right now, and a new game could replace a save there. Try again in a moment.', 7000); return; } G.slot = n; G.save = newSave(); persist(true); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
     else if (a === 'delete') { el.querySelector('.slot-actions').innerHTML = `<span class="warn">Delete save ${n} for good?</span><button class="btn danger" type="button" data-a="confirmdel">Delete</button><button class="btn ghost" type="button" data-a="canceldel">Keep it</button>`; }
     else if (a === 'confirmdel') { await Store.del(n); renderSlots(); }
     else if (a === 'canceldel') renderSlots();
@@ -564,6 +566,7 @@ $('scrHub').addEventListener('click', ev => {
   }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.fbtab) { G.boardTab = t.dataset.fbtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.chesttab) { G.chestTab = t.dataset.chesttab; G.ldArm = null; Sound.play('click'); renderHub(); return; }
   if (t.dataset.ldnew || t.dataset.ldover) {                 // what you're wearing goes in a new loadout, or over an old one
     const i = t.dataset.ldover ? +t.dataset.ldover : s.loadouts.length, old = s.loadouts[i];
@@ -669,6 +672,7 @@ function finishQuest(win) {
   let best = false;
   if (win) {
     s.money += d.reward; s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
+    if (d.id === TYPHON_Q && !s.finishTime) s.finishTime = Math.round(s.playtime);       // the speedrun board: first step to Typhon's fall
     const t = Math.max(1, Math.round(q.elapsed)); if (!s.best[d.id] || t < s.best[d.id]) { best = !!s.best[d.id]; s.best[d.id] = t; }
   }
   // the Endless Hunt only ends in a fall (or leaving): it pays for the waves cleared and keeps the record
@@ -708,9 +712,20 @@ function finishQuest(win) {
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
     : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
+  const next = win && !run && !wasNet && !netOn() ? nextQuest(s, d.id) : null;           // on your own, a win offers the next hunt (a room picks its own)
+  resNextButton(next);
   G.mode = 'results'; q = null;
   show('scrResults');
-  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
+  setTimeout(() => { if (G.mode === 'results') $(next ? 'btnResNext' : 'btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
+}
+// The hunt to go on next: the first one on your rank you can take and haven't cleared, looking on from the one you just finished.
+function nextQuest(s = G.save, after = null) {
+  const list = QUESTS.filter(x => x.rank === (s.rank || 0) && !x.endless && !s.cleared[x.id] && isUnlocked(x, s)), at = QUESTS.findIndex(x => x.id === after);
+  return list.find(x => QUESTS.indexOf(x) > at) || list[0] || null;
+}
+function resNextButton(next) {
+  const b = $('btnResNext'); b.hidden = !next; G.nextQuestId = next ? next.id : null; $('btnResContinue').classList.toggle('ghost', !!next);
+  if (next) b.textContent = `Next quest: ${next.name}`;
 }
 
 /* ---- the Oracle: hunting with others ---- */
@@ -918,6 +933,7 @@ function endCredits() {
 }
 $('btnCreditsSkip').onclick = () => { Sound.play('click'); endCredits(); };
 $('btnCreditsDone').onclick = () => { Sound.play('click'); endCredits(); };
+$('btnResNext').onclick = () => { Sound.play('click'); const id = G.nextQuestId; if (id && isUnlocked(QUEST_BY_ID[id])) CG.midgameAd(() => fadeTo(() => startQuest(id))); };
 $('btnResAgain').onclick = () => { Sound.play('click'); const id = G.lastQuest; if (id && isUnlocked(QUEST_BY_ID[id])) CG.midgameAd(() => fadeTo(() => startQuest(id))); };
 
 /* ============================== EVENTS =================================== */
@@ -931,6 +947,7 @@ addEventListener('keydown', e => {
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
   if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
   if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
+  if (G.mode === 'owner') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeOwner(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();
@@ -1106,7 +1123,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
@@ -1120,6 +1137,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   clearBots: () => { G.partyBots = []; }, PARTY_SCALE, botLocal: v => { G.botLocal = !!v; },   // botLocal: your own hunter plays itself (for bot parties)
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
+  damageEnemy, resNextButton, updatePotionBar,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },
   godMode: () => { if (q) { q.player.invuln = 9999; q.player.hp = 1e6; } },
   DEBUG,

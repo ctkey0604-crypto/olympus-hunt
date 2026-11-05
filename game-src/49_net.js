@@ -125,6 +125,7 @@ function netRejoined(m, old) {
 }
 function netPing() { if (NET.ws && NET.ws.readyState === 1) { NET.pingAt = performance.now(); NET.ws.send('p'); } }
 setInterval(() => { if (NET.ws && document.hidden) netPing(); }, 10000);   // a hidden tab draws no frames: keep telling the room you're there
+addEventListener('online', () => { if (NET.re) { clearTimeout(NET.re.timer); netRetry(NET.re); } });        // the connection's back: don't wait for the next retry
 // What you look like and carry, so the others can draw you; sent on joining and whenever it changes.
 function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
@@ -300,7 +301,7 @@ function netUi() {
   }
   $('mpRoom').innerHTML = html;
 }
-function netUiPing() { const el = $('mpPing'); if (el) el.textContent = NET.ping ? NET.ping + ' ms' : ''; }
+function netUiPing() { const el = $('mpPing'); if (el) { el.textContent = NET.ping ? NET.ping + ' ms' : ''; el.classList.toggle('weak', NET.ping > 250); } }
 
 /* ---- room chat (under the room box): T or the Chat button to type, Enter sends, Esc closes ---- */
 const CHAT_MAX = 120, CHAT_KEEP = 40, CHAT_SHOW = 5, CHAT_FADE = 9000;
@@ -387,12 +388,15 @@ const NET_SKIP_E = new Set(['def', 'tgt', 'tgtT', 'tok', 'tokH', 'threat', 'last
 const NET_SKIP_P = new Set(['hit', 'src', 'owner', 'group', 'px', 'py', 'boom', 'homing', 't', 'life', 'nid', 'fall', 'mine', 'lgone']);
 const NET_SKIP_K = new Set(['vx', 'vy', 'vz', 't', 'to', 'nid', 'home']);
 const netRound = (k, v) => typeof v === 'number' ? r2(v) : v && typeof v === 'object' && (v.def || v.st || v.save || v instanceof Map || v instanceof Set || typeof v === 'function') ? undefined : v;
-function netSer(o, skip) {
+// coarse (monsters, pickups): a whole pixel and a fifth of a second are plenty, and most fields then stop changing every snapshot.
+function netSer(o, skip, coarse = false) {
   const r = {};
   for (const k in o) {
     if (skip.has(k)) continue;
     const v = o[k], t = typeof v;
     if (v === null || v === undefined) r[k] = null;
+    else if (coarse && t === 'number' && (k === 'x' || k === 'y')) r[k] = Math.round(v);
+    else if (coarse && t === 'number' && k === 'st') r[k] = Math.round(v * 5) / 5;
     else if (t === 'number') r[k] = r2(v);
     else if (t === 'string' || t === 'boolean') r[k] = v;
     else if (t === 'object' && !(v.def || v.st || v.save || v instanceof Map || v instanceof Set)) { try { r[k + '~'] = JSON.stringify(v, netRound); } catch (e) {} }
@@ -436,7 +440,7 @@ function netApplyHunter(p, a, now) {
 // Smoothly follows a hunter someone else controls (a guest on the host's screen, anyone else on a guest's).
 function netFollow(p, dt) {
   const R = p.rep; if (!R) return;
-  const age = Math.min(.12, (performance.now() - R.at) / 1000), tx = R.x + R.vx * age, ty = R.y + R.vy * age;
+  const age = Math.min(clamp((NET.gap || 0) * 1.6, .12, .3), (performance.now() - R.at) / 1000), tx = R.x + R.vx * age, ty = R.y + R.vy * age;
   if (Math.hypot(tx - p.x, ty - p.y) > 48) { p.x = tx; p.y = ty; }
   else { const k = Math.min(1, dt * 14); p.x += (tx - p.x) * k; p.y += (ty - p.y) * k; }
   if (p.swing) p.swing.t += dt;
@@ -454,6 +458,7 @@ function netHunter(memberId) { return q && q.hunters.find(h => h.remote === memb
 function netUp(m) {
   const p = netHunter(m.from); if (!p || p.left) return;
   if (m.h) netApplyHunter(p, m.h, performance.now());
+  if (m.pg) p.pingRep = +m.pg || 0;                                  // their ping, so the snapshots can slow down for them
   if (m.q) for (const a of m.q) p.netQ.push(a);
   if (m.v) { NET.replay = true; for (const ev of m.v) { netPlayEvent(ev); NET.fwd.push([p.hid, ev]); } NET.replay = false; }
 }
@@ -501,7 +506,7 @@ function netRemoteStep(p, dt) {
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
     else if (k === 'pj') {                                       // one of its shots, for everyone else to see (it does no damage here)
       spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p, pierce: clamp(Math.floor(+a[8] || 0), 0, 20) });
-      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid;
+      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid; if (pr.kind === 'trident') pr.boom = { t: TRIDENT_OUT, src: p };
     }
   }
 }
@@ -511,7 +516,13 @@ function netHurtRemote(p, dmg, ang, knock, o) {
   const f = (o.proj ? 1 : 0) | (o.unblockable ? 2 : 0) | (o.melee ? 4 : 0);
   netTo(p, 'hurt', [Math.round(dmg), r2(ang), Math.round(knock), f, o.src && o.src.id ? o.src.id : 0]);
 }
-// After each host step: send what changed. Snapshots go out 15 times a second.
+// Snapshots a second: 15 on a good connection, fewer when anyone in the party has a slow one or this game can't send them fast enough.
+function netSnapRate(queued) {
+  let worst = NET.ping || 0;
+  for (const h of q.hunters) if (h.remote && !h.left) worst = Math.max(worst, h.pingRep || 0);
+  return queued > 65536 ? 5 : queued > 16384 || worst > 400 ? 7.5 : worst > 200 ? 10 : 15;
+}
+// After each host step: send what changed.
 function netHostTick(dt) {
   if (!q || q.net !== 'host') return;
   for (const f of q.fx) if (!f._n) { f._n = 1; netRec(['f', netFxOut(f)]); }
@@ -527,12 +538,14 @@ function netHostTick(dt) {
   }
   // everyone down (some of them on other screens): the hunt is lost
   if (!q.pv && q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
-  NET.downT -= dt; if (NET.downT > 0) return; NET.downT = 1 / 15;
+  // a struggling connection gets fewer snapshots rather than a growing queue of late ones
+  const queued = (NET.ws && NET.ws.bufferedAmount) || 0;
+  NET.downT -= dt; if (NET.downT > 0 || queued > 262144) return; NET.downT = 1 / netSnapRate(queued);
   const snap = { t: 'down', s: ++NET.seq, g: netGlobals(), h: q.hunters.map(netHunterState) };
   if (NET.full) { snap.f = 1; NET.full = false; }
-  netDelta(snap, 'e', q.pv ? [] : q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
+  netDelta(snap, 'e', q.pv ? [] : q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E, true), e => e.id);
   netDelta(snap, 'p', q.projs, NET.sent.p, pr => netSer(pr, NET_SKIP_P), pr => pr.nid || (pr.nid = NID++));
-  netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K), k => k.nid || (k.nid = NID++));
+  netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K, true), k => k.nid || (k.nid = NID++));
   const zs = [], zid = new Set();                               // ground marks: sent once when they appear, then only their removal
   for (const h of q.hazards) { const id = h.nid || (h.nid = NID++); zid.add(id); if (!NET.sent.z.has(id)) { NET.sent.z.add(id); zs.push([id, netSer(h, new Set(['nid', 'then', 'hits']))]); } }
   const zx = []; for (const id of NET.sent.z) if (!zid.has(id)) { zx.push(id); NET.sent.z.delete(id); }
@@ -614,6 +627,7 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
 // A snapshot from the host.
 function netDown(m) {
   const now = performance.now(), mine = q.player.hid;
+  if (NET.downAt) { const gap = Math.min(.5, (now - NET.downAt) / 1000); NET.gap = NET.gap ? NET.gap * .85 + gap * .15 : gap; }   // how far apart snapshots really arrive
   NET.downAt = now;
   if (m.g) netGlobalsIn(m.g);
   if (m.h) for (const a of m.h) { if (a[0] === mine) continue; const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now); }
@@ -760,8 +774,8 @@ function guestTick(dt) {
     const low = !p.dead && p.hp / p.st.maxHp < .3;
     if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0;
   }
-  // everyone else glides toward where the host last saw them
-  const k = Math.min(1, dt * 15);
+  // everyone else glides toward where the host last saw them, slower when snapshots are further apart, so a bad connection looks less jumpy
+  const k = Math.min(1, dt * clamp(1.2 / (NET.gap || .066), 5, 15));
   for (const e of q.enemies) {
     if (e._tx !== undefined) { const ox = e.x; e.x += (e._tx - e.x) * k; e.y += (e._ty - e.y) * k; if (Math.abs(e.x - ox) > .05) e.walkT += dt; }
     e.st = (e.st || 0) - dt; e.flash = Math.max(0, (e.flash || 0) - dt);
@@ -778,8 +792,10 @@ function guestTick(dt) {
   if (late && (NET.stallT -= dt) <= 0) { NET.stallT = 4; netSend({ t: 'stall' }); }
   NET.upT -= dt;
   if (NET.upT <= 0) {
-    NET.upT = 1 / 20;
+    const slow = (NET.ping || 0) > 300 || ((NET.ws && NET.ws.bufferedAmount) || 0) > 8192;
+    NET.upT = slow ? 1 / 10 : 1 / 20;
     const O = NET.out, m = { t: 'up', h: netHunterState(p) };
+    NET.pgT = (NET.pgT || 0) - 1; if (NET.pgT <= 0) { NET.pgT = 20; if (NET.ping) m.pg = NET.ping; }
     if (O.q.length) m.q = O.q.splice(0);
     if (O.v.length) m.v = O.v.splice(0).slice(-60);
     for (const f of q.fx) if (!f._n) { f._n = 1; (m.v = m.v || []).push(['f', netFxOut(f)]); }

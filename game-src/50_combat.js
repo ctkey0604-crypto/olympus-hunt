@@ -405,6 +405,9 @@ function useAbility(p, mv) {
     if (!targets.length) targets.push({ x: p.x + Math.cos(p.face) * 40, y: p.y + Math.sin(p.face) * 40 });
     targets.forEach((e, i) => q.pspikes.push({ x: e.x, y: e.y, t: -.55 - i * .08, dmg: T * 4.2, hit: false, sky: true, r: 18, cast, owner: p }));
     Sound.play('telegraph');
+  } else if (id === 'trident_throw') {
+    const a = aim(); p.face = a; Sound.play('swing');
+    spawnProj(p.x + Math.cos(a) * 8, p.y + Math.sin(a) * 8, a, 290, W * 1.3, 'trident', 'player', { r: 6, life: 2.4, pierce: 99, ghost: true, boom: { t: TRIDENT_OUT, src: p } });
   } else if (id === 'solar_lance') {
     const a = aim(), len = 230, x0 = p.x, y0 = p.y - 6, x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len; p.face = a;
     q.fx.push({ t: 'beamfx', x: x0, y: y0, a, len, life: .35, max: .35, c: '#ffd463' }); flash(.06); Sound.play('beam');
@@ -605,6 +608,7 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
   dmg = Math.max(1, Math.round(dmg * rand(.9, 1.1)));
   if (e.stun > 0 && !e.boss) dmg = Math.round(dmg * 1.25);
+  if (e.def.role === 'dummy') dmg = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + p.st.def))), Math.ceil(p.st.maxHp * PVP_MAX_HIT));   // practice: what the same hit does in a fight, to someone in your armor
   e.hp -= dmg; e.flash = .12;
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
@@ -680,6 +684,15 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
                  owner: team === 'player' ? o.owner || q.actor || q.player : null });
   if (q.net === 'guest' && team === 'player') netOwnShot(q.projs[q.projs.length - 1]);
 }
+// Where a thrown trident turns for home, a wave breaks and shoves everything back.
+const TRIDENT_OUT = .45;                                   // seconds out before it turns
+function tridentCrash(pr) {
+  const by = pr.owner || q.player, was = q.actor;
+  q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: '#57c2b0' }); burst(pr.x, pr.y - 4, 14, ['#57c2b0', '#e6f2ff', '#2c7a70'], 90); Sound.play('splash');
+  q.actor = by;
+  for (const e of q.enemies) if (targetable(e) && edist(pr, e) < 56 + e.r) damageEnemy(e, pr.dmg * .5, Math.atan2(e.y - pr.y, e.x - pr.x), 300, true);
+  q.actor = was;
+}
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
   if (pr.split) { const s = pr.split; for (let i = 0; i < s.n; i++) spawnProj(pr.px, pr.py, i / s.n * Math.PI * 2, s.speed, s.dmg, s.kind, pr.team, { r: 2, life: 1.6 }); burst(pr.px, pr.py - 6, 10, ['#ffd463', '#ffffff'], 90); Sound.play('zap'); }
@@ -709,7 +722,8 @@ function updateProjs(dt) {
       if (best) { const b = bodyPt(best, pr.x, pr.y), cur = Math.atan2(pr.vy, pr.vx), want = Math.atan2(b.y - pr.y, b.x - pr.x), sp = Math.hypot(pr.vx, pr.vy);
         const na = cur + clamp(angDiff(cur, want), -pr.homing * dt, pr.homing * dt); pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp; }
     }
-    if (pr.kind === 'godweapon' && pr.boom && pr.t > pr.boom.t) {          // a thrown god weapon turns round and flies back to its owner
+    if ((pr.kind === 'godweapon' || pr.kind === 'trident') && pr.boom && pr.t > pr.boom.t) {   // a thrown god weapon turns round and flies back to its owner
+      if (pr.kind === 'trident' && !pr.boom.back) { pr.boom.back = true; pr.hit = new Set(); if (!pr.vis) tridentCrash(pr); }   // the trident crashes down, then hits again on the way home
       const s = pr.boom.src, a = Math.atan2(s.y - 6 - pr.y, s.x - pr.x), sp = Math.min(380, Math.hypot(pr.vx, pr.vy) + 520 * dt);
       pr.vx = Math.cos(a) * sp; pr.vy = Math.sin(a) * sp; pr.life = Math.max(pr.life, .5);
       if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; continue; }

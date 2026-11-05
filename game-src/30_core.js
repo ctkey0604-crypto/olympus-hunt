@@ -287,11 +287,20 @@ const Store = {
     return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(e => {
       if (e && e.check) { this.refused(e.message); return; }      // the server's save checks said no: sending it again won't help
       if (!this.pending[n]) this.pending[n] = data;
+      if (!this.timers[n]) this.timers[n] = setTimeout(() => this.push(n), 20000);   // it's safe on this device: keep trying
     });
   },
   // Said once per reason: the save stays on this device, the account keeps its last good copy.
   refused(msg) { if (this.refusedMsg === msg) return; this.refusedMsg = msg; if (typeof toast === 'function') toast(msg + ' It’s still saved on this device.', 7000); },
   flush(keepalive = false) { return Promise.all(Object.keys(this.pending).map(n => this.push(n, keepalive))); },
+  // Reaching your account can take a while on a bad connection. Starting over isn't the answer: a new game would replace the save
+  // the account holds. true: fine to go on. false: signed in, nothing on this device, and the account can't be reached.
+  async reachable() {
+    if (!this.user) return true;
+    const slow = setTimeout(() => { if (typeof toast === 'function') toast('Reaching your account…', 6000); }, 1500);
+    await this.refresh(); clearTimeout(slow);
+    return !!this.remote || [1, 2, 3].some(n => this.readLocal(n));
+  },
   /* ---- Claude artifact cloud ---- */
   ref(n) { return this.cloud.doc('data/users/' + this.uid + '/slot' + n); },
   async load(n) {
@@ -346,6 +355,7 @@ const Store = {
 // Anything not yet sent goes up when the tab closes or hides.
 addEventListener('pagehide', () => Store.flush(true));
 document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flush(true); });
+addEventListener('online', () => Store.flush());                     // saves that couldn't be sent go up as soon as the connection is back
 
 const LOADOUT_MAX = 5, LOADOUT_NAME_MAX = 20;                 // saved gear sets, kept in the chest at home
 function newSave() {
@@ -357,6 +367,7 @@ function newSave() {
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
            meal: null,                                              // a Tavern meal waiting for the next hunt
            loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
+           finishTime: 0,                                           // play time, in seconds, when Typhon first fell: the speedrun board
            hero: 'boy' };                                           // 'boy' or 'girl', picked in Options
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
@@ -406,6 +417,7 @@ function sanitize(s) {
   out.finale = s.finale === true && !!out.cleared[TYPHON_Q];   // the old ending (before Typhon) doesn't count as the finale
   out.typhonTold = s.typhonTold === true; out.legend = s.legend === true;
   if (s.endless && typeof s.endless === 'object') for (const k of ['best', 'last']) out.endless[k] = clamp(Math.floor(num(s.endless[k], 0)), 0, 9999);
+  out.finishTime = !out.cleared[TYPHON_Q] ? 0 : Math.max(0, num(s.finishTime, 0)) || out.playtime;   // finished before this was kept: the play time so far is the closest there is
   out.meal = typeof s.meal === 'string' && MEALS[s.meal] ? s.meal : null;
   out.hero = s.hero === 'girl' ? 'girl' : 'boy';
   if (s.refine && typeof s.refine === 'object') for (const [k, v] of Object.entries(s.refine)) {

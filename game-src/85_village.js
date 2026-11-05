@@ -31,7 +31,7 @@ const PANEL_INFO = {
   shrine:  { title: 'Hestia’s Hearth' },
   oracle:  { title: 'The Oracle' },
   arena:   { title: 'The Coliseum' },
-  pvpboard: { title: 'The fight board' },
+  pvpboard: { title: 'Leaderboards' },
 };
 // Rank progress. A rank is done when every god (side gods too) and every Titan has been hunted on it.
 const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].every(id => save.cleared[rid(id, r)]);

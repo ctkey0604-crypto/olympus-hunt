@@ -405,7 +405,7 @@ const GOD_HELD = { artemis: ['bow', '#d5dbe5'], dionysus: ['thyrsus', '#4e8a3a']
 function drawThrown(H, sx, sy, a, t) {
   const [kind, col] = H || ['spear', '#c7ccd1'];
   if (kind === 'hammer' || kind === 'sword') a = t * 16;
-  const ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca, L = kind === 'hammer' ? 7 : kind === 'sword' ? 8 : 12;
+  const ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca, L = kind === 'hammer' ? 7 : kind === 'sword' ? 8 : kind === 'trident' ? 10 : 12;
   const shaft = kind === 'scepter' ? '#e9c04f' : kind === 'sword' ? col : '#8a5a34', bx = sx - ca * L, by = sy - sa * L, fx = sx + ca * L, fy = sy + sa * L;
   pxLine(bx, by + 1, fx, fy + 1, '#140d0b'); pxLine(bx, by, fx, fy, shaft);
   switch (kind) {
@@ -521,6 +521,14 @@ function drawProj(pr, S) {
       jagged(x0, y0, x1, y1, '#ffffff', 3, 5, seed); break;
     }
     case 'godweapon': drawThrown(pr.weapon, sx, y, a, pr.t); break;
+    case 'trident': {                                       // Poseidon's trident, thrown: a gold shaft, three teal prongs, and a trail of drops
+      const x0 = sx - ca * 10, y0 = y - sa * 10, x1 = sx + ca * 6, y1 = y + sa * 6, nx = -sa, ny = ca, tip = (o, l) => [x1 + nx * o + ca * l, y1 + ny * o + sa * l];   // the size it is in the player's hand: 20 long, 5 wide
+      pxLine(x0 + nx, y0 + ny, x1 + nx, y1 + ny, '#140d0b'); pxLine(x0, y0, x1, y1, '#e9c04f');
+      pxLine(...tip(-2, 0), ...tip(2, 0), '#2c7a70');
+      for (const [o, l] of [[-2, 3], [2, 3], [0, 4]]) { pxLine(...tip(o, 0), ...tip(o, l), '#57c2b0'); ctx.fillStyle = '#e6f2ff'; const [tx, ty] = tip(o, l); ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1); }
+      if (Math.random() < .5) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: rand(-14, 14), vy: rand(-6, 14), g: 90, life: .3, max: .3, c: Math.random() < .5 ? '#57c2b0' : '#e6f2ff', s: 1 });
+      break;
+    }
     case 'orb': pxEllipse(sx, y, 4, 4, '#140d0b'); pxEllipse(sx, y, 3, 3, Math.floor(pr.t * 10) % 2 ? '#57c2b0' : '#3c8f82'); ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
     case 'zspark': ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 2, y - 2, 4, 4); ctx.fillStyle = Math.floor(pr.t * 20) % 2 ? '#ffffff' : '#ffd463'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
     case 'heart': { ctx.fillStyle = '#140d0b'; ctx.fillRect(sx - 3, y - 2, 7, 4); ctx.fillRect(sx - 2, y + 2, 5, 1); ctx.fillRect(sx - 1, y + 3, 3, 1); const [c1] = PROJ_COL.heart; ctx.fillStyle = c1; ctx.fillRect(sx - 2, y - 1, 2, 2); ctx.fillRect(sx + 1, y - 1, 2, 2); ctx.fillRect(sx - 1, y + 1, 3, 1); ctx.fillRect(sx, y + 2, 1, 1); ctx.fillRect(sx, y, 1, 1); break; }
@@ -756,7 +764,7 @@ function hudReset() {
   $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
   $('guardBar').hidden = !st.shield; $('drawBar').hidden = !st.kind.draw;
-  $('hudLoot').parentElement.hidden = !!(q.def.practice || q.def.pvp);     // nothing drops there
+  $('hudLoot').parentElement.hidden = $('potionBar').hidden = !!(q.def.practice || q.def.pvp);     // nothing drops there, and potions don't work
 }
 function updateHud() {
   const p = q.player;

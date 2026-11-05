@@ -180,7 +180,7 @@ function pvpFinish(quit = false) {
   const title = $('resTitle'); title.textContent = quit ? 'You left the fight' : wonIt ? 'Victory' : 'Defeat'; title.className = 'res-title ' + (wonIt ? 'win' : 'lose');
   $('resStats').innerHTML = `<div><span>Rounds won</span><b>${P.wins[me.team] || 0}</b></div><div><span>Kills</span><b>${mine[0]}</b></div><div><span>Deaths</span><b>${mine[1]}</b></div><div><span>Damage dealt</span><b>${Math.round(q.stats.dealt)}</b></div>`;
   $('resUnlock').innerHTML = ''; $('resLoot').innerHTML = `<div class="muted">Fights pay nothing. They’re for the glory.</div>`; $('resNote').textContent = '';
-  $('btnResAgain').hidden = true; G.lastQuest = null; G.arenaBack = true;
+  $('btnResAgain').hidden = true; resNextButton(null); G.lastQuest = null; G.arenaBack = true;
   G.mode = 'results'; q = null; show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);
 }
@@ -195,16 +195,30 @@ function renderArena() {
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
+// The leaderboards at the Coliseum: fights, the fastest run to Typhon, and the deepest Endless wave.
+const BOARD_TABS = { fights: 'Fights', speed: 'Speedrun', endless: 'Endless' };
+const BOARD_HOW = {
+  fights: 'Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.',
+  speed: 'Play time from your first step to Typhon’s fall. Your best save counts.',
+  endless: 'The deepest wave reached in the Endless Hunt. Your best save counts.',
+};
+const fmtRun = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = Math.floor(t % 60); return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; };
 function renderFightBoard() {
-  return `<div class="fb" id="pvpBoard"><p class="fb-note">Looking…</p></div>
-    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.</p>`;
+  const tab = BOARD_TABS[G.boardTab] ? G.boardTab : 'fights';
+  return `<div class="board-top"><div class="seg">${Object.entries(BOARD_TABS).map(([k, name]) => `<button type="button" data-fbtab="${k}" aria-pressed="${tab === k}">${name}</button>`).join('')}</div></div>
+    <div class="fb${tab === 'fights' ? '' : ' two'}" id="pvpBoard"><p class="fb-note">Looking…</p></div>
+    <p class="fb-how">${esc(BOARD_HOW[tab])}</p>`;
 }
 async function pvpBoardLoad() {
+  const tab = BOARD_TABS[G.boardTab] ? G.boardTab : 'fights', me = String(Store.user || '').toLowerCase();
+  const rows = (head, list, cells) => `<div class="fb-row fb-head">${head.map(h => `<span>${h}</span>`).join('')}</div>` + list.map((p, i) => `<div class="fb-row${p.name.toLowerCase() === me ? ' me' : ''}"><b>${i + 1}</b><span class="fb-name">${esc(p.name)}</span>${cells(p)}</div>`).join('');
   try {
-    const list = (await Store.call('GET', 'pvp/board')).board || [], box = $('pvpBoard'); if (!box) return;
-    const me = String(Store.user || '').toLowerCase();
-    box.innerHTML = !list.length ? `<p class="fb-note">Nobody has fought here yet.</p>` : `<div class="fb-row fb-head"><span></span><span>Player</span><span>K/D</span><span>Score</span></div>`
-      + list.map((p, i) => `<div class="fb-row${p.name.toLowerCase() === me ? ' me' : ''}"><b>${i + 1}</b><span class="fb-name">${esc(p.name)}</span><span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b></div>`).join('');
+    const list = tab === 'fights' ? (await Store.call('GET', 'pvp/board')).board || [] : (await Store.call('GET', 'boards'))[tab] || [], box = $('pvpBoard');
+    if (!box || (BOARD_TABS[G.boardTab] ? G.boardTab : 'fights') !== tab) return;     // you've moved on to another tab
+    box.innerHTML = !list.length ? `<p class="fb-note">${tab === 'fights' ? 'Nobody has fought here yet.' : tab === 'speed' ? 'Nobody has a run on the board yet.' : 'Nobody has a wave on the board yet.'}</p>`
+      : tab === 'fights' ? rows(['', 'Player', 'K/D', 'Score'], list, p => `<span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b>`)
+      : tab === 'speed' ? rows(['', 'Player', 'Time'], list, p => `<b class="fb-score">${fmtRun(p.time)}</b>`)
+      : rows(['', 'Player', 'Wave'], list, p => `<b class="fb-score">${p.wave}</b>`);
   } catch (e) { if ($('pvpBoard')) $('pvpBoard').innerHTML = `<p class="fb-note">The board can’t be read right now. Check your connection.</p>`; }
 }
 /* ---- drawing ---- */

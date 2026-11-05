@@ -75,6 +75,13 @@ const BOSS_TUNE = {
   typhon: { hp: [1, 1, 1.25], dmg: [1, 1, 1.1] },
 };
 for (const [id, t] of Object.entries(BOSS_TUNE)) if (BOSSES[id]) BOSSES[id].tune = t;
+// A step up on top of that: every Titan rises toward Hyperion, the hardest of them, and the gods a little. [health, damage]
+const BOSS_STEP = { atlas: [1.15, 1.1], oceanus: [1.2, 1.12], coeus: [1.12, 1.1], mnemosyne: [1.25, 1.05], themis: [1.12, 1.1], rhea: [1.08, 1.08], cronus: [1.12, 1.1] };
+for (const [id, B] of Object.entries(BOSSES)) {
+  if (id === 'hyperion' || id === 'typhon') continue;
+  const [hp, dmg] = BOSS_STEP[id] || [1.06, 1.05], t = B.tune || { hp: [1, 1, 1], dmg: [1, 1, 1] };
+  B.tune = { hp: t.hp.map(v => v * hp), dmg: t.dmg.map(v => v * dmg) };
+}
 
 // Generated arenas: obstacles and the hidden nook come out the same every time.
 for (const [id, A] of Object.entries(ARENAS)) {

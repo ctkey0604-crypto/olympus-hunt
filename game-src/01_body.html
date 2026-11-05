@@ -80,6 +80,7 @@
       <button class="btn big" id="btnPlay" type="button">Play</button>
       <button class="btn ghost" id="btnSaves" type="button">Saves</button>
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
+      <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
     <button class="vote-banner" id="btnVote" type="button"><span>Vote on update 1.1!</span></button>
@@ -100,6 +101,13 @@
     <div class="acct" id="acctBox" hidden></div>
     <p class="muted" id="saveStatus" style="margin:0">Loading saves…</p>
     <div class="slots" id="slotList"></div>
+  </div>
+</section>
+
+<section class="screen" id="scrOwner" hidden>
+  <div class="wrap owner-wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnOwnerBack">Back</button><h2>Owner dashboard</h2><button class="btn ghost small" type="button" id="btnOwnerRefresh">Refresh</button></div>
+    <div id="ownerBody"></div>
   </div>
 </section>
 
@@ -140,7 +148,7 @@
     <h3>Parts carried home</h3>
     <div class="res-loot" id="resLoot"></div>
     <p class="muted" id="resNote" style="margin:0"></p>
-    <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
+    <div class="row"><button class="btn" id="btnResNext" type="button" hidden>Next quest</button><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
   </div>
 </section>
 
