@@ -115,8 +115,7 @@ function drawHazards(S) {
 // A hunt's things to draw, sorted by depth: entries are a kind and a thing, kept and reused between frames.
 const DRAW_LIST = [], DRAW_POOL = [], byDrawY = (a, b) => a.y - b.y;
 function drawAdd(y, k, o) { const i = DRAW_LIST.length, e = DRAW_POOL[i] || (DRAW_POOL[i] = { y: 0, k: 0, o: null }); e.y = y; e.k = k; e.o = o; DRAW_LIST.push(e); }
-function renderQuest() {
-  if (!q) return;
+function renderQuest0() {
   const [cx, cy] = camOffset();
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.drawImage(q.ground, -cx, -cy);
@@ -733,7 +732,7 @@ function hudReset() {
   $('pipAbil').hidden = !ab; if (ab) $('abilName').textContent = ABILITIES[ab].name + key('ability');
   $('pipDodge').querySelector('b').textContent = 'Dash' + key('dodge');
   $('tAbil').hidden = !ab; $('tGuard').hidden = !st.shield;
-  $('guardBar').hidden = !st.shield;
+  $('guardBar').hidden = !st.shield; $('drawBar').hidden = !st.kind.draw;
 }
 function updateHud() {
   const p = q.player;
@@ -741,6 +740,10 @@ function updateHud() {
   if (hudCache.hpW !== w) { hudCache.hpW = w; $('hpFill').style.width = w; $('hpGhost').style.width = w; }
   $('hpBar').classList.toggle('low', frac < .3);
   setText('hpText', `${Math.ceil(p.hp)} / ${p.st.maxHp}`);
+  if (p.st.kind.draw) {                                  // how far your bow is drawn: amber as it fills, bright at full power
+    const s = p.swing, k = s && s.drawMax ? clamp(s.draw / s.drawMax, 0, 1) : 0, dw = Math.round(k * 100) + '%';
+    if (hudCache.dw !== dw) { hudCache.dw = dw; $('drawFill').style.width = dw; $('drawBar').className = 'bar' + (k >= .95 ? ' full' : k >= .5 ? ' half' : ''); }
+  }
   $('pipDodge').classList.toggle('cool', !canDash(p));
   const dl = 'Dash' + (maxDashes(p) > 1 ? ` ×${p.dashes}` : '') + (touchMode ? '' : ` [${codeLabel(Input.bind.dodge[0])}]`);
   if (hudCache.dl !== dl) { hudCache.dl = dl; $('pipDodge').querySelector('b').textContent = dl; }

@@ -16,8 +16,8 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
 // The Coliseum's floor, for practice and for fights between players.
-Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 30, ht: 20, secret: null,
-  obstacles: [['column', 8, 6], ['column', 21, 6], ['column', 8, 13], ['column', 21, 13]] } });
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null,
+  obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14]] } });
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
@@ -45,17 +45,17 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
-  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time',
-    props: [['rack', 4.5, 3.5], ['rack', 6.5, 3.5], ['armorstand', 17, 3.7, 'iron'], ['armorstand', 19, 3.7, 'bronze'], ['dummy', 17.5, 8], ['amphora', 3.6, 10.2], ['barrel', 20, 10, 'water']],
-    npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 120, y: 100 }],
-    spots: [{ id: 'dummy', name: 'the practice dummy', kind: 'practice', x: 288, y: 148 }] },
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22,
+    props: [['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
+    npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
+    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 440, y: 202 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
-for (const R of Object.values(ROOMS)) { R.wt = 24; R.ht = 15; }
+for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
 function buildRoom(id) {
   const D = ROOMS[id];
   const props = D.props.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers(D.theme, null, { gate: { x: 11, y: 12, w: 2 }, seed: id, axis: WORLD_W / 2 });
+  const gate = { x: D.wt / 2 - 1, y: D.ht - 3, w: 2 }, layers = genLayers(D.theme, null, { gate, seed: id, axis: WORLD_W / 2 });
   const gx = layers.ground.getContext('2d');
   for (const [x, y, w, h, c1, c2] of D.rugs || []) paintRug(gx, x, y, w, h, c1, c2);
   const npcs = (D.npcs || []).map(n => ({ ...n, r: 4, flip: !!n.flip, walkT: 0, moving: false, talkT: 0 }));
@@ -63,7 +63,7 @@ function buildRoom(id) {
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
   return { id, name: D.name, theme: D.theme, sub: D.sub, music: Music.songs['room_' + id] ? 'room_' + id : 'akros', exitTo: 'village',
-           world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: 11, y: 12, w: 2, h: 2 }]),
+           world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: gate.x, y: gate.y, w: 2, h: 2 }]),
            ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 function paintRug(x, rx, ry, w, h, c1, c2) {
@@ -79,7 +79,7 @@ ROLES.dummy = (e, dt) => { e.vx = e.vy = e.kbx = e.kby = 0; e.stun = 0; if (e.hp
 const PRACTICE = { id: 'practice', base: 'practice', practice: true, name: 'Practice', god: 'ares', arena: 'coliseum', rank: 0, tier: 1, mt: 1, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
 function startPractice() {
   startQuest(PRACTICE); q.phase = 'practice';
-  const d = makeEnemy('dummy', tc(15), tc(7)); d.state = 'move'; q.enemies.push(d);
+  const d = makeEnemy('dummy', tc(23), tc(11)); d.state = 'move'; q.enemies.push(d);
 }
 function endPractice() { fadeTo(() => enterPlace('coliseum', 'practice')); }
 // Sitting down at a tavern table: you take the seat and stay there. Order from it if you like, or just walk off to get up.

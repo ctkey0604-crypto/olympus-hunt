@@ -220,7 +220,7 @@ function shieldBash(p) {
 function drinkPotion(id, p = q && q.player) {
   const s = p && p.save || G.save, P = POTIONS[id];
   if (!p || p.dead || q.phase === 'victory' || p.potionCd > 0) return;
-  if (!(s.potions[id] > 0) || q.def.practice) { Sound.play('clink'); return; }
+  if (!(s.potions[id] > 0) || q.def.practice || q.pv) { Sound.play('clink'); return; }
   if (id === 'health' && p.hp >= p.st.maxHp) { addText(p.x, p.y - 20, '+0', '#9bbb55'); return; }
   s.potions[id]--; p.potionCd = .4; Sound.play(id === 'health' ? 'heal' : 'ability');
   if (id === 'health') healHunter(p, Math.round(p.st.maxHp * .4));
@@ -369,7 +369,7 @@ function useAbility(p, mv) {
     for (const e of q.enemies) if (targetable(e) && edist(p, e) < 90 + e.r) { damageEnemy(e, W * .6, eang(p, e), 420, true); }
   } else if (id === 'quake') {
     shake(5); Sound.play('thud');
-    [[26, 8, 0], [46, 12, .12], [66, 16, .24]].forEach(([r, n, d]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; q.pspikes.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: -d, dmg: W * 1.1, hit: false, owner: p }); } });
+    [[26, 8, 0], [46, 12, .12], [66, 16, .24]].forEach(([r, n, d]) => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; q.pspikes.push({ x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: -d - .01, dmg: W * 1.1, hit: false, owner: p }); } });
   } else if (id === 'eruption') {
     const targets = near(150, 5);
     for (const e of targets) q.pspikes.push({ x: e.x, y: e.y, t: -.35, dmg: T * 2.8, hit: false, fire: true, r: 16, cast, owner: p });
@@ -459,6 +459,7 @@ function hurtHunter(p, dmg, ang, knock = 140, o = {}) {
 function hurtHunter0(p, dmg, ang, knock, o) {
   const st = p.st, me = isLocal(p);
   if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
+  if (q.pv && p.dodgeT > .08) { addText(p.x, p.y - 20, 'miss', '#e6f2ff'); return 0; }   // except a well-timed dash in a fight
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
@@ -490,11 +491,11 @@ function hurtHunter0(p, dmg, ang, knock, o) {
     }
   }
   if (o.proj) dmg *= 1 - st.projRes;
-  const taken = Math.max(1, Math.round(dmg * 20 / (20 + st.def)));
-  p.hp -= taken; p.invuln = .8; p.flash = .15; p.mom = 0;
+  const taken = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + st.def))), q.pv ? Math.ceil(st.maxHp * PVP_MAX_HIT) : 1e9);
+  p.hp -= taken; p.invuln = q.pv ? PVP_GUARD : .8; p.flash = .15; p.mom = 0;
   const k = knock * (1 - st.kbRes);
   p.kbx += Math.cos(ang) * k; p.kby += Math.sin(ang) * k;
-  p.fx.sleep = 0; p.fx.drowsy = 0;
+  if (!q.pv) p.fx.sleep = 0; p.fx.drowsy = 0;
   if (me) { addShake(4); G.hitstop = Math.max(G.hitstop, .06); Sound.play('hurt'); }
   addText(p.x, p.y - 18, '-' + taken, '#ff6b5a');
   burst(p.x, p.y - 6, 6, ['#d9493b', '#f0e4cc'], 70);
@@ -533,6 +534,7 @@ function perfectBlockHit(p, o, ang) {
   const pr = o.projObj;
   if (pr) { if (sh.perk === 'reflect' || p.st.perks.reflectPerfect) reflectProj(pr, p); return; }
   const src = o.src;
+  if (src && src.pvp) pvpParried(src);
   if (src && !src.dead) {
     if (!src.boss) { src.stun = Math.max(src.stun, sh.perk === 'bash' ? 1.4 : .8); src.state = 'move'; }
     const kb = src.boss ? 60 : sh.perk === 'bash' ? 320 : 180, a = Math.atan2(src.y - p.y, src.x - p.x);
@@ -567,7 +569,7 @@ function downed(p = q.player) {
     banner('Hestia’s blessing', 'You rise again');
     return;
   }
-  if (q.net === 'guest') { knockDown(p); return; }               // the host decides when the whole party is down
+  if (q.net === 'guest' || q.pv) { knockDown(p); return; }       // the host decides when the whole party is down
   if (q.hunters.length > 1 && q.hunters.some(h => h !== p && (!h.dead || h.away)) && (q.faints == null || q.faints > 1)) { knockDown(p); return; }
   playerDie(p);
 }
@@ -579,6 +581,7 @@ function shieldBlocks(e, ang) {
 }
 function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true) {
   if (q.net === 'guest') return netGuestHit(e, dmg, ang, knock, unblockable, fromPlayer);   // a guest's hits are applied by the host
+  if (e.pvp) return pvpHit(e, dmg, ang, knock, unblockable, fromPlayer);
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.state === 'bones') { if (fromPlayer) finishBones(e); return true; }
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
@@ -740,7 +743,7 @@ function updateProjs(dt) {
         if (!targetable(e) || pr.hit.has(e.id)) continue;
         if (edist(pr, e) < pr.r + e.r + 1) {
           if (pr.group) { const n = pr.group.get(e.id) || 0; if (n >= 3) continue; pr.group.set(e.id, n + 1); }   // a volley hits one target with at most 3 arrows
-          pr.hit.add(e.id); damageEnemy(e, pr.dmg * (pr.fall || 1), Math.atan2(pr.vy, pr.vx), KINDS.bow.knock); Sound.play('hit');
+          pr.hit.add(e.id); shotHit = true; damageEnemy(e, pr.dmg * (pr.fall || 1), Math.atan2(pr.vy, pr.vx), KINDS.bow.knock); shotHit = false; Sound.play('hit');
           if (pr.kind === 'arrow' || pr.kind === 'piercer') pr.fall = (pr.fall || 1) * (pr.kind === 'piercer' ? .8 : .7);   // each enemy it goes through takes less
           if (pr.pierce-- <= 0) { killProj(pr); break; }
         }

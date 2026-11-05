@@ -276,6 +276,10 @@ textarea:focus{outline:2px solid var(--gold)}
 #guardBar{width:calc(var(--px)*60);height:calc(var(--px)*3)}
 #guardBar>i{background:var(--aegean)}
 #guardBar.broken>i{background:var(--blood)}
+#drawBar{height:calc(var(--px)*4)}
+#drawBar>i{width:0;transition:none;background:#cf6a2f}
+#drawBar.half>i{background:#ffd463}
+#drawBar.full>i{background:#fff6d8;box-shadow:0 0 calc(var(--px)*3) #ffd463}
 .status-row{display:flex;gap:calc(var(--px)*2);flex-wrap:wrap}
 .st-tag{font-size:.75em;padding:0 calc(var(--px)*2);background:#000a;box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;color:var(--bone)}
 .st-tag.bad{color:#ff8a7a}.st-tag.good{color:var(--olive)}

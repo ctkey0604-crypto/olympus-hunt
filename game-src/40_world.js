@@ -252,9 +252,9 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
 // Each road: its width, then points it curves through.
 const ROADS = [
   [40, [424, 138], [424, 210], [420, 300], [428, 400], [424, 480], [424, 560]],                   // the main street, from the Temple to the gate
-  [24, [248, 150], [258, 182], [300, 206], [352, 232], [392, 262]],                               // up to the Forge
-  [28, [168, 340], [186, 368], [250, 366], [310, 332], [362, 306]],                               // out to the Coliseum
-  [22, [308, 338], [318, 400], [304, 454], [272, 468], [248, 456]],                               // round to the Market's door
+  [24, [248, 150], [282, 170], [322, 198], [358, 232], [392, 262]],                               // up to the Forge
+  [28, [168, 308], [184, 336], [246, 344], [306, 326], [360, 306]],                               // out to the Coliseum
+  [22, [306, 326], [318, 400], [304, 454], [272, 468], [248, 456]],                               // round to the Market's door
   [24, [648, 214], [640, 240], [590, 262], [540, 282], [498, 294]],                               // across to the Tavern
   [22, [490, 340], [540, 392], [600, 438], [640, 446], [664, 424]],                               // down to your home
 ];

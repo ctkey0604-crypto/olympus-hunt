@@ -170,7 +170,7 @@ function knockDown(p) {
   p.dead = true; p.downed = true; p.reviveT = 0; p.swing = null; p.guarding = false; p.dodgeT = p.dashT = 0; p.fx.charm = 0; p.flurryT = 0; p.echoes = [];
   if (q.faints !== null && q.faints !== undefined) q.faints--;
   burst(p.x, p.y - 6, 14, ['#c0412e', '#e9c04f', '#f3e9d4'], 80); Sound.play('hurt');
-  if (isLocal(p)) banner('You’re down', 'A teammate can get you back up'); else addText(p.x, p.y - 22, '!', '#ff6b5a');
+  if (isLocal(p)) banner('You’re down', q.pv ? 'Wait for the next round' : 'A teammate can get you back up'); else addText(p.x, p.y - 22, '!', '#ff6b5a');
 }
 function reviveHunter(p) {
   if (p.remote) { netTo(p, 'rev', 1); p.reviveHold = performance.now() + 1500; }
@@ -182,7 +182,7 @@ function reviveHunter(p) {
   NET.personal--;
 }
 function updateRevives(dt) {
-  if (q.phase === 'victory' || q.phase === 'defeat') return;
+  if (q.phase === 'victory' || q.phase === 'defeat' || q.pv) return;
   for (const p of q.hunters) {
     if (!p.downed) continue;
     const helper = q.hunters.some(h => !h.dead && Math.hypot(h.x - p.x, h.y - p.y) < REVIVE_R);

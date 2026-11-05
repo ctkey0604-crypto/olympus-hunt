@@ -5,15 +5,15 @@ const VILLAGE_W = 52, VILLAGE_H = 34, VILLAGE_MID = 26;              // the stre
 const BUILDINGS = [
   { id: 'temple', name: 'Temple of the Gods', kind: 'temple', x: 20.5, y: 3, w: 12, h: 5, goes: 'temple' },   // centred on the path, the fountain and the gate
   { id: 'forge',  name: 'The Forge',            kind: 'forge',  x: 12, y: 4, w: 7,  h: 5, goes: 'forge' },
-  { id: 'coliseum', name: 'The Coliseum',       kind: 'coliseum', x: 4, y: 13, w: 13, h: 8, goes: 'coliseum' },
+  { id: 'coliseum', name: 'The Coliseum',       kind: 'coliseum', x: 4, y: 11, w: 13, h: 8, goes: 'coliseum' },
   { id: 'tavern', name: 'The Tavern',           kind: 'tavern', x: 37, y: 8, w: 7,  h: 5, goes: 'tavern' },
   { id: 'market', name: 'Melita’s Market',      kind: 'market', x: 12, y: 24, w: 6, h: 4, goes: 'market' },
   { id: 'home',   name: 'Your Home',            kind: 'home',   x: 38, y: 22, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
   ['fountain', 26, 18], ['board', 31, 16], ['stall', 20, 23], ['stall', 33, 23], ['crate', 22, 24], ['amphora', 23, 24], ['amphora', 35, 24], ['crate', 36, 25], ['cart', 20, 28],
-  ['column', 8, 22], ['column', 12, 22], ['brokencol', 3, 22], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
-  ['olive', 5, 5], ['tree', 8, 8], ['olive', 4, 10], ['olive', 10, 11], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
+  ['column', 8, 20], ['column', 12, 20], ['brokencol', 3, 21], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
+  ['olive', 5, 5], ['tree', 8, 7], ['olive', 3, 8], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
   ['olive', 47, 18], ['pine', 46, 21], ['olive', 5, 25], ['tree', 8, 28], ['pine', 4, 29], ['olive', 11, 30], ['olive', 17, 30], ['tree', 21, 12], ['olive', 31, 12],
   ['olive', 32, 29], ['pine', 37, 28], ['tree', 41, 30], ['olive', 47, 27], ['rock', 15, 22], ['rock', 39, 19], ['stump', 43, 17], ['stump', 18, 11], ['rock', 28, 28],
 ];
@@ -30,6 +30,8 @@ const PANEL_INFO = {
   options: { title: 'Options' },
   shrine:  { title: 'Hestia’s Hearth' },
   oracle:  { title: 'The Oracle' },
+  arena:   { title: 'The Coliseum' },
+  pvpboard: { title: 'The fight board' },
 };
 // Rank progress. A rank is done when every god (side gods too) and every Titan has been hunted on it.
 const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.quest)].every(id => save.cleared[rid(id, r)]);
@@ -89,7 +91,7 @@ function npcLines(n) {
     case 'arena': {
       if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The dummy is free any time, if you want to try out your gear.'];
       if (NET.room.members.length < 2) return ['You have a room, but nobody in it to fight.', 'You need at least two players. Share your room code or find another room at the Oracle, then come back.'];
-      return ['Your room is here and the sand is raked.', 'The gates aren’t open yet. Practice on the dummy until they are.'];
+      return ['Your room is here and the sand is raked.', 'Pick your fight. The gear rank you choose is the limit: anything stronger comes off first.'];
     }
     case 'oracle': {
       if (oracleOnline()) return ['I see other players, far away across the world. I can bring you together.', 'Host a hunting party, or join one.'];
@@ -233,7 +235,7 @@ function startInteract(t) {
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
-    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : n.id === 'arena' && netOn() && NET.room.members.length >= 2 ? 'arena' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'seat') sitAt(t);
   else if (t.kind === 'practice') fadeTo(startPractice);

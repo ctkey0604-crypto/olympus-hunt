@@ -179,6 +179,8 @@ function renderHub() {
   else if (G.panel === 'market') body.innerHTML = renderMarket();
   else if (G.panel === 'tavern') body.innerHTML = renderTavern();
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
+  else if (G.panel === 'arena') body.innerHTML = renderArena();
+  else if (G.panel === 'pvpboard') { body.innerHTML = '<div class="opt wide"><p class="muted">Rating decides the order: beating a better player earns more. Tiers: Bronze, Silver, Gold, Champion.</p><div id="pvpBoard" class="muted">Looking…</div></div>'; pvpBoardLoad(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -595,6 +597,7 @@ $('scrHub').addEventListener('click', ev => {
 });
 
 function finishQuest(win) {
+  if (q.pv) { pvpFinish(true); return; }
   const s = G.save, d = q.def, wasNet = q.net;
   if (q.net === 'host') netHostEnd(win); else if (q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netSend({ t: 'leave' });
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
@@ -711,10 +714,10 @@ function setPaused(v) {
   G.paused = v; Music.duck(v); $('pause').hidden = !v; $('pauseMain').hidden = false; $('pauseConfirm').hidden = true;
   const inQuest = G.mode === 'quest';
   $('btnAbandon').hidden = !inQuest; $('btnQuit').hidden = inQuest; $('btnPauseOptions').hidden = inQuest;
-  const road = !!(inQuest && q && q.def.prologue), prac = !!(inQuest && q && q.def.practice);
-  $('btnAbandon').textContent = road ? 'Skip the tutorial' : prac ? 'Leave practice' : 'Abandon quest';
-  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : prac ? 'Head back to the Coliseum?' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
-  $('btnAbandonYes').textContent = road ? 'Go to the village' : prac ? 'Leave practice' : 'Leave the quest';
+  const road = !!(inQuest && q && q.def.prologue), prac = !!(inQuest && q && q.def.practice), fight = !!(inQuest && q && q.pv);
+  $('btnAbandon').textContent = road ? 'Skip the tutorial' : prac ? 'Leave practice' : fight ? 'Leave the fight' : 'Abandon quest';
+  $('abandonText').textContent = road ? 'Skip ahead to the village? You keep the parts and potions you have.' : prac ? 'Head back to the Coliseum?' : fight ? 'Leave the fight? It goes on without you.' : `Leave now? You keep the parts you picked up, but you get no reward.${q && q.net && q.hunters.length > 1 && NET.room && NET.room.hand ? ' The others carry on without you.' : ''}`;
+  $('btnAbandonYes').textContent = road ? 'Go to the village' : prac ? 'Leave practice' : fight ? 'Leave the fight' : 'Leave the quest';
   $('btnPauseSound').textContent = 'Sound: ' + (Settings.data.sound ? 'on' : 'off');
   $('btnPauseMusic').textContent = 'Music: ' + (Settings.data.music !== false ? 'on' : 'off');
   $('btnPauseFs').textContent = fsEl() ? 'Exit fullscreen' : 'Fullscreen';
@@ -791,6 +794,7 @@ $('btnNews').onclick = () => { Sound.init(); Sound.play('click'); openNews('scrT
 $('btnNewsBack').onclick = closeNews;
 $('btnResContinue').onclick = () => {
   Sound.play('click');
+  if (G.arenaBack) { G.arenaBack = false; fadeTo(() => enterPlace('coliseum', 'arena')); return; }
   // Typhon just fell for the first time: roll the credits before going home
   if (G.lastQuest === TYPHON_Q && G.save.cleared[TYPHON_Q] && !G.save.legend) { fadeTo(() => showCredits(() => enterVillage('gate'))); return; }
   CG.midgameAd(() => fadeTo(() => enterVillage('gate')));
@@ -1037,7 +1041,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)

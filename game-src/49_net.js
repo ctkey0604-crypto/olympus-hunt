@@ -148,6 +148,7 @@ function gearAbove(r, s = G.save) {
 // Why you can't take a hunt online, in full (with what to do about it), or null. short: a few words for the others' list.
 function netWhyNot(qd, short = false) {
   const s = G.save, qr = qd.rank || 0; if (!s) return null;
+  if (qd.pvp) { const high = gearAbove(qr, s); return !high.length ? null : short ? 'gear too strong' : `This fight allows ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`; }
   if ((s.rank || 0) < qr) return short ? `needs ${RANKS[qr].name}` : `This is a ${RANKS[qr].name} hunt, and you haven’t reached ${RANKS[qr].name} yet. Hunt every god and Titan on ${RANKS[(s.rank || 0)].name}, then talk to Kleon.`;
   if (qd.titan && !s.stairs) return short ? 'hasn’t opened the Titans' : 'You haven’t opened the Titans’ hall yet. Hunt every god first; the stairway under the temple opens after that.';
   const miss = (qd.requires || []).filter(r => !s.cleared[r]);
@@ -268,6 +269,7 @@ function netUi() {
     + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
   const wait = NET.re ? 'Connection lost. Reconnecting…' : q && q.net === 'guest' && NET.stall ? `Waiting for ${esc(netName(NET.runner) || 'the party leader')}…` : '';
   if (wait) html += `<div class="mp-card mp-post"><span class="muted">${wait}</span></div>`;
+  else if (q && q.pv) html += `<div class="mp-card mp-post"><span class="muted">${esc(pvpScore())}</span></div>`;
   else if (G.mode === 'village') {
     if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}${R.quest ? ` (${RANKS[R.quest.rank || 0].name})` : ''}.</span></div>`;
     else if (R.quest) {
@@ -282,7 +284,7 @@ function netUi() {
           : `<div class="mp-btns">${why && !(me && me.ready) ? `<button type="button" data-mp="ready" class="no">Can’t join yet</button>`
             : `<button type="button" data-mp="ready" class="${me && me.ready ? '' : 'hot'}">${me && me.ready ? 'Ready ✓' : 'Ready up'}${touchMode ? '' : ' <kbd>Enter</kbd>'}</button>`}${host ? '<button type="button" data-mp="cancel">Cancel</button>' : ''}</div>`}
       </div>`;
-    } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it.' : 'Waiting for players to join.'}</span></div>`;
+    } else html += `<div class="mp-card"><span class="muted">${R.members.length > 1 ? 'Pick a hunt from Kleon’s board to post it, or see Agon at the Coliseum for a fight.' : 'Waiting for players to join.'}</span></div>`;
   }
   $('mpRoom').innerHTML = html;
 }
@@ -338,6 +340,7 @@ function netBannerAction(a) {
   else if (a === 'depart' || a === 'go') {
     const qd = QUEST_BY_ID[R.quest.id], why = qd && netWhyNot(qd); if (why) { toast(why, 7000); return; }
     const poster = netPoster(R), all = R.members.every(m => m.ready || m.id === poster);
+    if (qd && qd.pvp && R.members.filter(m => m.ready || m.id === poster).length < 2) { toast('Nobody else is ready yet.'); return; }
     if (!all && a !== 'go') { NET.confirm = true; netUi(); return; }
     NET.confirm = false; G.save && persist(true); netSend({ t: 'depart' }); Sound.play('click');
   }
@@ -349,7 +352,7 @@ function netPost(id) {
   if (R.quest && R.phase === 'town' && netPoster(R) !== R.me && !netHost()) { toast('Someone already posted a hunt. Ready up for it, or wait.'); return; }
   const why = netWhyNot(qd); if (why) { toast(why, 7000); return; }
   netSend({ t: 'post', quest: { id, name: qd.name, rank: qd.rank || 0 } });
-  closePanel(); toast('Hunt posted.');
+  closePanel(); toast(qd.pvp ? 'Fight posted. Everyone ready up.' : 'Hunt posted.');
 }
 // The host departed: everyone who readied up starts the same hunt.
 function netDepart(m) {
@@ -468,16 +471,17 @@ function netRemoteStep(p, dt) {
   const Q = p.netQ.splice(0);
   for (const a of Q) {
     const k = a[0];
-    if (k === 'h') { const e = q.enemies.find(x => x.id === a[1]); if (e) damageEnemy(e, netCap(p, a[2]), a[3], a[4], !!a[5], a[6] !== 0); }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
+    if (k === 'h') { const e = a[1] < 0 ? q.pvpT && q.pvpT.get(a[1]) : q.enemies.find(x => x.id === a[1]); if (e) { shotHit = !!a[7]; damageEnemy(e, netCap(p, a[2]), a[3], a[4], !!a[5], a[6] !== 0); shotHit = false; } }   // a hit: [h, id, dmg, ang, knock, unblockable, fromPlayer]
     else if (k === 'c') {                                        // something its skills did to a monster
-      const e = q.enemies.find(x => x.id === a[1]); if (!e || e.dead) continue;
+      const e = a[1] < 0 ? q.pvpT && q.pvpT.get(a[1]) : q.enemies.find(x => x.id === a[1]); if (!e || e.dead || (e.pvp && e.pvp.team === p.team)) continue;
       if (a[2] === 'stun' && !e.boss) e.stun = Math.max(e.stun, a[3]);
       else if (a[2] === 'mark') e.markT = Math.max(e.markT || 0, a[3]);
       else if (a[2] === 'burn') { e.burnT = Math.max(e.burnT || 0, a[3]); e.burnBy = p; }
       else if (a[2] === 'kb') { e.kbx += a[3] * (e.kbRes ?? 1); e.kby += a[4] * (e.kbRes ?? 1); }
       else if (a[2] === 'move' && !e.boss && e.state !== 'spawn') e.state = 'move';
     }
-    else if (k === 'ts') q.timeStop = Math.max(q.timeStop, a[1]);
+    else if (k === 'pv') { const e = q.pvpT && q.pvpT.get(a[1]); if (e) pvpParried(e); }   // it parried someone
+    else if (k === 'ts') { if (q.pv) pvpFreeze(p); else q.timeStop = Math.max(q.timeStop, a[1]); }
     else if (k === 'act') { if (q.onPlayerAct) q.onPlayerAct(a[1], p, a[2]); }
     else if (k === 'ph') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') killProj(pr); }   // a shot hit it on its screen
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
@@ -508,11 +512,11 @@ function netHostTick(dt) {
     p.fxRep = { ...F };
   }
   // everyone down (some of them on other screens): the hunt is lost
-  if (q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
+  if (!q.pv && q.phase !== 'victory' && q.phase !== 'defeat' && q.hunters.every(h => h.dead && !h.away)) playerDie(q.player);
   NET.downT -= dt; if (NET.downT > 0) return; NET.downT = 1 / 15;
   const snap = { t: 'down', s: ++NET.seq, g: netGlobals(), h: q.hunters.map(netHunterState) };
   if (NET.full) { snap.f = 1; NET.full = false; }
-  netDelta(snap, 'e', q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
+  netDelta(snap, 'e', q.pv ? [] : q.enemies, NET.sent.e, e => netSer(e, NET_SKIP_E), e => e.id);
   netDelta(snap, 'p', q.projs, NET.sent.p, pr => netSer(pr, NET_SKIP_P), pr => pr.nid || (pr.nid = NID++));
   netDelta(snap, 'k', q.pickups, NET.sent.k, k => netSer(k, NET_SKIP_K), k => k.nid || (k.nid = NID++));
   const zs = [], zid = new Set();                               // ground marks: sent once when they appear, then only their removal
@@ -536,6 +540,7 @@ function netGlobals() {
   if (q.gale) g.ga = [r2(q.gale.t), r1(q.gale.s), r2(q.gale.a)];
   if (q.ghosts && q.ghosts.length) g.gh = q.ghosts.map(gh => [r1(gh.x), r1(gh.y), r2(gh.face), r2(gh.clock), (gh.who || q.player).hid]);
   if (q.def.endless) g.en = [q.endCleared || 0, q.endPay || 0];   // the Endless Hunt: waves cleared and pay so far
+  if (q.pv) g.pv = { ...q.pv, t: r1(q.pv.t) };                     // a fight: rounds, score, kills
   // what's coming next, so another player's game can take over: sent when it changes
   g.tm = [r2(q.timer), r2(q.spawnT), q.nextIsBoss ? 1 : 0];
   const fw = { p: q.pending.map(a => a.type) };
@@ -561,7 +566,7 @@ function netPlayEvent(ev) {
   else if (k === 'm') { if (Music[ev[1]]) Music[ev[1]](...ev[2]); }
   else if (k === 'L') { if (q && q.net === 'guest') { q.loot[ev[1]] = (q.loot[ev[1]] || 0) + 1; feed(ev[1]); } }
   else if (k === 'C') { if (q && q.net === 'guest' && !q.chestFound) { q.chestFound = true; q.chestMoney += chestReward(q.def, !G.save.chests[q.def.id]).money; } }
-  else if (k === 'Q') { if (q && q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netHuntLost('The host ended the hunt'); }
+  else if (k === 'Q') { if (q && q.pv) pvpFinish(); else if (q && q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netHuntLost('The host ended the hunt'); }
 }
 // The host's hunt ended (results): tell the room, so everyone's back in town.
 function netHostEnd(win) {
@@ -585,9 +590,10 @@ function netStartGuest() {
 }
 // A hit your hunter landed: the host applies it (blocks, marks, the real number). You see the flash right away.
 function netGuestHit(e, dmg, ang, knock, ub, fp) {
+  if (e.pvp && e.untargetable) return false;
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
-  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0]);
+  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0, shotHit ? 1 : 0]); if (e.pvp) pvpShowHit(e.pvp, dmg);
   e.flash = .12; if (fp) momentumHit(q.player);
   return true;
 }
@@ -612,7 +618,7 @@ function netDown(m) {
 // A full snapshot lists everything there is, so anything it doesn't list ended while the snapshots weren't reaching you.
 function netPrune(m) {
   const ids = l => new Set((l || []).map(a => a[0])), E = ids(m.e), P = ids(m.p), K = ids(m.k), Z = ids(m.z);
-  q.enemies = q.enemies.filter(e => E.has(e.id));
+  q.enemies = q.enemies.filter(e => e.pvp || E.has(e.id));
   q.projs = q.projs.filter(pr => pr.mine || P.has(pr.nid));
   q.pickups = q.pickups.filter(k => K.has(k.nid));
   q.hazards = q.hazards.filter(h => Z.has(h.nid));
@@ -668,6 +674,7 @@ function netGlobalsIn(g) {
   q.ghosts = (g.gh || []).map(a => ({ x: a[0], y: a[1], face: a[2], clock: a[3], who: q.hunters[a[4]] || q.player }));
   if (g.b && (!q.boss || q.boss.id !== g.b)) { const b = q.enemies.find(e => e.id === g.b); if (b) netBossIn(b); }
   if (g.en) { q.endCleared = g.en[0]; q.endPay = g.en[1]; if (!g.b && q.boss) { q.boss = null; $('bossBar').hidden = true; } }   // a god down mid-run
+  if (g.pv) { const ph = q.pv.ph + q.pv.round; Object.assign(q.pv, g.pv); if (ph !== q.pv.ph + q.pv.round) netUi(); }
   if (g.tm) { q.timer = g.tm[0]; q.spawnT = g.tm[1]; q.nextIsBoss = !!g.tm[2]; }
   if (g.fw) { q.pending = g.fw.p.map(type => ({ type })); if (g.fw.e) { [q.endMt, q.endBudget, q.endTempo] = g.fw.e; q.endBossNext = !!g.fw.e[3]; q.endBag = g.fw.e[4]; } }
 }
@@ -676,9 +683,11 @@ function netSelf(m) {
   const p = q.player;
   if (m.hurt) for (const [dmg, ang, knock, f, src] of m.hurt) hurtHunter(p, dmg, ang, knock, { proj: !!(f & 1), unblockable: !!(f & 2), melee: !!(f & 4), src: src ? q.enemies.find(e => e.id === src) : null });
   if (m.heal) healHunter(p, m.heal);
-  if (m.fx) { for (const k of ['charm', 'confuse', 'killRush', 'sleep', 'slow']) if (m.fx[k]) p.fx[k] = Math.max(p.fx[k], m.fx[k]); if (m.fx.from) p.charmFrom = q.enemies.find(e => e.id === m.fx.from) || p.charmFrom; }
+  if (m.fx) { for (const k of ['charm', 'confuse', 'killRush', 'sleep', 'slow', 'burn']) if (m.fx[k]) p.fx[k] = Math.max(p.fx[k], m.fx[k]); if (m.fx.from) p.charmFrom = q.enemies.find(e => e.id === m.fx.from) || p.charmFrom; }
   if (m.rev && p.downed) reviveHunter(p);
   if (m.rc && !p.dead) { q.fx.push({ t: 'after', frames: heroFrames(p.look), look: p.look, flip: Math.cos(p.face) < 0, x: p.x, y: p.y, life: .4, max: .4 }); p.x = m.rc[0]; p.y = m.rc[1]; p.dodgeT = 0; p.dashT = 0; G.flash = .15; }
+  if (m.kb) { p.kbx += m.kb[0]; p.kby += m.kb[1]; }
+  if (m.rs && q.pv) pvpReset(p, m.rs[0], m.rs[1]);                 // the next round: back to your corner
   if (m.kl) p.stats.kills += m.kl;
   if (m.dl) p.stats.dealt += m.dl;
 }
@@ -724,6 +733,7 @@ function guestTick(dt) {
   G.flash = Math.max(0, G.flash - dt); G.hitstop = Math.max(0, G.hitstop - dt);
   const p = q.player, done = q.phase === 'victory' || q.phase === 'defeat';
   if (!done) {
+    if (q.pv && pvpGuestTick(dt)) return;
     netClaimsBefore();
     p.in = G.botLocal ? botThink(p, dt) : localInput();
     q.actor = p; NET.rec = NET.out.v; updateHunter(p, dt); q.actor = null;
@@ -776,6 +786,7 @@ function netRunner(m) {
 function netTakeOver() {
   const bossId = q.boss && q.boss.id, skip = new Set([...NET_SKIP_E, 'def', 'mirror', 'netGone']);
   q.enemies = q.enemies.filter(e => !e.dead).map(m => {
+    if (m.pvp) return m;
     const e = m.boss ? makeBoss(m.type, m.x, m.y, m.rank) : makeEnemy(m.type, m.x, m.y, m.tier, m.rank);
     for (const k in m) if (!skip.has(k) && m[k] !== undefined) e[k] = m[k];
     if (m._tx !== undefined) { e.x = m._tx; e.y = m._ty; }

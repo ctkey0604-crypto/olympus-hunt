@@ -16,10 +16,10 @@ const WEIGHT = { fodder: 1, medium: 2, heavy: 4 };
 const BUDGET = 12;
 
 function startQuest(id, opts = {}) {
-  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !opts.guest && !isUnlocked(def))) return;
+  const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !def.pvp && !opts.guest && !isUnlocked(def))) return;
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
-  if (def.prologue) Music.play('road'); else if (def.practice) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
+  if (def.prologue) Music.play('road'); else if (def.practice || def.pvp) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
   const roster = opts.guest || (G.netParty || null); G.netParty = null;
@@ -45,7 +45,7 @@ function startQuest(id, opts = {}) {
   if (roster) { q.net = opts.guest ? 'guest' : 'host'; q.hunters = roster.map(r => r === mine ? q.player : Object.assign(makeHunter({ save: gearSave(r.gear), hid: r.hid, name: r.name }), opts.guest ? { mirror: r.id } : { remote: r.id })); }
   else q.hunters.push(q.player);
   bots.forEach((wid, i) => addHunter({ save: botSave(wid), bot: {}, name: BOT_NAMES[i % BOT_NAMES.length] }));
-  if (G.save.meal && !def.prologue && !def.practice) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
+  if (G.save.meal && !def.prologue && !def.practice && !def.pvp) { q.meal = G.save.meal; G.save.meal = null; persist(); }   // a Tavern meal lasts this one hunt
   if (T.weather === 'fog') for (let i = 0; i < 9; i++) q.fog.push({ x: rand(0, WORLD_W), y: rand(0, WORLD_H), r: rand(30, 60), v: rand(4, 10) });
   G.cam.x = clamp(q.player.x - VIEW_W / 2, 0, WORLD_W - VIEW_W); G.cam.y = clamp(q.player.y - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.mode = 'quest'; G.paused = false; G.slowmo = 1; G.hitstop = 0; G.shake = 0; G.flash = 0; G.dialog = null;
@@ -58,6 +58,8 @@ function startQuest(id, opts = {}) {
   if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
+  if (def.pvp) pvpSetup();
+  if (q.player.st.kind.draw && !Settings.data.drawTip && !def.prologue) { Settings.data.drawTip = true; Settings.save(); showHint(`Hold ${touchMode ? 'attack' : kbd(Input.bind.attack[0])} to draw a stronger shot. The bar under your health shows how far, and you walk slowly while drawing.`, 9); }
   netUi();
 }
 function startWave(i) {
@@ -204,6 +206,8 @@ function tick(dt) {
   G.slowmo = Math.min(1, G.slowmo + dt * (q.phase !== 'victory' && q.phase !== 'defeat' ? 1.5 : .35));
   const sdt = dt * G.slowmo;
   q.elapsed += q.phase === 'victory' || q.phase === 'defeat' ? 0 : sdt;
+  if (q.pv) pvpHostTick(sdt);
+  if (!q) { Input.endFrame(); return; }
   updateHunters(sdt); tutHunt(sdt);
   { const p = q.player, low = !p.dead && p.hp / p.st.maxHp < .3 && q.phase !== 'victory';   // a heartbeat when you're nearly down
     if (low) { q.beatT = (q.beatT ?? 0) - dt; if (q.beatT <= 0) { q.beatT = .9; Sound.play('heartbeat'); } } else q.beatT = 0; }
@@ -211,7 +215,7 @@ function tick(dt) {
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
   for (const h of q.hunters) h.tok.melee = h.tok.ranged = 0;       // attack turns are counted per hunter (q.tokUse is yours)
   for (const e of q.enemies) { if (e.tok && TOK_STATES.has(e.state) && !e.dead) (e.tokH || q.player).tok[e.tok]++; else e.tok = null; }
-  for (const e of q.enemies) if (!e.dead) { if (e.boss) updateBoss(e, sdt); else if (!frozen) updateEnemy(e, sdt); else e.flash = 0; }
+  for (const e of q.enemies) if (!e.dead) { if (e.pvp) continue; if (e.boss) updateBoss(e, sdt); else if (!frozen) updateEnemy(e, sdt); else e.flash = 0; }
   q.enemies = q.enemies.filter(e => !e.dead);
   updateProjs(sdt); if (!frozen) updateHazards(sdt); updatePSpikes(sdt); updatePickups(sdt);
   if (q.weather === 'embers' && Math.random() < .5) q.parts.push({ x: G.cam.x + rand(0, VIEW_W), y: G.cam.y + VIEW_H + 4, vx: rand(-8, 8), vy: rand(-40, -20), g: 0, life: 3, max: 3, c: Math.random() < .5 ? '#ff7a2b' : '#ffd463', s: 1 });
