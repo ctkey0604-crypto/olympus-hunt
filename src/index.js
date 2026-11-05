@@ -46,10 +46,13 @@ async function route(req, env, url) {
   if (path === '/api/login' && method === 'POST') return login(req, env);
   if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
   if (path === '/api/vote' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).vote(null, who ? who.name : null)); }
+  if (path === '/api/boards' && method === 'GET') return json(await lobbyStub(env).scoreBoards());
 
   const user = await authed(req, env);
   if (!user) return json({ error: 'You are signed out. Sign in again.' }, 401);
   if (path === '/api/me' && method === 'GET') return json({ name: user.display });
+  // The owner's dashboard. Read-only, and to any other account this address doesn't exist.
+  if (path === '/api/owner/players' && method === 'GET') return user.name === OWNER ? json(await ownerReport(env)) : json({ error: 'Not found.' }, 404);
   if (path === '/api/vote' && method === 'POST') { const b = await readJson(req), r = await lobbyStub(env).vote(String(b.choice || ''), user.name); return json(r, r.error ? 400 : 200); }
   if (path.startsWith('/api/rooms')) { const r = await roomsAuthed(req, env, path, method, user); if (r) return r; }
   if (path === '/api/logout' && method === 'POST') {
@@ -81,6 +84,7 @@ async function route(req, env, url) {
       const r = await env.DB.prepare(`INSERT INTO saves (name, slot, data, saved_at) VALUES (?, ?, ?, ?)
         ON CONFLICT(name, slot) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at WHERE excluded.saved_at >= saves.saved_at`)
         .bind(user.name, slot, JSON.stringify(save), savedAt).run();
+      if (r.meta.changes > 0) { const sc = scoreOf(save); if (sc.time || sc.wave) try { await lobbyStub(env).scoreReport(user.name, user.display, sc); } catch {} }   // the boards never cost anyone a save
       return json({ ok: true, kept: r.meta.changes > 0 });
     }
     if (method === 'DELETE') {
@@ -89,6 +93,18 @@ async function route(req, env, url) {
     }
   }
   return json({ error: 'Not found.' }, 404);
+}
+
+/* ---------- the owner's dashboard ---------- */
+// Game progress only: passwords, password hashes and session tokens are never selected. One row per save, newest first.
+const OWNER = 'owner', OWNER_ROWS = 600;
+async function ownerReport(env) {
+  const { results } = await env.DB.prepare(`SELECT u.name, u.display, u.created, s.slot, s.saved_at,
+      json_extract(s.data, '$.rank') AS rank, json_extract(s.data, '$.playtime') AS play, json_extract(s.data, '$.money') AS money,
+      json_extract(s.data, '$.weapon') AS weapon, json_extract(s.data, '$.endless.best') AS wave, json_extract(s.data, '$.finishTime') AS finish,
+      json_extract(s.data, '$.stairs') AS stairs, json_extract(s.data, '$.cleared') AS cleared
+    FROM users u LEFT JOIN saves s ON s.name = u.name ORDER BY s.saved_at DESC LIMIT ?`).bind(OWNER_ROWS).all();
+  return { now: Date.now(), rows: results || [] };
 }
 
 async function register(req, env) {
@@ -221,6 +237,13 @@ const HOLD_MS = 20000, STALL_MS = 12000;
 const PVP_START = 1000, PVP_K = 24, PVP_KILLS_DAY = 30, PVP_WINS_DAY = 10;
 // The community vote on the title screen: what update 1.1 will be. A new poll needs a new id, and the game's list of choices has to match.
 const POLL = { id: 'next1', choices: ['egypt', 'norse', 'harder'] };
+// What a save puts on the public boards: the play time when Typhon first fell, and the best Endless wave. A run faster than half an
+// hour, or a wave reached faster than a wave can be played, simply stays off them.
+const RUN_MIN = 1800, WAVE_SECS = 15;
+function scoreOf(s) {
+  const won = !!(s.cleared && s.cleared.gr_typhon_hunt), play = Number(s.playtime) || 0, time = Math.round(Number(s.finishTime) || 0), wave = Math.floor(Number(s.endless && s.endless.best) || 0);
+  return { time: won && time >= RUN_MIN && time <= play + 60 ? time : 0, wave: won && wave > 0 && wave * WAVE_SECS <= play ? wave : 0 };
+}
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 const lobbyStub = env => env.LOBBY.get(env.LOBBY.idFromName('main'));
 function newCode() { const b = crypto.getRandomValues(new Uint8Array(5)); return [...b].map(x => CODE_ABC[x % CODE_ABC.length]).join(''); }
@@ -561,6 +584,19 @@ export class Lobby extends DurableObject {
   async pvpBoard() {
     const all = [...(await this.ctx.storage.list({ prefix: 'p:' })).values()];
     return all.sort((x, y) => y.r - x.r || (y.k - y.d) - (x.k - x.d)).slice(0, 25).map(({ name, r, k, d, w, l }) => ({ name, r, k, d, w, l }));
+  }
+  // The speedrun and Endless boards: each account's best across its saves.
+  async scoreReport(key, name, { time, wave }) {
+    const S = this.ctx.storage, k = 's:' + key, o = (await S.get(k)) || { name, time: 0, wave: 0 }; let changed = o.name !== name;
+    o.name = name;
+    if (time && (!o.time || time < o.time)) { o.time = time; changed = true; }
+    if (wave > o.wave) { o.wave = wave; changed = true; }
+    if (changed) await S.put(k, o);
+  }
+  async scoreBoards() {
+    const all = [...(await this.ctx.storage.list({ prefix: 's:' })).values()];
+    return { speed: all.filter(o => o.time).sort((a, b) => a.time - b.time).slice(0, 25).map(({ name, time }) => ({ name, time })),
+             endless: all.filter(o => o.wave).sort((a, b) => b.wave - a.wave).slice(0, 25).map(({ name, wave }) => ({ name, wave })) };
   }
   // The community vote: one vote per account, and changing it moves the count. A null choice just reads the totals.
   async vote(choice, who) {
