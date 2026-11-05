@@ -47,6 +47,22 @@ async function updateTitleSub() {
   const n = Settings.data.lastSlot; let s = n ? await Store.load(n) : null;
   if (s && G.save && G.slot === n) s = G.save;   // back from playing: the save in hand is the newest
   $('titleSub').textContent = s ? `Continues save ${n} · ${huntTally(s)}` : '';
+  $('inviteNote').hidden = !G.invite;
+  if (G.invite) $('inviteNote').textContent = Store.api && !Store.user ? `You’ve been invited to a hunt! Press Play to sign in and join room ${G.invite}.` : `You’ve been invited to a hunt! Press Play to join room ${G.invite}.`;
+}
+// An invite link: olympushunt.com/?join=ABCDE. It stays in the address until you're in the room, so a reload doesn't lose it.
+function inviteFrom(search) { const c = String(new URLSearchParams(search).get('join') || '').trim().toUpperCase(); return /^[A-Z]{5}$/.test(c) ? c : null; }
+G.invite = inviteFrom(location.search);
+function inviteClear() { G.invite = null; try { const u = new URL(location.href); u.searchParams.delete('join'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) {} }
+async function inviteJoin() {
+  const code = G.invite; if (!code || !Store.user || !G.save || netOn() || G.mode !== 'village') return;
+  inviteClear();
+  try { await netJoinRoom(code); toast(`You joined room ${code}. Have a good hunt!`, 6000); } catch (e) { toast(`Couldn’t join room ${code}. ${e.message || ''}`.trim(), 7000); }
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); return ok;
 }
 // "High Rank: 5 of 17 gods · 2 of 8 Titans": hunted on the rank you're on, so it starts again at 0 when a new rank opens.
 // Typhon down: "Game complete · Endless mode: best wave 12" (slot cards add the last run).
@@ -63,7 +79,8 @@ async function renderSlots() {
   await Store.ready;
   if (Store.user) await Store.refresh();
   renderAccount();
-  $('saveStatus').textContent = Store.user ? 'Saves sync to your account and also stay in this browser.'
+  $('saveStatus').textContent = G.invite ? (Store.user ? `Pick a save to join room ${G.invite}.` : `Sign in or create an account to join room ${G.invite}, then pick a save.`)
+    : Store.user ? 'Saves sync to your account and also stay in this browser.'
     : CG.data ? 'CrazyGames keeps your saves. Sign in to CrazyGames and they follow you to any device.'
     : Store.cloud ? 'Saves sync to your Claude account and also stay in this browser.'
     : Store.api && Store.localOk ? 'Saves stay in this browser on this device until you sign in.'
@@ -364,7 +381,29 @@ function renderArmory() {
   if (!cards) cards = `<div class="empty-note" style="grid-column:1/-1">${G.forgeFilter === 'craft' ? 'Nothing you can forge right now. Bring home more parts.' : G.forgeFilter === 'owned' ? 'You don’t own anything here yet.' : 'Nothing here yet.'}</div>`;
   return tutForgeNote() + seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here once you’ve fought the monsters and gods that drop its parts.</p>` : '');
 }
+// The chest at home: your parts, and your saved loadouts.
 function renderStash() {
+  const tab = G.chestTab === 'loadouts' ? 'loadouts' : 'parts', n = G.save.loadouts.length;
+  return `<div class="board-top"><div class="seg"><button type="button" data-chesttab="parts" aria-pressed="${tab === 'parts'}">Parts</button><button type="button" data-chesttab="loadouts" aria-pressed="${tab === 'loadouts'}">Loadouts<span class="n">${n}/${LOADOUT_MAX}</span></button></div></div>`
+    + (tab === 'loadouts' ? renderLoadouts() : renderChestParts());
+}
+const loadoutSame = (L, s) => L.weapon === s.weapon && L.shield === s.shield && SLOTS.every(sl => L.equip[sl] === s.equip[sl]);
+function renderLoadouts() {
+  const s = G.save, list = s.loadouts;
+  const card = (L, i) => {
+    const st = playerStats({ ...s, meal: null, weapon: L.weapon, shield: L.shield, equip: L.equip }), w = st.weapon, sh = L.shield ? SHIELDS[L.shield] : null, on = loadoutSame(L, s);
+    return `<article class="gear${on ? ' meal-on' : ''}"><input class="load-name" data-ldname="${i}" maxlength="${LOADOUT_NAME_MAX}" value="${esc(L.name)}" aria-label="Loadout name" autocomplete="off" spellcheck="false">
+      <div class="load-gear"><img class="px-icon" alt="" src="${icon(L.weapon)}"><div><b>${esc(w.name)}</b><span>${esc(armorLabel(L.equip))}${sh ? ` · ${esc(sh.name)}${st.shield ? '' : ' (not with this weapon)'}` : ''}</span></div></div>
+      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span></div>
+      <div class="actions"><button class="btn small" type="button" data-ldwear="${i}" ${on ? 'disabled' : ''}>${on ? 'Wearing' : 'Wear'}</button><button class="btn ghost small" type="button" data-ldover="${i}" ${on ? 'disabled' : ''}>Save over</button>${G.ldArm === i
+        ? `<button class="btn danger small" type="button" data-lddel="${i}">Delete it?</button><button class="btn ghost small" type="button" data-ldarm="-1">No</button>` : `<button class="btn ghost small" type="button" data-ldarm="${i}">Delete</button>`}</div></article>`;
+  };
+  const worn = list.some(L => loadoutSame(L, s));
+  return `<p class="muted" style="margin:0 0 12px">Keep up to ${LOADOUT_MAX} gear sets here and swap between them in one click. Click a name to change it.</p>
+    ${list.length ? `<div class="grid meal-grid">${list.map(card).join('')}</div>` : `<div class="empty-note">Nothing saved yet. Save what you’re wearing, and you can change back to it here any time.</div>`}
+    <div class="actions" style="margin-top:12px"><button class="btn" type="button" data-ldnew="1" ${list.length >= LOADOUT_MAX || worn ? 'disabled' : ''}>Save what I’m wearing</button>${list.length >= LOADOUT_MAX ? `<span class="muted">All ${LOADOUT_MAX} are in use. Save over one, or delete one.</span>` : worn ? `<span class="muted">You’re wearing a saved loadout.</span>` : ''}</div>`;
+}
+function renderChestParts() {
   const s = G.save;
   if (G.stashRank === null || G.stashRank > s.rank) G.stashRank = s.rank;
   const all = Object.keys(ITEMS).filter(id => s.inv[id] > 0), ids = all.filter(id => ITEMS[id].rank === G.stashRank);
@@ -505,7 +544,11 @@ $('scrHub').addEventListener('input', ev => {
   Settings.data[k] = Math.max(0, Math.min(1, +ev.target.value / 100)); Sound.refresh();
   const lab = ev.target.nextElementSibling; if (lab) lab.textContent = ev.target.value + '%';
 });
-$('scrHub').addEventListener('change', ev => { const k = ev.target.dataset && ev.target.dataset.vol; if (!k) return; Settings.save(); if (k === 'sfxVol') Sound.play('click'); });
+$('scrHub').addEventListener('change', ev => {
+  const d = ev.target.dataset || {}, L = d.ldname !== undefined && G.save && G.save.loadouts[+d.ldname];
+  if (L) { const name = ev.target.value.replace(/\s+/g, ' ').trim().slice(0, LOADOUT_NAME_MAX); if (name) { L.name = name; persist(); } else ev.target.value = L.name; return; }   // a loadout's new name
+  const k = d.vol; if (!k) return; Settings.save(); if (k === 'sfxVol') Sound.play('click');
+});
 $('scrHub').addEventListener('click', ev => {
   const t = ev.target.closest('button'); if (!t) return;
   Sound.init();
@@ -521,6 +564,21 @@ $('scrHub').addEventListener('click', ev => {
   }
   if (t.dataset.forgefilter) { G.forgeFilter = t.dataset.forgefilter; Sound.play('click'); renderHub(); return; }
   if (t.dataset.stashrank) { G.stashRank = +t.dataset.stashrank; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.chesttab) { G.chestTab = t.dataset.chesttab; G.ldArm = null; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.ldnew || t.dataset.ldover) {                 // what you're wearing goes in a new loadout, or over an old one
+    const i = t.dataset.ldover ? +t.dataset.ldover : s.loadouts.length, old = s.loadouts[i];
+    if (!old && i >= LOADOUT_MAX) return;
+    s.loadouts[i] = { name: old ? old.name : `Loadout ${i + 1}`, weapon: s.weapon, shield: s.shield, equip: { ...s.equip } };
+    G.ldArm = null; persist(); Sound.play('craft'); renderHub(); toast(`Saved to ${s.loadouts[i].name}`); return;
+  }
+  if (t.dataset.ldwear) {
+    const L = s.loadouts[+t.dataset.ldwear]; if (!L) return;
+    s.weapon = L.weapon; s.shield = L.shield; s.equip = { ...L.equip };
+    if (V && V.player) { V.player.st = playerStats(); V.player.look = heroLook(s); }
+    G.ldArm = null; persist(); netSendInfo(); Sound.play('click'); renderHub(); toast(`Wearing ${L.name}`); return;
+  }
+  if (t.dataset.ldarm) { const a = +t.dataset.ldarm; G.ldArm = a < 0 ? null : a; Sound.play('click'); renderHub(); return; }
+  if (t.dataset.lddel) { s.loadouts.splice(+t.dataset.lddel, 1); G.ldArm = null; persist(); Sound.play('click'); renderHub(); toast('Loadout deleted'); return; }
   if (t.dataset.depart) { Sound.play('click'); const id = t.dataset.depart; if (netOn()) { netPost(id); return; } fadeTo(() => startQuest(id)); return; }
   if (t.dataset.armtab) { G.armoryTab = t.dataset.armtab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.part) {
@@ -665,7 +723,8 @@ function renderOracle() {
     <div class="or-members">${R.members.map(m => `<div class="or-mem"><b>${esc(m.name)}</b><span class="muted">${m.id === R.host ? 'Host' : m.id === R.me ? 'You' : ''}</span>${netHost() && m.id !== R.me && R.v >= 3
       ? (G.kickArm === m.id ? `<button class="btn danger small" type="button" data-or="kick" data-id="${m.id}">Remove ${esc(m.name)}?</button><button class="btn ghost small" type="button" data-or="nokick">No</button>`
         : `<button class="btn ghost small" type="button" data-or="armkick" data-id="${m.id}">Kick</button>`) : ''}</div>`).join('')}</div>
-    <p class="muted">Share the code with friends. Anyone in the room can post a hunt from Kleon’s board.</p>
+    <p class="muted">Send a friend this link and they’ll land right in your room. Anyone in the room can post a hunt from Kleon’s board.</p>
+    <div class="invite-row"><input readonly value="${esc(netInviteUrl(R.code))}" aria-label="Invite link"><button class="btn small" type="button" data-or="invite">${touchMode && navigator.share ? 'Share link' : 'Copy link'}</button></div>
     <div class="row"><button class="btn ghost" type="button" data-or="leave">Leave the room</button><button class="btn ghost" type="button" data-or="hints">Ask about hidden caches</button></div></div>${msg}`;
   return `${msg}<div class="opts"><div class="opt"><h3>Host a room</h3><p>Up to ${PARTY_MAX} players. Hunts grow tougher with more of you.</p>
       <label class="or-name">Room name<input id="orName" maxlength="${ROOM_NAME_MAX}" placeholder="${esc(Store.user)}’s room" autocomplete="off" spellcheck="false"></label>
@@ -686,7 +745,8 @@ async function orLoad() {
 async function orDo(a, code, id) {
   G.orMsg = '';
   try {
-    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true, $('orName') ? $('orName').value : ''); closePanel(); toast('Room open. The code is in the top left.'); }
+    if (a === 'host') { await netHostRoom($('orPub') ? $('orPub').checked : true, $('orName') ? $('orName').value : ''); closePanel(); toast('Room open. Press Invite in the room box to get a link for your friends.'); }
+    else if (a === 'invite') await netInvite();
     else if (a === 'join') { await netJoinRoom(code); closePanel(); toast('You joined the room.'); }
     else if (a === 'leave') { netLeave(); renderHub(); }
     else if (a === 'armkick' || a === 'nokick') { G.kickArm = a === 'armkick' ? +id : 0; renderHub(); }
@@ -783,7 +843,11 @@ $('btnInstall').onclick = async () => {
 $('iosHint').hidden = !(IS_IOS && !asApp());
 
 /* ---- top-level buttons ---- */
-$('btnPlay').onclick = () => { Sound.init(); Sound.play('click'); playNow(); };
+$('btnPlay').onclick = async () => {
+  Sound.init(); Sound.play('click');
+  if (G.invite && Store.api) { await Store.ready; if (!Store.user) { G.mode = 'slots'; show('scrSlots'); renderSlots(); return; } }   // joining a room takes an account
+  playNow();
+};
 $('btnSaves').onclick = () => { Sound.init(); Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); };
 $('btnSlotsBack').onclick = () => { Sound.play('click'); G.mode = 'title'; show('scrTitle'); };
 // What's new: from the title screen, or from Options in a game (Back returns to whichever it was)
@@ -1023,6 +1087,14 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
+// The little gold ankh and pyramid on the title screen's banner.
+(function drawEgypt() {
+  const a = $('egyptAnkh').getContext('2d'), ankh = ['...###...', '..#...#..', '..#...#..', '..#...#..', '...#.#...', '#########', '....#....', '....#....', '....#....', '....#....', '....#....', '....#....'];
+  a.fillStyle = '#ffd463'; ankh.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') a.fillRect(x, y, 1, 1); }));
+  const p = $('egyptPyr').getContext('2d');
+  for (let y = 0; y < 10; y++) { const w = y + 1; p.fillStyle = '#ffd463'; p.fillRect(10 - w, y + 2, w, 1); p.fillStyle = '#c9a032'; p.fillRect(10, y + 2, w, 1); if (y % 3 === 2) { p.fillStyle = '#8f6a1c'; p.fillRect(10 - w, y + 2, w * 2, 1); } }
+  p.fillStyle = '#ff8a2b'; p.fillRect(1, 0, 3, 3); p.fillStyle = '#ffd463'; p.fillRect(2, 1, 1, 1);
+})();
 Music.play('menu');
 // The menu theme from the moment the page loads. Browsers only allow sound before the first click, tap or key press on
 // sites people use a lot (Chrome remembers), so try right away; otherwise the very first input anywhere switches it on,
@@ -1041,7 +1113,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)

@@ -220,7 +220,7 @@ function resumeVillage() {
   hideScreens(); $('stage').hidden = false; $('pause').hidden = true; resize();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();
-  hudMode('village'); tutGoal(); netSendInfo();
+  hudMode('village'); tutGoal(); netSendInfo(); inviteJoin();
 }
 const oracleOnline = () => !!(Store.api && navigator.onLine !== false && !G.oracleHints);
 function interactPressed() { return Input.hit('guard') || Input.hit('attack') || Input.enter; }

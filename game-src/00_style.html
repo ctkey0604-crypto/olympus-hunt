@@ -364,6 +364,21 @@ textarea:focus{outline:2px solid var(--gold)}
 .title-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;align-items:center}
 .btn.big{font-size:1.3rem;padding:14px 38px}
 .title-sub{margin:-6px 0 0;font-size:.9rem;min-height:1.3em}
+.invite-note{margin:0;padding:6px 12px;background:#000a;color:var(--gold);box-shadow:0 0 0 2px #000,0 0 0 3px var(--gold);font-size:.95rem}
+/* the banner on the title screen: a king's striped headdress in gold and lapis, with a slow glint */
+.egypt{position:relative;display:flex;align-items:center;justify-content:center;gap:12px;width:100%;max-width:500px;padding:11px 14px;overflow:hidden;background:#1d3a6b;color:#ffd463;font-family:var(--font-display);font-size:1.75rem;line-height:1;letter-spacing:.04em;text-shadow:2px 2px 0 #0b1830;box-shadow:0 0 0 2px #000,0 0 0 4px #c9a032,0 0 0 6px #000}
+.egypt::before,.egypt::after{content:"";position:absolute;left:0;right:0;height:4px;background:repeating-linear-gradient(90deg,#e9c04f 0 8px,#2c5684 8px 16px)}
+.egypt::before{top:0}.egypt::after{bottom:0}
+.egypt canvas{flex:none;height:24px;width:auto;image-rendering:pixelated}
+.egypt span{background:linear-gradient(100deg,#ffd463 42%,#fff6d8 50%,#ffd463 58%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none;animation:egyptGlint 6s linear infinite}
+@keyframes egyptGlint{from{background-position:100% 0}to{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.egypt span{animation:none}}
+.invite-row{display:flex;gap:8px;align-items:center;margin:0 0 12px}
+.invite-row input{flex:1 1 auto;min-width:0;background:#000a;border:0;box-shadow:0 0 0 2px var(--line);color:var(--bone);font:inherit;padding:6px 8px;user-select:text;-webkit-user-select:text}
+.load-name{width:100%;background:transparent;border:0;border-bottom:2px solid var(--line);color:var(--bone);font:400 1.55rem/1 var(--font-display);letter-spacing:.03em;padding:0 0 4px;user-select:text;-webkit-user-select:text}
+.load-name:focus{outline:0;border-bottom-color:var(--gold)}
+.load-gear{display:flex;gap:10px;align-items:center}
+.load-gear b{display:block}.load-gear span{color:var(--bone-dim);font-size:.9em}
 .seg button[data-rank="1"][aria-pressed="true"]{background:#e2603f}
 .seg button[data-rank="2"][aria-pressed="true"]{background:#b48cff}
 .seg button .n{font-size:.75em;opacity:.8;margin-left:4px}
@@ -403,6 +418,7 @@ textarea:focus{outline:2px solid var(--gold)}
   .logo{font-size:clamp(38px,12vh,72px)}
   #titleArt{width:min(380px,80%)}
   .title-wrap{gap:8px}
+  .egypt{font-size:1.35rem;padding:9px 12px;max-width:420px}.egypt canvas{height:18px}
   .btn.big{padding:11px 30px}
 }
 /* first-steps tutorial: the goal line, prompts that wait for you, and a glow on the button to press */

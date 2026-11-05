@@ -36,6 +36,14 @@ async function netJoinRoom(code) {
   const d = await Store.call('POST', `rooms/${code}/ticket`);
   await netConnect(code, d.ticket);
 }
+// An invite link brings a friend straight into your room. On a phone it opens the share sheet; anywhere else it's copied.
+const netInviteUrl = code => `${location.origin}/?join=${code}`;
+async function netInvite() {
+  const R = NET.room; if (!R) return;
+  const url = netInviteUrl(R.code);
+  if (touchMode && navigator.share) { try { await navigator.share({ title: 'Olympus Hunt', text: 'Come hunt with me in Olympus Hunt', url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  toast(await copyText(url) ? 'Invite link copied. Send it to a friend.' : `Your invite link: ${url}`, 7000);
+}
 // The host can rename the room; the name shows in the room list and at the Oracle.
 const ROOM_NAME_MAX = 24;
 const netName = id => { const R = NET.room, m = R && [...R.members, ...(R.away || [])].find(x => x.id === id); return m ? m.name : ''; };
@@ -267,6 +275,7 @@ function netUi() {
   box.classList.toggle('min', min);
   const key = k => touchMode ? '' : ` <kbd>${k}</kbd>`;
   let html = `<div class="mp-tag"><b>Multiplayer</b><span>${esc(R.code)}</span><span id="mpPing">${NET.ping ? NET.ping + ' ms' : ''}</span>`
+    + (G.mode === 'village' ? `<button type="button" data-mp="invite" class="mp-chatbtn">Invite</button>` : '')
     + (netChatOk() ? `<button type="button" data-mp="chat" class="mp-chatbtn">Chat${NET.unread ? `<i class="mp-unread">${NET.unread}</i>` : ''}${key('T')}</button>` : '')
     + `<button type="button" data-mp="min" class="mp-chatbtn" aria-label="${min ? 'Show the room box' : 'Hide the room box'}">${min ? 'Show' : 'Hide'}${key('H')}</button></div>`;
   const wait = NET.re ? 'Connection lost. Reconnecting…' : q && q.net === 'guest' && NET.stall ? `Waiting for ${esc(netName(NET.runner) || 'the party leader')}…` : '';
@@ -334,6 +343,7 @@ function netChatSend() {
 setInterval(() => { if (NET.chat.length && !NET.chatOpen) netChatRender(); }, 1000);   // let old lines fade out
 function netKick(id) { if (netHost() && id !== NET.me) netSend({ t: 'kick', id }); }
 function netBannerAction(a) {
+  if (a === 'invite') { Sound.play('click'); netInvite(); return; }
   if (a === 'chat') { NET.chatOpen ? netChatClose() : netChatOpen(); return; }
   if (a === 'min') { Settings.data.mpMin = !Settings.data.mpMin; Settings.save(); NET.unread = 0; netUi(); netChatRender(); return; }   // H: room box down to its tag line
   const R = NET.room; if (!R || R.phase !== 'town' || !R.quest) return;

@@ -347,6 +347,7 @@ const Store = {
 addEventListener('pagehide', () => Store.flush(true));
 document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flush(true); });
 
+const LOADOUT_MAX = 5, LOADOUT_NAME_MAX = 20;                 // saved gear sets, kept in the chest at home
 function newSave() {
   return { v: 3, createdAt: Date.now(), savedAt: Date.now(), playtime: 0, money: START_MONEY, inv: {},
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
@@ -355,6 +356,7 @@ function newSave() {
            rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
            meal: null,                                              // a Tavern meal waiting for the next hunt
+           loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
            hero: 'boy' };                                           // 'boy' or 'girl', picked in Options
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
@@ -385,6 +387,12 @@ function sanitize(s) {
   }
   out.shields = [...new Set(arr(s.shields).filter(id => SHIELDS[id]))];
   out.shield = out.shields.includes(s.shield) ? s.shield : null;
+  out.loadouts = arr(s.loadouts).filter(L => L && typeof L === 'object').slice(0, LOADOUT_MAX).map((L, i) => {   // only ever gear you own
+    const e = L.equip && typeof L.equip === 'object' ? L.equip : {}, equip = {};
+    for (const sl of SLOTS) equip[sl] = pieces.has(e[sl] + ':' + sl) ? e[sl] : 'traveler';
+    const name = String(L.name || '').replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').trim().slice(0, LOADOUT_NAME_MAX);
+    return { name: name || `Loadout ${i + 1}`, weapon: out.weapons.includes(L.weapon) ? L.weapon : 'bronze_sword', shield: out.shields.includes(L.shield) ? L.shield : null, equip };
+  });
   for (const qd of QUESTS) {
     const c = Math.floor(num(s.cleared && s.cleared[qd.id], 0)); if (c > 0) out.cleared[qd.id] = c;
     const b = num(s.best && s.best[qd.id], 0); if (b > 0) out.best[qd.id] = Math.round(b);
