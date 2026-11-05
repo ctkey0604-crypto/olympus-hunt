@@ -285,6 +285,20 @@ textarea:focus{outline:2px solid var(--gold)}
 #guardBar{width:calc(var(--px)*60);height:calc(var(--px)*3)}
 #guardBar>i{background:var(--aegean)}
 #guardBar.broken>i{background:var(--blood)}
+.fb{max-width:520px;margin:6px auto 0;background:var(--glaze-2);box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
+.fb-row{display:grid;grid-template-columns:2.2em 1fr 4.5em 4.5em;gap:10px;align-items:center;padding:9px 16px;font-variant-numeric:tabular-nums}
+.fb-row+.fb-row{box-shadow:inset 0 1px 0 var(--line)}
+.fb-row>span:nth-child(3),.fb-row>:nth-child(4){text-align:right}
+.fb-row>b:first-child{font-family:var(--font-display);font-weight:400;font-size:1.5em;line-height:1;color:var(--bone-mute)}
+.fb-row:nth-child(2)>b:first-child{color:var(--gold)}
+.fb-row:nth-child(3)>b:first-child{color:#d5dbe5}
+.fb-row:nth-child(4)>b:first-child{color:#cf6a2f}
+.fb-head{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute);padding-block:7px}
+.fb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fb-score{color:var(--gold);font-weight:600}
+.fb-row.me{background:var(--glaze-3);box-shadow:inset 3px 0 0 var(--gold)}
+.fb-note{margin:0;padding:22px 16px;text-align:center;color:var(--bone-dim)}
+.fb-how{max-width:520px;margin:14px auto 0;text-align:center;color:var(--bone-dim);font-size:.9rem}
 #drawBar{height:calc(var(--px)*4)}
 #drawBar>i{width:0;transition:none;background:#cf6a2f}
 #drawBar.half>i{background:#ffd463}
@@ -8009,6 +8023,7 @@ const PVP_GUARD = .25, PVP_STAGGER = .6, PVP_KNOCK = .6;                // prote
 const PVP_STUN = .7, PVP_STUN_GAP = 2;                                  // the longest a stun lasts, and the time before another can land
 const PVP_DMG = [1, 1, 1];                                              // damage in fights, by rank of gear
 const PVP_MAX_HIT = .2;                                                 // no one hit takes more than this share of your health, so nobody gets flattened
+const PVP_BOW_DUEL = 1.5;                                               // bow on bow only: two archers at range would take too long otherwise
 const PVP_MODES = { duel: 'Duel', team: 'Team fight' }, PVP_TEAMS = ['Red', 'Blue'];
 const PVP_LOOK = { name: 'Player', cls: 'medium', colors: ['#d9493b', '#f0e4cc'], loot: [] };
 const pvpId = (mode, r) => `pvp_${mode}_${r}`;
@@ -8078,7 +8093,8 @@ function pvpHit(e, dmg, ang, knock, ub, fp) {
   const t = e.pvp, by = q.actor || q.player;
   if (q.pv.ph !== 'fight' || t.dead || t.left || by.dead || by === t || by.team === t.team) return false;
   if (Math.hypot(by.x - t.x, by.y - t.y) > 340) return false;           // nothing reaches that far: a game that says so is lying
-  dmg = Math.max(1, Math.round(dmg * PVP_DMG[q.def.rank] * (e.markT > 0 ? 1.3 : 1) * rand(.9, 1.1)));
+  const bows = shotHit && by.st.kind.draw && t.st.kind.draw ? PVP_BOW_DUEL : 1;
+  dmg = Math.max(1, Math.round(dmg * PVP_DMG[q.def.rank] * bows * (e.markT > 0 ? 1.3 : 1) * rand(.9, 1.1)));
   const r = hurtHunter(t, dmg, ang, knock * PVP_KNOCK, { src: q.pvpT.get(-(by.hid + 1)), melee: !shotHit, proj: shotHit, unblockable: ub });
   if (!r) return false;
   t.lastBy = by; by.stats.dealt += dmg;
@@ -8087,6 +8103,7 @@ function pvpHit(e, dmg, ang, knock, ub, fp) {
   if (fp) onPlayerHit(e, dmg);
   return true;
 }
+const pvpShotTest = (e, dmg, by) => { shotHit = true; q.actor = by; const r = pvpHit(e, dmg, 0, 0, false, false); q.actor = null; shotHit = false; return r; };   // for the tests
 // The number you see when your hit lands: what it'll do after their armor.
 function pvpShowHit(t, dmg) {
   const was = NET.replay; NET.replay = true;
@@ -8175,14 +8192,18 @@ function renderArena() {
 }
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
-const pvpTier = r => r >= 1400 ? 'Champion' : r >= 1200 ? 'Gold' : r >= 1050 ? 'Silver' : 'Bronze';
+const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
+function renderFightBoard() {
+  return `<div class="fb" id="pvpBoard"><p class="fb-note">Looking…</p></div>
+    <p class="fb-how">Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you.</p>`;
+}
 async function pvpBoardLoad() {
-  const box = $('pvpBoard'); if (!box) return;
   try {
-    const list = (await Store.call('GET', 'pvp/board')).board || [];
-    if (!$('pvpBoard')) return;
-    $('pvpBoard').innerHTML = list.length ? list.map((p, i) => `<div class="or-row"><b>${i + 1}. ${esc(p.name)}</b><span>${esc(pvpTier(p.r))}</span><span>Rating ${p.r}</span><span>K/D ${p.d ? (p.k / p.d).toFixed(2) : p.k}</span><span class="muted">${p.k} kills, ${p.d} deaths</span><span class="muted">${p.w}W ${p.l}L</span></div>`).join('') : 'Nobody has fought here yet.';
-  } catch (e) { if ($('pvpBoard')) $('pvpBoard').textContent = 'The board can’t be read right now. Check your connection.'; }
+    const list = (await Store.call('GET', 'pvp/board')).board || [], box = $('pvpBoard'); if (!box) return;
+    const me = String(Store.user || '').toLowerCase();
+    box.innerHTML = !list.length ? `<p class="fb-note">Nobody has fought here yet.</p>` : `<div class="fb-row fb-head"><span></span><span>Player</span><span>K/D</span><span>Score</span></div>`
+      + list.map((p, i) => `<div class="fb-row${p.name.toLowerCase() === me ? ' me' : ''}"><b>${i + 1}</b><span class="fb-name">${esc(p.name)}</span><span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b></div>`).join('');
+  } catch (e) { if ($('pvpBoard')) $('pvpBoard').innerHTML = `<p class="fb-note">The board can’t be read right now. Check your connection.</p>`; }
 }
 /* ---- drawing ---- */
 // In a fight the stand-ins aren't drawn, and a small arrow marks who's on which side.
@@ -10402,7 +10423,7 @@ const NEWS = [
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
-      'The fight board in the Coliseum ranks players by rating, with kills and deaths beside it. Beating a better player earns more.',
+      'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
       'Five God Rank sets have new four-piece bonuses with a real trade-off: Glass Cannon (Spartan), Momentum (Reveler), Bulwark (Hoplite), Juggernaut (Cyclops) and Steady Aim (Huntress).',
     ],
@@ -10647,7 +10668,7 @@ function renderHub() {
   else if (G.panel === 'tavern') body.innerHTML = renderTavern();
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else if (G.panel === 'arena') body.innerHTML = renderArena();
-  else if (G.panel === 'pvpboard') { body.innerHTML = '<div class="opt wide"><p class="muted">Rating decides the order: beating a better player earns more. Tiers: Bronze, Silver, Gold, Champion.</p><div id="pvpBoard" class="muted">Looking…</div></div>'; pvpBoardLoad(); }
+  else if (G.panel === 'pvpboard') { body.innerHTML = renderFightBoard(); pvpBoardLoad(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
@@ -11508,7 +11529,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
