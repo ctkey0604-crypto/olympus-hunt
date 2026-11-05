@@ -16,49 +16,97 @@ Object.assign(THEMES, {
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
 // The Coliseum's floor, for practice and for fights between players.
-Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null, dress: (x, R) => paintColiseum(x, R, .75),
+Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null, dress: (x, R) => paintColiseum(x, R),
   obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14],
-              ['brazier', 5, 5], ['brazier', 40, 5], ['brazier', 5, 24], ['brazier', 40, 24]] } });
-// Dressing the Coliseum: tiers of seats around the walls, banners over the parapet, and a ring raked into the sand.
-const CROWD_CLOTH = ['#c0412e', '#4f8fc7', '#e9c04f', '#7fa548', '#efe7d4', '#9a6bc0', '#cf6a2f', '#5e7d35'], CROWD_SKIN = ['#e8b796', '#d6a07a', '#a8714e', '#7a4f36'], CROWD_HAIR = ['#2c1d17', '#5a3a22', '#8a6a3a', '#d8ceb7'];
-function paintStands(x, R, bx, by, bw, bh, crowd) {
-  const pick = a => a[R() * a.length | 0];
-  x.fillStyle = '#6f6554'; x.fillRect(bx, by, bw, bh);
-  for (let y = by, row = 0; y < by + bh; y += 9, row++) {
-    for (let px = bx + 1 + (row % 2) * 3; px < bx + bw - 3; px += 4 + (R() * 3 | 0)) {
-      if (R() > crowd) continue;
-      x.fillStyle = pick(CROWD_CLOTH); x.fillRect(px, y + 3, 3, 4);
-      x.fillStyle = pick(CROWD_SKIN); x.fillRect(px, y + 1, 3, 2);
-      if (R() < .7) { x.fillStyle = pick(CROWD_HAIR); x.fillRect(px, y + 1, 3, 1); }
-    }
-    x.fillStyle = '#a69a80'; x.fillRect(bx, y + 7, bw, 1); x.fillStyle = '#4f4638'; x.fillRect(bx, y + 8, bw, 1);
+              ['firebowl', 5, 5], ['firebowl', 40, 5], ['firebowl', 5, 24], ['firebowl', 40, 24]] } });
+// Dressing the Coliseum, measured against a person (about 10 wide, 16 tall). The wall is nearly three people high, its stones are
+// as tall as a person and twice as long, and the barred gates and banners are sized to match. Nobody is watching.
+const ARENA_FACE = ['#b5a98f', '#ab9f86', '#a69a80', '#bbaf95'], ARENA_TOP = ['#cfc3a9', '#c6baa0', '#d6cab0', '#c0b49a'];
+function arenaStone(x, R, bx, by, bw, bh, cw, ch, S, lit, shade) {
+  x.save(); x.beginPath(); x.rect(bx, by, bw, bh); x.clip();
+  x.fillStyle = '#6f6554'; x.fillRect(bx, by, bw, bh);                                            // the joints
+  for (let y = by, row = 0; y < by + bh; y += ch, row++) for (let px = bx - (row % 2 ? cw / 2 : 0); px < bx + bw; px += cw) {
+    x.fillStyle = S[R() * S.length | 0]; x.fillRect(px + 1, y + 1, cw - 1, ch - 1);
+    x.fillStyle = lit; x.fillRect(px + 1, y + 1, cw - 1, 1);
+    x.fillStyle = shade; x.fillRect(px + 1, y + ch - 1, cw - 1, 1);
+    for (let i = 0; i < 4; i++) { x.fillStyle = R() < .5 ? shade : lit; x.fillRect(px + 2 + R() * (cw - 6) | 0, y + 2 + R() * (ch - 4) | 0, 1 + (R() * 3 | 0), 1); }   // chips and pits
   }
+  x.restore();
 }
-function paintColiseum(x, R, crowd, gate) {
-  const W = WORLD_W, H = WORLD_H, B = IPX, fy = B.minY - 22, side = B.minX - 20, low = B.maxY + 12, K = '#1a1210';
-  paintStands(x, R, 0, 0, W, fy, crowd);
-  for (const sx of [0, W - side]) paintStands(x, R, sx, fy + 10, side, H - fy - 10, crowd);
-  const skip = gate ? [gate.x * TILE - 6, (gate.x + gate.w) * TILE + 6] : null;
-  if (skip) { paintStands(x, R, side, low, skip[0] - side, H - low, crowd); paintStands(x, R, skip[1], low, W - side - skip[1], H - low, crowd); }
-  else paintStands(x, R, side, low, W - side * 2, H - low, crowd);
-  const cap = (px, py, w, h) => { x.fillStyle = K; x.fillRect(px, py, w, h); };                     // the parapet between the seats and the sand
-  cap(side - 2, fy + 10, 2, H - fy - 10); cap(W - side, fy + 10, 2, H - fy - 10);
-  if (skip) { cap(side, low - 2, skip[0] - side, 2); cap(skip[1], low - 2, W - side - skip[1], 2); } else cap(side, low - 2, W - side * 2, 2);
-  for (let px = B.minX + 44; px < B.maxX - 40; px += 96) {                                          // a red banner every so often, hung over the frieze
-    if (gate && Math.abs(px + 5 - W / 2) < 40) continue;                                             // the fight board has that bit of wall
-    for (let i = 0; i < 26; i++) { const n = i < 21 ? 0 : i - 20; x.fillStyle = K; x.fillRect(px - 1 + n, fy - 6 + i, 11 - n * 2, 1); if (i < 25) { x.fillStyle = i < 21 ? '#c0412e' : '#8f2e1e'; x.fillRect(px + n, fy - 6 + i, 9 - n * 2, 1); } }
-    x.fillStyle = '#e9c04f'; x.fillRect(px, fy - 5, 9, 1); x.fillRect(px + 3, fy + 3, 3, 3); x.fillRect(px + 4, fy + 2, 1, 5); x.fillRect(px + 2, fy + 4, 5, 1);
+// A gate in the wall, big enough to walk through, with an iron grille down.
+function arenaGate(x, cx, top, bottom) {
+  const K = '#1a1210', half = (y, hw, t) => { const d = y - t; return d >= hw ? hw : Math.round(Math.sqrt(hw * hw - (hw - d) * (hw - d))); };
+  for (let y = top; y < bottom; y++) {
+    const o = half(y, 16, top), i = y >= top + 4 ? half(y, 12, top + 4) : 0;
+    x.fillStyle = K; x.fillRect(cx - o - 1, y, o * 2 + 2, 1);
+    x.fillStyle = '#c6baa0'; x.fillRect(cx - o, y, o * 2, 1);
+    x.fillStyle = '#8f8470'; x.fillRect(cx + o - 2, y, 2, 1);
+    if (i) { x.fillStyle = K; x.fillRect(cx - i - 1, y, i * 2 + 2, 1); x.fillStyle = y > bottom - 7 ? '#2a1e19' : '#120c0a'; x.fillRect(cx - i, y, i * 2, 1); }
   }
-  const cx = W / 2, cy = (B.minY + B.maxY) / 2, rx = (B.maxX - B.minX) * .36, ry = (B.maxY - B.minY) * .38;
-  const ring = (a, b, c, dash) => { const n = Math.ceil((a + b) * 3.2); x.fillStyle = c; for (let i = 0; i < n; i++) { if (dash && i % dash < dash / 2) continue; const t = i / n * Math.PI * 2; x.fillRect(Math.round(cx + Math.cos(t) * a), Math.round(cy + Math.sin(t) * b), 2, 1); } };
-  for (let k = 1; k < 6; k++) ring(rx * k / 6, ry * k / 6, '#bfa97c', 10);                          // the rake's lines
-  ring(rx + 3, ry + 2, '#d8c7a0'); ring(rx, ry, '#a8553a'); ring(rx - 3, ry - 2, '#a8553a', 12);    // the fighting circle, marked out in red
-  ring(rx * .14, ry * .14, '#a8553a'); ring(rx * .09, ry * .09, '#c9a046');
+  for (const a of [-1.15, -.55, .55, 1.15]) { x.fillStyle = '#6f6554'; for (let r = 12; r < 16; r++) x.fillRect(Math.round(cx + Math.sin(a) * r), Math.round(top + 16 - Math.cos(a) * r), 1, 1); }   // the arch stones
+  x.fillStyle = K; x.fillRect(cx - 4, top - 1, 8, 7); x.fillStyle = '#e0d4ba'; x.fillRect(cx - 3, top, 6, 5); x.fillStyle = '#a69a80'; x.fillRect(cx - 3, top + 4, 6, 1);   // the keystone
+  for (let bx = cx - 10; bx <= cx + 9; bx += 5) for (let y = top + 4; y < bottom; y++) if (Math.abs(bx - cx) + 1 < half(y, 12, top + 4)) { x.fillStyle = '#4a4a52'; x.fillRect(bx, y, 2, 1); x.fillStyle = '#7a7a84'; x.fillRect(bx, y, 1, 1); }
+  for (const y of [top + 13, top + 23]) { x.fillStyle = '#4a4a52'; x.fillRect(cx - 11, y, 22, 2); x.fillStyle = '#7a7a84'; x.fillRect(cx - 11, y, 22, 1); }
+}
+function arenaBanner(x, cx, top, bottom) {
+  const K = '#1a1210', w = 7;
+  for (let y = top + 2; y < bottom; y++) {
+    const n = Math.max(0, y - (bottom - 7)), hw = w - n;                                            // it comes to a point
+    x.fillStyle = K; x.fillRect(cx - hw - 1, y, hw * 2 + 2, 1);
+    if (y === bottom - 1) continue;
+    x.fillStyle = '#b0382a'; x.fillRect(cx - hw, y, hw * 2, 1);
+    x.fillStyle = '#8f2e1e'; x.fillRect(cx + hw - 3, y, Math.min(3, hw * 2), 1); x.fillStyle = '#c9503c'; x.fillRect(cx - hw + 2, y, 1, 1);
+  }
+  x.fillStyle = '#d8ae3e'; x.fillRect(cx - 5, top + 4, 1, bottom - top - 12); x.fillRect(cx + 4, top + 4, 1, bottom - top - 12);
+  const c = top + 13; x.fillStyle = '#e9c04f'; x.fillRect(cx - 2, c - 2, 4, 4); x.fillRect(cx - 1, c - 4, 2, 8); x.fillRect(cx - 4, c - 1, 8, 2);
+  x.fillStyle = '#ffd463'; x.fillRect(cx - 1, c - 1, 2, 2);
+  x.fillStyle = K; x.fillRect(cx - 10, top - 1, 20, 4); x.fillStyle = '#c9a032'; x.fillRect(cx - 9, top, 18, 2); x.fillStyle = '#ffd463'; x.fillRect(cx - 9, top, 18, 1);   // the rod
+}
+// A round bronze shield hung on the wall, about half a person across.
+function arenaShield(x, cx, cy) {
+  const disc = (r, c, ox = 0, oy = 0) => { x.fillStyle = c; for (let y = -r; y <= r; y++) { const w = Math.round(Math.sqrt(r * r + r - y * y)); x.fillRect(cx + ox - w, cy + oy + y, w * 2 + 1, 1); } };
+  disc(7, '#1a1210'); disc(6, '#8f6a1c'); disc(5, '#a8842a'); disc(5, '#c9a032', -1, -1); disc(2, '#6b5a1f'); disc(1, '#ffd463');
+}
+function paintColiseum(x, R, gate) {
+  const W = WORLD_W, H = WORLD_H, B = IPX, K = '#1a1210', inner = B.maxX - B.minX, foot = B.minY;
+  // the walls seen from above: both sides, the near side, and a strip of the far one
+  const top = (bx, by, bw, bh) => arenaStone(x, R, bx, by, bw, bh, 32, 16, ARENA_TOP, '#e0d4ba', '#b5a98f');
+  top(0, 0, B.minX, H); top(B.maxX, 0, W - B.maxX, H); top(B.minX, 0, inner, 6);
+  const gap = gate ? [gate.x * TILE, (gate.x + gate.w) * TILE] : null;
+  if (gap) { top(B.minX, B.maxY, gap[0] - B.minX, H - B.maxY); top(gap[1], B.maxY, B.maxX - gap[1], H - B.maxY); } else top(B.minX, B.maxY, inner, H - B.maxY);
+  // the far wall's face, which is the one you look at: a cornice, a red key pattern, two courses of big stones, a plinth
+  arenaStone(x, R, B.minX, 16, inner, foot - 20, 32, 14, ARENA_FACE, '#d0c4aa', '#8f8470');
+  x.fillStyle = K; x.fillRect(B.minX, 6, inner, 10);
+  x.fillStyle = '#c0412e'; for (let px = B.minX; px < B.maxX; px += 6) { x.fillRect(px, 7, 5, 1); x.fillRect(px + 4, 7, 1, 5); x.fillRect(px + 1, 11, 4, 1); x.fillRect(px + 1, 9, 1, 3); x.fillRect(px + 1, 9, 2, 1); x.fillRect(px, 13, 6, 1); }
+  x.fillStyle = '#8f8470'; x.fillRect(B.minX, foot - 4, inner, 4); x.fillStyle = '#b5a98f'; x.fillRect(B.minX, foot - 4, inner, 1); x.fillStyle = K; x.fillRect(B.minX, foot - 1, inner, 1);
+  // where the sand meets the walls
+  x.fillStyle = K; x.fillRect(B.minX - 1, 6, 1, B.maxY - 6 + (H - B.maxY)); x.fillRect(B.maxX, 6, 1, H - 6);
+  if (gap) { x.fillRect(B.minX, B.maxY, gap[0] - B.minX, 1); x.fillRect(gap[1], B.maxY, B.maxX - gap[1], 1); x.fillRect(gap[0] - 1, B.maxY, 1, H - B.maxY); x.fillRect(gap[1], B.maxY, 1, H - B.maxY); } else x.fillRect(B.minX, B.maxY, inner, 1);
+  for (let i = 0; i < 8; i++) { x.fillStyle = `rgba(70,48,24,${(.2 - i * .025).toFixed(3)})`; x.fillRect(B.minX, foot + i, inner, 1); }
+  for (let i = 0; i < 4; i++) { x.fillStyle = `rgba(70,48,24,${(.12 - i * .03).toFixed(3)})`; x.fillRect(B.minX + i, foot, 1, B.maxY - foot); x.fillRect(B.maxX - 1 - i, foot, 1, B.maxY - foot); }
+  // gates and banners along it, evenly, leaving the fight board its bit of wall in the room
+  const n = Math.max(2, Math.round(inner / 240)), gates = [], flags = [], shields = [];
+  if (gate) { gates.push(B.minX + 102, B.maxX - 102); flags.push(W / 2 - 62, W / 2 + 62); shields.push(B.minX + 44, B.maxX - 44, W / 2 - 92, W / 2 + 92); }
+  else {
+    for (let i = 0; i < n; i++) { const at = f => Math.round(B.minX + inner * (i + f) / n); gates.push(at(.5)); shields.push(at(.25), at(.75)); if (i) flags.push(at(0)); }
+    shields.shift(); shields.pop();
+    shields.push(B.minX + 34, B.maxX - 34);
+  }
+  for (const c of gates) arenaGate(x, c, 18, foot);
+  for (const c of flags) arenaBanner(x, c, 16, foot - 6);
+  for (const c of shields) arenaShield(x, c, 29);
+  x.fillStyle = 'rgba(120,90,50,.1)';                                                               // the sand in front of a gate is scuffed by whatever came through it
+  for (const c of gates) for (let i = 0; i < 90; i++) { const a = R() * Math.PI, r = Math.sqrt(R()); x.fillRect(Math.round(c + Math.cos(a) * r * 20), Math.round(foot + Math.sin(a) * r * 20), 2, 1); }
+  // the sand: raked in wide rings, packed down in a loose circle where people fight, scuffed in the middle
+  const cx = W / 2, cy = (foot + B.maxY) / 2, rx = inner * .38, ry = (B.maxY - foot) * .4, step = (a, b) => 1 / Math.max(a, b, 1);
+  for (let k = 2; k < 9; k++) { const a = rx * k / 8 + 14, b = ry * k / 8 + 8; for (let t = 0; t < Math.PI * 2; t += step(a, b) * 2) { if (R() < .3) continue; const px = Math.round(cx + Math.cos(t) * a), py = Math.round(cy + Math.sin(t) * b); x.fillStyle = '#bda878'; x.fillRect(px, py, 2, 1); x.fillStyle = '#d6c39c'; x.fillRect(px, py + 1, 2, 1); } }
+  x.fillStyle = 'rgba(120,90,50,.07)'; for (let t = 0; t < Math.PI * 2; t += step(rx, ry) * .8) for (let d = -6; d <= 6; d += 3) if (R() < .4) x.fillRect(Math.round(cx + Math.cos(t) * (rx + d)), Math.round(cy + Math.sin(t) * (ry + d * .7)), 2, 1);
+  x.fillStyle = '#ab9570'; for (let i = 0; i < 90; i++) { const a = R() * Math.PI * 2, r = Math.sqrt(R()), px = cx + Math.cos(a) * r * rx * .6, py = cy + Math.sin(a) * r * ry * .6; for (let k = 0, L = 2 + R() * 6 | 0, d = R() * 6.3; k < L; k++) x.fillRect(Math.round(px + Math.cos(d) * k * 1.5), Math.round(py + Math.sin(d) * k), 1, 1); }
 }
 // soft: you can walk over it (stools)
 Object.assign(OBST, {
   counter: { w: 72, h: 10 }, table: { w: 26, h: 10 }, stool: { w: 8, h: 4, soft: true }, barrel: { w: 12, h: 8 }, bed: { w: 20, h: 28 },
-  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 }, brazier: { w: 10, h: 6 },
+  chestbox: { w: 18, h: 8 }, furnace: { w: 46, h: 12 }, armorstand: { w: 12, h: 6 }, shelf: { w: 40, h: 6 }, fireplace: { w: 34, h: 10 }, dummy: { w: 10, h: 6 }, firebowl: { w: 10, h: 6 },
 });
 const ROOMS = {
   forge: { name: 'The Forge', theme: 'forgeroom', sub: 'Dion makes your gear at the anvil',
@@ -82,10 +130,14 @@ const ROOMS = {
             ['amphora', 20, 10.2], ['barrel', 3.6, 10]],
     spots: [{ id: 'chest', name: 'your chest', kind: 'chest', opens: 'stash', x: 136, y: 78 }],
     rugs: [[136, 112, 112, 44, '#5a6e3a', '#d8ccb4']] },
-  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22, paint: (x, R, gate) => paintColiseum(x, R, .18, gate),
-    props: [['brazier', 14.5, 17.4], ['brazier', 20.5, 17.4], ['brazier', 15, 3.6], ['brazier', 20, 3.6], ['rack', 5, 3.5], ['rack', 7, 3.5], ['rack', 9, 3.5], ['armorstand', 27, 3.7, 'iron'], ['armorstand', 29, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'], ['dummy', 27, 11], ['amphora', 4, 17], ['amphora', 5, 17.6], ['barrel', 31, 16, 'water'], ['column', 8, 8], ['column', 8, 14], ['board', 17.5, 3.4]],
+  coliseum: { name: 'The Coliseum', theme: 'arena', sub: 'Agon runs the fights. The dummy is free any time', wt: 36, ht: 22, paint: (x, R, gate) => paintColiseum(x, R, gate),
+    props: [['firebowl', 15, 3.8], ['firebowl', 20, 3.8], ['board', 17.5, 3.4], ['firebowl', 14.5, 17.4], ['firebowl', 20.5, 17.4],
+            ['rack', 3.8, 3.5], ['rack', 5.2, 3.5], ['rack', 11.6, 3.5], ['armorstand', 23.4, 3.7, 'iron'], ['armorstand', 29.6, 3.7, 'bronze'], ['armorstand', 31, 3.7, 'iron'],
+            ['column', 7, 8], ['column', 7, 14], ['column', 28, 8], ['column', 28, 14],
+            ['dummy', 23.5, 9.6], ['dummy', 26.5, 9.6], ['dummy', 25, 11.4],
+            ['amphora', 3.8, 16.8], ['amphora', 4.8, 17.5], ['crate', 3.8, 18], ['barrel', 31.4, 16.6, 'water'], ['barrel', 30.4, 17.6, 'water'], ['crate', 31.6, 18]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
-    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 440, y: 202 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
+    spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 212 }, { id: 'fights', name: 'the fight board', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
@@ -179,14 +231,14 @@ const PROP_ART = {
   },
   chestbox(o, sx, sy) { pxEllipse(sx, sy + 1, 9, 2, 'rgba(0,0,0,.3)'); drawSpr('chest', 0, sx, sy, false); },
   dummy(o, sx, sy) { pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)'); drawSpr('dummy', 0, sx, sy, false); },
-  brazier(o, sx, sy) {                                 // a bronze bowl on a post, burning
-    const K = OUTLINE, f = Math.floor(G.time * 7 + o.seed) % 3; pxEllipse(sx, sy + 1, 7, 2, 'rgba(0,0,0,.3)');
-    ctx.fillStyle = K; ctx.fillRect(sx - 2, sy - 9, 4, 10); ctx.fillRect(sx - 5, sy - 1, 10, 3); ctx.fillRect(sx - 7, sy - 13, 14, 6);
-    ctx.fillStyle = '#6b5a3a'; ctx.fillRect(sx - 1, sy - 8, 2, 8); ctx.fillRect(sx - 4, sy, 8, 1);
-    ctx.fillStyle = '#a8842a'; ctx.fillRect(sx - 6, sy - 12, 12, 4); ctx.fillStyle = '#d8ae3e'; ctx.fillRect(sx - 6, sy - 12, 12, 1); ctx.fillStyle = '#6b5a1f'; ctx.fillRect(sx - 6, sy - 9, 12, 1);
-    ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 5, sy - 14, 10, 2);
-    ctx.fillStyle = '#ff8a2b'; ctx.fillRect(sx - 4 + f, sy - 16, 7, 3); ctx.fillRect(sx - 2, sy - 18 - (f === 1 ? 1 : 0), 4, 3);
-    ctx.fillStyle = '#ffd463'; ctx.fillRect(sx - 2 + f % 2, sy - 16, 3, 2); ctx.fillRect(sx - 1, sy - 17, 1 + f % 2, 1);
+  firebowl(o, sx, sy) {                                // a bronze bowl on a tall stand, about a head taller than a person
+    const K = OUTLINE, f = Math.floor(G.time * 7 + o.seed) % 3; pxEllipse(sx, sy + 1, 8, 2, 'rgba(0,0,0,.3)');
+    ctx.fillStyle = K; ctx.fillRect(sx - 2, sy - 18, 4, 19); ctx.fillRect(sx - 6, sy - 2, 12, 4); ctx.fillRect(sx - 8, sy - 24, 16, 7);
+    ctx.fillStyle = '#7a6230'; ctx.fillRect(sx - 1, sy - 17, 2, 16); ctx.fillStyle = '#a8842a'; ctx.fillRect(sx - 1, sy - 17, 1, 16); ctx.fillRect(sx - 5, sy - 1, 10, 2);
+    ctx.fillStyle = '#a8842a'; ctx.fillRect(sx - 7, sy - 23, 14, 5); ctx.fillStyle = '#d8ae3e'; ctx.fillRect(sx - 7, sy - 23, 14, 1); ctx.fillStyle = '#6b5a1f'; ctx.fillRect(sx - 7, sy - 19, 14, 1);
+    ctx.fillStyle = '#c0412e'; ctx.fillRect(sx - 6, sy - 25, 12, 2);
+    ctx.fillStyle = '#ff8a2b'; ctx.fillRect(sx - 5 + f, sy - 28, 8, 3); ctx.fillRect(sx - 3, sy - 31 - (f === 1 ? 1 : 0), 5, 3);
+    ctx.fillStyle = '#ffd463'; ctx.fillRect(sx - 3 + f % 2, sy - 27, 4, 2); ctx.fillRect(sx - 1, sy - 29, 2 + f % 2, 2);
   },
   furnace(o, sx, sy) {
     const K = OUTLINE; pxEllipse(sx, sy + 1, 24, 3, 'rgba(0,0,0,.35)');
