@@ -44,7 +44,7 @@ async function route(req, env, url) {
   if (path === '/api/health') return json({ ok: true, game: 'olympus-hunt' });
   if (path === '/api/register' && method === 'POST') return register(req, env);
   if (path === '/api/login' && method === 'POST') return login(req, env);
-  if (path.startsWith('/api/rooms')) { const r = await roomsPublic(req, env, path, method); if (r) return r; }
+  if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
 
   const user = await authed(req, env);
   if (!user) return json({ error: 'You are signed out. Sign in again.' }, 401);
@@ -215,6 +215,8 @@ const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ', CODE_RE = /^[A-Z]{5}$/, ROOM_MAX = 
 // A lost connection isn't a goodbye: a player's place is held this long. STALL_MS: how long the player running a hunt can go
 // quiet (no snapshot, no ping) before the room stops waiting on them.
 const HOLD_MS = 20000, STALL_MS = 12000;
+// Coliseum fights: everyone starts on this rating, and the same two players only count this many times a day.
+const PVP_START = 1000, PVP_K = 24, PVP_KILLS_DAY = 30, PVP_WINS_DAY = 10;
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 const lobbyStub = env => env.LOBBY.get(env.LOBBY.idFromName('main'));
 function newCode() { const b = crypto.getRandomValues(new Uint8Array(5)); return [...b].map(x => CODE_ABC[x % CODE_ABC.length]).join(''); }
@@ -222,6 +224,7 @@ function newCode() { const b = crypto.getRandomValues(new Uint8Array(5)); return
 // No sign-in needed: the room list, the ping and the WebSocket itself (it carries a one-time ticket instead).
 async function roomsPublic(req, env, path, method) {
   if (path === '/api/rooms' && method === 'GET') return json({ rooms: await lobbyStub(env).list() });
+  if (path === '/api/pvp/board' && method === 'GET') return json({ board: await lobbyStub(env).pvpBoard() });
   const m = path.match(/^\/api\/rooms\/([A-Za-z]{5})\/(ws|ping)$/);
   if (!m) return null;
   const code = m[1].toUpperCase();
@@ -264,6 +267,7 @@ function roomName(v) {
 //   up {..} (a guest's own hunter, hits, claims: goes to the host)   down {..} / to {id, m} (the host's snapshots and events)
 //   chat {text}   kick {id} (host only: that player is removed and can't rejoin this room)   name {name} (host only: rename it)
 //   stall (a guest in a hunt has had no snapshots for a while)   handoff (leaving the hunt you run: it goes on, you stay in the room)
+//   pvpres {deaths, beat} (the end of a Coliseum fight: who took you down and who beat you. Only your own losses count.)
 // To players: room {..} on every change, the relayed messages with from = sender's id, chat {from, name, text},
 // kick {id, name} (to the others), err {msg}. A kicked player's connection closes with code 4002.
 // A dropped connection: away {id, name} to everyone and their place is held (meta.away). They reconnect with re=<their id>
@@ -391,6 +395,7 @@ export class Room extends DurableObject {
         const ids = this.members().filter(a => a.id === me.id || a.ready).map(a => a.id);
         M.phase = 'hunt'; M.hunt = ids; M.runner = me.id; M.crew = {};
         for (const o of this.sockets()) { const a = o.deserializeAttachment(); a.hunt = ids.includes(a.id); o.serializeAttachment(a); if (a.hunt) M.crew[a.id] = { key: a.key, name: a.name }; }
+        M.fight = /^pvp_/.test(M.quest.id) ? { crew: { ...M.crew }, at: Date.now(), seen: {} } : null;
         await this.save();
         const s = JSON.stringify({ t: 'depart', quest: M.quest, ids, cfg: m.cfg || null, from: me.id });
         for (const o of this.sockets()) this.send(o, s);
@@ -398,6 +403,14 @@ export class Room extends DurableObject {
       }
       case 'leave': me.hunt = false; ws.serializeAttachment(me); M.hunt = (M.hunt || []).filter(i => i !== me.id); await this.save(); { const h = this.byId(M.runner ?? M.host); if (h && h !== ws) this.send(h, { t: 'gone', from: me.id }); } this.broadcastRoom(); return;
       case 'end': if (runs) await this.endHunt(); return;
+      case 'pvpres': {                                               // a fight's result. Each player reports only their own losses, once.
+        const F = M.fight; if (!F || !F.crew[me.id] || F.seen[me.id] || Date.now() - F.at > 1800000) return;
+        F.seen[me.id] = 1; await this.save();
+        const deaths = (Array.isArray(m.deaths) ? m.deaths : []).slice(0, 6).filter(a => Array.isArray(a) && F.crew[a[0]] && a[0] !== me.id).map(a => ({ ...F.crew[a[0]], n: clampInt(a[1], 1, 5) }));
+        const beat = (Array.isArray(m.beat) ? m.beat : []).slice(0, 6).filter(id => F.crew[id] && id !== me.id).map(id => F.crew[id]);
+        if (deaths.length || beat.length) try { await lobbyStub(this.env).pvpReport({ me: F.crew[me.id], deaths, beat }); } catch {}
+        return;
+      }
       case 'handoff':
         if (M.phase !== 'hunt' || !runs) return;
         me.hunt = false; ws.serializeAttachment(me); M.hunt = (M.hunt || []).filter(i => i !== me.id);
@@ -520,6 +533,31 @@ export class Lobby extends DurableObject {
     await this.ctx.storage.put('rooms', rooms);
   }
   async remove(code) { const rooms = (await this.ctx.storage.get('rooms')) || {}; if (rooms[code]) { delete rooms[code]; await this.ctx.storage.put('rooms', rooms); } }
+  // The fight board. A kill or a win only ever arrives from the player who lost it, and the same two players stop counting after a few a day.
+  async pvpRec(p) { return (await this.ctx.storage.get('p:' + p.key)) || { key: p.key, name: p.name, r: PVP_START, k: 0, d: 0, w: 0, l: 0 }; }
+  async pvpRoom(tag, max) {
+    const n = (await this.ctx.storage.get(tag)) || 0; if (n >= max) return false;
+    await this.ctx.storage.put(tag, n + 1); return true;
+  }
+  async pvpReport({ me, deaths, beat }) {
+    const day = Math.floor(Date.now() / 86400000), S = this.ctx.storage, a = await this.pvpRec(me);
+    for (const d of deaths) {
+      const b = await this.pvpRec(d); let n = 0;
+      for (let i = 0; i < d.n; i++) if (await this.pvpRoom('c:' + day + ':k:' + d.key + '>' + me.key, PVP_KILLS_DAY)) n++;
+      if (n) { b.k += n; a.d += n; await S.put('p:' + d.key, b); }
+    }
+    for (const w of beat) {
+      if (!(await this.pvpRoom('c:' + day + ':w:' + w.key + '>' + me.key, PVP_WINS_DAY))) continue;
+      const b = await this.pvpRec(w), gain = Math.max(1, Math.round(PVP_K * (1 - 1 / (1 + Math.pow(10, (a.r - b.r) / 400)))));
+      b.r += gain; b.w++; a.r = Math.max(0, a.r - gain); a.l++; await S.put('p:' + w.key, b);
+    }
+    await S.put('p:' + me.key, a);
+    if (Math.random() < .05) { const old = await S.list({ prefix: 'c:', limit: 500 }); for (const k of old.keys()) if (!k.startsWith('c:' + day + ':')) await S.delete(k); }
+  }
+  async pvpBoard() {
+    const all = [...(await this.ctx.storage.list({ prefix: 'p:' })).values()];
+    return all.sort((x, y) => y.r - x.r || (y.k - y.d) - (x.k - x.d)).slice(0, 25).map(({ name, r, k, d, w, l }) => ({ name, r, k, d, w, l }));
+  }
   async list() {
     const rooms = (await this.ctx.storage.get('rooms')) || {}, now = Date.now(); let changed = false;
     for (const [k, v] of Object.entries(rooms)) if (now - v.seen > 75000) { delete rooms[k]; changed = true; }
