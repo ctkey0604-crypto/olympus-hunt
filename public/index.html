@@ -972,11 +972,13 @@ const ITEMS = {
 const KINDS = {
   sword:   { label: 'Sword',        melee: true,  oneHand: true,  dmgM: 1,    reach: 22, arc: 2.2, windup: .05, active: .13, cooldown: .32, knock: 85,  moveMul: .55, hitstop: .035, shake: 1, sfx: 'swing', blurb: 'Quick, wide swing. Works with a shield.' },
   spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.25, reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .42, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
+  trident: { label: 'Trident',      melee: true,  oneHand: false, dmgM: 1.9,  reach: 36, arc: .7,  windup: .12, active: .14, cooldown: .62, knock: 190, moveMul: .35, hitstop: .06,  shake: 2, sfx: 'heavy', blurb: 'Heavy, long thrust that hits very hard. Two hands, no shield.' },
   hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.3,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
   // A bow's safety is paid for with its damage: tap for weak quick shots, or stand and hold to draw a full-power one.
   // draw: seconds to full power. quick / full: damage of a tapped and a fully drawn shot. drawMul: walking speed while drawing.
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one and let go to fire (you walk slowly while drawing). No shield.' },
+  // Power builds with the square of the draw, so every moment you hold pays: a half draw must never out-damage a full one (see releaseAttack).
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2.4, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one and let go to fire (you walk slowly while drawing). A full draw hits three times as hard as a tap. No shield.' },
 };
 
 const ABILITIES = {
@@ -989,7 +991,7 @@ const ABILITIES = {
   sunburst:    { name: 'Sunburst',        cd: 7, desc: 'Fire a ring of sunlight in every direction.' },
   whirlwind:   { name: 'Whirlwind',       cd: 6, desc: 'Spin and hit everything around you three times.' },
   tidal:       { name: 'Tidal Wave',      cd: 7, desc: 'A wave rolls out from you and shoves everything far back.' },
-  trident_throw: { name: 'Trident Throw', cd: 7, desc: 'Hurl the trident through everything ahead. It crashes down in a wave, then flies back and hits again on the way.' },
+  trident_throw: { name: 'Trident Throw', cd: 7, desc: 'Hurl the trident through everything ahead. It crashes down in a wave, then flies back and hits again on the way. You can’t attack until you catch it.' },
   quake:       { name: 'Earthquake',      cd: 8, desc: 'Spikes burst from the ground around you and stun what they hit.' },
   eruption:    { name: 'Eruption',        cd: 8, desc: 'Fire bursts under the five nearest enemies.' },
   deathmark:   { name: 'Death Mark',      cd: 9, desc: 'Enemies near you take 30% more damage for 6 seconds.' },
@@ -1004,6 +1006,7 @@ const WEAPONS = {
   bull_maul:       { name: 'Bull Maul',             kind: 'hammer',  wt: 1.8,  ability: 'stampede', recipe: { items: { cattle_hide: 5, golden_horn: 1 }, cost: 300 }, desc: 'A horn-capped maul with the weight of a charging bull.' },
   harpe:           { name: 'Harpe of Hermes',       kind: 'daggers', wt: 2,    ability: 'winged_step', recipe: { items: { winged_feather: 4, herald_token: 2 }, cost: 600 }, desc: 'Twin sickle blades of the messenger god.' },
   stag_spear:      { name: 'Antler Spear',          kind: 'spear',   wt: 2.5,  recipe: { items: { stag_antler: 4, wolf_pelt: 3, calydon_tusk: 1 }, cost: 500 }, desc: 'Tipped with a stag’s antler.' },
+  antler_trident:  { name: 'Antler Trident',        kind: 'trident', wt: 2.5,  ability: 'trident_throw', recipe: { items: { stag_antler: 5, wolf_pelt: 3, calydon_tusk: 1 }, cost: 600 }, desc: 'Three points off a great stag. Throw it and it comes back.' },
   wolf_fangs:      { name: 'Wolf Fangs',            kind: 'daggers', wt: 2.5,  recipe: { items: { wolf_fang: 5, wolf_pelt: 4 }, cost: 450 }, desc: 'Two fangs bound in fur.' },
   silver_bow:      { name: 'Silver Bow of Artemis', kind: 'bow',     wt: 3,    pierce: 1, ability: 'volley', recipe: { items: { moon_silver: 3, hunt_token: 2, silver_arrowhead: 4 }, cost: 800 }, desc: 'Strung with moonlight.' },
   satyr_club:      { name: 'Satyr Club',            kind: 'hammer',  wt: 3.5,  recipe: { items: { satyr_fur: 6, panther_pelt: 2, centaur_hoof: 1 }, cost: 650 }, desc: 'Knotted vine-wood, very heavy.' },
@@ -1011,6 +1014,7 @@ const WEAPONS = {
   wild_maul:       { name: 'Pan’s Wild Maul',  kind: 'hammer',  wt: 4.2,  ability: 'stampede', recipe: { items: { wild_horn: 2, satyr_fur: 4 }, cost: 900 }, desc: 'Hits like a herd.' },
   owl_bow:         { name: 'Owlfeather Bow',        kind: 'bow',     wt: 4.5,  pierce: 2, recipe: { items: { owl_quill: 5, cedar_shaft: 4, silver_talon: 1 }, cost: 700 }, desc: 'Light and silent. Shots punch through two extra enemies.' },
   hoplite_dory:    { name: 'Hoplite Dory',          kind: 'spear',   wt: 4.5,  recipe: { items: { bronze_plate: 5, cedar_shaft: 3, hoplite_crest: 1 }, cost: 750 }, desc: 'The long spear of the Athenian battle line.' },
+  bronze_trident:  { name: 'Bronze Trident',        kind: 'trident', wt: 4.5,  ability: 'trident_throw', recipe: { items: { bronze_plate: 6, cedar_shaft: 3, hoplite_crest: 1 }, cost: 900 }, desc: 'Cast in one piece in the Athenian foundries. Throw it and it comes back.' },
   athena_spear:    { name: 'Spear of Athena',       kind: 'spear',   wt: 5,    ability: 'aegis', recipe: { items: { aegis_scale: 4, wisdom_token: 2, bronze_plate: 3 }, cost: 1300 }, desc: 'Athena’s own spear, balanced perfectly.' },
   myrtle_spear:    { name: 'Myrtle Spear',          kind: 'spear',   wt: 5.5,  recipe: { items: { suitor_silk: 5, eros_arrow: 3, rose_quartz: 1 }, cost: 900 }, desc: 'Wound with myrtle and silk.' },
   rose_blade:      { name: 'Rose Blade',            kind: 'sword',   wt: 6,    ability: 'soulsteal', recipe: { items: { foam_pearl: 3, love_token: 2, rose_quartz: 1 }, cost: 1500 }, desc: 'Pretty, and much sharper than it looks.' },
@@ -1021,7 +1025,8 @@ const WEAPONS = {
   ares_warblade:   { name: 'Warblade of Ares',      kind: 'sword',   wt: 8,    ability: 'whirlwind', recipe: { items: { war_ember: 3, war_token: 2, bloodied_bronze: 4 }, cost: 2200 }, desc: 'It wants to be swung.' },
   retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'Everyone gets what they deserve.' },
   coral_daggers:   { name: 'Coral Daggers',         kind: 'daggers', wt: 8.5,  recipe: { items: { crab_shell: 6, triton_scale: 3, giant_claw: 1 }, cost: 1600 }, desc: 'Grown, not forged.' },
-  trident:         { name: 'Trident of the Deep',   kind: 'spear',   wt: 9,    ability: 'trident_throw', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. Throw it and it comes back.' },
+  reef_trident:    { name: 'Reef Trident',          kind: 'trident', wt: 8,    ability: 'trident_throw', recipe: { items: { crab_shell: 6, triton_scale: 4, giant_claw: 1 }, cost: 1700 }, desc: 'Coral teeth on a driftwood shaft. Throw it and it comes back.' },
+  trident:         { name: 'Trident of the Deep',   kind: 'trident', wt: 9,    ability: 'trident_throw', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. Throw it and it comes back.' },
   peacock_bow:     { name: 'Peacock Bow',           kind: 'bow',     wt: 9.5,  pierce: 2, recipe: { items: { peacock_plume: 6, royal_gold: 3, argus_eye: 1 }, cost: 1900 }, desc: 'Fletched with eye-feathers.' },
   hera_scepter:    { name: 'Scepter of Hera',       kind: 'hammer',  wt: 10,   ability: 'quake', recipe: { items: { regal_plume: 3, queen_token: 2, royal_gold: 4 }, cost: 3000 }, desc: 'The queen’s scepter. Heavier than a throne.' },
   discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'Its arrows never fly quite straight. They don’t need to.' },
@@ -1030,6 +1035,7 @@ const WEAPONS = {
   forge_hammer:    { name: 'Hammer of Hephaestus',  kind: 'hammer',  wt: 11,   ability: 'eruption', recipe: { items: { divine_bronze: 3, forge_token: 2, automaton_core: 4 }, cost: 3400 }, desc: 'The hammer that forged the thunderbolt.' },
   stygian_daggers: { name: 'Stygian Daggers',       kind: 'daggers', wt: 11.5, recipe: { items: { shade_essence: 6, styx_water: 3, cerberus_fang: 1 }, cost: 2600 }, desc: 'Dipped in the Styx.' },
   bident:          { name: 'Bident of Hades',       kind: 'spear',   wt: 12,   ability: 'deathmark', recipe: { items: { soul_gem: 3, death_token: 2, styx_water: 4 }, cost: 3800 }, desc: 'Two prongs. Both of them final.' },
+  stygian_trident: { name: 'Stygian Trident',       kind: 'trident', wt: 11.5, ability: 'trident_throw', recipe: { items: { shade_essence: 6, styx_water: 3, cerberus_fang: 1 }, cost: 2800 }, desc: 'Three cold points, dipped in the Styx. Throw it and it comes back.' },
   dream_daggers:   { name: 'Dreamweaver Daggers',   kind: 'daggers', wt: 12,   ability: 'soulsteal', recipe: { items: { poppy_dream: 2, shade_essence: 6 }, cost: 3200 }, desc: 'They hit like a bad dream.' },
   storm_fangs:     { name: 'Storm Fangs',           kind: 'daggers', wt: 12.5, recipe: { items: { harpy_talon: 6, storm_glass: 3, storm_eye: 1 }, cost: 3000 }, desc: 'Twin blades of lightning glass.' },
   keraunos:        { name: 'Keraunos',              kind: 'sword',   wt: 13,   ability: 'chain', recipe: { items: { thunder_core: 4, olympian_token: 2, storm_eye: 1 }, cost: 5000 }, desc: 'A blade forged around one of Zeus’ thunderbolts.' },
@@ -1602,12 +1608,13 @@ Object.assign(ABILITIES, {
   pride:       { name: 'Pride of Rhea',  cd: 9,  desc: 'Two spirit lions leap out and hunt the nearest enemies.' },
   timestop:    { name: 'Stop Time',      cd: 12, desc: 'Everything but you freezes for 2.5 seconds. Gods and Titans only slow down.' },
 });
-const KIND_SKILL = { sword: 'crescent', spear: 'impale', hammer: 'shockwave', daggers: 'flurry', bow: 'piercer' };
+const KIND_SKILL = { sword: 'crescent', spear: 'impale', trident: 'trident_throw', hammer: 'shockwave', daggers: 'flurry', bow: 'piercer' };
 
 Object.assign(WEAPONS, {
   sky_maul:      { titan: true, name: 'Maul of the Sky',     kind: 'hammer',  wt: 13,   ability: 'skyfall',     recipe: { items: { sky_shard: 3, primordial_token: 2, titan_bone: 2 }, cost: 6000 }, desc: 'A lump of the night sky on a handle.' },
   dawn_bow:      { titan: true, name: 'Bow of First Light',  kind: 'bow',     wt: 13.5, pierce: 2, ability: 'solar_lance', recipe: { items: { dawn_ember: 3, primordial_token: 2, obsidian_plate: 4 }, cost: 6400 }, desc: 'Strung with a sunbeam.' },
   tide_daggers:  { titan: true, name: 'Tidebreaker Fangs',   kind: 'daggers', wt: 14,   ability: 'riptide',     recipe: { items: { world_water: 3, primordial_token: 2, triton_scale: 5 }, cost: 6800 }, desc: 'They pull like the undertow.' },
+  world_trident: { titan: true, name: 'Trident of the World River', kind: 'trident', wt: 14, ability: 'trident_throw', recipe: { items: { world_water: 3, primordial_token: 2, triton_scale: 5 }, cost: 7000 }, desc: 'The river around the world, given three points. Throw it and it comes back.' },
   axis_spear:    { titan: true, name: 'Spear of the Axis',   kind: 'spear',   wt: 14.5, ability: 'foresight',   recipe: { items: { axis_star: 3, primordial_token: 2, chrono_dust: 4 }, cost: 7200 }, desc: 'The heavens turn around its tip.' },
   memory_blade:  { titan: true, name: 'Blade of Memory',     kind: 'sword',   wt: 15,   ability: 'echo',        recipe: { items: { memory_glass: 3, primordial_token: 2, chrono_dust: 4 }, cost: 7600 }, desc: 'It remembers every cut it ever made.' },
   law_glaive:    { titan: true, name: 'Glaive of Law',       kind: 'spear',   wt: 15.5, ability: 'verdict',     recipe: { items: { oath_stone: 3, primordial_token: 2, obsidian_plate: 5 }, cost: 8000 }, desc: 'It weighs every blow you take.' },
@@ -1617,7 +1624,7 @@ Object.assign(WEAPONS, {
 const TITAN_WEAPON_COLORS = {
   sky_maul: ['#3c4a78', '#e9c04f', '#5a4e38'], dawn_bow: ['#ffd463', '#ff8a2b', '#8a5a34'], tide_daggers: ['#7fd0c8', '#2c7a70', '#1a4a44'],
   axis_spear: ['#e6f2ff', '#5b9bd5', '#1a2442'], memory_blade: ['#c8b8ff', '#ffffff', '#6b5a8a'], law_glaive: ['#f3e9d4', '#e9c04f', '#8f846c'],
-  lion_claws: ['#e9c04f', '#c9a046', '#5a3a22'], harpe_cronus: ['#d5dbe5', '#e9c04f', '#1f1f24'],
+  lion_claws: ['#e9c04f', '#c9a046', '#5a3a22'], harpe_cronus: ['#d5dbe5', '#e9c04f', '#1f1f24'], world_trident: ['#e6f2ff', '#57c2b0', '#1a4a44'],
 };
 
 Object.assign(ARMOR_SETS, {
@@ -2243,6 +2250,7 @@ const ICON_TEMPLATES = {
 const WEAPON_ICON_T = {
   sword:   ['........a.', '.......aa.', '......aa..', '.....aa...', '....aa....', '.b.aa.....', '..bb......', '..cb......', '.c..b.....', '..........'],
   spear:   ['.........a', '........aa', '.......ca.', '......c...', '.....c....', '....c.....', '...c......', '..c.......', '.c........', 'c.........'],
+  trident: ['......a..a', '.....a..a.', '....b..a..', '.....ba..a', '.....cb.a.', '....c..b..', '...c......', '..c.......', '.c........', 'c.........'],
   hammer:  ['....aaaa..', '...aaaaaa.', '...baaaab.', '....bcbb..', '....c.....', '...c......', '..c.......', '.c........', 'c.........', '..........'],
   daggers: ['a......a..', '.a....a...', '..a..a....', '...aa.....', '...aa.....', '..b..b....', '.c....c...', 'c......c..'],
   bow:     ['...cca....', '..c..a....', '.c...a....', '.c...a....', '.c...a....', '.c...a....', '..c..a....', '...cca....'],
@@ -2253,6 +2261,7 @@ const WEAPON_COLORS = {
   myrtle_spear: ['#f2a7c0', '#e88aa8', '#6b8a3a'], rose_blade: ['#f2a7c0', '#e9c04f', '#c76d8e'], laurel_bow: ['#ffd463', '#6f9a3e', '#3e5a22'],
   sunblade: ['#ffd463', '#ffffff', '#c9a032'], witchfire_daggers: ['#57c2b0', '#2c5684', '#1a2442'], spartoi_spear: ['#f3e9d4', '#c9a032', '#8a5a34'],
   ares_warblade: ['#c0412e', '#3a3a40', '#1f1f24'], retribution: ['#d5dbe5', '#e9c04f', '#8f846c'], coral_daggers: ['#e07a3a', '#7fd0c8', '#a04a1a'],
+  antler_trident: ['#f3e9d4', '#c9a46b', '#8a5a34'], bronze_trident: ['#e9c04f', '#a8742a', '#6b4528'], reef_trident: ['#e07a3a', '#7fd0c8', '#a04a1a'], stygian_trident: ['#7fd0c8', '#3c6a5a', '#1f1f24'],
   trident: ['#57c2b0', '#e9c04f', '#2c7a70'], peacock_bow: ['#e9c04f', '#3f9a8a', '#2c5684'], hera_scepter: ['#e9c04f', '#5b9bd5', '#a8842a'],
   discord_bow: ['#e9c04f', '#c0412e', '#1f1f24'], automaton_blade: ['#c9a032', '#ff8a2b', '#8f6c1c'], forge_hammer: ['#4b4f57', '#ff8a2b', '#6b4528'],
   stygian_daggers: ['#7fd0c8', '#3c6a5a', '#1f1f24'], bident: ['#7fe08a', '#2a1f3a', '#1f1f24'], dream_daggers: ['#c8b8ff', '#2c3a6a', '#1a2442'],
@@ -5091,7 +5100,7 @@ function netRemoteStep(p, dt) {
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
     else if (k === 'pj') {                                       // one of its shots, for everyone else to see (it does no damage here)
       spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p, pierce: clamp(Math.floor(+a[8] || 0), 0, 20) });
-      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid; if (pr.kind === 'trident') pr.boom = { t: TRIDENT_OUT, src: p };
+      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid; if (pr.kind === 'trident') { pr.boom = { t: TRIDENT_OUT, src: p }; tridentDress(pr, p); }
     }
   }
 }
@@ -5205,7 +5214,8 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
   if (e.pvp && e.untargetable) return false;
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
-  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0, shotHit ? 1 : 0]); if (e.pvp) pvpShowHit(e.pvp, dmg);
+  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0, shotHit ? 1 : 0]);
+  if (e.pvp) pvpLanded(e.pvp);
   e.flash = .12; if (fp) momentumHit(q.player);
   return true;
 }
@@ -5625,7 +5635,7 @@ function updateHunter(p, dt) {
   if (!p.swing && !p.guarding) {
     if (p.bufDodge > 0 && canDash(p)) { startDodge(p, mv); p.bufDodge = 0; return; }
     if (p.bufAbil > 0 && p.abilCd <= 0 && st.weapon.ability) { useAbility(p, mv); p.bufAbil = 0; return; }
-    if (p.bufAtk > 0 && p.atkCd <= 0) { startAttack(p); p.bufAtk = 0; }
+    if (p.bufAtk > 0 && p.atkCd <= 0 && !tridentOut(p)) { startAttack(p); p.bufAtk = 0; }
   } else if (p.guarding && p.bufDodge > 0 && canDash(p)) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
   else if (p.guarding && p.bufAtk > 0 && p.bashCd <= 0) { shieldBash(p); p.bufAtk = 0; }
   else if (p.swing && p.bufDodge > 0 && canDash(p) && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
@@ -5718,7 +5728,7 @@ function releaseAttack(p, s) {
   if (p.fx.echo > 0) p.echoes.push({ t: .32, aim: s.aim, dmg: dmg * .45 });
   if (!K.melee) {
     const k = s.drawMax ? clamp(s.draw / s.drawMax, 0, 1) : 0, full = k >= 1, sa = p.st.perks.steady || 0;
-    dmg *= lerp(K.quick, K.full, k) * (full ? 1 + sa : k < .2 ? 1 - sa : 1);
+    dmg *= lerp(K.quick, K.full, k * k) * (full ? 1 + sa : k < .2 ? 1 - sa : 1);
     spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed * (1 + .3 * k), dmg, 'arrow', 'player', { r: full ? 3.5 : 2.5, life: .95, pierce: (w.pierce || 0) + (full ? 1 : 0) });
     return;
   }
@@ -5858,7 +5868,8 @@ function useAbility(p, mv) {
     Sound.play('telegraph');
   } else if (id === 'trident_throw') {
     const a = aim(); p.face = a; Sound.play('swing');
-    spawnProj(p.x + Math.cos(a) * 8, p.y + Math.sin(a) * 8, a, 290, W * 1.3, 'trident', 'player', { r: 6, life: 2.4, pierce: 99, ghost: true, boom: { t: TRIDENT_OUT, src: p } });
+    spawnProj(p.x + Math.cos(a) * 8, p.y + Math.sin(a) * 8, a, 290, W * 1.6, 'trident', 'player', { r: 6, life: 2.4, pierce: 99, ghost: true, boom: { t: TRIDENT_OUT, src: p } });
+    tridentDress(q.projs[q.projs.length - 1], p);
   } else if (id === 'solar_lance') {
     const a = aim(), len = 230, x0 = p.x, y0 = p.y - 6, x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len; p.face = a;
     q.fx.push({ t: 'beamfx', x: x0, y: y0, a, len, life: .35, max: .35, c: '#ffd463' }); flash(.06); Sound.play('beam');
@@ -5946,7 +5957,7 @@ function hurtHunter0(p, dmg, ang, knock, o) {
     }
   }
   if (o.proj) dmg *= 1 - st.projRes;
-  const taken = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + st.def))), q.pv ? Math.ceil(st.maxHp * PVP_MAX_HIT) : 1e9);
+  const taken = q.pv ? pvpHitOn(dmg, st.def, st.maxHp) : Math.max(1, Math.round(dmg * 20 / (20 + st.def)));
   p.hp -= taken; p.invuln = q.pv ? PVP_GUARD : .8; p.flash = .15; p.mom = 0;
   const k = knock * (1 - st.kbRes);
   p.kbx += Math.cos(ang) * k; p.kby += Math.sin(ang) * k;
@@ -6059,7 +6070,6 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
   dmg = Math.max(1, Math.round(dmg * rand(.9, 1.1)));
   if (e.stun > 0 && !e.boss) dmg = Math.round(dmg * 1.25);
-  if (e.def.role === 'dummy') dmg = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + p.st.def))), Math.ceil(p.st.maxHp * PVP_MAX_HIT));   // practice: what the same hit does in a fight, to someone in your armor
   e.hp -= dmg; e.flash = .12;
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
@@ -6138,11 +6148,24 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
 // Where a thrown trident turns for home, a wave breaks and shoves everything back.
 const TRIDENT_OUT = .45;                                   // seconds out before it turns
 function tridentCrash(pr) {
-  const by = pr.owner || q.player, was = q.actor;
-  q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: '#57c2b0' }); burst(pr.x, pr.y - 4, 14, ['#57c2b0', '#e6f2ff', '#2c7a70'], 90); Sound.play('splash');
+  const by = pr.owner || q.player, was = q.actor, col = pr.ca || '#57c2b0';
+  q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: col }); burst(pr.x, pr.y - 4, 14, [col, '#e6f2ff', pr.cb || '#2c7a70'], 90); Sound.play('splash');
+  if (isLocal(by)) { addShake(4); G.hitstop = Math.max(G.hitstop, .06); }
   q.actor = by;
-  for (const e of q.enemies) if (targetable(e) && edist(pr, e) < 56 + e.r) damageEnemy(e, pr.dmg * .5, Math.atan2(e.y - pr.y, e.x - pr.x), 300, true);
+  for (const e of q.enemies) if (targetable(e) && edist(pr, e) < 56 + e.r) damageEnemy(e, pr.dmg * .65, Math.atan2(e.y - pr.y, e.x - pr.x), 300, true);
   q.actor = was;
+}
+// A thrown trident: whose it is and which one, so every screen empties the right hand and draws the right colours.
+function tridentDress(pr, p) {
+  const id = (p.save || G.save).weapon, c = WEAPON_COLORS[baseId(id)] || [];
+  pr.oh = p.hid; pr.ca = weaponTint(id) || '#57c2b0'; pr.cb = c[1] || '#e9c04f';
+}
+// While the trident is out your hand is empty: nothing to attack with, and nothing drawn, until you catch it.
+function tridentOut(p) { return !!q && q.projs.some(pr => pr.kind === 'trident' && !pr.dead && pr.oh === p.hid); }
+function tridentCatch(p, pr) {
+  p.catchT = G.time; p.catchA = Math.atan2(pr.y - (p.y - 6), pr.x - p.x);   // drawWeapon slides it into your grip from where it came in
+  q.fx.push({ t: 'ring', x: p.x, y: p.y - 8, r0: 2, r1: 10, life: .18, max: .18, c: '#57c2b0' }); burst(p.x, p.y - 10, 5, ['#57c2b0', '#e6f2ff'], 50);
+  if (isLocal(p)) Sound.play('clink');
 }
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
@@ -6174,10 +6197,10 @@ function updateProjs(dt) {
         const na = cur + clamp(angDiff(cur, want), -pr.homing * dt, pr.homing * dt); pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp; }
     }
     if ((pr.kind === 'godweapon' || pr.kind === 'trident') && pr.boom && pr.t > pr.boom.t) {   // a thrown god weapon turns round and flies back to its owner
-      if (pr.kind === 'trident' && !pr.boom.back) { pr.boom.back = true; pr.hit = new Set(); if (!pr.vis) tridentCrash(pr); }   // the trident crashes down, then hits again on the way home
+      if (pr.kind === 'trident' && !pr.boom.back) { pr.boom.back = true; pr.ret = true; pr.hit = new Set(); if (!pr.vis) tridentCrash(pr); }   // the trident crashes down, then hits again on the way home
       const s = pr.boom.src, a = Math.atan2(s.y - 6 - pr.y, s.x - pr.x), sp = Math.min(380, Math.hypot(pr.vx, pr.vy) + 520 * dt);
       pr.vx = Math.cos(a) * sp; pr.vy = Math.sin(a) * sp; pr.life = Math.max(pr.life, .5);
-      if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; continue; }
+      if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; if (pr.kind === 'trident' && !s.dead) tridentCatch(s, pr); continue; }
     }
     pr.x += pr.vx * dt; pr.y += pr.vy * dt;
     if (pr.life <= 0) { killProj(pr); continue; }
@@ -6376,7 +6399,10 @@ function burst(x, y, n, colors, speed) {
   }
 }
 function dust(x, y, n) { netRec(['d', r1(x), r1(y), n]); for (let i = 0; i < n; i++) sc.parts.push({ x: x + rand(-3, 3), y: y + rand(-1, 1), vx: rand(-25, 25), vy: rand(-18, -2), g: 0, life: rand(.25, .5), max: .5, c: Math.random() < .5 ? '#c9b48e' : '#a08b68', s: Math.random() < .4 ? 2 : 1 }); }
-function addText(x, y, s, c) { netRec(['t', r1(x), r1(y), s, c]); sc.texts.push({ x, y, s, c, life: .7, max: .7 }); }
+function addText(x, y, s, c) {
+  if (q && q.pv && /^-?\d+$/.test(s)) return;               // fights show health bars, not damage numbers
+  netRec(['t', r1(x), r1(y), s, c]); sc.texts.push({ x, y, s, c, life: .7, max: .7 });
+}
 // Hit sparks fly the way the hit went.
 function hitSparks(x, y, ang, big) {
   netRec(['s', r1(x), r1(y), r2(ang), big ? 1 : 0]);
@@ -7989,7 +8015,7 @@ function startQuest(id, opts = {}) {
   banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
   if (def.practice) {                                      // practice explains itself once, the first time you ever go in
-    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(`${touchMode ? 'Attack and dash with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`}. Hits here do what they’d do to a player in your armor`, 9); }
+    if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(`${touchMode ? 'Attack and dash with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`}`, 9); }
   } else if (!tutOn() && !Object.keys(G.save.cleared).length) showHint(touchMode ? 'Attack, dash and use your skill with the buttons on the right' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging`, 7);
   CG.gameplay(true);
   if (q.net === 'host') netStartHost(); else if (q.net === 'guest') netStartGuest();
@@ -8187,6 +8213,11 @@ for (const mode of Object.keys(PVP_MODES)) RANKS.forEach((R, r) => {
   QUEST_BY_ID[id] = { id, base: id, pvp: true, mode, name: PVP_MODES[mode], god: 'ares', arena: 'coliseum', rank: r, tier: 13 + R.off, mt: 13 + R.off, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
 });
 let shotHit = false;                                                     // the hit being handled came from a shot, not a swing
+// What a hit does in a fight. Weapons aren't scaled down: armor takes its share exactly as it does when a monster hits you,
+// and the only limit is that no one hit takes more than a fifth of someone's health.
+function pvpHitOn(dmg, def, maxHp) { return Math.min(Math.max(1, Math.round(dmg * 20 / (20 + def))), Math.ceil(maxHp * PVP_MAX_HIT)); }
+// With no numbers in a fight, a landed hit shows for whoever landed it: a small quick ring on them and a short pause. Kept light on purpose.
+function pvpLanded(t) { q.fx.push({ t: 'ring', x: t.x, y: t.y - 8, r0: 2, r1: 9, life: .12, max: .12, c: '#ffffff' }); G.hitstop = Math.max(G.hitstop, .03); }
 
 // Who ends up on which side of a team fight. Players pick from the room box; anyone who hasn't goes to the smaller side, and
 // neither side is ever left empty. Every game works this out from the same list, so they all agree.
@@ -8269,18 +8300,11 @@ function pvpHit(e, dmg, ang, knock, ub, fp) {
   const r = hurtHunter(t, dmg, ang, knock * PVP_KNOCK, { src: q.pvpT.get(-(by.hid + 1)), melee: !shotHit, proj: shotHit, unblockable: ub });
   if (!r) return false;
   t.lastBy = by; by.stats.dealt += dmg;
-  hitSparks(t.x, t.y - 8, ang, false);
-  if (isLocal(by)) pvpShowHit(t, dmg);
+  hitSparks(t.x, t.y - 8, ang, true); if (isLocal(by)) pvpLanded(t);
   if (fp) onPlayerHit(e, dmg);
   return true;
 }
 const pvpShotTest = (e, dmg, by) => { shotHit = true; q.actor = by; const r = pvpHit(e, dmg, 0, 0, false, false); q.actor = null; shotHit = false; return r; };   // for the tests
-// The number you see when your hit lands: what it'll do after their armor.
-function pvpShowHit(t, dmg) {
-  const was = NET.replay; NET.replay = true;
-  addText(t.x, t.y - 22, String(Math.max(1, Math.round(dmg * 20 / (20 + t.st.def)))), '#f0e4cc');
-  NET.replay = was;
-}
 // A perfect block staggers whoever swung, so timing beats gear.
 function pvpParried(src) {
   if (q.net === 'guest') { NET.out.q.push(['pv', src.id]); return; }
@@ -8359,13 +8383,15 @@ function renderArena() {
   if (!netOn() || R.members.length < 2) return `<div class="empty-note">You need a room with at least two players. Talk to the Oracle in the square.</div>`;
   const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides. Pick yours from the room box once the fight is posted. You can’t hurt your own side.'}</p><div class="stack">`
     + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('') + `</div></div>`).join('');
-  return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p><div class="opts">${rows}</div>`;
+  const st = playerStats({ ...G.save, meal: null });
+  return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p>
+    <div class="stats" style="margin:0 0 12px"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(st.weapon.dmg, st.weapon.kind, st)}</b></span></div><div class="opts">${rows}</div>`;
 }
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
 // The leaderboards at the Coliseum: fights, the fastest run to Typhon, and the deepest Endless wave.
-const BOARD_TABS = { fights: 'Fights', speed: 'Speedrun', endless: 'Endless' };
+const BOARD_TABS = { fights: 'Fights', speed: 'Time to Complete', endless: 'Endless' };
 const BOARD_HOW = {
   fights: 'Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.',
   speed: 'Play time from your first step to Typhon’s fall. Your best save counts.',
@@ -8773,8 +8799,8 @@ const BUILDINGS = [
   { id: 'home',   name: 'Your Home',            kind: 'home',   x: 38, y: 22, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
-  ['fountain', 26, 18], ['board', 31, 16], ['stall', 20, 23], ['stall', 33, 23], ['crate', 22, 24], ['amphora', 23, 24], ['amphora', 35, 24], ['crate', 36, 25], ['cart', 20, 28],
-  ['column', 8, 20], ['column', 12, 20], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
+  ['fountain', 26, 18], ['board', 31, 16], ['stall', 22.5, 26], ['stall', 35, 22], ['crate', 21, 26], ['amphora', 24, 26], ['amphora', 37, 22], ['crate', 33.6, 22], ['cart', 20, 28],   // the stalls stand on the grass beside the roads, facing them
+  ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24],
   ['olive', 5, 5], ['tree', 8, 7], ['olive', 3, 8], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
   ['olive', 47, 18], ['pine', 46, 21], ['olive', 5, 25], ['tree', 8, 28], ['pine', 4, 29], ['olive', 11, 30], ['olive', 17, 30], ['tree', 21, 12], ['olive', 31, 12],
   ['olive', 32, 29], ['pine', 37, 28], ['tree', 41, 30], ['olive', 47, 27], ['rock', 39, 19], ['stump', 43, 17], ['rock', 28, 28],
@@ -10020,12 +10046,12 @@ function weaponTint(id) {
   return r ? mixHex(c || '#c7ccd1', RANK_TINT[r].trim, .55) : c;
 }
 function drawWeapon(p, hx, hy) {
-  if (p.dodgeT > 0) return;
+  if (p.dodgeT > 0 || tridentOut(p)) return;
   const w = p.st.weapon, fullId = (p.save || G.save).weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
   let ang = p.face, ext = 0, trail = null;
   if (p.swing) {
     const s = p.swing, tt = clamp((s.t - s.windup) / s.active, 0, 1);
-    if (kind === 'spear') { ang = s.aim; ext = s.t < s.windup ? -3 : Math.sin(tt * Math.PI) * 9; }
+    if (kind === 'spear' || kind === 'trident') { ang = s.aim; ext = s.t < s.windup ? -3 : Math.sin(tt * Math.PI) * 9; }
     else if (kind === 'bow') ang = s.aim;
     else {
       const from = s.aim - K.arc / 2 * s.side, to = s.aim + K.arc / 2 * s.side;
@@ -10033,6 +10059,7 @@ function drawWeapon(p, hx, hy) {
       if (s.t >= s.windup) trail = { from, cur: ang, r: kind === 'hammer' ? K.reach - 4 : K.reach - 3 };
     }
   } else if (p.fx && p.fx.spin > 0) { ang = G.time * 30; trail = { from: ang - 2.5, cur: ang, r: 20 }; }
+  else if (p.catchT !== undefined && G.time - p.catchT < .22) { const k = 1 - (G.time - p.catchT) / .22; ang = p.face + angDiff(p.face, p.catchA) * k; ext = 6 * k; }   // a caught trident slides into your grip
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const P = (d, side = 0) => [hx + ca * d - sa * side, hy + sa * d + ca * side];
   const tint = weaponTint(fullId);
@@ -10045,11 +10072,11 @@ function drawWeapon(p, hx, hy) {
     }
     ctx.globalAlpha = 1;
   }
-  const grip = (WEAPON_COLORS[id] && WEAPON_COLORS[id][2]) || '#8a5a34';
+  const grip = (WEAPON_COLORS[id] && WEAPON_COLORS[id][kind === 'trident' ? 1 : 2]) || '#8a5a34';
   switch (kind) {
     case 'sword': { const [a1, b1] = P(1), [a2, b2] = P(10); pxLine(a1, b1, a2, b2, tint || '#e9c04f'); const [c1, d1] = P(2, -2), [c2, d2] = P(2, 2); pxLine(c1, d1, c2, d2, '#a8842a'); const [e1, f1] = P(9); ctx.fillStyle = '#fff3c0'; ctx.fillRect(Math.round(e1), Math.round(f1), 1, 1); break; }
-    case 'spear': { const [a1, b1] = P(-4 + ext), [a2, b2] = P(13 + ext); pxLine(a1, b1, a2, b2, id === 'athena_spear' ? '#e9c04f' : grip); const [c1, d1] = P(13 + ext), [c2, d2] = P(16 + ext); pxLine(c1, d1, c2, d2, tint || '#c7ccd1');
-      if (id === 'trident' || id === 'bident') { for (const sd of id === 'trident' ? [-2, 2] : [-1.5, 1.5]) { const [e1, f1] = P(13 + ext, sd), [e2, f2] = P(16 + ext, sd); pxLine(e1, f1, e2, f2, tint); } } break; }
+    case 'spear': case 'trident': { const [a1, b1] = P(-4 + ext), [a2, b2] = P(13 + ext); pxLine(a1, b1, a2, b2, id === 'athena_spear' ? '#e9c04f' : grip); const [c1, d1] = P(13 + ext), [c2, d2] = P(16 + ext); pxLine(c1, d1, c2, d2, tint || '#c7ccd1');
+      if (kind === 'trident' || id === 'bident') { for (const sd of kind === 'trident' ? [-2, 2] : [-1.5, 1.5]) { const [e1, f1] = P(13 + ext, sd), [e2, f2] = P(16 + ext, sd); pxLine(e1, f1, e2, f2, tint); } } break; }
     case 'hammer': { const [a1, b1] = P(-1), [a2, b2] = P(9); pxLine(a1, b1, a2, b2, grip); const big = id === 'cyclops_club' || id === 'satyr_club'; for (let s = -3; s <= 3; s++) { const [c1, d1] = P(9, s), [c2, d2] = P(big ? 14 : 12, s); pxLine(c1, d1, c2, d2, big ? (Math.abs(s) === 3 ? '#5a3a22' : '#8a5a34') : (Math.abs(s) === 3 ? '#636a72' : (tint && id !== 'bull_maul' ? tint : '#a7adb3'))); } break; }
     case 'daggers': { const col = tint || '#c7ccd1'; const [a1, b1] = P(1, -2), [a2, b2] = P(6, -2); pxLine(a1, b1, a2, b2, col); const [c1, d1] = P(0, 2), [c2, d2] = P(5, 3); pxLine(c1, d1, c2, d2, col); break; }
     case 'bow': {
@@ -10232,11 +10259,13 @@ function drawProj(pr, S) {
     }
     case 'godweapon': drawThrown(pr.weapon, sx, y, a, pr.t); break;
     case 'trident': {                                       // Poseidon's trident, thrown: a gold shaft, three teal prongs, and a trail of drops
-      const x0 = sx - ca * 10, y0 = y - sa * 10, x1 = sx + ca * 6, y1 = y + sa * 6, nx = -sa, ny = ca, tip = (o, l) => [x1 + nx * o + ca * l, y1 + ny * o + sa * l];   // the size it is in the player's hand: 20 long, 5 wide
-      pxLine(x0 + nx, y0 + ny, x1 + nx, y1 + ny, '#140d0b'); pxLine(x0, y0, x1, y1, '#e9c04f');
-      pxLine(...tip(-2, 0), ...tip(2, 0), '#2c7a70');
-      for (const [o, l] of [[-2, 3], [2, 3], [0, 4]]) { pxLine(...tip(o, 0), ...tip(o, l), '#57c2b0'); ctx.fillStyle = '#e6f2ff'; const [tx, ty] = tip(o, l); ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1); }
-      if (Math.random() < .5) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: rand(-14, 14), vy: rand(-6, 14), g: 90, life: .3, max: .3, c: Math.random() < .5 ? '#57c2b0' : '#e6f2ff', s: 1 });
+      const dx = pr.ret ? -ca : ca, dy = pr.ret ? -sa : sa;   // it comes home shaft first, ready to catch
+      const x0 = sx - dx * 10, y0 = y - dy * 10, x1 = sx + dx * 6, y1 = y + dy * 6, nx = -dy, ny = dx, tip = (o, l) => [x1 + nx * o + dx * l, y1 + ny * o + dy * l];   // the size it is in the player's hand: 20 long, 5 wide
+      const head = pr.ca || '#57c2b0';
+      pxLine(x0 + nx, y0 + ny, x1 + nx, y1 + ny, '#140d0b'); pxLine(x0, y0, x1, y1, pr.cb || '#e9c04f');
+      pxLine(...tip(-2, 0), ...tip(2, 0), head);
+      for (const [o, l] of [[-2, 3], [2, 3], [0, 4]]) { pxLine(...tip(o, 0), ...tip(o, l), head); ctx.fillStyle = '#e6f2ff'; const [tx, ty] = tip(o, l); ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1); }
+      if (Math.random() < .5) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: rand(-14, 14), vy: rand(-6, 14), g: 90, life: .3, max: .3, c: Math.random() < .5 ? head : '#e6f2ff', s: 1 });
       break;
     }
     case 'orb': pxEllipse(sx, y, 4, 4, '#140d0b'); pxEllipse(sx, y, 3, 3, Math.floor(pr.t * 10) % 2 ? '#57c2b0' : '#3c8f82'); ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
@@ -10269,7 +10298,28 @@ function roofTiles(sx, sy, W, h) {
   for (let y = sy; y < sy + h - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
   ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
 }
-// The Temple's front: a low marble gable over the columns, a painted field inside it with a gold sun, and gilded ornaments
+// The gods in the gable, marble on blue like a real temple's: Zeus enthroned under the peak with his bolt, Poseidon and Athena
+// standing either side, and the others seated, then reclining, as the roof comes down to the corners.
+const GABLE_ART = {
+  zeus: ['.........c...', '........cc...', '....aaa.cc...', '....aaa.ccc..', '....aba...c..', '..aaaaaaa.c..', '.aaaaaaaaa...', '.aa.aaa.aa...', '.aa.aaa.aa...', '.aa.aaa..a...',
+         'c.aaaaaaa.c..', 'c.aaabaaa.c..', 'caaaaaaaaac..', 'caaaabaaaac..', 'caa.aaa.aac..', 'c.a.aba.a.c..', 'c.a.aaa.a.c..', 'c.a.aba.a.c..', 'ccaaa.aaacc..'],
+  stand: ['..aaa..', '..aaa..', '..aba..', '.aaaaa.', 'aaaaaaa', 'aa.a.aa', 'aa.a.aa', 'a.aba.a', '..aaa..', '..aba..', '.aaaaa.', '.aabaa.', '.aaaaa.', '.aabaa.', 'aaaaaaa', 'aabaaba'],
+  seat: ['...aaa...', '...aaa...', '...aba...', '..aaaaa..', '.aaaaaaa.', '.aa.aaaaa', '.aa.aaaaa', '..aaaaaaa', '..aaabaaa', '..aaa..aa', '..aaa..aa', '.aaaa.aaa'],
+  lie: ['............aaa', '............aaa', '........aaaaaba', '..aaaaaaaaaaaa.', 'aaaaaaabaaaaa..', 'aabaaaaaaaaaaaa'],
+};
+let gableSpr = null;
+function gableGods(mid, base) {
+  if (!gableSpr) {
+    const pal = { a: '#efe7d4', b: '#b9ad95', c: '#e9c04f' }; gableSpr = {};
+    for (const [k, rows] of Object.entries(GABLE_ART)) { gableSpr[k] = makeSprite(rows, '#1c2c46', pal); gableSpr[k + 'F'] = makeSprite(rows.map(r => [...r].reverse().join('')), '#1c2c46', pal); }
+  }
+  const put = (k, x) => { const s = gableSpr[k]; ctx.drawImage(s, Math.round(x - s.width / 2), base - s.height + 1); };
+  put('zeus', mid + 1); put('stand', mid - 15); put('standF', mid + 15); put('seat', mid - 28); put('seatF', mid + 28); put('lie', mid - 44); put('lieF', mid + 44);
+  ctx.fillStyle = '#e9c04f';
+  ctx.fillRect(mid - 21, base - 17, 1, 17); ctx.fillRect(mid - 23, base - 18, 5, 1); for (const o of [-23, -21, -19]) ctx.fillRect(mid + o, base - 21, 1, 3);   // Poseidon's trident
+  ctx.fillRect(mid + 21, base - 19, 1, 19); ctx.fillStyle = '#ffffff'; ctx.fillRect(mid + 21, base - 21, 1, 2);                                                 // Athena's spear
+}
+// The Temple's front: a low marble gable over the columns, a painted field inside it with the gods in marble, and gilded ornaments
 // on its three points, all in front of a tiled roof running back.
 function drawTempleGable(sx, sy, W, foot) {
   const K = '#1a1210', mid = Math.round(sx + W / 2), H = foot - sy, slope = W / 2 / H;
@@ -10277,13 +10327,7 @@ function drawTempleGable(sx, sy, W, foot) {
   roofTiles(sx, sy, W, H);
   gable(sy, foot, K); gable(sy + 2, foot, '#efe7d4'); gable(sy + 4, foot, '#c9bda4'); gable(sy + 9, foot - 3, K); gable(sy + 10, foot - 3, '#3f5f8a');
   ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, foot - 3, W, 3);
-  const c = foot - 12;                                                       // the sun, and laurel running out to the corners of the field
-  ctx.fillStyle = '#e9c04f'; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ctx.fillRect(Math.round(mid + Math.cos(a) * 10) - 1, Math.round(c + Math.sin(a) * 8), 2, 1); }
-  pxEllipse(mid, c, 7, 6, K); pxEllipse(mid, c, 6, 5, '#e9c04f'); pxEllipse(mid - 1, c - 1, 3, 2, '#ffd463');
-  for (const dir of [-1, 1]) for (let i = 0; i < 5; i++) {
-    const lx = mid + dir * (18 + i * 9), ly = foot - 6 - (i % 2);
-    ctx.fillStyle = '#c9a032'; ctx.fillRect(lx - 3, foot - 6, 7, 1); ctx.fillStyle = '#e9c04f'; ctx.fillRect(lx - 1, ly - 1, 3, 1);
-  }
+  gableGods(mid, foot - 3);
   for (const [ox, oy] of [[mid, sy - 2], [sx + 4, foot - 4], [sx + W - 4, foot - 4]]) {
     ctx.fillStyle = K; ctx.fillRect(ox - 3, oy - 2, 6, 7); ctx.fillRect(ox - 2, oy - 3, 4, 9);
     ctx.fillStyle = '#c9a032'; ctx.fillRect(ox - 2, oy - 1, 4, 5); ctx.fillStyle = '#ffd463'; ctx.fillRect(ox - 1, oy - 2, 2, 3);
@@ -10430,14 +10474,14 @@ function drawPreview(canvas, equip, shieldId, weaponId) {
   const dot = (px, py, col) => { x.fillStyle = col; x.fillRect(Math.round(px), Math.round(py), 1, 1); };
   const line = (x0, y0, x1, y1, col) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1; for (let i = 0; i <= n; i++) dot(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, col); };
   const hx = left + 10, hy = top + 14;                       // the front hand
-  const tint = weaponTint(weaponId); weaponId = baseId(weaponId); const grip = (WEAPON_COLORS[weaponId] && WEAPON_COLORS[weaponId][2]) || '#8a5a34';
+  const tint = weaponTint(weaponId); weaponId = baseId(weaponId); const grip = (WEAPON_COLORS[weaponId] && WEAPON_COLORS[weaponId][kind === 'trident' ? 1 : 2]) || '#8a5a34';
   if (sh) { const [a, b, c] = sh.colors; x.fillStyle = '#140d0b'; x.fillRect(left, top + 11, 6, 8); x.fillStyle = b; x.fillRect(left + 1, top + 12, 4, 6); x.fillStyle = a; x.fillRect(left + 1, top + 12, 3, 5); x.fillStyle = c; x.fillRect(left + 2, top + 14, 1, 2); }
-  const back = kind === 'spear' || kind === 'bow';
+  const back = kind === 'spear' || kind === 'trident' || kind === 'bow';
   const weapon = () => {
     if (kind === 'sword') { line(hx, hy, hx + 4, hy - 9, tint || '#e9c04f'); line(hx - 1, hy - 1, hx + 2, hy, '#a8842a'); dot(hx + 4, hy - 9, '#fff3c0'); }
-    else if (kind === 'spear') {
+    else if (kind === 'spear' || kind === 'trident') {
       line(hx, hy + 5, hx + 3, hy - 13, id(weaponId) === 'athena_spear' ? '#e9c04f' : grip); line(hx + 3, hy - 14, hx + 4, hy - 17, tint || '#c7ccd1');
-      if (weaponId === 'trident' || weaponId === 'bident') { line(hx + 1, hy - 14, hx + 2, hy - 16, tint); if (weaponId === 'trident') line(hx + 5, hy - 14, hx + 6, hy - 16, tint); }
+      if (kind === 'trident' || weaponId === 'bident') { line(hx + 1, hy - 14, hx + 2, hy - 16, tint); if (kind === 'trident') line(hx + 5, hy - 14, hx + 6, hy - 16, tint); }
     }
     else if (kind === 'hammer') { line(hx, hy + 2, hx + 3, hy - 7, grip); const big = weaponId === 'cyclops_club' || weaponId === 'satyr_club'; for (let i = -3; i <= 3; i++) line(hx + 3 + i, hy - 8 - Math.round(i * .3), hx + 3 + i, hy - (big ? 12 : 11) - Math.round(i * .3), big ? (Math.abs(i) === 3 ? '#5a3a22' : '#8a5a34') : (Math.abs(i) === 3 ? '#636a72' : (tint && weaponId !== 'bull_maul' ? tint : '#a7adb3'))); }
     else if (kind === 'daggers') { const col = tint || '#c7ccd1'; line(hx, hy, hx + 3, hy - 4, col); line(left + 2, hy, left, hy - 4, col); }
@@ -10740,8 +10784,9 @@ function drawGhost(gh, S) {
 const NEWS = [
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
-      'The Trident of the Deep can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back.',
-      'Leaderboards at the Coliseum: fights, speedrun and Endless, all on one board.',
+      'A new weapon type, the Trident: heavy, two-handed and long, with six to forge from early on right up to the Titans.',
+      'Every trident can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back to your hand. You can’t attack until you catch it.',
+      'Leaderboards at the Coliseum: fights, time to complete and Endless, all on one board.',
       'A Next quest button on the quest complete screen, when you’re playing alone.',
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
@@ -10770,9 +10815,10 @@ const NEWS = [
     changed: [
       'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far. A full draw is always your strongest choice now, and a half draw no longer beats it.',
       'Every Titan is tougher and has a new trick, and the gods are a little tougher too. Hyperion’s beams turn slightly slower and give you a moment longer to read them.',
-      'Practice now shows what your hits would do in a fight, against someone in your armor.',
+      'The Forge, your loadouts and Agon’s panel show PvP numbers beside your other stats, so you can see what your gear does in a fight.',
+      'Fights no longer show damage numbers. Watch the health bars instead. Practice still shows them.',
       'Online play copes better with a slow connection: fewer, smaller updates when anyone’s connection struggles, and saves that couldn’t be sent try again by themselves.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
       'Hammers hit a little softer. Spears hit a little harder and faster.',
@@ -11104,13 +11150,13 @@ function renderHub() {
   const eqBox = $('hubEquip');
   eqBox.hidden = G.panel !== 'armory';
   if (G.panel === 'armory') {
-    const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null;
+    const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null, fight = playerStats({ ...s, meal: null });
     const bonus = st.bonuses.map(b => { const set = ARMOR_SETS[b.set], perks = b.n === 4 ? set.four : set.two; return `${set.name} ${b.n}: ${Object.entries(perks).map(([k, v]) => PERK_TEXT[k](v)).join(', ')}`; });
     eqBox.innerHTML = `
       <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your character"></canvas>
-        <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
+        <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(fight.weapon.dmg, fight.weapon.kind, fight)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
-      <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
+      <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage · ${pvpNum(fight.weapon.dmg, fight.weapon.kind, fight)} in PvP${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
       <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div>${sh ? '<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>' : ''}</div>`;
     drawPreview($('pvCanvas'), heroLook(s), s.shield, s.weapon);
   }
@@ -11214,6 +11260,11 @@ function refineRow(kind, id) {
     <div class="chips">${recipeChips(rec)}</div><button class="btn ghost small" type="button" data-refine="${kind}:${id}" ${canCraft(rec) ? '' : 'disabled'}>Refine</button></div>`;
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
+const deltaLess = (v, base) => { const d = Math.round(v - base); return d ? ` <span class="${d < 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>` : ''; };   // for numbers where less is better
+// The PvP numbers beside the other stats: what one hit does to a player in your armor.
+const PVP_TIP = 'What one hit does in a fight, to a player in the armor you’re wearing.';
+const pvpTop = (dmg, kind, st) => pvpHitOn(dmg * st.mul * (KINDS[kind].full || 1), st.def, st.maxHp);
+const pvpNum = (dmg, kind, st) => KINDS[kind].draw ? `${pvpHitOn(dmg * st.mul * KINDS[kind].quick, st.def, st.maxHp)}–${pvpTop(dmg, kind, st)}` : String(pvpTop(dmg, kind, st));
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
 // Gear shows up in the forge once you've cleared hunts that drop every part in its recipe (its monsters, god or Titan,
 // summons included), so the list only holds things you've actually fought for.
@@ -11241,6 +11292,7 @@ function renderArmory() {
   const filters = `<div class="seg">${[['all', 'All'], ['craft', 'Can forge'], ['owned', 'Owned']].map(([k, l]) => `<button type="button" data-forgefilter="${k}" aria-pressed="${G.forgeFilter === k}">${l}</button>`).join('')}</div>`;
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
+  const fight = playerStats({ ...s, meal: null }), myHit = fight.weapon.dmg * fight.mul, myTop = pvpTop(fight.weapon.dmg, fight.weapon.kind, fight);
   if (tab === 'weapons') {
     const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
@@ -11251,7 +11303,7 @@ function renderArmory() {
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
-        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
+        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(dmg, w.kind, fight)}</b>${eq ? '' : delta(pvpTop(dmg, w.kind, fight), myTop)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
         <p class="desc">${esc(w.desc)} ${esc(K.blurb)}</p>
         ${w.ability ? `<div class="ability"><b>${esc(ABILITIES[w.ability].name)}</b> · ${esc(ABILITIES[w.ability].desc)} (${Math.round(ABILITIES[w.ability].cd * (w.cdMul || 1) * 10) / 10}s cooldown)</div>` : ''}
         ${owned ? refineRow('weapon', id) : `<div class="chips">${recipeChips(w.recipe)}</div>`}
@@ -11267,10 +11319,11 @@ function renderArmory() {
       const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
         const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
+        const wearing = eq ? fight : playerStats({ ...s, meal: null, equip: { ...s.equip, [sl]: sid } }), taken = pvpHitOn(myHit, wearing.def, wearing.maxHp);   // the hit you'd take in a fight with this piece on, set bonuses and all
         const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="piece:${P.id}">Equip</button>` : `<button class="btn small" type="button" data-craft="piece:${P.id}" ${canCraft(P.recipe) ? '' : 'disabled'}>Craft</button>`;
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
-          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}</div>
+          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}<span title="What a hit from your weapon would do to you in a fight, wearing this.">PvP hit taken <b>${taken}</b>${eq ? '' : deltaLess(taken, pvpHitOn(myHit, fight.def, fight.maxHp))}</span></div>
           ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
@@ -11292,12 +11345,12 @@ function renderArmory() {
       const owned = s.shields.includes(id);
       if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
       if (!gearVisible(sh.recipe, owned)) { hidden++; continue; }
-      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
+      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0, blocked = Math.round(myHit * (1 - Math.min(.97, sh.block + .01 * shl)) * 20 / (20 + fight.def));
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span title="What a blocked hit from your weapon would still do to you in a fight.">PvP blocked hit <b>${blocked}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
@@ -11320,7 +11373,7 @@ function renderLoadouts() {
     const st = playerStats({ ...s, meal: null, weapon: L.weapon, shield: L.shield, equip: L.equip }), w = st.weapon, sh = L.shield ? SHIELDS[L.shield] : null, on = loadoutSame(L, s);
     return `<article class="gear${on ? ' meal-on' : ''}"><input class="load-name" data-ldname="${i}" maxlength="${LOADOUT_NAME_MAX}" value="${esc(L.name)}" aria-label="Loadout name" autocomplete="off" spellcheck="false">
       <div class="load-gear"><img class="px-icon" alt="" src="${icon(L.weapon)}"><div><b>${esc(w.name)}</b><span>${esc(armorLabel(L.equip))}${sh ? ` · ${esc(sh.name)}${st.shield ? '' : ' (not with this weapon)'}` : ''}</span></div></div>
-      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span></div>
+      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span title="${PVP_TIP.replace('the armor you’re wearing', 'this armor')}">PvP hit <b>${pvpNum(w.dmg, w.kind, st)}</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-ldwear="${i}" ${on ? 'disabled' : ''}>${on ? 'Wearing' : 'Wear'}</button><button class="btn ghost small" type="button" data-ldover="${i}" ${on ? 'disabled' : ''}>Save over</button>${G.ldArm === i
         ? `<button class="btn danger small" type="button" data-lddel="${i}">Delete it?</button><button class="btn ghost small" type="button" data-ldarm="-1">No</button>` : `<button class="btn ghost small" type="button" data-ldarm="${i}">Delete</button>`}</div></article>`;
   };
@@ -12047,7 +12100,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tridentOut, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
