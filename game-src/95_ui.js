@@ -180,13 +180,13 @@ function renderHub() {
   const eqBox = $('hubEquip');
   eqBox.hidden = G.panel !== 'armory';
   if (G.panel === 'armory') {
-    const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null, fight = playerStats({ ...s, meal: null });
+    const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null;
     const bonus = st.bonuses.map(b => { const set = ARMOR_SETS[b.set], perks = b.n === 4 ? set.four : set.two; return `${set.name} ${b.n}: ${Object.entries(perks).map(([k, v]) => PERK_TEXT[k](v)).join(', ')}`; });
     eqBox.innerHTML = `
       <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your character"></canvas>
-        <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(fight.weapon.dmg, fight.weapon.kind, fight)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
+        <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
-      <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage · ${pvpNum(fight.weapon.dmg, fight.weapon.kind, fight)} in PvP${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
+      <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
       <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div>${sh ? '<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>' : ''}</div>`;
     drawPreview($('pvCanvas'), heroLook(s), s.shield, s.weapon);
   }
@@ -291,10 +291,6 @@ function refineRow(kind, id) {
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
 const deltaLess = (v, base) => { const d = Math.round(v - base); return d ? ` <span class="${d < 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>` : ''; };   // for numbers where less is better
-// The PvP numbers beside the other stats: what one hit does to a player in your armor.
-const PVP_TIP = 'What one hit does in a fight, to a player in the armor you’re wearing.';
-const pvpTop = (dmg, kind, st) => pvpHitOn(dmg * st.mul * (KINDS[kind].full || 1), st.def, st.maxHp);
-const pvpNum = (dmg, kind, st) => KINDS[kind].draw ? `${pvpHitOn(dmg * st.mul * KINDS[kind].quick, st.def, st.maxHp)}–${pvpTop(dmg, kind, st)}` : String(pvpTop(dmg, kind, st));
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
 // Gear shows up in the forge once you've cleared hunts that drop every part in its recipe (its monsters, god or Titan,
 // summons included), so the list only holds things you've actually fought for.
@@ -322,7 +318,7 @@ function renderArmory() {
   const filters = `<div class="seg">${[['all', 'All'], ['craft', 'Can forge'], ['owned', 'Owned']].map(([k, l]) => `<button type="button" data-forgefilter="${k}" aria-pressed="${G.forgeFilter === k}">${l}</button>`).join('')}</div>`;
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
-  const fight = playerStats({ ...s, meal: null }), myHit = fight.weapon.dmg * fight.mul, myTop = pvpTop(fight.weapon.dmg, fight.weapon.kind, fight);
+  const fight = playerStats({ ...s, meal: null }), myHit = fight.weapon.dmg * fight.mul;
   if (tab === 'weapons') {
     const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
@@ -333,7 +329,7 @@ function renderArmory() {
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
-        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(dmg, w.kind, fight)}</b>${eq ? '' : delta(pvpTop(dmg, w.kind, fight), myTop)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
+        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
         <p class="desc">${esc(w.desc)} ${esc(K.blurb)}</p>
         ${w.ability ? `<div class="ability"><b>${esc(ABILITIES[w.ability].name)}</b> · ${esc(ABILITIES[w.ability].desc)} (${Math.round(ABILITIES[w.ability].cd * (w.cdMul || 1) * 10) / 10}s cooldown)</div>` : ''}
         ${owned ? refineRow('weapon', id) : `<div class="chips">${recipeChips(w.recipe)}</div>`}
@@ -403,7 +399,7 @@ function renderLoadouts() {
     const st = playerStats({ ...s, meal: null, weapon: L.weapon, shield: L.shield, equip: L.equip }), w = st.weapon, sh = L.shield ? SHIELDS[L.shield] : null, on = loadoutSame(L, s);
     return `<article class="gear${on ? ' meal-on' : ''}"><input class="load-name" data-ldname="${i}" maxlength="${LOADOUT_NAME_MAX}" value="${esc(L.name)}" aria-label="Loadout name" autocomplete="off" spellcheck="false">
       <div class="load-gear"><img class="px-icon" alt="" src="${icon(L.weapon)}"><div><b>${esc(w.name)}</b><span>${esc(armorLabel(L.equip))}${sh ? ` · ${esc(sh.name)}${st.shield ? '' : ' (not with this weapon)'}` : ''}</span></div></div>
-      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span title="${PVP_TIP.replace('the armor you’re wearing', 'this armor')}">PvP hit <b>${pvpNum(w.dmg, w.kind, st)}</b></span></div>
+      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-ldwear="${i}" ${on ? 'disabled' : ''}>${on ? 'Wearing' : 'Wear'}</button><button class="btn ghost small" type="button" data-ldover="${i}" ${on ? 'disabled' : ''}>Save over</button>${G.ldArm === i
         ? `<button class="btn danger small" type="button" data-lddel="${i}">Delete it?</button><button class="btn ghost small" type="button" data-ldarm="-1">No</button>` : `<button class="btn ghost small" type="button" data-ldarm="${i}">Delete</button>`}</div></article>`;
   };

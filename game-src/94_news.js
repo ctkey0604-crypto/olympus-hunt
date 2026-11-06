@@ -37,7 +37,7 @@ const NEWS = [
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
       'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far. A full draw is always your strongest choice now, and a half draw no longer beats it.',
       'Every Titan is tougher and has a new trick, and the gods are a little tougher too. Hyperion’s beams turn slightly slower and give you a moment longer to read them.',
-      'The Forge, your loadouts and Agon’s panel show PvP numbers beside your other stats, so you can see what your gear does in a fight.',
+      'Armor and shields in the Forge show what a hit would do to you in a fight.',
       'Fights no longer show damage numbers. Watch the health bars instead. Practice still shows them.',
       'Online play copes better with a slow connection: fewer, smaller updates when anyone’s connection struggles, and saves that couldn’t be sent try again by themselves.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
