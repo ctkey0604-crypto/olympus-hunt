@@ -287,6 +287,7 @@ const ICON_TEMPLATES = {
 const WEAPON_ICON_T = {
   sword:   ['........a.', '.......aa.', '......aa..', '.....aa...', '....aa....', '.b.aa.....', '..bb......', '..cb......', '.c..b.....', '..........'],
   spear:   ['.........a', '........aa', '.......ca.', '......c...', '.....c....', '....c.....', '...c......', '..c.......', '.c........', 'c.........'],
+  trident: ['......a..a', '.....a..a.', '....b..a..', '.....ba..a', '.....cb.a.', '....c..b..', '...c......', '..c.......', '.c........', 'c.........'],
   hammer:  ['....aaaa..', '...aaaaaa.', '...baaaab.', '....bcbb..', '....c.....', '...c......', '..c.......', '.c........', 'c.........', '..........'],
   daggers: ['a......a..', '.a....a...', '..a..a....', '...aa.....', '...aa.....', '..b..b....', '.c....c...', 'c......c..'],
   bow:     ['...cca....', '..c..a....', '.c...a....', '.c...a....', '.c...a....', '.c...a....', '..c..a....', '...cca....'],
@@ -297,6 +298,7 @@ const WEAPON_COLORS = {
   myrtle_spear: ['#f2a7c0', '#e88aa8', '#6b8a3a'], rose_blade: ['#f2a7c0', '#e9c04f', '#c76d8e'], laurel_bow: ['#ffd463', '#6f9a3e', '#3e5a22'],
   sunblade: ['#ffd463', '#ffffff', '#c9a032'], witchfire_daggers: ['#57c2b0', '#2c5684', '#1a2442'], spartoi_spear: ['#f3e9d4', '#c9a032', '#8a5a34'],
   ares_warblade: ['#c0412e', '#3a3a40', '#1f1f24'], retribution: ['#d5dbe5', '#e9c04f', '#8f846c'], coral_daggers: ['#e07a3a', '#7fd0c8', '#a04a1a'],
+  antler_trident: ['#f3e9d4', '#c9a46b', '#8a5a34'], bronze_trident: ['#e9c04f', '#a8742a', '#6b4528'], reef_trident: ['#e07a3a', '#7fd0c8', '#a04a1a'], stygian_trident: ['#7fd0c8', '#3c6a5a', '#1f1f24'],
   trident: ['#57c2b0', '#e9c04f', '#2c7a70'], peacock_bow: ['#e9c04f', '#3f9a8a', '#2c5684'], hera_scepter: ['#e9c04f', '#5b9bd5', '#a8842a'],
   discord_bow: ['#e9c04f', '#c0412e', '#1f1f24'], automaton_blade: ['#c9a032', '#ff8a2b', '#8f6c1c'], forge_hammer: ['#4b4f57', '#ff8a2b', '#6b4528'],
   stygian_daggers: ['#7fd0c8', '#3c6a5a', '#1f1f24'], bident: ['#7fe08a', '#2a1f3a', '#1f1f24'], dream_daggers: ['#c8b8ff', '#2c3a6a', '#1a2442'],

@@ -164,11 +164,13 @@ const ITEMS = {
 const KINDS = {
   sword:   { label: 'Sword',        melee: true,  oneHand: true,  dmgM: 1,    reach: 22, arc: 2.2, windup: .05, active: .13, cooldown: .32, knock: 85,  moveMul: .55, hitstop: .035, shake: 1, sfx: 'swing', blurb: 'Quick, wide swing. Works with a shield.' },
   spear:   { label: 'Spear',        melee: true,  oneHand: true,  dmgM: 1.25, reach: 36, arc: .6,  windup: .09, active: .14, cooldown: .42, knock: 150, moveMul: .4,  hitstop: .04,  shake: 1, sfx: 'swing', blurb: 'Long, narrow thrust. Works with a shield.' },
+  trident: { label: 'Trident',      melee: true,  oneHand: false, dmgM: 1.9,  reach: 36, arc: .7,  windup: .12, active: .14, cooldown: .62, knock: 190, moveMul: .35, hitstop: .06,  shake: 2, sfx: 'heavy', blurb: 'Heavy, long thrust that hits very hard. Two hands, no shield.' },
   hammer:  { label: 'Hammer',       melee: true,  oneHand: false, dmgM: 2.3,  reach: 27, arc: 3.1, windup: .26, active: .16, cooldown: .8,  knock: 240, moveMul: .3,  hitstop: .075, shake: 3, sfx: 'heavy', blurb: 'Slow, huge arc, sends enemies flying. Two hands, no shield.' },
   daggers: { label: 'Twin daggers', melee: true,  oneHand: false, dmgM: .6,   reach: 24, arc: 2.1, windup: .02, active: .09, cooldown: .15, knock: 60,  moveMul: .75, hitstop: .02,  shake: 0, sfx: 'swing', blurb: 'Very fast stabs that shred anything in reach. No shield.' },
   // A bow's safety is paid for with its damage: tap for weak quick shots, or stand and hold to draw a full-power one.
   // draw: seconds to full power. quick / full: damage of a tapped and a fully drawn shot. drawMul: walking speed while drawing.
-  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one and let go to fire (you walk slowly while drawing). No shield.' },
+  // Power builds with the square of the draw, so every moment you hold pays: a half draw must never out-damage a full one (see releaseAttack).
+  bow:     { label: 'Bow',          melee: false, oneHand: false, dmgM: .72,  windup: .07, active: .12, cooldown: .44, projSpeed: 250, knock: 70, moveMul: .55, hitstop: .02, shake: 0, sfx: 'arrow', draw: .5, quick: .8, full: 2.4, drawMul: .3, blurb: 'Ranged. Tap for quick, weak shots, or hold to draw a strong one and let go to fire (you walk slowly while drawing). A full draw hits three times as hard as a tap. No shield.' },
 };
 
 const ABILITIES = {
@@ -181,7 +183,7 @@ const ABILITIES = {
   sunburst:    { name: 'Sunburst',        cd: 7, desc: 'Fire a ring of sunlight in every direction.' },
   whirlwind:   { name: 'Whirlwind',       cd: 6, desc: 'Spin and hit everything around you three times.' },
   tidal:       { name: 'Tidal Wave',      cd: 7, desc: 'A wave rolls out from you and shoves everything far back.' },
-  trident_throw: { name: 'Trident Throw', cd: 7, desc: 'Hurl the trident through everything ahead. It crashes down in a wave, then flies back and hits again on the way.' },
+  trident_throw: { name: 'Trident Throw', cd: 7, desc: 'Hurl the trident through everything ahead. It crashes down in a wave, then flies back and hits again on the way. You can’t attack until you catch it.' },
   quake:       { name: 'Earthquake',      cd: 8, desc: 'Spikes burst from the ground around you and stun what they hit.' },
   eruption:    { name: 'Eruption',        cd: 8, desc: 'Fire bursts under the five nearest enemies.' },
   deathmark:   { name: 'Death Mark',      cd: 9, desc: 'Enemies near you take 30% more damage for 6 seconds.' },
@@ -196,6 +198,7 @@ const WEAPONS = {
   bull_maul:       { name: 'Bull Maul',             kind: 'hammer',  wt: 1.8,  ability: 'stampede', recipe: { items: { cattle_hide: 5, golden_horn: 1 }, cost: 300 }, desc: 'A horn-capped maul with the weight of a charging bull.' },
   harpe:           { name: 'Harpe of Hermes',       kind: 'daggers', wt: 2,    ability: 'winged_step', recipe: { items: { winged_feather: 4, herald_token: 2 }, cost: 600 }, desc: 'Twin sickle blades of the messenger god.' },
   stag_spear:      { name: 'Antler Spear',          kind: 'spear',   wt: 2.5,  recipe: { items: { stag_antler: 4, wolf_pelt: 3, calydon_tusk: 1 }, cost: 500 }, desc: 'Tipped with a stag’s antler.' },
+  antler_trident:  { name: 'Antler Trident',        kind: 'trident', wt: 2.5,  ability: 'trident_throw', recipe: { items: { stag_antler: 5, wolf_pelt: 3, calydon_tusk: 1 }, cost: 600 }, desc: 'Three points off a great stag. Throw it and it comes back.' },
   wolf_fangs:      { name: 'Wolf Fangs',            kind: 'daggers', wt: 2.5,  recipe: { items: { wolf_fang: 5, wolf_pelt: 4 }, cost: 450 }, desc: 'Two fangs bound in fur.' },
   silver_bow:      { name: 'Silver Bow of Artemis', kind: 'bow',     wt: 3,    pierce: 1, ability: 'volley', recipe: { items: { moon_silver: 3, hunt_token: 2, silver_arrowhead: 4 }, cost: 800 }, desc: 'Strung with moonlight.' },
   satyr_club:      { name: 'Satyr Club',            kind: 'hammer',  wt: 3.5,  recipe: { items: { satyr_fur: 6, panther_pelt: 2, centaur_hoof: 1 }, cost: 650 }, desc: 'Knotted vine-wood, very heavy.' },
@@ -203,6 +206,7 @@ const WEAPONS = {
   wild_maul:       { name: 'Pan’s Wild Maul',  kind: 'hammer',  wt: 4.2,  ability: 'stampede', recipe: { items: { wild_horn: 2, satyr_fur: 4 }, cost: 900 }, desc: 'Hits like a herd.' },
   owl_bow:         { name: 'Owlfeather Bow',        kind: 'bow',     wt: 4.5,  pierce: 2, recipe: { items: { owl_quill: 5, cedar_shaft: 4, silver_talon: 1 }, cost: 700 }, desc: 'Light and silent. Shots punch through two extra enemies.' },
   hoplite_dory:    { name: 'Hoplite Dory',          kind: 'spear',   wt: 4.5,  recipe: { items: { bronze_plate: 5, cedar_shaft: 3, hoplite_crest: 1 }, cost: 750 }, desc: 'The long spear of the Athenian battle line.' },
+  bronze_trident:  { name: 'Bronze Trident',        kind: 'trident', wt: 4.5,  ability: 'trident_throw', recipe: { items: { bronze_plate: 6, cedar_shaft: 3, hoplite_crest: 1 }, cost: 900 }, desc: 'Cast in one piece in the Athenian foundries. Throw it and it comes back.' },
   athena_spear:    { name: 'Spear of Athena',       kind: 'spear',   wt: 5,    ability: 'aegis', recipe: { items: { aegis_scale: 4, wisdom_token: 2, bronze_plate: 3 }, cost: 1300 }, desc: 'Athena’s own spear, balanced perfectly.' },
   myrtle_spear:    { name: 'Myrtle Spear',          kind: 'spear',   wt: 5.5,  recipe: { items: { suitor_silk: 5, eros_arrow: 3, rose_quartz: 1 }, cost: 900 }, desc: 'Wound with myrtle and silk.' },
   rose_blade:      { name: 'Rose Blade',            kind: 'sword',   wt: 6,    ability: 'soulsteal', recipe: { items: { foam_pearl: 3, love_token: 2, rose_quartz: 1 }, cost: 1500 }, desc: 'Pretty, and much sharper than it looks.' },
@@ -213,7 +217,8 @@ const WEAPONS = {
   ares_warblade:   { name: 'Warblade of Ares',      kind: 'sword',   wt: 8,    ability: 'whirlwind', recipe: { items: { war_ember: 3, war_token: 2, bloodied_bronze: 4 }, cost: 2200 }, desc: 'It wants to be swung.' },
   retribution:     { name: 'Blade of Retribution',  kind: 'sword',   wt: 8,    ability: 'deathmark', recipe: { items: { nemesis_scale: 2, bloodied_bronze: 4 }, cost: 2000 }, desc: 'Everyone gets what they deserve.' },
   coral_daggers:   { name: 'Coral Daggers',         kind: 'daggers', wt: 8.5,  recipe: { items: { crab_shell: 6, triton_scale: 3, giant_claw: 1 }, cost: 1600 }, desc: 'Grown, not forged.' },
-  trident:         { name: 'Trident of the Deep',   kind: 'spear',   wt: 9,    ability: 'trident_throw', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. Throw it and it comes back.' },
+  reef_trident:    { name: 'Reef Trident',          kind: 'trident', wt: 8,    ability: 'trident_throw', recipe: { items: { crab_shell: 6, triton_scale: 4, giant_claw: 1 }, cost: 1700 }, desc: 'Coral teeth on a driftwood shaft. Throw it and it comes back.' },
+  trident:         { name: 'Trident of the Deep',   kind: 'trident', wt: 9,    ability: 'trident_throw', recipe: { items: { trident_pearl: 3, sea_token: 2, triton_scale: 4 }, cost: 2600 }, desc: 'Poseidon’s weapon. Throw it and it comes back.' },
   peacock_bow:     { name: 'Peacock Bow',           kind: 'bow',     wt: 9.5,  pierce: 2, recipe: { items: { peacock_plume: 6, royal_gold: 3, argus_eye: 1 }, cost: 1900 }, desc: 'Fletched with eye-feathers.' },
   hera_scepter:    { name: 'Scepter of Hera',       kind: 'hammer',  wt: 10,   ability: 'quake', recipe: { items: { regal_plume: 3, queen_token: 2, royal_gold: 4 }, cost: 3000 }, desc: 'The queen’s scepter. Heavier than a throne.' },
   discord_bow:     { name: 'Bow of Discord',        kind: 'bow',     wt: 10,   pierce: 1, ability: 'volley', recipe: { items: { golden_apple: 2, peacock_plume: 5 }, cost: 2600 }, desc: 'Its arrows never fly quite straight. They don’t need to.' },
@@ -222,6 +227,7 @@ const WEAPONS = {
   forge_hammer:    { name: 'Hammer of Hephaestus',  kind: 'hammer',  wt: 11,   ability: 'eruption', recipe: { items: { divine_bronze: 3, forge_token: 2, automaton_core: 4 }, cost: 3400 }, desc: 'The hammer that forged the thunderbolt.' },
   stygian_daggers: { name: 'Stygian Daggers',       kind: 'daggers', wt: 11.5, recipe: { items: { shade_essence: 6, styx_water: 3, cerberus_fang: 1 }, cost: 2600 }, desc: 'Dipped in the Styx.' },
   bident:          { name: 'Bident of Hades',       kind: 'spear',   wt: 12,   ability: 'deathmark', recipe: { items: { soul_gem: 3, death_token: 2, styx_water: 4 }, cost: 3800 }, desc: 'Two prongs. Both of them final.' },
+  stygian_trident: { name: 'Stygian Trident',       kind: 'trident', wt: 11.5, ability: 'trident_throw', recipe: { items: { shade_essence: 6, styx_water: 3, cerberus_fang: 1 }, cost: 2800 }, desc: 'Three cold points, dipped in the Styx. Throw it and it comes back.' },
   dream_daggers:   { name: 'Dreamweaver Daggers',   kind: 'daggers', wt: 12,   ability: 'soulsteal', recipe: { items: { poppy_dream: 2, shade_essence: 6 }, cost: 3200 }, desc: 'They hit like a bad dream.' },
   storm_fangs:     { name: 'Storm Fangs',           kind: 'daggers', wt: 12.5, recipe: { items: { harpy_talon: 6, storm_glass: 3, storm_eye: 1 }, cost: 3000 }, desc: 'Twin blades of lightning glass.' },
   keraunos:        { name: 'Keraunos',              kind: 'sword',   wt: 13,   ability: 'chain', recipe: { items: { thunder_core: 4, olympian_token: 2, storm_eye: 1 }, cost: 5000 }, desc: 'A blade forged around one of Zeus’ thunderbolts.' },

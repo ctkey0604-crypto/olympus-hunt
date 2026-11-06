@@ -4,8 +4,9 @@
 const NEWS = [
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
-      'The Trident of the Deep can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back.',
-      'Leaderboards at the Coliseum: fights, speedrun and Endless, all on one board.',
+      'A new weapon type, the Trident: heavy, two-handed and long, with six to forge from early on right up to the Titans.',
+      'Every trident can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back to your hand. You can’t attack until you catch it.',
+      'Leaderboards at the Coliseum: fights, time to complete and Endless, all on one board.',
       'A Next quest button on the quest complete screen, when you’re playing alone.',
       'The Coliseum now stands in Akros. With two or more players in your room, talk to Agon the Arena Master to set up a fight: a duel or teams, best of three rounds. In a team fight, pick your side from the room box.',
       'A fight’s rank limits the gear allowed, so anyone can take part in a Normal Rank fight. Your real gear counts, but timing can beat it: a perfect block staggers your attacker, a well-timed dash slips a hit, and no one hit takes more than a fifth of your health.',
@@ -34,9 +35,10 @@ const NEWS = [
     changed: [
       'Akros is bigger, with winding roads and more trees, and the Forge now stands beside the Temple.',
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
-      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far.',
+      'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far. A full draw is always your strongest choice now, and a half draw no longer beats it.',
       'Every Titan is tougher and has a new trick, and the gods are a little tougher too. Hyperion’s beams turn slightly slower and give you a moment longer to read them.',
-      'Practice now shows what your hits would do in a fight, against someone in your armor.',
+      'The Forge, your loadouts and Agon’s panel show PvP numbers beside your other stats, so you can see what your gear does in a fight.',
+      'Fights no longer show damage numbers. Watch the health bars instead. Practice still shows them.',
       'Online play copes better with a slow connection: fewer, smaller updates when anyone’s connection struggles, and saves that couldn’t be sent try again by themselves.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
       'Hammers hit a little softer. Spears hit a little harder and faster.',

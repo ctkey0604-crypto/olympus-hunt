@@ -180,13 +180,13 @@ function renderHub() {
   const eqBox = $('hubEquip');
   eqBox.hidden = G.panel !== 'armory';
   if (G.panel === 'armory') {
-    const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null;
+    const st = playerStats(), w = st.weapon, sh = s.shield ? SHIELDS[s.shield] : null, fight = playerStats({ ...s, meal: null });
     const bonus = st.bonuses.map(b => { const set = ARMOR_SETS[b.set], perks = b.n === 4 ? set.four : set.two; return `${set.name} ${b.n}: ${Object.entries(perks).map(([k, v]) => PERK_TEXT[k](v)).join(', ')}`; });
     eqBox.innerHTML = `
       <div class="preview"><canvas id="pvCanvas" width="24" height="32" aria-label="Your character"></canvas>
-        <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
+        <div><div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(fight.weapon.dmg, fight.weapon.kind, fight)}</b></span><span>Speed <b>${Math.round(st.speed / 80 * 100)}%</b></span></div>
         <div class="setbonus" style="margin-top:6px">${bonus.length ? bonus.map(b => `<span class="on">${esc(b)}</span>`).join('') : '<span class="off">No set bonus. Wear 2 or 4 pieces of one set.</span>'}</div></div></div>
-      <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
+      <div class="equip-card"><img class="px-icon" alt="" src="${icon(s.weapon)}"><div><span class="lbl">Weapon</span><b>${esc(w.name)}</b><span>${KINDS[w.kind].label} · ${Math.round(w.dmg * st.mul)} damage · ${pvpNum(fight.weapon.dmg, fight.weapon.kind, fight)} in PvP${w.ability ? ' · ' + ABILITIES[w.ability].name : ''}</span></div></div>
       <div class="equip-card">${sh ? `<img class="px-icon" alt="" src="${icon(s.shield)}">` : '<span class="px-icon"></span>'}<div><span class="lbl">Shield</span><b>${sh ? esc(sh.name) : 'None'}</b><span>${sh ? (st.shield ? `Blocks ${Math.round(sh.block * 100)}% from the front` : 'Not usable with a two-handed weapon') : 'Craft one in the Shields tab'}</span></div>${sh ? '<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>' : ''}</div>`;
     drawPreview($('pvCanvas'), heroLook(s), s.shield, s.weapon);
   }
@@ -290,6 +290,11 @@ function refineRow(kind, id) {
     <div class="chips">${recipeChips(rec)}</div><button class="btn ghost small" type="button" data-refine="${kind}:${id}" ${canCraft(rec) ? '' : 'disabled'}>Refine</button></div>`;
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
+const deltaLess = (v, base) => { const d = Math.round(v - base); return d ? ` <span class="${d < 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>` : ''; };   // for numbers where less is better
+// The PvP numbers beside the other stats: what one hit does to a player in your armor.
+const PVP_TIP = 'What one hit does in a fight, to a player in the armor you’re wearing.';
+const pvpTop = (dmg, kind, st) => pvpHitOn(dmg * st.mul * (KINDS[kind].full || 1), st.def, st.maxHp);
+const pvpNum = (dmg, kind, st) => KINDS[kind].draw ? `${pvpHitOn(dmg * st.mul * KINDS[kind].quick, st.def, st.maxHp)}–${pvpTop(dmg, kind, st)}` : String(pvpTop(dmg, kind, st));
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
 // Gear shows up in the forge once you've cleared hunts that drop every part in its recipe (its monsters, god or Titan,
 // summons included), so the list only holds things you've actually fought for.
@@ -317,6 +322,7 @@ function renderArmory() {
   const filters = `<div class="seg">${[['all', 'All'], ['craft', 'Can forge'], ['owned', 'Owned']].map(([k, l]) => `<button type="button" data-forgefilter="${k}" aria-pressed="${G.forgeFilter === k}">${l}</button>`).join('')}</div>`;
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
+  const fight = playerStats({ ...s, meal: null }), myHit = fight.weapon.dmg * fight.mul, myTop = pvpTop(fight.weapon.dmg, fight.weapon.kind, fight);
   if (tab === 'weapons') {
     const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
@@ -327,7 +333,7 @@ function renderArmory() {
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
-        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
+        <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(dmg, w.kind, fight)}</b>${eq ? '' : delta(pvpTop(dmg, w.kind, fight), myTop)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
         <p class="desc">${esc(w.desc)} ${esc(K.blurb)}</p>
         ${w.ability ? `<div class="ability"><b>${esc(ABILITIES[w.ability].name)}</b> · ${esc(ABILITIES[w.ability].desc)} (${Math.round(ABILITIES[w.ability].cd * (w.cdMul || 1) * 10) / 10}s cooldown)</div>` : ''}
         ${owned ? refineRow('weapon', id) : `<div class="chips">${recipeChips(w.recipe)}</div>`}
@@ -343,10 +349,11 @@ function renderArmory() {
       const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
         const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
+        const wearing = eq ? fight : playerStats({ ...s, meal: null, equip: { ...s.equip, [sl]: sid } }), taken = pvpHitOn(myHit, wearing.def, wearing.maxHp);   // the hit you'd take in a fight with this piece on, set bonuses and all
         const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="piece:${P.id}">Equip</button>` : `<button class="btn small" type="button" data-craft="piece:${P.id}" ${canCraft(P.recipe) ? '' : 'disabled'}>Craft</button>`;
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
-          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}</div>
+          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}<span title="What a hit from your weapon would do to you in a fight, wearing this.">PvP hit taken <b>${taken}</b>${eq ? '' : deltaLess(taken, pvpHitOn(myHit, fight.def, fight.maxHp))}</span></div>
           ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
@@ -368,12 +375,12 @@ function renderArmory() {
       const owned = s.shields.includes(id);
       if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
       if (!gearVisible(sh.recipe, owned)) { hidden++; continue; }
-      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
+      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0, blocked = Math.round(myHit * (1 - Math.min(.97, sh.block + .01 * shl)) * 20 / (20 + fight.def));
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span title="What a blocked hit from your weapon would still do to you in a fight.">PvP blocked hit <b>${blocked}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
@@ -396,7 +403,7 @@ function renderLoadouts() {
     const st = playerStats({ ...s, meal: null, weapon: L.weapon, shield: L.shield, equip: L.equip }), w = st.weapon, sh = L.shield ? SHIELDS[L.shield] : null, on = loadoutSame(L, s);
     return `<article class="gear${on ? ' meal-on' : ''}"><input class="load-name" data-ldname="${i}" maxlength="${LOADOUT_NAME_MAX}" value="${esc(L.name)}" aria-label="Loadout name" autocomplete="off" spellcheck="false">
       <div class="load-gear"><img class="px-icon" alt="" src="${icon(L.weapon)}"><div><b>${esc(w.name)}</b><span>${esc(armorLabel(L.equip))}${sh ? ` · ${esc(sh.name)}${st.shield ? '' : ' (not with this weapon)'}` : ''}</span></div></div>
-      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span></div>
+      <div class="stats"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span>Damage <b>${Math.round(w.dmg * st.mul)}</b></span><span title="${PVP_TIP.replace('the armor you’re wearing', 'this armor')}">PvP hit <b>${pvpNum(w.dmg, w.kind, st)}</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-ldwear="${i}" ${on ? 'disabled' : ''}>${on ? 'Wearing' : 'Wear'}</button><button class="btn ghost small" type="button" data-ldover="${i}" ${on ? 'disabled' : ''}>Save over</button>${G.ldArm === i
         ? `<button class="btn danger small" type="button" data-lddel="${i}">Delete it?</button><button class="btn ghost small" type="button" data-ldarm="-1">No</button>` : `<button class="btn ghost small" type="button" data-ldarm="${i}">Delete</button>`}</div></article>`;
   };
@@ -1123,7 +1130,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tridentOut, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)

@@ -506,7 +506,7 @@ function netRemoteStep(p, dt) {
     else if (k === 'rf') { const pr = q.projs.find(x => x.nid === a[1]); if (pr && pr.team === 'enemy') reflectProj(pr, p); }
     else if (k === 'pj') {                                       // one of its shots, for everyone else to see (it does no damage here)
       spawnProj(a[1], a[2], Math.atan2(a[4], a[3]), Math.hypot(a[3], a[4]), 0, a[5], 'player', { r: a[6], life: a[7], owner: p, pierce: clamp(Math.floor(+a[8] || 0), 0, 20) });
-      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid; if (pr.kind === 'trident') pr.boom = { t: TRIDENT_OUT, src: p };
+      const pr = q.projs[q.projs.length - 1]; pr.vis = true; pr.oh = p.hid; if (pr.kind === 'trident') { pr.boom = { t: TRIDENT_OUT, src: p }; tridentDress(pr, p); }
     }
   }
 }
@@ -620,7 +620,8 @@ function netGuestHit(e, dmg, ang, knock, ub, fp) {
   if (e.pvp && e.untargetable) return false;
   if (e.dead || e.state === 'spawn' || e.hidden || e.air) return false;
   if (e.boss && e.invuln > 0) { burst(e.x, e.y - 10, 3, ['#ebc152'], 50); Sound.play('clink'); return false; }
-  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0, shotHit ? 1 : 0]); if (e.pvp) pvpShowHit(e.pvp, dmg);
+  NET.out.q.push(['h', e.id, Math.round(dmg * 10) / 10, r2(ang), Math.round(knock), ub ? 1 : 0, fp ? 1 : 0, shotHit ? 1 : 0]);
+  if (e.pvp) pvpLanded(e.pvp);
   e.flash = .12; if (fp) momentumHit(q.player);
   return true;
 }

@@ -74,12 +74,13 @@ Object.assign(ABILITIES, {
   pride:       { name: 'Pride of Rhea',  cd: 9,  desc: 'Two spirit lions leap out and hunt the nearest enemies.' },
   timestop:    { name: 'Stop Time',      cd: 12, desc: 'Everything but you freezes for 2.5 seconds. Gods and Titans only slow down.' },
 });
-const KIND_SKILL = { sword: 'crescent', spear: 'impale', hammer: 'shockwave', daggers: 'flurry', bow: 'piercer' };
+const KIND_SKILL = { sword: 'crescent', spear: 'impale', trident: 'trident_throw', hammer: 'shockwave', daggers: 'flurry', bow: 'piercer' };
 
 Object.assign(WEAPONS, {
   sky_maul:      { titan: true, name: 'Maul of the Sky',     kind: 'hammer',  wt: 13,   ability: 'skyfall',     recipe: { items: { sky_shard: 3, primordial_token: 2, titan_bone: 2 }, cost: 6000 }, desc: 'A lump of the night sky on a handle.' },
   dawn_bow:      { titan: true, name: 'Bow of First Light',  kind: 'bow',     wt: 13.5, pierce: 2, ability: 'solar_lance', recipe: { items: { dawn_ember: 3, primordial_token: 2, obsidian_plate: 4 }, cost: 6400 }, desc: 'Strung with a sunbeam.' },
   tide_daggers:  { titan: true, name: 'Tidebreaker Fangs',   kind: 'daggers', wt: 14,   ability: 'riptide',     recipe: { items: { world_water: 3, primordial_token: 2, triton_scale: 5 }, cost: 6800 }, desc: 'They pull like the undertow.' },
+  world_trident: { titan: true, name: 'Trident of the World River', kind: 'trident', wt: 14, ability: 'trident_throw', recipe: { items: { world_water: 3, primordial_token: 2, triton_scale: 5 }, cost: 7000 }, desc: 'The river around the world, given three points. Throw it and it comes back.' },
   axis_spear:    { titan: true, name: 'Spear of the Axis',   kind: 'spear',   wt: 14.5, ability: 'foresight',   recipe: { items: { axis_star: 3, primordial_token: 2, chrono_dust: 4 }, cost: 7200 }, desc: 'The heavens turn around its tip.' },
   memory_blade:  { titan: true, name: 'Blade of Memory',     kind: 'sword',   wt: 15,   ability: 'echo',        recipe: { items: { memory_glass: 3, primordial_token: 2, chrono_dust: 4 }, cost: 7600 }, desc: 'It remembers every cut it ever made.' },
   law_glaive:    { titan: true, name: 'Glaive of Law',       kind: 'spear',   wt: 15.5, ability: 'verdict',     recipe: { items: { oath_stone: 3, primordial_token: 2, obsidian_plate: 5 }, cost: 8000 }, desc: 'It weighs every blow you take.' },
@@ -89,7 +90,7 @@ Object.assign(WEAPONS, {
 const TITAN_WEAPON_COLORS = {
   sky_maul: ['#3c4a78', '#e9c04f', '#5a4e38'], dawn_bow: ['#ffd463', '#ff8a2b', '#8a5a34'], tide_daggers: ['#7fd0c8', '#2c7a70', '#1a4a44'],
   axis_spear: ['#e6f2ff', '#5b9bd5', '#1a2442'], memory_blade: ['#c8b8ff', '#ffffff', '#6b5a8a'], law_glaive: ['#f3e9d4', '#e9c04f', '#8f846c'],
-  lion_claws: ['#e9c04f', '#c9a046', '#5a3a22'], harpe_cronus: ['#d5dbe5', '#e9c04f', '#1f1f24'],
+  lion_claws: ['#e9c04f', '#c9a046', '#5a3a22'], harpe_cronus: ['#d5dbe5', '#e9c04f', '#1f1f24'], world_trident: ['#e6f2ff', '#57c2b0', '#1a4a44'],
 };
 
 Object.assign(ARMOR_SETS, {

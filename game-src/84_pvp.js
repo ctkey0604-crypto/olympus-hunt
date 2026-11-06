@@ -18,6 +18,11 @@ for (const mode of Object.keys(PVP_MODES)) RANKS.forEach((R, r) => {
   QUEST_BY_ID[id] = { id, base: id, pvp: true, mode, name: PVP_MODES[mode], god: 'ares', arena: 'coliseum', rank: r, tier: 13 + R.off, mt: 13 + R.off, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
 });
 let shotHit = false;                                                     // the hit being handled came from a shot, not a swing
+// What a hit does in a fight. Weapons aren't scaled down: armor takes its share exactly as it does when a monster hits you,
+// and the only limit is that no one hit takes more than a fifth of someone's health.
+function pvpHitOn(dmg, def, maxHp) { return Math.min(Math.max(1, Math.round(dmg * 20 / (20 + def))), Math.ceil(maxHp * PVP_MAX_HIT)); }
+// With no numbers in a fight, a landed hit shows for whoever landed it: a small quick ring on them and a short pause. Kept light on purpose.
+function pvpLanded(t) { q.fx.push({ t: 'ring', x: t.x, y: t.y - 8, r0: 2, r1: 9, life: .12, max: .12, c: '#ffffff' }); G.hitstop = Math.max(G.hitstop, .03); }
 
 // Who ends up on which side of a team fight. Players pick from the room box; anyone who hasn't goes to the smaller side, and
 // neither side is ever left empty. Every game works this out from the same list, so they all agree.
@@ -100,18 +105,11 @@ function pvpHit(e, dmg, ang, knock, ub, fp) {
   const r = hurtHunter(t, dmg, ang, knock * PVP_KNOCK, { src: q.pvpT.get(-(by.hid + 1)), melee: !shotHit, proj: shotHit, unblockable: ub });
   if (!r) return false;
   t.lastBy = by; by.stats.dealt += dmg;
-  hitSparks(t.x, t.y - 8, ang, false);
-  if (isLocal(by)) pvpShowHit(t, dmg);
+  hitSparks(t.x, t.y - 8, ang, true); if (isLocal(by)) pvpLanded(t);
   if (fp) onPlayerHit(e, dmg);
   return true;
 }
 const pvpShotTest = (e, dmg, by) => { shotHit = true; q.actor = by; const r = pvpHit(e, dmg, 0, 0, false, false); q.actor = null; shotHit = false; return r; };   // for the tests
-// The number you see when your hit lands: what it'll do after their armor.
-function pvpShowHit(t, dmg) {
-  const was = NET.replay; NET.replay = true;
-  addText(t.x, t.y - 22, String(Math.max(1, Math.round(dmg * 20 / (20 + t.st.def)))), '#f0e4cc');
-  NET.replay = was;
-}
 // A perfect block staggers whoever swung, so timing beats gear.
 function pvpParried(src) {
   if (q.net === 'guest') { NET.out.q.push(['pv', src.id]); return; }
@@ -190,13 +188,15 @@ function renderArena() {
   if (!netOn() || R.members.length < 2) return `<div class="empty-note">You need a room with at least two players. Talk to the Oracle in the square.</div>`;
   const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides. Pick yours from the room box once the fight is posted. You can’t hurt your own side.'}</p><div class="stack">`
     + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('') + `</div></div>`).join('');
-  return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p><div class="opts">${rows}</div>`;
+  const st = playerStats({ ...G.save, meal: null });
+  return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p>
+    <div class="stats" style="margin:0 0 12px"><span>Health <b>${st.maxHp}</b></span><span>Defense <b>${st.def}</b></span><span title="${PVP_TIP}">PvP hit <b>${pvpNum(st.weapon.dmg, st.weapon.kind, st)}</b></span></div><div class="opts">${rows}</div>`;
 }
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
 // The leaderboards at the Coliseum: fights, the fastest run to Typhon, and the deepest Endless wave.
-const BOARD_TABS = { fights: 'Fights', speed: 'Speedrun', endless: 'Endless' };
+const BOARD_TABS = { fights: 'Fights', speed: 'Time to Complete', endless: 'Endless' };
 const BOARD_HOW = {
   fights: 'Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.',
   speed: 'Play time from your first step to Typhon’s fall. Your best save counts.',

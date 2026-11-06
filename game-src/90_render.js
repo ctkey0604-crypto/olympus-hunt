@@ -310,12 +310,12 @@ function weaponTint(id) {
   return r ? mixHex(c || '#c7ccd1', RANK_TINT[r].trim, .55) : c;
 }
 function drawWeapon(p, hx, hy) {
-  if (p.dodgeT > 0) return;
+  if (p.dodgeT > 0 || tridentOut(p)) return;
   const w = p.st.weapon, fullId = (p.save || G.save).weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
   let ang = p.face, ext = 0, trail = null;
   if (p.swing) {
     const s = p.swing, tt = clamp((s.t - s.windup) / s.active, 0, 1);
-    if (kind === 'spear') { ang = s.aim; ext = s.t < s.windup ? -3 : Math.sin(tt * Math.PI) * 9; }
+    if (kind === 'spear' || kind === 'trident') { ang = s.aim; ext = s.t < s.windup ? -3 : Math.sin(tt * Math.PI) * 9; }
     else if (kind === 'bow') ang = s.aim;
     else {
       const from = s.aim - K.arc / 2 * s.side, to = s.aim + K.arc / 2 * s.side;
@@ -323,6 +323,7 @@ function drawWeapon(p, hx, hy) {
       if (s.t >= s.windup) trail = { from, cur: ang, r: kind === 'hammer' ? K.reach - 4 : K.reach - 3 };
     }
   } else if (p.fx && p.fx.spin > 0) { ang = G.time * 30; trail = { from: ang - 2.5, cur: ang, r: 20 }; }
+  else if (p.catchT !== undefined && G.time - p.catchT < .22) { const k = 1 - (G.time - p.catchT) / .22; ang = p.face + angDiff(p.face, p.catchA) * k; ext = 6 * k; }   // a caught trident slides into your grip
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const P = (d, side = 0) => [hx + ca * d - sa * side, hy + sa * d + ca * side];
   const tint = weaponTint(fullId);
@@ -335,11 +336,11 @@ function drawWeapon(p, hx, hy) {
     }
     ctx.globalAlpha = 1;
   }
-  const grip = (WEAPON_COLORS[id] && WEAPON_COLORS[id][2]) || '#8a5a34';
+  const grip = (WEAPON_COLORS[id] && WEAPON_COLORS[id][kind === 'trident' ? 1 : 2]) || '#8a5a34';
   switch (kind) {
     case 'sword': { const [a1, b1] = P(1), [a2, b2] = P(10); pxLine(a1, b1, a2, b2, tint || '#e9c04f'); const [c1, d1] = P(2, -2), [c2, d2] = P(2, 2); pxLine(c1, d1, c2, d2, '#a8842a'); const [e1, f1] = P(9); ctx.fillStyle = '#fff3c0'; ctx.fillRect(Math.round(e1), Math.round(f1), 1, 1); break; }
-    case 'spear': { const [a1, b1] = P(-4 + ext), [a2, b2] = P(13 + ext); pxLine(a1, b1, a2, b2, id === 'athena_spear' ? '#e9c04f' : grip); const [c1, d1] = P(13 + ext), [c2, d2] = P(16 + ext); pxLine(c1, d1, c2, d2, tint || '#c7ccd1');
-      if (id === 'trident' || id === 'bident') { for (const sd of id === 'trident' ? [-2, 2] : [-1.5, 1.5]) { const [e1, f1] = P(13 + ext, sd), [e2, f2] = P(16 + ext, sd); pxLine(e1, f1, e2, f2, tint); } } break; }
+    case 'spear': case 'trident': { const [a1, b1] = P(-4 + ext), [a2, b2] = P(13 + ext); pxLine(a1, b1, a2, b2, id === 'athena_spear' ? '#e9c04f' : grip); const [c1, d1] = P(13 + ext), [c2, d2] = P(16 + ext); pxLine(c1, d1, c2, d2, tint || '#c7ccd1');
+      if (kind === 'trident' || id === 'bident') { for (const sd of kind === 'trident' ? [-2, 2] : [-1.5, 1.5]) { const [e1, f1] = P(13 + ext, sd), [e2, f2] = P(16 + ext, sd); pxLine(e1, f1, e2, f2, tint); } } break; }
     case 'hammer': { const [a1, b1] = P(-1), [a2, b2] = P(9); pxLine(a1, b1, a2, b2, grip); const big = id === 'cyclops_club' || id === 'satyr_club'; for (let s = -3; s <= 3; s++) { const [c1, d1] = P(9, s), [c2, d2] = P(big ? 14 : 12, s); pxLine(c1, d1, c2, d2, big ? (Math.abs(s) === 3 ? '#5a3a22' : '#8a5a34') : (Math.abs(s) === 3 ? '#636a72' : (tint && id !== 'bull_maul' ? tint : '#a7adb3'))); } break; }
     case 'daggers': { const col = tint || '#c7ccd1'; const [a1, b1] = P(1, -2), [a2, b2] = P(6, -2); pxLine(a1, b1, a2, b2, col); const [c1, d1] = P(0, 2), [c2, d2] = P(5, 3); pxLine(c1, d1, c2, d2, col); break; }
     case 'bow': {
@@ -522,11 +523,13 @@ function drawProj(pr, S) {
     }
     case 'godweapon': drawThrown(pr.weapon, sx, y, a, pr.t); break;
     case 'trident': {                                       // Poseidon's trident, thrown: a gold shaft, three teal prongs, and a trail of drops
-      const x0 = sx - ca * 10, y0 = y - sa * 10, x1 = sx + ca * 6, y1 = y + sa * 6, nx = -sa, ny = ca, tip = (o, l) => [x1 + nx * o + ca * l, y1 + ny * o + sa * l];   // the size it is in the player's hand: 20 long, 5 wide
-      pxLine(x0 + nx, y0 + ny, x1 + nx, y1 + ny, '#140d0b'); pxLine(x0, y0, x1, y1, '#e9c04f');
-      pxLine(...tip(-2, 0), ...tip(2, 0), '#2c7a70');
-      for (const [o, l] of [[-2, 3], [2, 3], [0, 4]]) { pxLine(...tip(o, 0), ...tip(o, l), '#57c2b0'); ctx.fillStyle = '#e6f2ff'; const [tx, ty] = tip(o, l); ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1); }
-      if (Math.random() < .5) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: rand(-14, 14), vy: rand(-6, 14), g: 90, life: .3, max: .3, c: Math.random() < .5 ? '#57c2b0' : '#e6f2ff', s: 1 });
+      const dx = pr.ret ? -ca : ca, dy = pr.ret ? -sa : sa;   // it comes home shaft first, ready to catch
+      const x0 = sx - dx * 10, y0 = y - dy * 10, x1 = sx + dx * 6, y1 = y + dy * 6, nx = -dy, ny = dx, tip = (o, l) => [x1 + nx * o + dx * l, y1 + ny * o + dy * l];   // the size it is in the player's hand: 20 long, 5 wide
+      const head = pr.ca || '#57c2b0';
+      pxLine(x0 + nx, y0 + ny, x1 + nx, y1 + ny, '#140d0b'); pxLine(x0, y0, x1, y1, pr.cb || '#e9c04f');
+      pxLine(...tip(-2, 0), ...tip(2, 0), head);
+      for (const [o, l] of [[-2, 3], [2, 3], [0, 4]]) { pxLine(...tip(o, 0), ...tip(o, l), head); ctx.fillStyle = '#e6f2ff'; const [tx, ty] = tip(o, l); ctx.fillRect(Math.round(tx), Math.round(ty), 1, 1); }
+      if (Math.random() < .5) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: rand(-14, 14), vy: rand(-6, 14), g: 90, life: .3, max: .3, c: Math.random() < .5 ? head : '#e6f2ff', s: 1 });
       break;
     }
     case 'orb': pxEllipse(sx, y, 4, 4, '#140d0b'); pxEllipse(sx, y, 3, 3, Math.floor(pr.t * 10) % 2 ? '#57c2b0' : '#3c8f82'); ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - 1, y - 1, 2, 2); break;
@@ -559,7 +562,28 @@ function roofTiles(sx, sy, W, h) {
   for (let y = sy; y < sy + h - 1; y += 4) for (let x = sx + ((y - sy) / 4 % 2) * 3; x < sx + W; x += 6) { ctx.fillStyle = '#cf6a2f'; ctx.fillRect(x, y, Math.min(3, sx + W - x), 1); }
   ctx.fillStyle = '#e8874a'; ctx.fillRect(sx, sy, W, 1);
 }
-// The Temple's front: a low marble gable over the columns, a painted field inside it with a gold sun, and gilded ornaments
+// The gods in the gable, marble on blue like a real temple's: Zeus enthroned under the peak with his bolt, Poseidon and Athena
+// standing either side, and the others seated, then reclining, as the roof comes down to the corners.
+const GABLE_ART = {
+  zeus: ['.........c...', '........cc...', '....aaa.cc...', '....aaa.ccc..', '....aba...c..', '..aaaaaaa.c..', '.aaaaaaaaa...', '.aa.aaa.aa...', '.aa.aaa.aa...', '.aa.aaa..a...',
+         'c.aaaaaaa.c..', 'c.aaabaaa.c..', 'caaaaaaaaac..', 'caaaabaaaac..', 'caa.aaa.aac..', 'c.a.aba.a.c..', 'c.a.aaa.a.c..', 'c.a.aba.a.c..', 'ccaaa.aaacc..'],
+  stand: ['..aaa..', '..aaa..', '..aba..', '.aaaaa.', 'aaaaaaa', 'aa.a.aa', 'aa.a.aa', 'a.aba.a', '..aaa..', '..aba..', '.aaaaa.', '.aabaa.', '.aaaaa.', '.aabaa.', 'aaaaaaa', 'aabaaba'],
+  seat: ['...aaa...', '...aaa...', '...aba...', '..aaaaa..', '.aaaaaaa.', '.aa.aaaaa', '.aa.aaaaa', '..aaaaaaa', '..aaabaaa', '..aaa..aa', '..aaa..aa', '.aaaa.aaa'],
+  lie: ['............aaa', '............aaa', '........aaaaaba', '..aaaaaaaaaaaa.', 'aaaaaaabaaaaa..', 'aabaaaaaaaaaaaa'],
+};
+let gableSpr = null;
+function gableGods(mid, base) {
+  if (!gableSpr) {
+    const pal = { a: '#efe7d4', b: '#b9ad95', c: '#e9c04f' }; gableSpr = {};
+    for (const [k, rows] of Object.entries(GABLE_ART)) { gableSpr[k] = makeSprite(rows, '#1c2c46', pal); gableSpr[k + 'F'] = makeSprite(rows.map(r => [...r].reverse().join('')), '#1c2c46', pal); }
+  }
+  const put = (k, x) => { const s = gableSpr[k]; ctx.drawImage(s, Math.round(x - s.width / 2), base - s.height + 1); };
+  put('zeus', mid + 1); put('stand', mid - 15); put('standF', mid + 15); put('seat', mid - 28); put('seatF', mid + 28); put('lie', mid - 44); put('lieF', mid + 44);
+  ctx.fillStyle = '#e9c04f';
+  ctx.fillRect(mid - 21, base - 17, 1, 17); ctx.fillRect(mid - 23, base - 18, 5, 1); for (const o of [-23, -21, -19]) ctx.fillRect(mid + o, base - 21, 1, 3);   // Poseidon's trident
+  ctx.fillRect(mid + 21, base - 19, 1, 19); ctx.fillStyle = '#ffffff'; ctx.fillRect(mid + 21, base - 21, 1, 2);                                                 // Athena's spear
+}
+// The Temple's front: a low marble gable over the columns, a painted field inside it with the gods in marble, and gilded ornaments
 // on its three points, all in front of a tiled roof running back.
 function drawTempleGable(sx, sy, W, foot) {
   const K = '#1a1210', mid = Math.round(sx + W / 2), H = foot - sy, slope = W / 2 / H;
@@ -567,13 +591,7 @@ function drawTempleGable(sx, sy, W, foot) {
   roofTiles(sx, sy, W, H);
   gable(sy, foot, K); gable(sy + 2, foot, '#efe7d4'); gable(sy + 4, foot, '#c9bda4'); gable(sy + 9, foot - 3, K); gable(sy + 10, foot - 3, '#3f5f8a');
   ctx.fillStyle = '#d8ceb7'; ctx.fillRect(sx, foot - 3, W, 3);
-  const c = foot - 12;                                                       // the sun, and laurel running out to the corners of the field
-  ctx.fillStyle = '#e9c04f'; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ctx.fillRect(Math.round(mid + Math.cos(a) * 10) - 1, Math.round(c + Math.sin(a) * 8), 2, 1); }
-  pxEllipse(mid, c, 7, 6, K); pxEllipse(mid, c, 6, 5, '#e9c04f'); pxEllipse(mid - 1, c - 1, 3, 2, '#ffd463');
-  for (const dir of [-1, 1]) for (let i = 0; i < 5; i++) {
-    const lx = mid + dir * (18 + i * 9), ly = foot - 6 - (i % 2);
-    ctx.fillStyle = '#c9a032'; ctx.fillRect(lx - 3, foot - 6, 7, 1); ctx.fillStyle = '#e9c04f'; ctx.fillRect(lx - 1, ly - 1, 3, 1);
-  }
+  gableGods(mid, foot - 3);
   for (const [ox, oy] of [[mid, sy - 2], [sx + 4, foot - 4], [sx + W - 4, foot - 4]]) {
     ctx.fillStyle = K; ctx.fillRect(ox - 3, oy - 2, 6, 7); ctx.fillRect(ox - 2, oy - 3, 4, 9);
     ctx.fillStyle = '#c9a032'; ctx.fillRect(ox - 2, oy - 1, 4, 5); ctx.fillStyle = '#ffd463'; ctx.fillRect(ox - 1, oy - 2, 2, 3);
@@ -720,14 +738,14 @@ function drawPreview(canvas, equip, shieldId, weaponId) {
   const dot = (px, py, col) => { x.fillStyle = col; x.fillRect(Math.round(px), Math.round(py), 1, 1); };
   const line = (x0, y0, x1, y1, col) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1; for (let i = 0; i <= n; i++) dot(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, col); };
   const hx = left + 10, hy = top + 14;                       // the front hand
-  const tint = weaponTint(weaponId); weaponId = baseId(weaponId); const grip = (WEAPON_COLORS[weaponId] && WEAPON_COLORS[weaponId][2]) || '#8a5a34';
+  const tint = weaponTint(weaponId); weaponId = baseId(weaponId); const grip = (WEAPON_COLORS[weaponId] && WEAPON_COLORS[weaponId][kind === 'trident' ? 1 : 2]) || '#8a5a34';
   if (sh) { const [a, b, c] = sh.colors; x.fillStyle = '#140d0b'; x.fillRect(left, top + 11, 6, 8); x.fillStyle = b; x.fillRect(left + 1, top + 12, 4, 6); x.fillStyle = a; x.fillRect(left + 1, top + 12, 3, 5); x.fillStyle = c; x.fillRect(left + 2, top + 14, 1, 2); }
-  const back = kind === 'spear' || kind === 'bow';
+  const back = kind === 'spear' || kind === 'trident' || kind === 'bow';
   const weapon = () => {
     if (kind === 'sword') { line(hx, hy, hx + 4, hy - 9, tint || '#e9c04f'); line(hx - 1, hy - 1, hx + 2, hy, '#a8842a'); dot(hx + 4, hy - 9, '#fff3c0'); }
-    else if (kind === 'spear') {
+    else if (kind === 'spear' || kind === 'trident') {
       line(hx, hy + 5, hx + 3, hy - 13, id(weaponId) === 'athena_spear' ? '#e9c04f' : grip); line(hx + 3, hy - 14, hx + 4, hy - 17, tint || '#c7ccd1');
-      if (weaponId === 'trident' || weaponId === 'bident') { line(hx + 1, hy - 14, hx + 2, hy - 16, tint); if (weaponId === 'trident') line(hx + 5, hy - 14, hx + 6, hy - 16, tint); }
+      if (kind === 'trident' || weaponId === 'bident') { line(hx + 1, hy - 14, hx + 2, hy - 16, tint); if (kind === 'trident') line(hx + 5, hy - 14, hx + 6, hy - 16, tint); }
     }
     else if (kind === 'hammer') { line(hx, hy + 2, hx + 3, hy - 7, grip); const big = weaponId === 'cyclops_club' || weaponId === 'satyr_club'; for (let i = -3; i <= 3; i++) line(hx + 3 + i, hy - 8 - Math.round(i * .3), hx + 3 + i, hy - (big ? 12 : 11) - Math.round(i * .3), big ? (Math.abs(i) === 3 ? '#5a3a22' : '#8a5a34') : (Math.abs(i) === 3 ? '#636a72' : (tint && weaponId !== 'bull_maul' ? tint : '#a7adb3'))); }
     else if (kind === 'daggers') { const col = tint || '#c7ccd1'; line(hx, hy, hx + 3, hy - 4, col); line(left + 2, hy, left, hy - 4, col); }

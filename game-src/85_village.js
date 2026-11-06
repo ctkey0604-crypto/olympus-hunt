@@ -11,8 +11,8 @@ const BUILDINGS = [
   { id: 'home',   name: 'Your Home',            kind: 'home',   x: 38, y: 22, w: 6, h: 4, goes: 'home' },
 ];
 const VILLAGE_PROPS = [
-  ['fountain', 26, 18], ['board', 31, 16], ['stall', 20, 23], ['stall', 33, 23], ['crate', 22, 24], ['amphora', 23, 24], ['amphora', 35, 24], ['crate', 36, 25], ['cart', 20, 28],
-  ['column', 8, 20], ['column', 12, 20], ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24], ['fence', 45, 28], ['fence', 45, 30],
+  ['fountain', 26, 18], ['board', 31, 16], ['stall', 22.5, 26], ['stall', 35, 22], ['crate', 21, 26], ['amphora', 24, 26], ['amphora', 37, 22], ['crate', 33.6, 22], ['cart', 20, 28],   // the stalls stand on the grass beside the roads, facing them
+  ['rosebush', 45, 11], ['rosebush', 36, 13], ['rosebush', 45, 24],
   ['olive', 5, 5], ['tree', 8, 7], ['olive', 3, 8], ['pine', 7, 4], ['olive', 35, 5], ['tree', 41, 5], ['pine', 46, 7], ['olive', 47, 13], ['tree', 34, 10],
   ['olive', 47, 18], ['pine', 46, 21], ['olive', 5, 25], ['tree', 8, 28], ['pine', 4, 29], ['olive', 11, 30], ['olive', 17, 30], ['tree', 21, 12], ['olive', 31, 12],
   ['olive', 32, 29], ['pine', 37, 28], ['tree', 41, 30], ['olive', 47, 27], ['rock', 39, 19], ['stump', 43, 17], ['rock', 28, 28],

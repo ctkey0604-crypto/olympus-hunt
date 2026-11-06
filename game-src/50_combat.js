@@ -174,7 +174,7 @@ function updateHunter(p, dt) {
   if (!p.swing && !p.guarding) {
     if (p.bufDodge > 0 && canDash(p)) { startDodge(p, mv); p.bufDodge = 0; return; }
     if (p.bufAbil > 0 && p.abilCd <= 0 && st.weapon.ability) { useAbility(p, mv); p.bufAbil = 0; return; }
-    if (p.bufAtk > 0 && p.atkCd <= 0) { startAttack(p); p.bufAtk = 0; }
+    if (p.bufAtk > 0 && p.atkCd <= 0 && !tridentOut(p)) { startAttack(p); p.bufAtk = 0; }
   } else if (p.guarding && p.bufDodge > 0 && canDash(p)) { p.guarding = false; startDodge(p, mv); p.bufDodge = 0; return; }
   else if (p.guarding && p.bufAtk > 0 && p.bashCd <= 0) { shieldBash(p); p.bufAtk = 0; }
   else if (p.swing && p.bufDodge > 0 && canDash(p) && p.swing.t >= p.swing.windup) { p.swing = null; startDodge(p, mv); p.bufDodge = 0; return; }
@@ -267,7 +267,7 @@ function releaseAttack(p, s) {
   if (p.fx.echo > 0) p.echoes.push({ t: .32, aim: s.aim, dmg: dmg * .45 });
   if (!K.melee) {
     const k = s.drawMax ? clamp(s.draw / s.drawMax, 0, 1) : 0, full = k >= 1, sa = p.st.perks.steady || 0;
-    dmg *= lerp(K.quick, K.full, k) * (full ? 1 + sa : k < .2 ? 1 - sa : 1);
+    dmg *= lerp(K.quick, K.full, k * k) * (full ? 1 + sa : k < .2 ? 1 - sa : 1);
     spawnProj(p.x + Math.cos(s.aim) * 6, p.y + Math.sin(s.aim) * 6, s.aim, K.projSpeed * (1 + .3 * k), dmg, 'arrow', 'player', { r: full ? 3.5 : 2.5, life: .95, pierce: (w.pierce || 0) + (full ? 1 : 0) });
     return;
   }
@@ -407,7 +407,8 @@ function useAbility(p, mv) {
     Sound.play('telegraph');
   } else if (id === 'trident_throw') {
     const a = aim(); p.face = a; Sound.play('swing');
-    spawnProj(p.x + Math.cos(a) * 8, p.y + Math.sin(a) * 8, a, 290, W * 1.3, 'trident', 'player', { r: 6, life: 2.4, pierce: 99, ghost: true, boom: { t: TRIDENT_OUT, src: p } });
+    spawnProj(p.x + Math.cos(a) * 8, p.y + Math.sin(a) * 8, a, 290, W * 1.6, 'trident', 'player', { r: 6, life: 2.4, pierce: 99, ghost: true, boom: { t: TRIDENT_OUT, src: p } });
+    tridentDress(q.projs[q.projs.length - 1], p);
   } else if (id === 'solar_lance') {
     const a = aim(), len = 230, x0 = p.x, y0 = p.y - 6, x1 = x0 + Math.cos(a) * len, y1 = y0 + Math.sin(a) * len; p.face = a;
     q.fx.push({ t: 'beamfx', x: x0, y: y0, a, len, life: .35, max: .35, c: '#ffd463' }); flash(.06); Sound.play('beam');
@@ -495,7 +496,7 @@ function hurtHunter0(p, dmg, ang, knock, o) {
     }
   }
   if (o.proj) dmg *= 1 - st.projRes;
-  const taken = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + st.def))), q.pv ? Math.ceil(st.maxHp * PVP_MAX_HIT) : 1e9);
+  const taken = q.pv ? pvpHitOn(dmg, st.def, st.maxHp) : Math.max(1, Math.round(dmg * 20 / (20 + st.def)));
   p.hp -= taken; p.invuln = q.pv ? PVP_GUARD : .8; p.flash = .15; p.mom = 0;
   const k = knock * (1 - st.kbRes);
   p.kbx += Math.cos(ang) * k; p.kby += Math.sin(ang) * k;
@@ -608,7 +609,6 @@ function damageEnemy(e, dmg, ang, knock, unblockable = false, fromPlayer = true)
   if (e.boss && fromPlayer && p.st.perks.godBane) dmg *= 1 + p.st.perks.godBane;
   dmg = Math.max(1, Math.round(dmg * rand(.9, 1.1)));
   if (e.stun > 0 && !e.boss) dmg = Math.round(dmg * 1.25);
-  if (e.def.role === 'dummy') dmg = Math.min(Math.max(1, Math.round(dmg * 20 / (20 + p.st.def))), Math.ceil(p.st.maxHp * PVP_MAX_HIT));   // practice: what the same hit does in a fight, to someone in your armor
   e.hp -= dmg; e.flash = .12;
   const k = knock * (e.kbRes ?? 1); e.kbx += Math.cos(ang) * k; e.kby += Math.sin(ang) * k;
   addText(e.x, e.y - e.h - 2, String(dmg), blocked ? '#85735d' : dmg >= p.st.weapon.dmg * 1.6 ? '#ebc152' : '#f0e4cc');
@@ -687,11 +687,24 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
 // Where a thrown trident turns for home, a wave breaks and shoves everything back.
 const TRIDENT_OUT = .45;                                   // seconds out before it turns
 function tridentCrash(pr) {
-  const by = pr.owner || q.player, was = q.actor;
-  q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: '#57c2b0' }); burst(pr.x, pr.y - 4, 14, ['#57c2b0', '#e6f2ff', '#2c7a70'], 90); Sound.play('splash');
+  const by = pr.owner || q.player, was = q.actor, col = pr.ca || '#57c2b0';
+  q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: col }); burst(pr.x, pr.y - 4, 14, [col, '#e6f2ff', pr.cb || '#2c7a70'], 90); Sound.play('splash');
+  if (isLocal(by)) { addShake(4); G.hitstop = Math.max(G.hitstop, .06); }
   q.actor = by;
-  for (const e of q.enemies) if (targetable(e) && edist(pr, e) < 56 + e.r) damageEnemy(e, pr.dmg * .5, Math.atan2(e.y - pr.y, e.x - pr.x), 300, true);
+  for (const e of q.enemies) if (targetable(e) && edist(pr, e) < 56 + e.r) damageEnemy(e, pr.dmg * .65, Math.atan2(e.y - pr.y, e.x - pr.x), 300, true);
   q.actor = was;
+}
+// A thrown trident: whose it is and which one, so every screen empties the right hand and draws the right colours.
+function tridentDress(pr, p) {
+  const id = (p.save || G.save).weapon, c = WEAPON_COLORS[baseId(id)] || [];
+  pr.oh = p.hid; pr.ca = weaponTint(id) || '#57c2b0'; pr.cb = c[1] || '#e9c04f';
+}
+// While the trident is out your hand is empty: nothing to attack with, and nothing drawn, until you catch it.
+function tridentOut(p) { return !!q && q.projs.some(pr => pr.kind === 'trident' && !pr.dead && pr.oh === p.hid); }
+function tridentCatch(p, pr) {
+  p.catchT = G.time; p.catchA = Math.atan2(pr.y - (p.y - 6), pr.x - p.x);   // drawWeapon slides it into your grip from where it came in
+  q.fx.push({ t: 'ring', x: p.x, y: p.y - 8, r0: 2, r1: 10, life: .18, max: .18, c: '#57c2b0' }); burst(p.x, p.y - 10, 5, ['#57c2b0', '#e6f2ff'], 50);
+  if (isLocal(p)) Sound.play('clink');
 }
 function killProj(pr) {
   if (pr.dead) return; pr.dead = true;
@@ -723,10 +736,10 @@ function updateProjs(dt) {
         const na = cur + clamp(angDiff(cur, want), -pr.homing * dt, pr.homing * dt); pr.vx = Math.cos(na) * sp; pr.vy = Math.sin(na) * sp; }
     }
     if ((pr.kind === 'godweapon' || pr.kind === 'trident') && pr.boom && pr.t > pr.boom.t) {   // a thrown god weapon turns round and flies back to its owner
-      if (pr.kind === 'trident' && !pr.boom.back) { pr.boom.back = true; pr.hit = new Set(); if (!pr.vis) tridentCrash(pr); }   // the trident crashes down, then hits again on the way home
+      if (pr.kind === 'trident' && !pr.boom.back) { pr.boom.back = true; pr.ret = true; pr.hit = new Set(); if (!pr.vis) tridentCrash(pr); }   // the trident crashes down, then hits again on the way home
       const s = pr.boom.src, a = Math.atan2(s.y - 6 - pr.y, s.x - pr.x), sp = Math.min(380, Math.hypot(pr.vx, pr.vy) + 520 * dt);
       pr.vx = Math.cos(a) * sp; pr.vy = Math.sin(a) * sp; pr.life = Math.max(pr.life, .5);
-      if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; continue; }
+      if (s.dead || Math.hypot(s.x - pr.x, s.y - 6 - pr.y) < 12) { pr.dead = true; s.tossOut = false; if (pr.kind === 'trident' && !s.dead) tridentCatch(s, pr); continue; }
     }
     pr.x += pr.vx * dt; pr.y += pr.vy * dt;
     if (pr.life <= 0) { killProj(pr); continue; }
@@ -925,7 +938,10 @@ function burst(x, y, n, colors, speed) {
   }
 }
 function dust(x, y, n) { netRec(['d', r1(x), r1(y), n]); for (let i = 0; i < n; i++) sc.parts.push({ x: x + rand(-3, 3), y: y + rand(-1, 1), vx: rand(-25, 25), vy: rand(-18, -2), g: 0, life: rand(.25, .5), max: .5, c: Math.random() < .5 ? '#c9b48e' : '#a08b68', s: Math.random() < .4 ? 2 : 1 }); }
-function addText(x, y, s, c) { netRec(['t', r1(x), r1(y), s, c]); sc.texts.push({ x, y, s, c, life: .7, max: .7 }); }
+function addText(x, y, s, c) {
+  if (q && q.pv && /^-?\d+$/.test(s)) return;               // fights show health bars, not damage numbers
+  netRec(['t', r1(x), r1(y), s, c]); sc.texts.push({ x, y, s, c, life: .7, max: .7 });
+}
 // Hit sparks fly the way the hit went.
 function hitSparks(x, y, ang, big) {
   netRec(['s', r1(x), r1(y), r2(ang), big ? 1 : 0]);
