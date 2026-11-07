@@ -47,6 +47,7 @@ async function route(req, env, url) {
   if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
   if (path === '/api/vote' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).vote(null, who ? who.name : null)); }
   if (path === '/api/boards' && method === 'GET') return json(await lobbyStub(env).scoreBoards());
+  if (path === '/api/hit' && method === 'POST') { await lobbyStub(env).hit(await readJson(req)); return json({ ok: true }); }   // anonymous daily counts
   if (path === '/api/suggest' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).suggest(who ? who.name : null)); }
   if (path === '/api/forum' && method === 'GET') return json(await lobbyStub(env).forumList());
   { const m = method === 'GET' && (path.match(/^\/api\/forum\/t\/([a-z0-9]{4,20})$/) || path.match(/^\/api\/suggest\/c\/([a-z0-9_]{1,30}\.[a-z0-9]{1,12})$/));
@@ -56,7 +57,18 @@ async function route(req, env, url) {
   if (!user) return json({ error: 'You are signed out. Sign in again.' }, 401);
   if (path === '/api/me' && method === 'GET') return json({ name: user.display });
   // The owner's dashboard. It reads game progress, and runs the community suggestions. To any other account these addresses don't exist.
-  if (path === '/api/owner/players' && method === 'GET') return user.name === OWNER ? json(await ownerReport(env)) : json({ error: 'Not found.' }, 404);
+  if (path === '/api/owner/players' && method === 'GET') { if (user.name !== OWNER) return json({ error: 'Not found.' }, 404); let activity = []; try { activity = await lobbyStub(env).activity(); } catch {} return json({ ...(await ownerReport(env)), activity }); }
+  if (path === '/api/owner/delete' && method === 'POST') {          // the owner deletes an account: its sign-in, sessions and saves, and its marks on the boards
+    if (user.name !== OWNER) return json({ error: 'Not found.' }, 404);
+    const key = String((await readJson(req)).name || '').toLowerCase();
+    if (!NAME_RE.test(key)) return json({ error: 'No account by that name.' }, 400);
+    if (key === OWNER) return json({ error: 'You can’t delete the owner account.' }, 400);
+    const u = await env.DB.prepare('SELECT display FROM users WHERE name = ?').bind(key).first();
+    if (!u) return json({ error: 'No account by that name.' }, 400);
+    await env.DB.batch([env.DB.prepare('DELETE FROM saves WHERE name = ?').bind(key), env.DB.prepare('DELETE FROM sessions WHERE name = ?').bind(key), env.DB.prepare('DELETE FROM users WHERE name = ?').bind(key)]);
+    try { await lobbyStub(env).forget(key); } catch {}
+    return json({ ok: true, name: u.display });
+  }
   if (path === '/api/owner/suggest' && method === 'POST') {
     if (user.name !== OWNER) return json({ error: 'Not found.' }, 404);
     const b = await readJson(req), r = await lobbyStub(env).suggestOwner(String(b.do || ''), String(b.id || ''));
@@ -284,6 +296,10 @@ function cleanPost(v, min, max, lines = false) {
 function suggestText(v) { const r = cleanPost(v, SUGGEST_MIN, SUGGEST_MAX); return r.short ? { error: 'That’s too short. Say a bit more about your idea.' } : r; }
 // The community board: one General discussion, live for everyone. Threads with replies; the author or the owner can take either down.
 const FORUM_GAP = 60000, REPLY_GAP = 10000, FORUM_SHOW = 60, REPLY_MAX = 300, ID_RE = /^[a-z0-9]{4,20}$/, IDEA_RE = /^[a-z0-9_]{1,30}\.[a-z0-9]{1,12}$/;
+// Player counts: anonymous daily totals (an:<Chicago date>), guests included. Only event names, where people came from, phone or not,
+// account or guest, and new or returning are counted. Nothing that identifies anyone is sent or kept.
+const AN_EVENTS = ['visit', 'play', 'road', 'hunt', 'clear'], AN_REFS = ['reddit', 'google', 'other', 'direct'], AN_KEEP = 120;
+const anDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 // What a save puts on the public boards: the play time when Typhon first fell, and the best Endless wave. A run faster than half an
 // hour, or a wave reached faster than a wave can be played, simply stays off them.
@@ -665,6 +681,27 @@ export class Lobby extends DurableObject {
   // Community suggestions. Keys: sg:on, sg:round, sg:<round>:p:<author> (their idea and its count), sg:<round>:v:<voter> (the id
   // they voted for), sg:last:<author> (when they last posted). An idea's id carries its time, so a vote for an idea that was taken
   // down never counts for a new one from the same player.
+  // A deleted account: off the fight and score boards, its 1.1 vote taken out of the count, its idea and its idea vote gone.
+  async forget(key) {
+    const S = this.ctx.storage;
+    await S.delete(['p:' + key, 's:' + key]);
+    const vk = 'v:' + POLL.id + ':u:' + key, mine = await S.get(vk);
+    if (mine) { const counts = (await S.get('v:' + POLL.id + ':n')) || {}; counts[mine] = Math.max(0, (counts[mine] || 0) - 1); await S.put('v:' + POLL.id + ':n', counts); await S.delete(vk); }
+    const at = 'sg:' + (await this.sgRound()) + ':', post = await S.get(at + 'p:' + key);
+    if (post) { await S.delete(at + 'p:' + key); await this.wipe(at + 'c:' + post.id + ':'); }
+    const voted = await S.get(at + 'v:' + key);
+    if (voted) { const p = await S.get(at + 'p:' + voted.split('.')[0]); if (p && p.id === voted) { p.n = Math.max(0, p.n - 1); await S.put(at + 'p:' + p.who, p); } await S.delete(at + 'v:' + key); }
+  }
+  async hit(b) {
+    const e = String((b && b.e) || ''); if (!AN_EVENTS.includes(e)) return;
+    const ref = AN_REFS.includes(b.ref) ? b.ref : 'direct', S = this.ctx.storage, k = 'an:' + anDay(), d = (await S.get(k)) || {};
+    const add = n => { d[n] = (d[n] || 0) + 1; };
+    add(e); add(e + ':' + ref); add(e + ':' + (b.acct ? 'acct' : 'guest'));
+    if (e === 'visit') { add(b.phone ? 'visit:phone' : 'visit:desk'); if (b.ret) add('visit:ret'); }
+    await S.put(k, d);
+    if (Math.random() < .02) { const keys = [...(await S.list({ prefix: 'an:' })).keys()].sort(); if (keys.length > AN_KEEP) await S.delete(keys.slice(0, keys.length - AN_KEEP)); }
+  }
+  async activity() { return [...(await this.ctx.storage.list({ prefix: 'an:' })).entries()].map(([k, v]) => ({ day: k.slice(3), ...v })).sort((a, b) => a.day < b.day ? 1 : -1).slice(0, 30); }
   async sgRound() { return (await this.ctx.storage.get('sg:round')) || 1; }
   async sgOnNow() { const v = await this.ctx.storage.get('sg:on'); return v === undefined ? true : !!v; }
   async suggest(who, all = false) {
