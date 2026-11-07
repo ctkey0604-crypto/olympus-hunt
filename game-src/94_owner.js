@@ -41,7 +41,7 @@ function renderOwner() {
   box.innerHTML = `<div class="ow-cards">${card('Accounts', all.length)}${card('Played today', seen(1))}${card('This week', seen(7))}${card('This month', seen(30))}${card('Beat Typhon', done)}${card('Average play', saved.length ? fmtHours(played / saved.length) : '0m')}</div>
     <div class="ow-split"><div class="opt"><h3>Where they are</h3>${bars(ranks, all.length)}</div>
     <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
-    <div class="opt"><h3>Vote for update 1.1</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
+    <div class="opt"><h3>Update 1.1 vote (closed)</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
     ${ownerSgHTML()}
     <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
     <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}</tr></thead>
@@ -65,7 +65,7 @@ $('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
 $('ownerBody').addEventListener('click', ev => {
   const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); return; }
   const s = ev.target.closest('[data-owsg]'); if (!s || s.disabled) return;
-  const act = s.dataset.owsg, sure = { on: 'Open community ideas? This ends the 1.1 vote, and the title screen banner will lead to the ideas.',
+  const act = s.dataset.owsg, sure = { on: 'Open community voting? Players can post ideas, vote and comment again.',
     off: 'Close community ideas? Players won’t be able to post or vote until you open them again.', round: 'Start a new round? Every idea and vote on the board now is cleared for good.',
     delete: 'Take this idea down? Its votes go with it.' }[act];
   Sound.play('click'); if (sure && !confirm(sure)) return;
@@ -75,16 +75,16 @@ $('ownerBody').addEventListener('click', ev => {
 function ownerSgHTML() {
   const d = ownerSg; if (!d) return '<div class="opt ow-sg"><h3>Community ideas</h3><p class="muted">Couldn’t load the ideas.</p></div>';
   const b = (act, label, ghost = true, id = '') => `<button class="btn${ghost ? ' ghost' : ''} small" type="button" data-owsg="${act}"${id ? ` data-id="${esc(id)}"` : ''} ${ownerBusy ? 'disabled' : ''}>${label}</button>`;
-  return `<div class="opt ow-sg"><h3>Community ideas · round ${d.round}</h3>
-    <p class="${d.on ? '' : 'muted'}">${d.on ? `Open. ${d.total} ${d.total === 1 ? 'idea' : 'ideas'} posted.` : 'Off. Players still see the 1.1 vote.'}</p>
-    <div class="row">${d.on ? b('off', 'Close ideas') : b('on', 'Open ideas (ends the 1.1 vote)', false)}${d.total ? b('round', 'New round') : ''}</div>
+  return `<div class="opt ow-sg"><h3>Community voting · round ${d.round}</h3>
+    <p class="${d.on ? '' : 'muted'}">${d.on ? `Open. ${d.total} ${d.total === 1 ? 'idea' : 'ideas'} posted.` : 'Closed. Players can read the ideas but can’t post, vote or comment.'}</p>
+    <div class="row">${d.on ? b('off', 'Close voting') : b('on', 'Open voting', false)}${d.total ? b('round', 'New round') : ''}</div>
     ${d.posts.length ? `<div class="ow-scroll"><table class="ow-table"><thead><tr><th>Votes</th><th>Idea</th><th>By</th><th></th></tr></thead><tbody>${d.posts.map(p =>
       `<tr><td>${p.n}</td><td class="ow-wrap">${esc(p.text)}</td><td>${esc(p.name)}</td><td>${b('delete', 'Take down', true, p.id)}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
 }
 async function ownerSgAct(act, id) {
   if (ownerBusy) return;
   ownerBusy = true; renderOwner();
-  try { ownerSg = await Store.call('POST', 'owner/suggest', { do: act, id }); if (act === 'on' || act === 'off') { sgOn = act === 'on'; sgBanner(); } }
+  try { ownerSg = await Store.call('POST', 'owner/suggest', { do: act, id }); }
   catch (e) { toast(e.message || 'That didn’t go through.'); }
   ownerBusy = false; renderOwner();
 }

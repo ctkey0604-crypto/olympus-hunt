@@ -426,7 +426,13 @@ textarea:focus{outline:2px solid var(--gold)}
 .sg-cbtn{all:unset;cursor:pointer;margin-left:12px;font-size:.85rem;color:var(--gold);text-decoration:underline;text-underline-offset:3px}.sg-cbtn:hover,.sg-cbtn:focus-visible{color:#fff6d8}
 .sg-comments{display:grid;gap:10px;margin:-6px 0 4px 32px;padding:12px 14px;background:#0006;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .sg-com p{margin:0 0 2px;overflow-wrap:anywhere}
-/* the community board */
+/* the community board, and its switch between Discussion and Community voting: a gold pill slides under the chosen side */
+.fm-tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;max-width:460px;margin:0 0 18px;padding:4px;background:#0009;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);border-radius:999px}
+.fm-tabs button{position:relative;z-index:1;font:inherit;font-weight:600;border:0;background:none;color:var(--bone-dim);padding:9px 10px;cursor:pointer;border-radius:999px;transition:color .2s}
+.fm-tabs button[aria-selected="true"]{color:#160e0b}.fm-tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.fm-slide{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);background:var(--gold);border-radius:999px;box-shadow:0 0 0 2px #000;transition:transform .25s ease}
+.fm-tabs[data-tab="ideas"] .fm-slide{transform:translateX(100%)}
+@media (prefers-reduced-motion:reduce){.fm-slide{transition:none}}
 .fm-form{display:grid;gap:10px;margin:0 0 16px}
 .fm-form input,.fm-form textarea{font:inherit;font-size:max(16px,1rem);color:var(--bone);background:#0009;border:0;padding:10px 12px;resize:vertical;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .fm-form input:focus,.fm-form textarea:focus{outline:0;box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold)}
@@ -752,7 +758,7 @@ input[type=range]{accent-color:var(--clay)}
       <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
-    <button class="vote-banner" id="btnVote" type="button"><span>Vote on update 1.1!</span></button>
+    <button class="vote-banner" id="btnVote" type="button"><span>Norse update coming soon!</span></button>
     <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
     <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
     <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
@@ -783,7 +789,9 @@ input[type=range]{accent-color:var(--clay)}
 <section class="screen" id="scrForum" hidden>
   <div class="wrap">
     <div class="topbar"><button class="btn ghost small" type="button" id="btnForumBack">Back</button><h2>Community</h2><button class="btn ghost small" type="button" id="btnForumRefresh">Refresh</button></div>
+    <div class="fm-tabs" id="fmTabs" role="tablist" aria-label="Community"><i class="fm-slide" aria-hidden="true"></i><button type="button" role="tab" data-fmtab="talk" aria-selected="true">Discussion</button><button type="button" role="tab" data-fmtab="ideas" aria-selected="false">Community voting</button></div>
     <div id="forumBody"></div>
+    <div id="ideasBody" hidden></div>
   </div>
 </section>
 
@@ -10823,9 +10831,10 @@ function drawGhost(gh, S) {
   if (Math.random() < .3) sc.parts.push({ x: gh.x + rand(-4, 4), y: gh.y - rand(2, 14), vx: 0, vy: -14, g: 0, life: .4, max: .4, c: '#c8b8ff', s: 1 });
 }
 /* ============================== THE COMMUNITY BOARD ============================== */
-// One General discussion from the title screen: start a post, reply to one, or take your own down. Anyone can read; signing in
+// Two sides, picked with the switch at the top: Discussion (below) and Community voting (the ideas, in 94_vote.js).
+// Discussion is one general board: start a post, reply to one, or take your own down. Anyone can read; signing in
 // lets you write. The server filters what's posted (no rude words, no links) and the owner can take anything down.
-let fmList = null, fmThread = null, fmView = 'list', fmBusy = false, fmMsg = '', fmDraft = { title: '', text: '', reply: '' };
+let fmTab = 'talk', fmList = null, fmThread = null, fmView = 'list', fmBusy = false, fmMsg = '', fmDraft = { title: '', text: '', reply: '' };
 const fmAgo = at => fmtAgo(Math.max(60000, Date.now() - at));
 const fmBody = s => esc(s).replace(/\n/g, '<br>');
 const fmCan = o => o.yours || isOwner();
@@ -10866,15 +10875,22 @@ async function fmCall(fn) {
 }
 const fmLoadList = () => { fmView = 'list'; fmList = null; return fmCall(async () => { fmList = await Store.call('GET', 'forum'); }); };
 const fmOpen = id => { fmView = 'thread'; fmThread = null; fmDraft.reply = ''; return fmCall(async () => { fmThread = await Store.call('GET', 'forum/t/' + id); }); };
-function openForum() { G.mode = 'forum'; show('scrForum'); fmLoadList(); }
+function fmSetTab(tab) {
+  fmTab = tab; $('fmTabs').dataset.tab = tab;
+  for (const b of $('fmTabs').querySelectorAll('[data-fmtab]')) b.setAttribute('aria-selected', String(b.dataset.fmtab === tab));
+  $('forumBody').hidden = tab !== 'talk'; $('ideasBody').hidden = tab !== 'ideas';
+  if (tab === 'ideas') sgLoad(); else if (!fmList || fmView === 'list') fmLoadList(); else renderForum();
+}
+function openForum(tab = 'talk') { G.mode = 'forum'; show('scrForum'); fmView = 'list'; fmList = null; fmSetTab(tab); }
 function forumBack() {
   Sound.play('click'); fmMsg = '';
-  if (fmView !== 'list') { fmLoadList(); return; }
+  if (fmTab === 'talk' && fmView !== 'list') { fmLoadList(); return; }
   G.mode = 'title'; show('scrTitle');
 }
 $('btnForum').onclick = () => { Sound.init(); Sound.play('click'); openForum(); };
+$('fmTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-fmtab]'); if (b && b.dataset.fmtab !== fmTab) { Sound.play('click'); fmSetTab(b.dataset.fmtab); } });
 $('btnForumBack').onclick = forumBack;
-$('btnForumRefresh').onclick = () => { Sound.play('click'); if (fmView === 'thread' && fmThread) fmOpen(fmThread.thread.id); else if (fmView === 'list') fmLoadList(); };
+$('btnForumRefresh').onclick = () => { Sound.play('click'); if (fmTab === 'ideas') sgLoad(); else if (fmView === 'thread' && fmThread) fmOpen(fmThread.thread.id); else if (fmView === 'list') fmLoadList(); };
 $('forumBody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || b.disabled) return;
   const a = b.dataset.fm;
@@ -10911,7 +10927,8 @@ $('forumBody').addEventListener('submit', ev => {
 const NEWS = [
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
-      'A Community board on the title screen: talk about the game, ask for help, or tell us about a bug.',
+      'The vote is in: update 1.1 is The North, coming soon. Thanks to everyone who voted!',
+      'Community on the title screen: a Discussion board to talk about the game, ask for help or tell us about a bug, and Community voting, where you post your own idea for a future update and vote on everyone else’s.',
       'A new weapon type, the Trident: heavy, two-handed and long, with six to forge from early on right up to the Titans.',
       'Every trident can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back to your hand. You can’t attack until you catch it.',
       'Leaderboards at the Coliseum: fights, time to complete and Endless, all on one board.',
@@ -11028,7 +11045,7 @@ function renderOwner() {
   box.innerHTML = `<div class="ow-cards">${card('Accounts', all.length)}${card('Played today', seen(1))}${card('This week', seen(7))}${card('This month', seen(30))}${card('Beat Typhon', done)}${card('Average play', saved.length ? fmtHours(played / saved.length) : '0m')}</div>
     <div class="ow-split"><div class="opt"><h3>Where they are</h3>${bars(ranks, all.length)}</div>
     <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
-    <div class="opt"><h3>Vote for update 1.1</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
+    <div class="opt"><h3>Update 1.1 vote (closed)</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
     ${ownerSgHTML()}
     <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
     <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}</tr></thead>
@@ -11052,7 +11069,7 @@ $('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
 $('ownerBody').addEventListener('click', ev => {
   const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); return; }
   const s = ev.target.closest('[data-owsg]'); if (!s || s.disabled) return;
-  const act = s.dataset.owsg, sure = { on: 'Open community ideas? This ends the 1.1 vote, and the title screen banner will lead to the ideas.',
+  const act = s.dataset.owsg, sure = { on: 'Open community voting? Players can post ideas, vote and comment again.',
     off: 'Close community ideas? Players won’t be able to post or vote until you open them again.', round: 'Start a new round? Every idea and vote on the board now is cleared for good.',
     delete: 'Take this idea down? Its votes go with it.' }[act];
   Sound.play('click'); if (sure && !confirm(sure)) return;
@@ -11062,16 +11079,16 @@ $('ownerBody').addEventListener('click', ev => {
 function ownerSgHTML() {
   const d = ownerSg; if (!d) return '<div class="opt ow-sg"><h3>Community ideas</h3><p class="muted">Couldn’t load the ideas.</p></div>';
   const b = (act, label, ghost = true, id = '') => `<button class="btn${ghost ? ' ghost' : ''} small" type="button" data-owsg="${act}"${id ? ` data-id="${esc(id)}"` : ''} ${ownerBusy ? 'disabled' : ''}>${label}</button>`;
-  return `<div class="opt ow-sg"><h3>Community ideas · round ${d.round}</h3>
-    <p class="${d.on ? '' : 'muted'}">${d.on ? `Open. ${d.total} ${d.total === 1 ? 'idea' : 'ideas'} posted.` : 'Off. Players still see the 1.1 vote.'}</p>
-    <div class="row">${d.on ? b('off', 'Close ideas') : b('on', 'Open ideas (ends the 1.1 vote)', false)}${d.total ? b('round', 'New round') : ''}</div>
+  return `<div class="opt ow-sg"><h3>Community voting · round ${d.round}</h3>
+    <p class="${d.on ? '' : 'muted'}">${d.on ? `Open. ${d.total} ${d.total === 1 ? 'idea' : 'ideas'} posted.` : 'Closed. Players can read the ideas but can’t post, vote or comment.'}</p>
+    <div class="row">${d.on ? b('off', 'Close voting') : b('on', 'Open voting', false)}${d.total ? b('round', 'New round') : ''}</div>
     ${d.posts.length ? `<div class="ow-scroll"><table class="ow-table"><thead><tr><th>Votes</th><th>Idea</th><th>By</th><th></th></tr></thead><tbody>${d.posts.map(p =>
       `<tr><td>${p.n}</td><td class="ow-wrap">${esc(p.text)}</td><td>${esc(p.name)}</td><td>${b('delete', 'Take down', true, p.id)}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
 }
 async function ownerSgAct(act, id) {
   if (ownerBusy) return;
   ownerBusy = true; renderOwner();
-  try { ownerSg = await Store.call('POST', 'owner/suggest', { do: act, id }); if (act === 'on' || act === 'off') { sgOn = act === 'on'; sgBanner(); } }
+  try { ownerSg = await Store.call('POST', 'owner/suggest', { do: act, id }); }
   catch (e) { toast(e.message || 'That didn’t go through.'); }
   ownerBusy = false; renderOwner();
 }
@@ -11104,7 +11121,7 @@ function renderVote() {
 async function voteLoad() {
   voteData = null; voteMsg = ''; renderVote();
   await Store.ready; if (!Store.api) { renderVote(); return; }
-  try { voteData = await Store.call('GET', 'vote'); if (voteData.closed && G.mode === 'vote') { sgOn = true; sgBanner(); sgLoad(); return; } } catch (e) { voteMsg = 'The vote can’t be reached right now. Check your connection.'; }
+  try { voteData = await Store.call('GET', 'vote'); } catch (e) { voteMsg = 'The vote can’t be reached right now. Check your connection.'; }
   renderVote();
 }
 async function voteCast(id) {
@@ -11113,41 +11130,40 @@ async function voteCast(id) {
   try { voteData = await Store.call('POST', 'vote', { choice: id }); Sound.play('jingle'); } catch (e) { voteMsg = e.message || 'Your vote didn’t go through. Try again.'; }
   voteBusy = false; renderVote();
 }
-function openVote() { G.mode = 'vote'; show('scrVote'); if (sgOn) sgLoad(); else { $('voteTitle').textContent = 'What should update 1.1 be?'; voteLoad(); } }
+function openVote() { openForum('ideas'); }                         // the 1.1 vote is over: the banner leads to Community voting
 function closeVote() { Sound.play('click'); G.mode = 'title'; show('scrTitle'); }
 $('btnVote').onclick = () => { Sound.init(); Sound.play('click'); openVote(); };
 $('btnVoteBack').onclick = closeVote;
 $('voteBody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.vote) { Sound.play('click'); voteCast(b.dataset.vote); }
-  else if (b.dataset.sgvote) { Sound.play('click'); sgAct('suggest/vote', { id: b.dataset.sgvote }, 'jingle'); }
+  else if (b.dataset.votesign) { Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); }
+});
+$('ideasBody').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.sgvote) { Sound.play('click'); sgAct('suggest/vote', { id: b.dataset.sgvote }, 'jingle'); }
   else if (b.dataset.sgcom) { Sound.play('click'); if (sgOpen === b.dataset.sgcom) { sgOpen = null; renderSuggest(); } else sgComLoad(b.dataset.sgcom); }
   else if (b.dataset.sgcdel) { Sound.play('click'); if (confirm('Delete this comment?')) sgComAct('suggest/uncomment', { id: sgOpen, cid: b.dataset.sgcdel }); }
   else if (b.dataset.sgdel) { Sound.play('click'); if (confirm('Take your idea down? Its votes go with it.')) sgAct('suggest/delete', {}); }
   else if (b.dataset.votesign) { Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); }
 });
 
-/* ---- community ideas: once the owner opens them (which ends the 1.1 vote), the banner leads here instead ---- */
+/* ---- community voting, under Community: the banner on the title screen leads here ---- */
 // Players post one idea each and vote for someone else's, one vote each that they can change. The one with the most votes when the
 // round ends gets made. The server keeps it all (Lobby.suggest) and filters what's posted.
 const SG_MAX = 150;
-let sgOn = false, sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '';
-function sgBanner() { $('btnVote').querySelector('span').textContent = sgOn ? 'Suggest the next update!' : 'Vote on update 1.1!'; }
-async function sgCheck() {                                             // on the title screen: is it the 1.1 vote, or community ideas?
-  await Store.ready; if (!Store.api) return;
-  try { const d = await Store.call('GET', 'suggest'); sgOn = !!d.on; } catch (e) { return; }
-  sgBanner();
-}
+let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '';
 function renderSuggest() {
   const d = sgData, votes = c => `${c} ${c === 1 ? 'vote' : 'votes'}`, own = d && d.posts.find(p => p.yours);
-  const lead = !Store.api ? '' : !d ? (sgMsg ? '' : 'Looking…') : 'Post one idea for the game, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.';
-  const form = d && Store.user && !own ? `<form class="sg-form" id="sgForm" autocomplete="off"><input id="sgInput" maxlength="${SG_MAX}" placeholder="Your idea (one per player)" value="${esc(sgDraft)}" spellcheck="true" aria-label="Your idea">
+  const lead = !Store.api ? 'Community voting needs the online version of the game.' : !d ? (sgMsg ? '' : 'Looking…') : d.on ? 'Update 1.1 will be The North, coming soon! Post one idea for what comes next, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.'
+    : 'Community voting is closed right now. You can still read the ideas.';
+  const form = d && d.on && Store.user && !own ? `<form class="sg-form" id="sgForm" autocomplete="off"><input id="sgInput" maxlength="${SG_MAX}" placeholder="Your idea (one per player)" value="${esc(sgDraft)}" spellcheck="true" aria-label="Your idea">
     <button class="btn" type="submit" ${sgBusy ? 'disabled' : ''}>Post</button></form>` : '';
   const item = (p, i) => `<article class="sg-item${p.yours ? ' own' : ''}${d.mine === p.id ? ' on' : ''}"><b class="sg-rank">${i + 1}</b>
     <div class="sg-text"><p>${esc(p.text)}</p><span class="muted">by ${esc(p.name)}</span><button class="sg-cbtn" type="button" data-sgcom="${esc(p.id)}">${sgOpen === p.id ? 'Hide comments' : p.c ? `${p.c} ${p.c === 1 ? 'comment' : 'comments'}` : 'Comment'}</button></div>
     <div class="sg-side"><span class="sg-n">${votes(p.n)}</span>${p.yours ? `<button class="btn ghost small" type="button" data-sgdel="1" ${sgBusy ? 'disabled' : ''}>Take it down</button>`
-      : d.mine === p.id ? '<b class="sg-mine">Your vote</b>' : Store.user ? `<button class="btn${d.mine ? ' ghost' : ''} small" type="button" data-sgvote="${esc(p.id)}" ${sgBusy ? 'disabled' : ''}>${d.mine ? 'Change to this' : 'Vote'}</button>` : ''}</div></article>${sgOpen === p.id ? sgComHTML(p.id) : ''}`;
-  $('voteBody').innerHTML = `${lead ? `<p class="vote-lead">${esc(lead)}</p>` : ''}${sgMsg ? `<p class="sg-err">${esc(sgMsg)}</p>` : ''}${form}
+      : d.mine === p.id ? '<b class="sg-mine">Your vote</b>' : Store.user && d.on ? `<button class="btn${d.mine ? ' ghost' : ''} small" type="button" data-sgvote="${esc(p.id)}" ${sgBusy ? 'disabled' : ''}>${d.mine ? 'Change to this' : 'Vote'}</button>` : ''}</div></article>${sgOpen === p.id ? sgComHTML(p.id) : ''}`;
+  $('ideasBody').innerHTML = `${lead ? `<p class="vote-lead">${esc(lead)}</p>` : ''}${sgMsg ? `<p class="sg-err">${esc(sgMsg)}</p>` : ''}${form}
     ${d ? (d.posts.length ? `<div class="sg-list">${d.posts.map(item).join('')}</div>${d.total > d.posts.length ? `<p class="muted">Showing the top ${d.posts.length} of ${d.total} ideas.</p>` : ''}` : '<p class="muted">No ideas yet. Be the first!</p>') : ''}
     ${Store.api && d && !Store.user ? '<div class="row" style="margin-top:14px"><button class="btn" type="button" data-votesign="1">Sign in to post and vote</button></div>' : ''}`;
 }
@@ -11156,7 +11172,7 @@ function sgComHTML(id) {
   const c = sgCom && sgCom.id === id ? sgCom : null, busy = sgBusy ? 'disabled' : '';
   return `<div class="sg-comments">${!c ? '<p class="muted">Looking…</p>' : c.comments.length ? c.comments.map(x => `<div class="sg-com"><p>${esc(x.text).replace(/\n/g, '<br>')}</p>
     <div class="fm-meta"><span>${esc(x.name)} · ${fmAgo(x.at)}</span>${x.yours || isOwner() ? `<button class="fm-del" type="button" data-sgcdel="${esc(x.id)}" ${busy}>Delete</button>` : ''}</div></div>`).join('') : '<p class="muted">No comments yet.</p>'}
-    ${Store.user ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
+    ${Store.user && sgData && sgData.on ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
     <div class="row"><button class="btn small" type="submit" ${busy}>Comment</button></div></form>` : ''}</div>`;
 }
 async function sgComLoad(id) {
@@ -11172,7 +11188,6 @@ async function sgComAct(path, body) {
   sgBusy = false; renderSuggest();
 }
 async function sgLoad() {
-  $('voteTitle').textContent = 'Community ideas';
   sgData = null; sgMsg = ''; sgOpen = null; renderSuggest();
   await Store.ready; if (!Store.api) { renderSuggest(); return; }
   try { sgData = await Store.call('GET', 'suggest'); } catch (e) { sgMsg = 'The ideas can’t be reached right now. Check your connection.'; }
@@ -11185,13 +11200,13 @@ async function sgAct(path, body, sound) {
   catch (e) { sgMsg = e.message || 'That didn’t go through. Try again.'; }
   sgBusy = false; renderSuggest();
 }
-$('voteBody').addEventListener('submit', ev => {
+$('ideasBody').addEventListener('submit', ev => {
   if (ev.target.id === 'sgCForm') { ev.preventDefault(); if (sgCDraft.trim() && sgOpen) { Sound.play('click'); sgComAct('suggest/comment', { id: sgOpen, text: sgCDraft }); } return; }
   if (ev.target.id !== 'sgForm') return;
   ev.preventDefault(); const text = $('sgInput').value.trim(); if (!text) return;
   sgDraft = $('sgInput').value; Sound.play('click'); sgAct('suggest', { text }, 'jingle');
 });
-$('voteBody').addEventListener('input', ev => { if (ev.target.id === 'sgInput') sgDraft = ev.target.value; else if (ev.target.id === 'sgCText') sgCDraft = ev.target.value; });
+$('ideasBody').addEventListener('input', ev => { if (ev.target.id === 'sgInput') sgDraft = ev.target.value; else if (ev.target.id === 'sgCText') sgCDraft = ev.target.value; });
 /* ============================== MENUS ==================================== */
 function hideScreens() { document.querySelectorAll('.screen').forEach(s => { s.hidden = true; }); }
 // The menus have their own theme; the town's plays only in town (What's new opened from Options keeps the place's music).
@@ -12298,7 +12313,6 @@ function frame(now) {
 })();
 Settings.load();
 Store.init();
-sgCheck();                                                            // the title banner: the 1.1 vote, or community ideas
 renderTitleControls();
 drawTitleArt();
 resize();

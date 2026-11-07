@@ -1104,7 +1104,6 @@ function frame(now) {
 })();
 Settings.load();
 Store.init();
-sgCheck();                                                            // the title banner: the 1.1 vote, or community ideas
 renderTitleControls();
 drawTitleArt();
 resize();

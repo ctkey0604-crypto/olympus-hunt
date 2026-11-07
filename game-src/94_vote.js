@@ -22,7 +22,7 @@ function renderVote() {
 async function voteLoad() {
   voteData = null; voteMsg = ''; renderVote();
   await Store.ready; if (!Store.api) { renderVote(); return; }
-  try { voteData = await Store.call('GET', 'vote'); if (voteData.closed && G.mode === 'vote') { sgOn = true; sgBanner(); sgLoad(); return; } } catch (e) { voteMsg = 'The vote can’t be reached right now. Check your connection.'; }
+  try { voteData = await Store.call('GET', 'vote'); } catch (e) { voteMsg = 'The vote can’t be reached right now. Check your connection.'; }
   renderVote();
 }
 async function voteCast(id) {
@@ -31,41 +31,40 @@ async function voteCast(id) {
   try { voteData = await Store.call('POST', 'vote', { choice: id }); Sound.play('jingle'); } catch (e) { voteMsg = e.message || 'Your vote didn’t go through. Try again.'; }
   voteBusy = false; renderVote();
 }
-function openVote() { G.mode = 'vote'; show('scrVote'); if (sgOn) sgLoad(); else { $('voteTitle').textContent = 'What should update 1.1 be?'; voteLoad(); } }
+function openVote() { openForum('ideas'); }                         // the 1.1 vote is over: the banner leads to Community voting
 function closeVote() { Sound.play('click'); G.mode = 'title'; show('scrTitle'); }
 $('btnVote').onclick = () => { Sound.init(); Sound.play('click'); openVote(); };
 $('btnVoteBack').onclick = closeVote;
 $('voteBody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.vote) { Sound.play('click'); voteCast(b.dataset.vote); }
-  else if (b.dataset.sgvote) { Sound.play('click'); sgAct('suggest/vote', { id: b.dataset.sgvote }, 'jingle'); }
+  else if (b.dataset.votesign) { Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); }
+});
+$('ideasBody').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.sgvote) { Sound.play('click'); sgAct('suggest/vote', { id: b.dataset.sgvote }, 'jingle'); }
   else if (b.dataset.sgcom) { Sound.play('click'); if (sgOpen === b.dataset.sgcom) { sgOpen = null; renderSuggest(); } else sgComLoad(b.dataset.sgcom); }
   else if (b.dataset.sgcdel) { Sound.play('click'); if (confirm('Delete this comment?')) sgComAct('suggest/uncomment', { id: sgOpen, cid: b.dataset.sgcdel }); }
   else if (b.dataset.sgdel) { Sound.play('click'); if (confirm('Take your idea down? Its votes go with it.')) sgAct('suggest/delete', {}); }
   else if (b.dataset.votesign) { Sound.play('click'); G.mode = 'slots'; show('scrSlots'); renderSlots(); }
 });
 
-/* ---- community ideas: once the owner opens them (which ends the 1.1 vote), the banner leads here instead ---- */
+/* ---- community voting, under Community: the banner on the title screen leads here ---- */
 // Players post one idea each and vote for someone else's, one vote each that they can change. The one with the most votes when the
 // round ends gets made. The server keeps it all (Lobby.suggest) and filters what's posted.
 const SG_MAX = 150;
-let sgOn = false, sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '';
-function sgBanner() { $('btnVote').querySelector('span').textContent = sgOn ? 'Suggest the next update!' : 'Vote on update 1.1!'; }
-async function sgCheck() {                                             // on the title screen: is it the 1.1 vote, or community ideas?
-  await Store.ready; if (!Store.api) return;
-  try { const d = await Store.call('GET', 'suggest'); sgOn = !!d.on; } catch (e) { return; }
-  sgBanner();
-}
+let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '';
 function renderSuggest() {
   const d = sgData, votes = c => `${c} ${c === 1 ? 'vote' : 'votes'}`, own = d && d.posts.find(p => p.yours);
-  const lead = !Store.api ? '' : !d ? (sgMsg ? '' : 'Looking…') : 'Post one idea for the game, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.';
-  const form = d && Store.user && !own ? `<form class="sg-form" id="sgForm" autocomplete="off"><input id="sgInput" maxlength="${SG_MAX}" placeholder="Your idea (one per player)" value="${esc(sgDraft)}" spellcheck="true" aria-label="Your idea">
+  const lead = !Store.api ? 'Community voting needs the online version of the game.' : !d ? (sgMsg ? '' : 'Looking…') : d.on ? 'Update 1.1 will be The North, coming soon! Post one idea for what comes next, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.'
+    : 'Community voting is closed right now. You can still read the ideas.';
+  const form = d && d.on && Store.user && !own ? `<form class="sg-form" id="sgForm" autocomplete="off"><input id="sgInput" maxlength="${SG_MAX}" placeholder="Your idea (one per player)" value="${esc(sgDraft)}" spellcheck="true" aria-label="Your idea">
     <button class="btn" type="submit" ${sgBusy ? 'disabled' : ''}>Post</button></form>` : '';
   const item = (p, i) => `<article class="sg-item${p.yours ? ' own' : ''}${d.mine === p.id ? ' on' : ''}"><b class="sg-rank">${i + 1}</b>
     <div class="sg-text"><p>${esc(p.text)}</p><span class="muted">by ${esc(p.name)}</span><button class="sg-cbtn" type="button" data-sgcom="${esc(p.id)}">${sgOpen === p.id ? 'Hide comments' : p.c ? `${p.c} ${p.c === 1 ? 'comment' : 'comments'}` : 'Comment'}</button></div>
     <div class="sg-side"><span class="sg-n">${votes(p.n)}</span>${p.yours ? `<button class="btn ghost small" type="button" data-sgdel="1" ${sgBusy ? 'disabled' : ''}>Take it down</button>`
-      : d.mine === p.id ? '<b class="sg-mine">Your vote</b>' : Store.user ? `<button class="btn${d.mine ? ' ghost' : ''} small" type="button" data-sgvote="${esc(p.id)}" ${sgBusy ? 'disabled' : ''}>${d.mine ? 'Change to this' : 'Vote'}</button>` : ''}</div></article>${sgOpen === p.id ? sgComHTML(p.id) : ''}`;
-  $('voteBody').innerHTML = `${lead ? `<p class="vote-lead">${esc(lead)}</p>` : ''}${sgMsg ? `<p class="sg-err">${esc(sgMsg)}</p>` : ''}${form}
+      : d.mine === p.id ? '<b class="sg-mine">Your vote</b>' : Store.user && d.on ? `<button class="btn${d.mine ? ' ghost' : ''} small" type="button" data-sgvote="${esc(p.id)}" ${sgBusy ? 'disabled' : ''}>${d.mine ? 'Change to this' : 'Vote'}</button>` : ''}</div></article>${sgOpen === p.id ? sgComHTML(p.id) : ''}`;
+  $('ideasBody').innerHTML = `${lead ? `<p class="vote-lead">${esc(lead)}</p>` : ''}${sgMsg ? `<p class="sg-err">${esc(sgMsg)}</p>` : ''}${form}
     ${d ? (d.posts.length ? `<div class="sg-list">${d.posts.map(item).join('')}</div>${d.total > d.posts.length ? `<p class="muted">Showing the top ${d.posts.length} of ${d.total} ideas.</p>` : ''}` : '<p class="muted">No ideas yet. Be the first!</p>') : ''}
     ${Store.api && d && !Store.user ? '<div class="row" style="margin-top:14px"><button class="btn" type="button" data-votesign="1">Sign in to post and vote</button></div>' : ''}`;
 }
@@ -74,7 +73,7 @@ function sgComHTML(id) {
   const c = sgCom && sgCom.id === id ? sgCom : null, busy = sgBusy ? 'disabled' : '';
   return `<div class="sg-comments">${!c ? '<p class="muted">Looking…</p>' : c.comments.length ? c.comments.map(x => `<div class="sg-com"><p>${esc(x.text).replace(/\n/g, '<br>')}</p>
     <div class="fm-meta"><span>${esc(x.name)} · ${fmAgo(x.at)}</span>${x.yours || isOwner() ? `<button class="fm-del" type="button" data-sgcdel="${esc(x.id)}" ${busy}>Delete</button>` : ''}</div></div>`).join('') : '<p class="muted">No comments yet.</p>'}
-    ${Store.user ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
+    ${Store.user && sgData && sgData.on ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
     <div class="row"><button class="btn small" type="submit" ${busy}>Comment</button></div></form>` : ''}</div>`;
 }
 async function sgComLoad(id) {
@@ -90,7 +89,6 @@ async function sgComAct(path, body) {
   sgBusy = false; renderSuggest();
 }
 async function sgLoad() {
-  $('voteTitle').textContent = 'Community ideas';
   sgData = null; sgMsg = ''; sgOpen = null; renderSuggest();
   await Store.ready; if (!Store.api) { renderSuggest(); return; }
   try { sgData = await Store.call('GET', 'suggest'); } catch (e) { sgMsg = 'The ideas can’t be reached right now. Check your connection.'; }
@@ -103,10 +101,10 @@ async function sgAct(path, body, sound) {
   catch (e) { sgMsg = e.message || 'That didn’t go through. Try again.'; }
   sgBusy = false; renderSuggest();
 }
-$('voteBody').addEventListener('submit', ev => {
+$('ideasBody').addEventListener('submit', ev => {
   if (ev.target.id === 'sgCForm') { ev.preventDefault(); if (sgCDraft.trim() && sgOpen) { Sound.play('click'); sgComAct('suggest/comment', { id: sgOpen, text: sgCDraft }); } return; }
   if (ev.target.id !== 'sgForm') return;
   ev.preventDefault(); const text = $('sgInput').value.trim(); if (!text) return;
   sgDraft = $('sgInput').value; Sound.play('click'); sgAct('suggest', { text }, 'jingle');
 });
-$('voteBody').addEventListener('input', ev => { if (ev.target.id === 'sgInput') sgDraft = ev.target.value; else if (ev.target.id === 'sgCText') sgCDraft = ev.target.value; });
+$('ideasBody').addEventListener('input', ev => { if (ev.target.id === 'sgInput') sgDraft = ev.target.value; else if (ev.target.id === 'sgCText') sgCDraft = ev.target.value; });

@@ -1,7 +1,8 @@
 /* ============================== THE COMMUNITY BOARD ============================== */
-// One General discussion from the title screen: start a post, reply to one, or take your own down. Anyone can read; signing in
+// Two sides, picked with the switch at the top: Discussion (below) and Community voting (the ideas, in 94_vote.js).
+// Discussion is one general board: start a post, reply to one, or take your own down. Anyone can read; signing in
 // lets you write. The server filters what's posted (no rude words, no links) and the owner can take anything down.
-let fmList = null, fmThread = null, fmView = 'list', fmBusy = false, fmMsg = '', fmDraft = { title: '', text: '', reply: '' };
+let fmTab = 'talk', fmList = null, fmThread = null, fmView = 'list', fmBusy = false, fmMsg = '', fmDraft = { title: '', text: '', reply: '' };
 const fmAgo = at => fmtAgo(Math.max(60000, Date.now() - at));
 const fmBody = s => esc(s).replace(/\n/g, '<br>');
 const fmCan = o => o.yours || isOwner();
@@ -42,15 +43,22 @@ async function fmCall(fn) {
 }
 const fmLoadList = () => { fmView = 'list'; fmList = null; return fmCall(async () => { fmList = await Store.call('GET', 'forum'); }); };
 const fmOpen = id => { fmView = 'thread'; fmThread = null; fmDraft.reply = ''; return fmCall(async () => { fmThread = await Store.call('GET', 'forum/t/' + id); }); };
-function openForum() { G.mode = 'forum'; show('scrForum'); fmLoadList(); }
+function fmSetTab(tab) {
+  fmTab = tab; $('fmTabs').dataset.tab = tab;
+  for (const b of $('fmTabs').querySelectorAll('[data-fmtab]')) b.setAttribute('aria-selected', String(b.dataset.fmtab === tab));
+  $('forumBody').hidden = tab !== 'talk'; $('ideasBody').hidden = tab !== 'ideas';
+  if (tab === 'ideas') sgLoad(); else if (!fmList || fmView === 'list') fmLoadList(); else renderForum();
+}
+function openForum(tab = 'talk') { G.mode = 'forum'; show('scrForum'); fmView = 'list'; fmList = null; fmSetTab(tab); }
 function forumBack() {
   Sound.play('click'); fmMsg = '';
-  if (fmView !== 'list') { fmLoadList(); return; }
+  if (fmTab === 'talk' && fmView !== 'list') { fmLoadList(); return; }
   G.mode = 'title'; show('scrTitle');
 }
 $('btnForum').onclick = () => { Sound.init(); Sound.play('click'); openForum(); };
+$('fmTabs').addEventListener('click', ev => { const b = ev.target.closest('[data-fmtab]'); if (b && b.dataset.fmtab !== fmTab) { Sound.play('click'); fmSetTab(b.dataset.fmtab); } });
 $('btnForumBack').onclick = forumBack;
-$('btnForumRefresh').onclick = () => { Sound.play('click'); if (fmView === 'thread' && fmThread) fmOpen(fmThread.thread.id); else if (fmView === 'list') fmLoadList(); };
+$('btnForumRefresh').onclick = () => { Sound.play('click'); if (fmTab === 'ideas') sgLoad(); else if (fmView === 'thread' && fmThread) fmOpen(fmThread.thread.id); else if (fmView === 'list') fmLoadList(); };
 $('forumBody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || b.disabled) return;
   const a = b.dataset.fm;

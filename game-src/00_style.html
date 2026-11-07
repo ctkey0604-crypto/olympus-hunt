@@ -417,7 +417,13 @@ textarea:focus{outline:2px solid var(--gold)}
 .sg-cbtn{all:unset;cursor:pointer;margin-left:12px;font-size:.85rem;color:var(--gold);text-decoration:underline;text-underline-offset:3px}.sg-cbtn:hover,.sg-cbtn:focus-visible{color:#fff6d8}
 .sg-comments{display:grid;gap:10px;margin:-6px 0 4px 32px;padding:12px 14px;background:#0006;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .sg-com p{margin:0 0 2px;overflow-wrap:anywhere}
-/* the community board */
+/* the community board, and its switch between Discussion and Community voting: a gold pill slides under the chosen side */
+.fm-tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;max-width:460px;margin:0 0 18px;padding:4px;background:#0009;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);border-radius:999px}
+.fm-tabs button{position:relative;z-index:1;font:inherit;font-weight:600;border:0;background:none;color:var(--bone-dim);padding:9px 10px;cursor:pointer;border-radius:999px;transition:color .2s}
+.fm-tabs button[aria-selected="true"]{color:#160e0b}.fm-tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.fm-slide{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);background:var(--gold);border-radius:999px;box-shadow:0 0 0 2px #000;transition:transform .25s ease}
+.fm-tabs[data-tab="ideas"] .fm-slide{transform:translateX(100%)}
+@media (prefers-reduced-motion:reduce){.fm-slide{transition:none}}
 .fm-form{display:grid;gap:10px;margin:0 0 16px}
 .fm-form input,.fm-form textarea{font:inherit;font-size:max(16px,1rem);color:var(--bone);background:#0009;border:0;padding:10px 12px;resize:vertical;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .fm-form input:focus,.fm-form textarea:focus{outline:0;box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold)}

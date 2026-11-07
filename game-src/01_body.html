@@ -84,7 +84,7 @@
       <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
-    <button class="vote-banner" id="btnVote" type="button"><span>Vote on update 1.1!</span></button>
+    <button class="vote-banner" id="btnVote" type="button"><span>Norse update coming soon!</span></button>
     <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
     <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
     <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
@@ -115,7 +115,9 @@
 <section class="screen" id="scrForum" hidden>
   <div class="wrap">
     <div class="topbar"><button class="btn ghost small" type="button" id="btnForumBack">Back</button><h2>Community</h2><button class="btn ghost small" type="button" id="btnForumRefresh">Refresh</button></div>
+    <div class="fm-tabs" id="fmTabs" role="tablist" aria-label="Community"><i class="fm-slide" aria-hidden="true"></i><button type="button" role="tab" data-fmtab="talk" aria-selected="true">Discussion</button><button type="button" role="tab" data-fmtab="ideas" aria-selected="false">Community voting</button></div>
     <div id="forumBody"></div>
+    <div id="ideasBody" hidden></div>
   </div>
 </section>
 
