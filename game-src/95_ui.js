@@ -950,6 +950,7 @@ addEventListener('keydown', e => {
   if (G.mode === 'panel') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); if (!$('scrNews').hidden) closeNews(); else closePanel(); } return; }
   if (G.mode === 'news') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeNews(); } return; }
   if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
+  if (G.mode === 'forum') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); forumBack(); } return; }
   if (G.mode === 'owner') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeOwner(); } return; }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
@@ -1103,6 +1104,7 @@ function frame(now) {
 })();
 Settings.load();
 Store.init();
+sgCheck();                                                            // the title banner: the 1.1 vote, or community ideas
 renderTitleControls();
 drawTitleArt();
 resize();

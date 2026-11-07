@@ -706,7 +706,10 @@ function drawObstacleNow(o, sx, sy) {
       break;
     }
     case 'statue': {
-      const god = o.variant || 'owl', gr = god === 'owl' ? -1 : godRank(god), gold = gr >= 0, img = statueImg(god, gold ? STATUE_TONE[gr] : 'stone');
+      // Out on a hunt, a statue never shows above that hunt's rank (a God Rank win doesn't turn it amethyst on a Normal hunt).
+      // The trophies in the temple keep your best.
+      const god = o.variant || 'owl', cap = !o.trophy && G.mode === 'quest' && q ? (q.def.rank || 0) : 9;
+      const gr = god === 'owl' ? -1 : Math.min(godRank(god), cap), gold = gr >= 0, img = statueImg(god, gold ? STATUE_TONE[gr] : 'stone');
       const big = !!o.big;
       pxEllipse(sx + 2, sy + 2, 9, 3, 'rgba(0,0,0,.3)');
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 8, sy - 9, 16, 11);

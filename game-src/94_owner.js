@@ -3,7 +3,7 @@
 // decides, and it refuses everyone else. It shows game progress, never anything about signing in.
 const isOwner = () => String(Store.user || '').toLowerCase() === 'theowner';
 const DAY_MS = 86400000;
-let ownerData = null, ownerVote = null, ownerMsg = '', ownerSort = 'saved', ownerFind = '';
+let ownerData = null, ownerVote = null, ownerSg = null, ownerMsg = '', ownerSort = 'saved', ownerFind = '', ownerBusy = false;
 const fmtHours = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60; return h ? `${h}h ${m}m` : `${m}m`; };
 function fmtAgo(ms) {
   if (!ms) return 'never';
@@ -42,6 +42,7 @@ function renderOwner() {
     <div class="ow-split"><div class="opt"><h3>Where they are</h3>${bars(ranks, all.length)}</div>
     <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
     <div class="opt"><h3>Vote for update 1.1</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
+    ${ownerSgHTML()}
     <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
     <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}</tr></thead>
     <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
@@ -51,8 +52,8 @@ async function ownerLoad() {
   ownerMsg = ''; ownerData = null; renderOwner();
   try {
     await Store.ready;
-    const [players, vote] = await Promise.all([Store.call('GET', 'owner/players'), Store.call('GET', 'vote').catch(() => null)]);
-    ownerData = players; ownerVote = vote;
+    const [players, vote, sg] = await Promise.all([Store.call('GET', 'owner/players'), Store.call('GET', 'vote').catch(() => null), Store.call('POST', 'owner/suggest', { do: 'list' }).catch(() => null)]);
+    ownerData = players; ownerVote = vote; ownerSg = sg;
   } catch (e) { ownerMsg = e.status === 404 ? 'This is only for the owner account.' : e.message || 'The dashboard can’t be reached right now.'; }
   renderOwner();
 }
@@ -61,7 +62,32 @@ function closeOwner() { Sound.play('click'); G.mode = 'title'; show('scrTitle');
 $('btnOwner').onclick = () => { Sound.init(); Sound.play('click'); openOwner(); };
 $('btnOwnerBack').onclick = closeOwner;
 $('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
-$('ownerBody').addEventListener('click', ev => { const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); } });
+$('ownerBody').addEventListener('click', ev => {
+  const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); return; }
+  const s = ev.target.closest('[data-owsg]'); if (!s || s.disabled) return;
+  const act = s.dataset.owsg, sure = { on: 'Open community ideas? This ends the 1.1 vote, and the title screen banner will lead to the ideas.',
+    off: 'Close community ideas? Players won’t be able to post or vote until you open them again.', round: 'Start a new round? Every idea and vote on the board now is cleared for good.',
+    delete: 'Take this idea down? Its votes go with it.' }[act];
+  Sound.play('click'); if (sure && !confirm(sure)) return;
+  ownerSgAct(act, s.dataset.id || '');
+});
+// Community ideas: open or close them (opening ends the 1.1 vote), take a post down, or clear the board for a new round.
+function ownerSgHTML() {
+  const d = ownerSg; if (!d) return '<div class="opt ow-sg"><h3>Community ideas</h3><p class="muted">Couldn’t load the ideas.</p></div>';
+  const b = (act, label, ghost = true, id = '') => `<button class="btn${ghost ? ' ghost' : ''} small" type="button" data-owsg="${act}"${id ? ` data-id="${esc(id)}"` : ''} ${ownerBusy ? 'disabled' : ''}>${label}</button>`;
+  return `<div class="opt ow-sg"><h3>Community ideas · round ${d.round}</h3>
+    <p class="${d.on ? '' : 'muted'}">${d.on ? `Open. ${d.total} ${d.total === 1 ? 'idea' : 'ideas'} posted.` : 'Off. Players still see the 1.1 vote.'}</p>
+    <div class="row">${d.on ? b('off', 'Close ideas') : b('on', 'Open ideas (ends the 1.1 vote)', false)}${d.total ? b('round', 'New round') : ''}</div>
+    ${d.posts.length ? `<div class="ow-scroll"><table class="ow-table"><thead><tr><th>Votes</th><th>Idea</th><th>By</th><th></th></tr></thead><tbody>${d.posts.map(p =>
+      `<tr><td>${p.n}</td><td class="ow-wrap">${esc(p.text)}</td><td>${esc(p.name)}</td><td>${b('delete', 'Take down', true, p.id)}</td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
+}
+async function ownerSgAct(act, id) {
+  if (ownerBusy) return;
+  ownerBusy = true; renderOwner();
+  try { ownerSg = await Store.call('POST', 'owner/suggest', { do: act, id }); if (act === 'on' || act === 'off') { sgOn = act === 'on'; sgBanner(); } }
+  catch (e) { toast(e.message || 'That didn’t go through.'); }
+  ownerBusy = false; renderOwner();
+}
 $('ownerBody').addEventListener('input', ev => {
   if (ev.target.id !== 'ownerFind') return;
   ownerFind = ev.target.value; const at = ev.target.selectionStart; renderOwner();

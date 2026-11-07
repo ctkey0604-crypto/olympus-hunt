@@ -4,6 +4,7 @@
 const NEWS = [
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
+      'A Community board on the title screen: talk about the game, ask for help, or tell us about a bug.',
       'A new weapon type, the Trident: heavy, two-handed and long, with six to forge from early on right up to the Titans.',
       'Every trident can be thrown: it flies through everything ahead, crashes down in a wave, and hits again on the way back to your hand. You can’t attack until you catch it.',
       'Leaderboards at the Coliseum: fights, time to complete and Endless, all on one board.',

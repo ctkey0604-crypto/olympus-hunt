@@ -80,6 +80,7 @@
       <button class="btn big" id="btnPlay" type="button">Play</button>
       <button class="btn ghost" id="btnSaves" type="button">Saves</button>
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
+      <button class="btn ghost" id="btnForum" type="button">Community</button>
       <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
@@ -111,9 +112,16 @@
   </div>
 </section>
 
+<section class="screen" id="scrForum" hidden>
+  <div class="wrap">
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnForumBack">Back</button><h2>Community</h2><button class="btn ghost small" type="button" id="btnForumRefresh">Refresh</button></div>
+    <div id="forumBody"></div>
+  </div>
+</section>
+
 <section class="screen" id="scrVote" hidden>
   <div class="wrap">
-    <div class="topbar"><button class="btn ghost small" type="button" id="btnVoteBack">Back</button><h2>What should update 1.1 be?</h2></div>
+    <div class="topbar"><button class="btn ghost small" type="button" id="btnVoteBack">Back</button><h2 id="voteTitle">What should update 1.1 be?</h2></div>
     <div id="voteBody"></div>
   </div>
 </section>
