@@ -47,12 +47,35 @@ async function route(req, env, url) {
   if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
   if (path === '/api/vote' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).vote(null, who ? who.name : null)); }
   if (path === '/api/boards' && method === 'GET') return json(await lobbyStub(env).scoreBoards());
+  if (path === '/api/suggest' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).suggest(who ? who.name : null)); }
+  if (path === '/api/forum' && method === 'GET') return json(await lobbyStub(env).forumList());
+  { const m = method === 'GET' && (path.match(/^\/api\/forum\/t\/([a-z0-9]{4,20})$/) || path.match(/^\/api\/suggest\/c\/([a-z0-9_]{1,30}\.[a-z0-9]{1,12})$/));
+    if (m) { const who = await authed(req, env), L = lobbyStub(env), r = path.includes('/forum/') ? await L.forumThread(m[1], who ? who.name : null) : await L.suggestComments(m[1], who ? who.name : null); return json(r, r.error ? 404 : 200); } }
 
   const user = await authed(req, env);
   if (!user) return json({ error: 'You are signed out. Sign in again.' }, 401);
   if (path === '/api/me' && method === 'GET') return json({ name: user.display });
-  // The owner's dashboard. Read-only, and to any other account this address doesn't exist.
+  // The owner's dashboard. It reads game progress, and runs the community suggestions. To any other account these addresses don't exist.
   if (path === '/api/owner/players' && method === 'GET') return user.name === OWNER ? json(await ownerReport(env)) : json({ error: 'Not found.' }, 404);
+  if (path === '/api/owner/suggest' && method === 'POST') {
+    if (user.name !== OWNER) return json({ error: 'Not found.' }, 404);
+    const b = await readJson(req), r = await lobbyStub(env).suggestOwner(String(b.do || ''), String(b.id || ''));
+    return json(r, r.error ? 400 : 200);
+  }
+  // Community suggestions: post your own idea (one per account), vote for someone else's (one vote, can be changed), or take yours down.
+  if (path === '/api/suggest' && method === 'POST') { const b = await readJson(req), r = await lobbyStub(env).suggestPost(user.name, user.display, b.text); return json(r, r.error ? 400 : 200); }
+  if (path === '/api/suggest/vote' && method === 'POST') { const b = await readJson(req), r = await lobbyStub(env).suggestVote(user.name, String(b.id || '')); return json(r, r.error ? 400 : 200); }
+  if (path === '/api/suggest/delete' && method === 'POST') { const r = await lobbyStub(env).suggestDelete(user.name); return json(r, r.error ? 400 : 200); }
+  if (path.startsWith('/api/forum') || path.startsWith('/api/suggest/') && method === 'POST') {
+    const b = await readJson(req), L = lobbyStub(env), own = user.name === OWNER, s = k => String(b[k] || '');
+    let r = null;
+    if (path === '/api/forum' && method === 'POST') r = await L.forumPost(user.name, user.display, b.title, b.text);
+    else if (path === '/api/forum/reply' && method === 'POST') r = await L.forumReply(user.name, user.display, s('id'), b.text);
+    else if (path === '/api/forum/delete' && method === 'POST') r = await L.forumDelete(user.name, own, s('id'), s('rid'));
+    else if (path === '/api/suggest/comment' && method === 'POST') r = await L.suggestComment(user.name, user.display, s('id'), b.text);
+    else if (path === '/api/suggest/uncomment' && method === 'POST') r = await L.suggestUncomment(user.name, own, s('id'), s('cid'));
+    if (r) return json(r, r.error ? 400 : 200);
+  }
   if (path === '/api/vote' && method === 'POST') { const b = await readJson(req), r = await lobbyStub(env).vote(String(b.choice || ''), user.name); return json(r, r.error ? 400 : 200); }
   if (path.startsWith('/api/rooms')) { const r = await roomsAuthed(req, env, path, method, user); if (r) return r; }
   if (path === '/api/logout' && method === 'POST') {
@@ -237,6 +260,31 @@ const HOLD_MS = 20000, STALL_MS = 12000;
 const PVP_START = 1000, PVP_K = 24, PVP_KILLS_DAY = 30, PVP_WINS_DAY = 10;
 // The community vote on the title screen: what update 1.1 will be. A new poll needs a new id, and the game's list of choices has to match.
 const POLL = { id: 'next1', choices: ['egypt', 'norse', 'harder'] };
+// Community suggestions: players post their own ideas and vote. Off until the owner opens them from the dashboard, which also ends the
+// 1.1 vote. Each round, one idea per account and one vote per account (not for your own idea). The owner can take any idea down,
+// or start a new round once the winner is in the game. Anyone can read them, and kids play this, so posts are filtered.
+const SUGGEST_MIN = 8, SUGGEST_MAX = 150, SUGGEST_GAP = 60000, SUGGEST_SHOW = 100;
+const RUDE_WORD = /^(f+u+c*k|fck|fk$|sh+i+t(?!ake)|sht$|b+i+t+c+h|btch|c+u+n+t|n+i+g+g|niga$|f+a+g|d+i+c+k|cocks?$|cocksuck|puss(y|ie)|wh+o+r+e|slut|rapes?$|raped$|rapist|raping|porn|nazi|retard|ass$|asses$|asshole|dumbass|jackass|bastard|kys$|penis|vagina|boob|tits?$|sex|cum$|dildo|nudes?$|horny$)/;
+const RUDE_SQUASHED = /n+i+g+g+(a|e|u|h)|f+u+c+k|kill+(ur|your)sel|c+u+n+t/;
+const POST_LINKS = /https?:|www\.|\b[a-z0-9-]+\.(com|net|org|gg|io|xyz|co|me|tv|ly|app|dev)\b/i;
+function isRude(text) {
+  const plain = text.toLowerCase().replace(/[1!|]/g, 'i').replace(/0/g, 'o').replace(/3/g, 'e').replace(/[@4]/g, 'a').replace(/[5$]/g, 's');
+  return plain.split(/[^a-z*]+/).some(w => (w = w.replace(/\*/g, '')) && RUDE_WORD.test(w)) || RUDE_SQUASHED.test(plain.replace(/[^a-z]/g, ''));
+}
+// Anything a player writes for others to read. lines: keeps line breaks (posts and replies), otherwise one line.
+function cleanPost(v, min, max, lines = false) {
+  if (typeof v !== 'string') return { error: 'Write something first.' };
+  const text = (lines ? v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f\u2028\u2029]/g, ' ').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n')
+    : v.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ')).trim().slice(0, max);
+  if (text.length < min) return { error: 'That’s too short. Say a bit more.', short: true };
+  if (POST_LINKS.test(text)) return { error: 'No links, please.' };
+  if (isRude(text)) return { error: 'Keep it clean. That has a word that isn’t allowed here.' };
+  return { text };
+}
+function suggestText(v) { const r = cleanPost(v, SUGGEST_MIN, SUGGEST_MAX); return r.short ? { error: 'That’s too short. Say a bit more about your idea.' } : r; }
+// The community board: one General discussion, live for everyone. Threads with replies; the author or the owner can take either down.
+const FORUM_GAP = 60000, REPLY_GAP = 10000, FORUM_SHOW = 60, REPLY_MAX = 300, ID_RE = /^[a-z0-9]{4,20}$/, IDEA_RE = /^[a-z0-9_]{1,30}\.[a-z0-9]{1,12}$/;
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 // What a save puts on the public boards: the play time when Typhon first fell, and the best Endless wave. A run faster than half an
 // hour, or a wave reached faster than a wave can be played, simply stays off them.
 const RUN_MIN = 1800, WAVE_SECS = 15;
@@ -602,7 +650,9 @@ export class Lobby extends DurableObject {
   async vote(choice, who) {
     const S = this.ctx.storage, at = 'v:' + POLL.id + ':', key = who ? at + 'u:' + who : null, counts = (await S.get(at + 'n')) || {};
     let mine = key ? (await S.get(key)) || null : null;
+    const closed = !!(await S.get('sg:on'));                         // opening the suggestions ends this vote
     if (choice !== null) {
+      if (closed) return { error: 'The 1.1 vote is over. Thanks for voting!' };
       if (!key || !POLL.choices.includes(choice)) return { error: 'That isn’t on the ballot.' };
       if (choice !== mine) {
         if (mine) counts[mine] = Math.max(0, (counts[mine] || 0) - 1);
@@ -610,7 +660,136 @@ export class Lobby extends DurableObject {
         await S.put(at + 'n', counts); await S.put(key, choice); mine = choice;
       }
     }
-    return { poll: POLL.id, counts, mine };
+    return { poll: POLL.id, counts, mine, closed };
+  }
+  // Community suggestions. Keys: sg:on, sg:round, sg:<round>:p:<author> (their idea and its count), sg:<round>:v:<voter> (the id
+  // they voted for), sg:last:<author> (when they last posted). An idea's id carries its time, so a vote for an idea that was taken
+  // down never counts for a new one from the same player.
+  async sgRound() { return (await this.ctx.storage.get('sg:round')) || 1; }
+  async suggest(who, all = false) {
+    const S = this.ctx.storage, on = !!(await S.get('sg:on')), round = await this.sgRound(), at = 'sg:' + round + ':';
+    const posts = [...(await S.list({ prefix: at + 'p:' })).values()].sort((a, b) => b.n - a.n || a.at - b.at);
+    let mine = who ? (await S.get(at + 'v:' + who)) || null : null;
+    if (mine && !posts.some(p => p.id === mine)) mine = null;
+    const shown = all ? posts : posts.slice(0, SUGGEST_SHOW), own = who && posts.find(p => p.who === who);
+    if (own && !shown.includes(own)) shown.push(own);
+    return { on, round, mine, total: posts.length, posts: shown.map(p => ({ id: p.id, name: p.name, text: p.text, n: p.n, c: p.c || 0, yours: p.who === who || undefined })) };
+  }
+  async suggestPost(who, name, raw) {
+    const S = this.ctx.storage; if (!(await S.get('sg:on'))) return { error: 'Suggestions aren’t open yet.' };
+    const t = suggestText(raw); if (t.error) return t;
+    const round = await this.sgRound(), key = 'sg:' + round + ':p:' + who, now = Date.now();
+    if (await S.get(key)) return { error: 'You already have an idea up. Take it down first to post a different one.' };
+    const last = (await S.get('sg:last:' + who)) || 0;
+    if (now - last < SUGGEST_GAP) return { error: 'Wait a minute before posting again.' };
+    await S.put(key, { id: who + '.' + now.toString(36), who, name, text: t.text, at: now, n: 0 });
+    await S.put('sg:last:' + who, now);
+    return this.suggest(who);
+  }
+  async suggestVote(who, id) {
+    const S = this.ctx.storage; if (!(await S.get('sg:on'))) return { error: 'Suggestions aren’t open yet.' };
+    const at = 'sg:' + (await this.sgRound()) + ':', author = id.split('.')[0], post = author && await S.get(at + 'p:' + author);
+    if (!post || post.id !== id) return { error: 'That idea was taken down.' };
+    if (post.who === who) return { error: 'You can’t vote for your own idea.' };
+    const vk = at + 'v:' + who, mine = (await S.get(vk)) || null;
+    if (mine !== id) {
+      if (mine) { const old = await S.get(at + 'p:' + mine.split('.')[0]); if (old && old.id === mine) { old.n = Math.max(0, old.n - 1); await S.put(at + 'p:' + old.who, old); } }
+      post.n++; await S.put(at + 'p:' + author, post); await S.put(vk, id);
+    }
+    return this.suggest(who);
+  }
+  async suggestDelete(who) {
+    const S = this.ctx.storage, at = 'sg:' + (await this.sgRound()) + ':', key = at + 'p:' + who, p = await S.get(key);
+    if (!p) return { error: 'You don’t have an idea up.' };
+    await S.delete(key); await this.wipe(at + 'c:' + p.id + ':');        // its votes and comments go with it: those players can vote again
+    return this.suggest(who);
+  }
+  async suggestOwner(act, id) {
+    const S = this.ctx.storage;
+    if (act === 'on' || act === 'off') await S.put('sg:on', act === 'on');
+    else if (act === 'delete') { const at = 'sg:' + (await this.sgRound()) + ':', p = await S.get(at + 'p:' + id.split('.')[0]); if (p && p.id === id) { await S.delete(at + 'p:' + p.who); await this.wipe(at + 'c:' + p.id + ':'); } }
+    else if (act === 'round') {                                      // the winner is in the game: clear the board for the next round
+      const old = await this.sgRound(); await S.put('sg:round', old + 1);
+      await this.wipe('sg:' + old + ':');
+    } else if (act !== 'list') return { error: 'Unknown action.' };
+    return this.suggest(null, true);
+  }
+  async wipe(prefix) { for (;;) { const keys = [...(await this.ctx.storage.list({ prefix, limit: 128 })).keys()]; if (!keys.length) return; await this.ctx.storage.delete(keys); } }
+  async gap(who, kind, ms) {                                         // one post a minute, one reply every few seconds
+    const k = 'fm:last' + kind + ':' + who, now = Date.now(), last = (await this.ctx.storage.get(k)) || 0;
+    if (now - last < ms) return false;
+    await this.ctx.storage.put(k, now); return true;
+  }
+  // Comments under an idea: sg:<round>:c:<idea id>:<comment id>. The idea keeps the count (c).
+  async suggestComments(id, who) {
+    const at = 'sg:' + (await this.sgRound()) + ':', p = IDEA_RE.test(id) && await this.ctx.storage.get(at + 'p:' + id.split('.')[0]);
+    if (!p || p.id !== id) return { error: 'That idea was taken down.' };
+    const cs = [...(await this.ctx.storage.list({ prefix: at + 'c:' + id + ':' })).values()].sort((a, b) => a.at - b.at);
+    return { id, now: Date.now(), comments: cs.map(c => ({ id: c.id, name: c.name, text: c.text, at: c.at, yours: c.who === who || undefined })) };
+  }
+  async suggestComment(who, name, id, raw) {
+    const S = this.ctx.storage; if (!(await S.get('sg:on'))) return { error: 'Suggestions aren’t open yet.' };
+    const at = 'sg:' + (await this.sgRound()) + ':', p = IDEA_RE.test(id) && await S.get(at + 'p:' + id.split('.')[0]);
+    if (!p || p.id !== id) return { error: 'That idea was taken down.' };
+    const t = cleanPost(raw, 2, REPLY_MAX, true); if (t.error) return t;
+    if ((p.c || 0) >= 200) return { error: 'This idea has all the comments it can take.' };
+    if (!(await this.gap(who, 'r', REPLY_GAP))) return { error: 'Slow down a little, then try again.' };
+    const cid = newId(); await S.put(at + 'c:' + id + ':' + cid, { id: cid, who, name, text: t.text, at: Date.now() });
+    p.c = (p.c || 0) + 1; await S.put(at + 'p:' + p.who, p);
+    return this.suggestComments(id, who);
+  }
+  async suggestUncomment(who, owner, id, cid) {
+    const S = this.ctx.storage, at = 'sg:' + (await this.sgRound()) + ':', key = at + 'c:' + id + ':' + cid, c = IDEA_RE.test(id) && ID_RE.test(cid) && await S.get(key);
+    if (!c) return { error: 'That comment is already gone.' };
+    if (c.who !== who && !owner) return { error: 'That isn’t yours.' };
+    await S.delete(key);
+    const p = await S.get(at + 'p:' + id.split('.')[0]); if (p && p.id === id) { p.c = Math.max(0, (p.c || 0) - 1); await S.put(at + 'p:' + p.who, p); }
+    return this.suggestComments(id, who);
+  }
+  // The board: fm:t:<id> (a thread, with its reply count n and last activity), fm:r:<thread id>:<reply id>.
+  async forumList() {
+    const all = [...(await this.ctx.storage.list({ prefix: 'fm:t:' })).values()].sort((a, b) => b.last - a.last);
+    return { now: Date.now(), total: all.length, threads: all.slice(0, FORUM_SHOW).map(t => ({ id: t.id, name: t.name, title: t.title, at: t.at, last: t.last, n: t.n })) };
+  }
+  async forumThread(id, who) {
+    const S = this.ctx.storage, t = ID_RE.test(id) && await S.get('fm:t:' + id);
+    if (!t) return { error: 'That post was taken down.' };
+    const rs = [...(await S.list({ prefix: 'fm:r:' + id + ':' })).values()].sort((a, b) => a.at - b.at);
+    return { now: Date.now(), thread: { id: t.id, name: t.name, title: t.title, text: t.text, at: t.at, n: t.n, yours: t.who === who || undefined },
+             replies: rs.map(r => ({ id: r.id, name: r.name, text: r.text, at: r.at, yours: r.who === who || undefined })) };
+  }
+  async forumPost(who, name, rawTitle, rawText) {
+    const a = cleanPost(rawTitle, 4, 60); if (a.error) return { error: a.short ? 'Give your post a longer title.' : a.error };
+    const b = cleanPost(rawText, 10, 600, true); if (b.error) return b;
+    if (!(await this.gap(who, 't', FORUM_GAP))) return { error: 'Wait a minute before starting another post.' };
+    const id = newId(), now = Date.now();
+    await this.ctx.storage.put('fm:t:' + id, { id, who, name, title: a.text, text: b.text, at: now, last: now, n: 0 });
+    return this.forumThread(id, who);
+  }
+  async forumReply(who, name, id, raw) {
+    const S = this.ctx.storage, t = ID_RE.test(id) && await S.get('fm:t:' + id);
+    if (!t) return { error: 'That post was taken down.' };
+    const c = cleanPost(raw, 2, REPLY_MAX, true); if (c.error) return c;
+    if (t.n >= 300) return { error: 'This post is full. Start a new one.' };
+    if (!(await this.gap(who, 'r', REPLY_GAP))) return { error: 'Slow down a little, then try again.' };
+    const rid = newId(), now = Date.now();
+    await S.put('fm:r:' + id + ':' + rid, { id: rid, who, name, text: c.text, at: now });
+    t.n++; t.last = now; await S.put('fm:t:' + id, t);
+    return this.forumThread(id, who);
+  }
+  async forumDelete(who, owner, id, rid) {
+    const S = this.ctx.storage, t = ID_RE.test(id) && await S.get('fm:t:' + id);
+    if (!t) return { error: 'That post was taken down.' };
+    if (rid) {
+      const key = 'fm:r:' + id + ':' + rid, r = ID_RE.test(rid) && await S.get(key);
+      if (!r) return { error: 'That reply is already gone.' };
+      if (r.who !== who && !owner) return { error: 'That isn’t yours.' };
+      await S.delete(key); t.n = Math.max(0, t.n - 1); await S.put('fm:t:' + id, t);
+      return this.forumThread(id, who);
+    }
+    if (t.who !== who && !owner) return { error: 'That isn’t yours.' };
+    await S.delete('fm:t:' + id); await this.wipe('fm:r:' + id + ':');
+    return this.forumList();
   }
   async list() {
     const rooms = (await this.ctx.storage.get('rooms')) || {}, now = Date.now(); let changed = false;
