@@ -259,9 +259,9 @@ const HOLD_MS = 20000, STALL_MS = 12000;
 // Coliseum fights: everyone starts on this rating, and the same two players only count this many times a day.
 const PVP_START = 1000, PVP_K = 24, PVP_KILLS_DAY = 30, PVP_WINS_DAY = 10;
 // The community vote on the title screen: what update 1.1 will be. A new poll needs a new id, and the game's list of choices has to match.
-const POLL = { id: 'next1', choices: ['egypt', 'norse', 'harder'] };
-// Community suggestions: players post their own ideas and vote. Off until the owner opens them from the dashboard, which also ends the
-// 1.1 vote. Each round, one idea per account and one vote per account (not for your own idea). The owner can take any idea down,
+// Closed November 2026: update 1.1 is The North. The totals stay readable.
+const POLL = { id: 'next1', choices: ['egypt', 'norse', 'harder'], closed: true };
+// Community suggestions: players post their own ideas and vote. On unless the owner closes them from the dashboard. Each round, one idea per account and one vote per account (not for your own idea). The owner can take any idea down,
 // or start a new round once the winner is in the game. Anyone can read them, and kids play this, so posts are filtered.
 const SUGGEST_MIN = 8, SUGGEST_MAX = 150, SUGGEST_GAP = 60000, SUGGEST_SHOW = 100;
 const RUDE_WORD = /^(f+u+c*k|fck|fk$|sh+i+t(?!ake)|sht$|b+i+t+c+h|btch|c+u+n+t|n+i+g+g|niga$|f+a+g|d+i+c+k|cocks?$|cocksuck|puss(y|ie)|wh+o+r+e|slut|rapes?$|raped$|rapist|raping|porn|nazi|retard|ass$|asses$|asshole|dumbass|jackass|bastard|kys$|penis|vagina|boob|tits?$|sex|cum$|dildo|nudes?$|horny$)/;
@@ -650,7 +650,7 @@ export class Lobby extends DurableObject {
   async vote(choice, who) {
     const S = this.ctx.storage, at = 'v:' + POLL.id + ':', key = who ? at + 'u:' + who : null, counts = (await S.get(at + 'n')) || {};
     let mine = key ? (await S.get(key)) || null : null;
-    const closed = !!(await S.get('sg:on'));                         // opening the suggestions ends this vote
+    const closed = !!POLL.closed;
     if (choice !== null) {
       if (closed) return { error: 'The 1.1 vote is over. Thanks for voting!' };
       if (!key || !POLL.choices.includes(choice)) return { error: 'That isn’t on the ballot.' };
@@ -666,8 +666,9 @@ export class Lobby extends DurableObject {
   // they voted for), sg:last:<author> (when they last posted). An idea's id carries its time, so a vote for an idea that was taken
   // down never counts for a new one from the same player.
   async sgRound() { return (await this.ctx.storage.get('sg:round')) || 1; }
+  async sgOnNow() { const v = await this.ctx.storage.get('sg:on'); return v === undefined ? true : !!v; }
   async suggest(who, all = false) {
-    const S = this.ctx.storage, on = !!(await S.get('sg:on')), round = await this.sgRound(), at = 'sg:' + round + ':';
+    const S = this.ctx.storage, on = await this.sgOnNow(), round = await this.sgRound(), at = 'sg:' + round + ':';
     const posts = [...(await S.list({ prefix: at + 'p:' })).values()].sort((a, b) => b.n - a.n || a.at - b.at);
     let mine = who ? (await S.get(at + 'v:' + who)) || null : null;
     if (mine && !posts.some(p => p.id === mine)) mine = null;
@@ -676,7 +677,7 @@ export class Lobby extends DurableObject {
     return { on, round, mine, total: posts.length, posts: shown.map(p => ({ id: p.id, name: p.name, text: p.text, n: p.n, c: p.c || 0, yours: p.who === who || undefined })) };
   }
   async suggestPost(who, name, raw) {
-    const S = this.ctx.storage; if (!(await S.get('sg:on'))) return { error: 'Suggestions aren’t open yet.' };
+    const S = this.ctx.storage; if (!(await this.sgOnNow())) return { error: 'Suggestions aren’t open yet.' };
     const t = suggestText(raw); if (t.error) return t;
     const round = await this.sgRound(), key = 'sg:' + round + ':p:' + who, now = Date.now();
     if (await S.get(key)) return { error: 'You already have an idea up. Take it down first to post a different one.' };
@@ -687,7 +688,7 @@ export class Lobby extends DurableObject {
     return this.suggest(who);
   }
   async suggestVote(who, id) {
-    const S = this.ctx.storage; if (!(await S.get('sg:on'))) return { error: 'Suggestions aren’t open yet.' };
+    const S = this.ctx.storage; if (!(await this.sgOnNow())) return { error: 'Suggestions aren’t open yet.' };
     const at = 'sg:' + (await this.sgRound()) + ':', author = id.split('.')[0], post = author && await S.get(at + 'p:' + author);
     if (!post || post.id !== id) return { error: 'That idea was taken down.' };
     if (post.who === who) return { error: 'You can’t vote for your own idea.' };
@@ -728,7 +729,7 @@ export class Lobby extends DurableObject {
     return { id, now: Date.now(), comments: cs.map(c => ({ id: c.id, name: c.name, text: c.text, at: c.at, yours: c.who === who || undefined })) };
   }
   async suggestComment(who, name, id, raw) {
-    const S = this.ctx.storage; if (!(await S.get('sg:on'))) return { error: 'Suggestions aren’t open yet.' };
+    const S = this.ctx.storage; if (!(await this.sgOnNow())) return { error: 'Suggestions aren’t open yet.' };
     const at = 'sg:' + (await this.sgRound()) + ':', p = IDEA_RE.test(id) && await S.get(at + 'p:' + id.split('.')[0]);
     if (!p || p.id !== id) return { error: 'That idea was taken down.' };
     const t = cleanPost(raw, 2, REPLY_MAX, true); if (t.error) return t;
