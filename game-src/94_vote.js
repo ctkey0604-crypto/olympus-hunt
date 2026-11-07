@@ -33,7 +33,6 @@ async function voteCast(id) {
 }
 function openVote() { openForum('ideas'); }                         // the 1.1 vote is over: the banner leads to Community voting
 function closeVote() { Sound.play('click'); G.mode = 'title'; show('scrTitle'); }
-$('btnVote').onclick = () => { Sound.init(); Sound.play('click'); openVote(); };
 $('btnVoteBack').onclick = closeVote;
 $('voteBody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || b.disabled) return;

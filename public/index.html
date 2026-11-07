@@ -384,6 +384,7 @@ textarea:focus{outline:2px solid var(--gold)}
 .vote-banner span{background:linear-gradient(100deg,#ffd463 42%,#fff6d8 50%,#ffd463 58%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:voteGlint 6s linear infinite}
 @keyframes voteGlint{from{background-position:100% 0}to{background-position:0 0}}
 @media (prefers-reduced-motion:reduce){.vote-banner span{animation:none}}
+.vote-banner.static{box-sizing:border-box;cursor:default;text-align:center}.vote-banner.static:hover{background:#6b2416}   /* an announcement: nothing to press */
 /* the owner's dashboard */
 .owner-wrap{max-width:1100px}
 .ow-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px}
@@ -758,7 +759,7 @@ input[type=range]{accent-color:var(--clay)}
       <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
-    <button class="vote-banner" id="btnVote" type="button"><span>Norse update coming soon!</span></button>
+    <div class="vote-banner static" id="btnVote"><span>Norse update coming soon!</span></div>
     <p class="sound-hint" id="soundHint" hidden>♪ Click or tap anywhere for music</p>
     <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
     <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
@@ -11132,7 +11133,6 @@ async function voteCast(id) {
 }
 function openVote() { openForum('ideas'); }                         // the 1.1 vote is over: the banner leads to Community voting
 function closeVote() { Sound.play('click'); G.mode = 'title'; show('scrTitle'); }
-$('btnVote').onclick = () => { Sound.init(); Sound.play('click'); openVote(); };
 $('btnVoteBack').onclick = closeVote;
 $('voteBody').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if (!b || b.disabled) return;
