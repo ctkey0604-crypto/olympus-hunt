@@ -116,7 +116,7 @@ function proFinish(skipped) {
   const s = G.save; q.phase = 'leaving';
   for (const k of q.pickups) if (!k.dead && k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
   for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
-  s.tut = Math.max(s.tut, TUT.TALK); persist(); CG.gameplay(false);
+  s.tut = Math.max(s.tut, TUT.TALK); persist(); CG.gameplay(false); anHit('road');
   proClear(); tutPulse(null);
   if (skipped) toast('Tutorial skipped. You can turn tips off in Options.');
   fadeTo(() => enterVillage('road'));

@@ -176,6 +176,7 @@ function paintTartarusGate(x, R, x0, x1, yTop, yBot) {
 // Where a building's door is, out in the square.
 function doorAt(b) { return { x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 }; }
 function enterPlace(id, from) {
+  anHit('play');
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
   const room = ROOMS[id];

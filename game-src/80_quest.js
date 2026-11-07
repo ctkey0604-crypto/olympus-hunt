@@ -17,6 +17,7 @@ const BUDGET = 12;
 
 function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !def.pvp && !opts.guest && !isUnlocked(def))) return;
+  anHit('play'); if (!def.prologue && !def.practice && !def.pvp) anHit('hunt');
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
   if (def.prologue) Music.play('road'); else if (def.practice || def.pvp) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
@@ -116,6 +117,7 @@ function bossDefeated(b) {
 function questVictory() {
   if (q.phase === 'victory' || q.phase === 'defeat') return;
   q.phase = 'victory'; q.endT = 2.8; Sound.play('win'); Music.sting('win'); q.timeStop = 0;
+  if (!q.def.prologue && !q.def.practice && !q.def.pvp) anHit('clear');
   if (q.def.boss && !G.save.cleared[q.def.id]) CG.happy();
   q.hazards = []; for (const h of q.hunters) h.fx.charm = h.fx.confuse = h.fx.sleep = 0;
   banner('Quest complete', `Reward: ${fmtMoney(q.def.reward)} drachmae`);

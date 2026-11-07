@@ -19,7 +19,7 @@ function ownerPlayers(d) {
     let cleared = {}; try { cleared = r.cleared ? JSON.parse(r.cleared) : {}; } catch (e) {}
     const rank = r.rank || 0, done = !!cleared[TYPHON_Q], saved = r.saved_at || 0;
     const next = saved && !done ? nextQuest({ rank, cleared, stairs: !!r.stairs }) : null;
-    by.set(key, { name: r.display, joined: r.created || 0, saved, rank, play: r.play || 0, money: r.money || 0, wave: r.wave || 0, finish: r.finish || 0, hunts: Object.keys(cleared).length, done,
+    by.set(key, { key, name: r.display, joined: r.created || 0, saved, rank, play: r.play || 0, money: r.money || 0, wave: r.wave || 0, finish: r.finish || 0, hunts: Object.keys(cleared).length, done,
                   where: !saved ? 'No save yet' : done ? 'Beat Typhon' : next ? next.name : 'Ready for the next rank' });
   }
   return [...by.values()];
@@ -39,13 +39,14 @@ function renderOwner() {
   const list = all.filter(p => !find || p.name.toLowerCase().includes(find) || p.where.toLowerCase().includes(find)).sort((a, b) => { const x = KEYS[ownerSort](a), y = KEYS[ownerSort](b); return x < y ? -1 : x > y ? 1 : 0; }).slice(0, 200);
   const th = (k, name) => `<th><button type="button" data-owsort="${k}" class="${ownerSort === k ? 'on' : ''}">${name}</button></th>`;
   box.innerHTML = `<div class="ow-cards">${card('Accounts', all.length)}${card('Played today', seen(1))}${card('This week', seen(7))}${card('This month', seen(30))}${card('Beat Typhon', done)}${card('Average play', saved.length ? fmtHours(played / saved.length) : '0m')}</div>
+    ${ownerActivityHTML(ownerData.activity || [])}
     <div class="ow-split"><div class="opt"><h3>Where they are</h3>${bars(ranks, all.length)}</div>
     <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
     <div class="opt"><h3>Update 1.1 vote (closed)</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
     ${ownerSgHTML()}
     <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
-    <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}</tr></thead>
-    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
+    <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}<th></th></tr></thead>
+    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td><td>${p.key === 'theowner' ? '' : `<button type="button" data-owdel="${esc(p.key)}" data-name="${esc(p.name)}" ${ownerBusy ? 'disabled' : ''}>Delete</button>`}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
     <p class="muted" style="font-size:.85rem">Last played means the last time a save reached the server. Showing up to 200 players, newest save first.</p>`;
 }
 async function ownerLoad() {
@@ -64,6 +65,15 @@ $('btnOwnerBack').onclick = closeOwner;
 $('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
 $('ownerBody').addEventListener('click', ev => {
   const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); return; }
+  const d = ev.target.closest('[data-owdel]');
+  if (d && !d.disabled) {
+    Sound.play('click');
+    if (!confirm(`Delete the account “${d.dataset.name}”? Its saves are gone for good, and it comes off the leaderboards and votes. This can’t be undone.`)) return;
+    ownerBusy = true; renderOwner();
+    Store.call('POST', 'owner/delete', { name: d.dataset.owdel }).then(r => { toast(`Deleted ${r.name}.`); ownerBusy = false; ownerLoad(); })
+      .catch(e => { toast(e.message || 'That didn’t go through.'); ownerBusy = false; renderOwner(); });
+    return;
+  }
   const s = ev.target.closest('[data-owsg]'); if (!s || s.disabled) return;
   const act = s.dataset.owsg, sure = { on: 'Open community voting? Players can post ideas, vote and comment again.',
     off: 'Close community ideas? Players won’t be able to post or vote until you open them again.', round: 'Start a new round? Every idea and vote on the board now is cleared for good.',
@@ -71,6 +81,17 @@ $('ownerBody').addEventListener('click', ev => {
   Sound.play('click'); if (sure && !confirm(sure)) return;
   ownerSgAct(act, s.dataset.id || '');
 });
+// Everyone who plays, guests included: anonymous daily counts (93_stats.js). Each browser counts once a day for visits, playing and the road.
+function ownerActivityHTML(rows) {
+  const n = (r, k) => r[k] || 0, week = rows.slice(0, 7), sum = k => week.reduce((a, r) => a + n(r, k), 0);
+  const day = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); };
+  const card = (label, value) => `<div class="ow-card"><b>${value}</b><span>${esc(label)}</span></div>`;
+  return `<div class="opt ow-sg"><h3>Everyone who plays, guests included</h3>
+    <div class="ow-cards">${card('Visitors, 7 days', sum('visit'))}${card('From Reddit', sum('visit:reddit'))}${card('Played', sum('play'))}${card('Played, from Reddit', sum('play:reddit'))}${card('Hunts cleared', sum('clear'))}${card('Came back', sum('visit:ret'))}</div>
+    ${rows.length ? `<div class="ow-scroll"><table class="ow-table"><thead><tr><th>Day</th><th>Visitors</th><th>Reddit</th><th>Guests</th><th>Phone</th><th>Came back</th><th>Played</th><th>Reddit players</th><th>Road done</th><th>Hunts</th><th>Cleared</th></tr></thead><tbody>${rows.slice(0, 14).map(r =>
+      `<tr><td>${esc(day(r.day))}</td><td>${n(r, 'visit')}</td><td>${n(r, 'visit:reddit')}</td><td>${n(r, 'visit:guest')}</td><td>${n(r, 'visit:phone')}</td><td>${n(r, 'visit:ret')}</td><td>${n(r, 'play')}</td><td>${n(r, 'play:reddit')}</td><td>${n(r, 'road')}</td><td>${n(r, 'hunt')}</td><td>${n(r, 'clear')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No counts yet. They start with the next visit.</p>'}
+    <p class="muted" style="font-size:.85rem">Counts only, Chicago time. Each browser counts once a day as a visitor and once as a player. Reddit means the visit came from a Reddit link.</p></div>`;
+}
 // Community ideas: open or close them (opening ends the 1.1 vote), take a post down, or clear the board for a new round.
 function ownerSgHTML() {
   const d = ownerSg; if (!d) return '<div class="opt ow-sg"><h3>Community ideas</h3><p class="muted">Couldn’t load the ideas.</p></div>';

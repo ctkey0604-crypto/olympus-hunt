@@ -1104,6 +1104,7 @@ function frame(now) {
 })();
 Settings.load();
 Store.init();
+anHit('visit');                                                       // anonymous daily counts for the owner dashboard
 renderTitleControls();
 drawTitleArt();
 resize();

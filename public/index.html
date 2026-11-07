@@ -403,7 +403,7 @@ textarea:focus{outline:2px solid var(--gold)}
 .ow-table th,.ow-table td{padding:7px 10px;text-align:left;box-shadow:inset 0 -1px 0 var(--line)}.ow-table th{color:var(--bone-mute);font-weight:400}
 .ow-table button{all:unset;cursor:pointer;color:var(--bone-mute)}.ow-table button.on{color:var(--gold)}.ow-table button:hover{color:var(--bone)}
 .ow-sg{margin:0 0 16px}.ow-sg p{margin:0}.ow-sg .ow-scroll{margin:4px 0 0}.ow-table td.ow-wrap{white-space:normal;min-width:220px}
-.ow-table button[data-owsg]{color:#ff8a7a}
+.ow-table button[data-owsg],.ow-table button[data-owdel]{color:#ff8a7a}
 .vote-lead{margin:0 0 14px;color:var(--bone-dim)}
 .vote-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media (max-width:640px){.vote-grid{grid-template-columns:1fr}}
@@ -8033,6 +8033,7 @@ const BUDGET = 12;
 
 function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !def.pvp && !opts.guest && !isUnlocked(def))) return;
+  anHit('play'); if (!def.prologue && !def.practice && !def.pvp) anHit('hunt');
   G.rebinding = null;
   Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
   if (def.prologue) Music.play('road'); else if (def.practice || def.pvp) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
@@ -8132,6 +8133,7 @@ function bossDefeated(b) {
 function questVictory() {
   if (q.phase === 'victory' || q.phase === 'defeat') return;
   q.phase = 'victory'; q.endT = 2.8; Sound.play('win'); Music.sting('win'); q.timeStop = 0;
+  if (!q.def.prologue && !q.def.practice && !q.def.pvp) anHit('clear');
   if (q.def.boss && !G.save.cleared[q.def.id]) CG.happy();
   q.hazards = []; for (const h of q.hunters) h.fx.charm = h.fx.confuse = h.fx.sleep = 0;
   banner('Quest complete', `Reward: ${fmtMoney(q.def.reward)} drachmae`);
@@ -9021,6 +9023,7 @@ function paintTartarusGate(x, R, x0, x1, yTop, yBot) {
 // Where a building's door is, out in the square.
 function doorAt(b) { return { x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 }; }
 function enterPlace(id, from) {
+  anHit('play');
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
   const room = ROOMS[id];
@@ -9306,7 +9309,7 @@ function proFinish(skipped) {
   const s = G.save; q.phase = 'leaving';
   for (const k of q.pickups) if (!k.dead && k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
   for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
-  s.tut = Math.max(s.tut, TUT.TALK); persist(); CG.gameplay(false);
+  s.tut = Math.max(s.tut, TUT.TALK); persist(); CG.gameplay(false); anHit('road');
   proClear(); tutPulse(null);
   if (skipped) toast('Tutorial skipped. You can turn tips off in Options.');
   fadeTo(() => enterVillage('road'));
@@ -10835,6 +10838,31 @@ function drawGhost(gh, S) {
   drawSpr(heroFrames((gh.who || q.player).look), Math.floor(G.time * 8) % 2, sx, sy, Math.cos(gh.face) < 0, 'white', a);
   if (Math.random() < .3) sc.parts.push({ x: gh.x + rand(-4, 4), y: gh.y - rand(2, 14), vx: 0, vy: -14, g: 0, life: .4, max: .4, c: '#c8b8ff', s: 1 });
 }
+/* ============================== PLAYER COUNTS ============================== */
+// Anonymous counts for the owner dashboard: how many people visit, play and clear hunts each day, guests included, and whether
+// they came from Reddit. Nothing identifies anyone: no names, no ids, no cookies, and the server keeps only daily totals. Each
+// browser remembers on its own (in localStorage, never sent) whether it was already counted today.
+const STATS_KEY = 'olympus-hunt/seen';
+let statsSeen = null;
+const statsDay = () => { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+function statsRef() {
+  let h = ''; try { h = new URL(document.referrer).hostname.toLowerCase(); } catch (e) {}
+  return !h || h === location.hostname ? 'direct' : /(^|\.)reddit\.com$|(^|\.)redd\.it$/.test(h) ? 'reddit' : /(^|\.)google\./.test(h) ? 'google' : 'other';
+}
+// visit, play and road count once a day per browser; hunt and clear count every time.
+async function anHit(e) {
+  try {
+    await Store.ready; if (!Store.api) return;
+    const day = statsDay();
+    if (!statsSeen) { try { statsSeen = JSON.parse(localStorage.getItem(STATS_KEY)); } catch (err) { statsSeen = null; } }
+    if (!statsSeen || statsSeen.day !== day) statsSeen = { day, first: (statsSeen && statsSeen.first) || day, ref: statsRef(), done: {} };
+    if ((e === 'visit' || e === 'play' || e === 'road') && statsSeen.done[e]) return;
+    statsSeen.done[e] = 1; try { localStorage.setItem(STATS_KEY, JSON.stringify(statsSeen)); } catch (err) {}
+    const body = { e, ref: statsSeen.ref, acct: !!Store.user };
+    if (e === 'visit') { body.phone = matchMedia('(pointer: coarse)').matches; body.ret = statsSeen.first !== day; }
+    await Store.call('POST', 'hit', body, true);
+  } catch (err) {}                                                   // counting never gets in the way of playing
+}
 /* ============================== THE COMMUNITY BOARD ============================== */
 // Two sides, picked with the switch at the top: Discussion (below) and Community voting (the ideas, in 94_vote.js).
 // Discussion is one general board: start a post, reply to one, or take your own down. Anyone can read; signing in
@@ -11028,7 +11056,7 @@ function ownerPlayers(d) {
     let cleared = {}; try { cleared = r.cleared ? JSON.parse(r.cleared) : {}; } catch (e) {}
     const rank = r.rank || 0, done = !!cleared[TYPHON_Q], saved = r.saved_at || 0;
     const next = saved && !done ? nextQuest({ rank, cleared, stairs: !!r.stairs }) : null;
-    by.set(key, { name: r.display, joined: r.created || 0, saved, rank, play: r.play || 0, money: r.money || 0, wave: r.wave || 0, finish: r.finish || 0, hunts: Object.keys(cleared).length, done,
+    by.set(key, { key, name: r.display, joined: r.created || 0, saved, rank, play: r.play || 0, money: r.money || 0, wave: r.wave || 0, finish: r.finish || 0, hunts: Object.keys(cleared).length, done,
                   where: !saved ? 'No save yet' : done ? 'Beat Typhon' : next ? next.name : 'Ready for the next rank' });
   }
   return [...by.values()];
@@ -11048,13 +11076,14 @@ function renderOwner() {
   const list = all.filter(p => !find || p.name.toLowerCase().includes(find) || p.where.toLowerCase().includes(find)).sort((a, b) => { const x = KEYS[ownerSort](a), y = KEYS[ownerSort](b); return x < y ? -1 : x > y ? 1 : 0; }).slice(0, 200);
   const th = (k, name) => `<th><button type="button" data-owsort="${k}" class="${ownerSort === k ? 'on' : ''}">${name}</button></th>`;
   box.innerHTML = `<div class="ow-cards">${card('Accounts', all.length)}${card('Played today', seen(1))}${card('This week', seen(7))}${card('This month', seen(30))}${card('Beat Typhon', done)}${card('Average play', saved.length ? fmtHours(played / saved.length) : '0m')}</div>
+    ${ownerActivityHTML(ownerData.activity || [])}
     <div class="ow-split"><div class="opt"><h3>Where they are</h3>${bars(ranks, all.length)}</div>
     <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
     <div class="opt"><h3>Update 1.1 vote (closed)</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
     ${ownerSgHTML()}
     <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
-    <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}</tr></thead>
-    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
+    <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}<th></th></tr></thead>
+    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td><td>${p.key === 'theowner' ? '' : `<button type="button" data-owdel="${esc(p.key)}" data-name="${esc(p.name)}" ${ownerBusy ? 'disabled' : ''}>Delete</button>`}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
     <p class="muted" style="font-size:.85rem">Last played means the last time a save reached the server. Showing up to 200 players, newest save first.</p>`;
 }
 async function ownerLoad() {
@@ -11073,6 +11102,15 @@ $('btnOwnerBack').onclick = closeOwner;
 $('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
 $('ownerBody').addEventListener('click', ev => {
   const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); return; }
+  const d = ev.target.closest('[data-owdel]');
+  if (d && !d.disabled) {
+    Sound.play('click');
+    if (!confirm(`Delete the account “${d.dataset.name}”? Its saves are gone for good, and it comes off the leaderboards and votes. This can’t be undone.`)) return;
+    ownerBusy = true; renderOwner();
+    Store.call('POST', 'owner/delete', { name: d.dataset.owdel }).then(r => { toast(`Deleted ${r.name}.`); ownerBusy = false; ownerLoad(); })
+      .catch(e => { toast(e.message || 'That didn’t go through.'); ownerBusy = false; renderOwner(); });
+    return;
+  }
   const s = ev.target.closest('[data-owsg]'); if (!s || s.disabled) return;
   const act = s.dataset.owsg, sure = { on: 'Open community voting? Players can post ideas, vote and comment again.',
     off: 'Close community ideas? Players won’t be able to post or vote until you open them again.', round: 'Start a new round? Every idea and vote on the board now is cleared for good.',
@@ -11080,6 +11118,17 @@ $('ownerBody').addEventListener('click', ev => {
   Sound.play('click'); if (sure && !confirm(sure)) return;
   ownerSgAct(act, s.dataset.id || '');
 });
+// Everyone who plays, guests included: anonymous daily counts (93_stats.js). Each browser counts once a day for visits, playing and the road.
+function ownerActivityHTML(rows) {
+  const n = (r, k) => r[k] || 0, week = rows.slice(0, 7), sum = k => week.reduce((a, r) => a + n(r, k), 0);
+  const day = d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); };
+  const card = (label, value) => `<div class="ow-card"><b>${value}</b><span>${esc(label)}</span></div>`;
+  return `<div class="opt ow-sg"><h3>Everyone who plays, guests included</h3>
+    <div class="ow-cards">${card('Visitors, 7 days', sum('visit'))}${card('From Reddit', sum('visit:reddit'))}${card('Played', sum('play'))}${card('Played, from Reddit', sum('play:reddit'))}${card('Hunts cleared', sum('clear'))}${card('Came back', sum('visit:ret'))}</div>
+    ${rows.length ? `<div class="ow-scroll"><table class="ow-table"><thead><tr><th>Day</th><th>Visitors</th><th>Reddit</th><th>Guests</th><th>Phone</th><th>Came back</th><th>Played</th><th>Reddit players</th><th>Road done</th><th>Hunts</th><th>Cleared</th></tr></thead><tbody>${rows.slice(0, 14).map(r =>
+      `<tr><td>${esc(day(r.day))}</td><td>${n(r, 'visit')}</td><td>${n(r, 'visit:reddit')}</td><td>${n(r, 'visit:guest')}</td><td>${n(r, 'visit:phone')}</td><td>${n(r, 'visit:ret')}</td><td>${n(r, 'play')}</td><td>${n(r, 'play:reddit')}</td><td>${n(r, 'road')}</td><td>${n(r, 'hunt')}</td><td>${n(r, 'clear')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No counts yet. They start with the next visit.</p>'}
+    <p class="muted" style="font-size:.85rem">Counts only, Chicago time. Each browser counts once a day as a visitor and once as a player. Reddit means the visit came from a Reddit link.</p></div>`;
+}
 // Community ideas: open or close them (opening ends the 1.1 vote), take a post down, or clear the board for a new round.
 function ownerSgHTML() {
   const d = ownerSg; if (!d) return '<div class="opt ow-sg"><h3>Community ideas</h3><p class="muted">Couldn’t load the ideas.</p></div>';
@@ -12317,6 +12366,7 @@ function frame(now) {
 })();
 Settings.load();
 Store.init();
+anHit('visit');                                                       // anonymous daily counts for the owner dashboard
 renderTitleControls();
 drawTitleArt();
 resize();
