@@ -719,7 +719,7 @@ function finishQuest(win) {
   resNextButton(next);
   G.mode = 'results'; q = null;
   show('scrResults');
-  setTimeout(() => { if (G.mode === 'results') $(next ? 'btnResNext' : 'btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
+  setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);   // don't scroll the title off a short phone screen
 }
 // The hunt to go on next: the first one on your rank you can take and haven't cleared, looking on from the one you just finished.
 function nextQuest(s = G.save, after = null) {
@@ -727,7 +727,7 @@ function nextQuest(s = G.save, after = null) {
   return list.find(x => QUESTS.indexOf(x) > at) || list[0] || null;
 }
 function resNextButton(next) {
-  const b = $('btnResNext'); b.hidden = !next; G.nextQuestId = next ? next.id : null; $('btnResContinue').classList.toggle('ghost', !!next);
+  const b = $('btnResNext'); b.hidden = !next; G.nextQuestId = next ? next.id : null; 
   if (next) b.textContent = `Next quest: ${next.name}`;
 }
 
