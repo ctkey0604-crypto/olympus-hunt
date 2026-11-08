@@ -90,7 +90,33 @@ function ownerActivityHTML(rows) {
     <div class="ow-cards">${card('Visitors, 7 days', sum('visit'))}${card('From Reddit', sum('visit:reddit'))}${card('Played', sum('play'))}${card('Played, from Reddit', sum('play:reddit'))}${card('Hunts cleared', sum('clear'))}${card('Came back', sum('visit:ret'))}</div>
     ${rows.length ? `<div class="ow-scroll"><table class="ow-table"><thead><tr><th>Day</th><th>Visitors</th><th>Reddit</th><th>Guests</th><th>Phone</th><th>Came back</th><th>Played</th><th>Reddit players</th><th>Road done</th><th>Hunts</th><th>Cleared</th></tr></thead><tbody>${rows.slice(0, 14).map(r =>
       `<tr><td>${esc(day(r.day))}</td><td>${n(r, 'visit')}</td><td>${n(r, 'visit:reddit')}</td><td>${n(r, 'visit:guest')}</td><td>${n(r, 'visit:phone')}</td><td>${n(r, 'visit:ret')}</td><td>${n(r, 'play')}</td><td>${n(r, 'play:reddit')}</td><td>${n(r, 'road')}</td><td>${n(r, 'hunt')}</td><td>${n(r, 'clear')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No counts yet. They start with the next visit.</p>'}
-    <p class="muted" style="font-size:.85rem">Counts only, Chicago time. Each browser counts once a day as a visitor and once as a player. Reddit means the visit came from a Reddit link.</p></div>`;
+    <p class="muted" style="font-size:.85rem">Counts only, Chicago time. Each browser counts once a day as a visitor and once as a player. Reddit means the visit came from a Reddit link.</p></div>
+    ${ownerPlacesHTML(week, card)}`;
+}
+// Where visitors are, 7 days: a US state, or the country elsewhere, from Cloudflare's lookup of each visit. Home is Oklahoma.
+const US_STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'Washington, D.C.',
+  FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
+function ownerPlace(code) {
+  const [c, r] = code.split('-');
+  if (c === 'US') return US_STATES[r] || 'United States';
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(c) || c; } catch (e) { return c; }
+}
+function ownerPlacesHTML(week, card) {
+  const all = {}, red = {};
+  for (const r of week) for (const [k, v] of Object.entries(r)) {
+    if (k.startsWith('visit:at:')) all[k.slice(9)] = (all[k.slice(9)] || 0) + v;
+    else if (k.startsWith('visit:rat:')) red[k.slice(10)] = (red[k.slice(10)] || 0) + v;
+  }
+  const list = Object.keys(all).sort((a, b) => all[b] - all[a] || ownerPlace(a).localeCompare(ownerPlace(b)));
+  const total = o => Object.values(o).reduce((a, v) => a + v, 0), away = o => total(o) - (o['US-OK'] || 0);
+  return `<div class="opt ow-sg"><h3>Where visitors are, 7 days</h3>
+    ${list.length ? `<div class="ow-cards">${card('Outside Oklahoma', away(all))}${card('From Reddit, outside Oklahoma', away(red))}</div>
+    <div class="ow-scroll"><table class="ow-table"><thead><tr><th>Place</th><th>Visitors</th><th>From Reddit</th></tr></thead><tbody>${list.map(k =>
+      `<tr><td>${esc(ownerPlace(k))}</td><td>${all[k]}</td><td>${red[k] || 0}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No places yet. They start with the next visit.</p>'}
+    <p class="muted" style="font-size:.85rem">Roughly where each visitor’s connection is, by state in the US and by country elsewhere. Phones on mobile data or a VPN can show up in the wrong state.</p></div>`;
 }
 // Community ideas: open or close them (opening ends the 1.1 vote), take a post down, or clear the board for a new round.
 function ownerSgHTML() {
