@@ -47,7 +47,7 @@ async function route(req, env, url) {
   if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
   if (path === '/api/vote' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).vote(null, who ? who.name : null)); }
   if (path === '/api/boards' && method === 'GET') return json(await lobbyStub(env).scoreBoards());
-  if (path === '/api/hit' && method === 'POST') { await lobbyStub(env).hit(await readJson(req)); return json({ ok: true }); }   // anonymous daily counts
+  if (path === '/api/hit' && method === 'POST') { await lobbyStub(env).hit(await readJson(req), anPlace(req.cf)); return json({ ok: true }); }   // anonymous daily counts
   if (path === '/api/suggest' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).suggest(who ? who.name : null)); }
   if (path === '/api/forum' && method === 'GET') return json(await lobbyStub(env).forumList());
   { const m = method === 'GET' && (path.match(/^\/api\/forum\/t\/([a-z0-9]{4,20})$/) || path.match(/^\/api\/suggest\/c\/([a-z0-9_]{1,30}\.[a-z0-9]{1,12})$/));
@@ -297,9 +297,15 @@ function suggestText(v) { const r = cleanPost(v, SUGGEST_MIN, SUGGEST_MAX); retu
 // The community board: one General discussion, live for everyone. Threads with replies; the author or the owner can take either down.
 const FORUM_GAP = 60000, REPLY_GAP = 10000, FORUM_SHOW = 60, REPLY_MAX = 300, ID_RE = /^[a-z0-9]{4,20}$/, IDEA_RE = /^[a-z0-9_]{1,30}\.[a-z0-9]{1,12}$/;
 // Player counts: anonymous daily totals (an:<Chicago date>), guests included. Only event names, where people came from, phone or not,
-// account or guest, and new or returning are counted. Nothing that identifies anyone is sent or kept.
+// account or guest, new or returning, and roughly where (a US state, or only the country elsewhere) are counted. Nothing that identifies anyone is sent or kept.
 const AN_EVENTS = ['visit', 'play', 'road', 'hunt', 'clear'], AN_REFS = ['reddit', 'google', 'other', 'direct'], AN_KEEP = 120;
 const anDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+// Where a visit is from, by Cloudflare's own lookup of the connection (the player sends nothing): US-OK for a US state, AU for anywhere else. Never the address or city.
+const AN_PLACE_RE = /^[A-Z]{2}(-[A-Z]{2})?$/;
+const anPlace = cf => {
+  const c = cf && typeof cf.country === 'string' && /^[A-Z]{2}$/.test(cf.country) ? cf.country : ''; if (!c) return '';
+  return c === 'US' && typeof cf.regionCode === 'string' && /^[A-Z]{2}$/.test(cf.regionCode) ? 'US-' + cf.regionCode : c;
+};
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 // What a save puts on the public boards: the play time when Typhon first fell, and the best Endless wave. A run faster than half an
 // hour, or a wave reached faster than a wave can be played, simply stays off them.
@@ -692,12 +698,15 @@ export class Lobby extends DurableObject {
     const voted = await S.get(at + 'v:' + key);
     if (voted) { const p = await S.get(at + 'p:' + voted.split('.')[0]); if (p && p.id === voted) { p.n = Math.max(0, p.n - 1); await S.put(at + 'p:' + p.who, p); } await S.delete(at + 'v:' + key); }
   }
-  async hit(b) {
+  async hit(b, place = '') {
     const e = String((b && b.e) || ''); if (!AN_EVENTS.includes(e)) return;
     const ref = AN_REFS.includes(b.ref) ? b.ref : 'direct', S = this.ctx.storage, k = 'an:' + anDay(), d = (await S.get(k)) || {};
     const add = n => { d[n] = (d[n] || 0) + 1; };
     add(e); add(e + ':' + ref); add(e + ':' + (b.acct ? 'acct' : 'guest'));
-    if (e === 'visit') { add(b.phone ? 'visit:phone' : 'visit:desk'); if (b.ret) add('visit:ret'); }
+    if (e === 'visit') {
+      add(b.phone ? 'visit:phone' : 'visit:desk'); if (b.ret) add('visit:ret');
+      if (typeof place === 'string' && AN_PLACE_RE.test(place)) { add('visit:at:' + place); if (ref === 'reddit') add('visit:rat:' + place); }
+    }
     await S.put(k, d);
     if (Math.random() < .02) { const keys = [...(await S.list({ prefix: 'an:' })).keys()].sort(); if (keys.length > AN_KEEP) await S.delete(keys.slice(0, keys.length - AN_KEEP)); }
   }
