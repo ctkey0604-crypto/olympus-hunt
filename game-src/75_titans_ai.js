@@ -446,7 +446,7 @@ const TITAN_AI = {
         for (let i = 0; i < 6; i++) q.fx.push({ t: 'after', spr: 'cronus', flip: b.flip, x: b.x + rand(-30, 30), y: b.y + rand(-20, 20), life: .5, max: .5, gold: true, scale: TITAN_SCALE });
       }
     } else if (b.hgT <= 0 && b.state === 'idle' && !p.dead) {
-      b.hg = { t: P2 ? 6 : 7, max: P2 ? 6 : 7, need: b.maxHp * (.08 + .01 * b.rank), dealt: 0, hp0: b.hp, x: b.x, y: b.y };
+      b.hg = { t: P2 ? 6 : 7, max: P2 ? 6 : 7, need: b.maxHp * (.07 + .01 * b.rank), dealt: 0, hp0: b.hp, x: b.x, y: b.y };
       banner('Cronus turns the hourglass', 'Hit him hard before the sand runs out'); Sound.play('telegraph');
     }
     b.label = b.hg ? `Hourglass: ${Math.min(100, Math.round(b.hg.dealt / b.hg.need * 100))}% broken · ${Math.ceil(b.hg.t)}s` : null;

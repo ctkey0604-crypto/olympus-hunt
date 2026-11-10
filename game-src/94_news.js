@@ -38,7 +38,6 @@ const NEWS = [
       'Typhon is harder: more health, shorter rests, more serpent heads that come back sooner, and a new attack in his last phase. You also get fewer healing drops when he arrives.',
       'Bows changed: tap for quick, weak shots, or hold to draw a strong one and let go to fire. A bar under your health shows the draw. You walk slowly while drawing, and the lock-on doesn’t reach as far. A full draw is always your strongest choice now, and a half draw no longer beats it.',
       'Every Titan is tougher and has a new trick, and the gods are a little tougher too. Hyperion’s beams turn slightly slower and give you a moment longer to read them.',
-      'Armor and shields in the Forge show what a hit would do to you in a fight.',
       'Fights no longer show damage numbers. Watch the health bars instead. Practice still shows them.',
       'Online play copes better with a slow connection: fewer, smaller updates when anyone’s connection struggles, and saves that couldn’t be sent try again by themselves.',
       'Earthquake’s first ring of spikes now fires. It never did before.',
@@ -58,6 +57,8 @@ const NEWS = [
       'The Forge shows your numbers beside your hunter instead of under them, so the gear list starts much higher on phones and small windows.',
       'The buttons on the quest complete screen stay at the bottom of the screen, so you never have to scroll down for them.',
       'Enter starts the game from the title screen.',
+      'Cronus’ hourglass takes a little less damage to shatter.',
+      'The Forge no longer shows PvP hit numbers on armor and shields.',
     ],
     fixed: [
       'A co-op hunt no longer freezes for everyone when the player leading it switches to another tab or window.',

@@ -357,6 +357,8 @@ textarea:focus{outline:2px solid var(--gold)}
 #bossBar .bar>em{position:absolute;left:50%;top:0;bottom:0;width:max(1px,calc(var(--px)*.75));background:#000c}
 #bossBar.titan .bar{width:calc(var(--px)*230);height:calc(var(--px)*7)}
 #bossBar.titan .boss-label b{font-size:1.9em}
+/* phones: a Titan's wider bar stops short of the touch buttons (the right 150px of the screen) instead of running under them */
+#stage.touch #bossBar .bar{max-width:calc(var(--px)*384 - 316px)}   /* the screen is 384 game pixels wide */
 #bossBar[data-rank="1"] .bar>i{background:#e2603f}
 #bossBar[data-rank="2"] .bar>i{background:#b48cff}
 .rank-tag{font-family:var(--font-display);font-size:1.05em;letter-spacing:.06em;line-height:1.1;text-shadow:none;padding:0 calc(var(--px)*2);background:#000b;color:var(--bone-dim);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000}

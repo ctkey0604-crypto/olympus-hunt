@@ -297,7 +297,6 @@ function refineRow(kind, id) {
     <div class="chips">${recipeChips(rec)}</div><button class="btn ghost small" type="button" data-refine="${kind}:${id}" ${canCraft(rec) ? '' : 'disabled'}>Refine</button></div>`;
 }
 function delta(v, base) { const d = Math.round(v - base); if (!d) return ''; return ` <span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>`; }
-const deltaLess = (v, base) => { const d = Math.round(v - base); return d ? ` <span class="${d < 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}</span>` : ''; };   // for numbers where less is better
 // Gear shows up in the forge as you reach its tier, so the list doesn't start out a wall of locked stuff.
 // Gear shows up in the forge once you've cleared hunts that drop every part in its recipe (its monsters, god or Titan,
 // summons included), so the list only holds things you've actually fought for.
@@ -325,7 +324,6 @@ function renderArmory() {
   const filters = `<div class="seg">${[['all', 'All'], ['craft', 'Can forge'], ['owned', 'Owned']].map(([k, l]) => `<button type="button" data-forgefilter="${k}" aria-pressed="${G.forgeFilter === k}">${l}</button>`).join('')}</div>`;
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
-  const fight = playerStats({ ...s, meal: null }), myHit = fight.weapon.dmg * fight.mul;
   if (tab === 'weapons') {
     const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
@@ -352,11 +350,10 @@ function renderArmory() {
       const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
         const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
-        const wearing = eq ? fight : playerStats({ ...s, meal: null, equip: { ...s.equip, [sl]: sid } }), taken = pvpHitOn(myHit, wearing.def, wearing.maxHp);   // the hit you'd take in a fight with this piece on, set bonuses and all
         const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="piece:${P.id}">Equip</button>` : `<button class="btn small" type="button" data-craft="piece:${P.id}" ${canCraft(P.recipe) ? '' : 'disabled'}>Craft</button>`;
         return `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:8px">
           <img class="px-icon" alt="" src="${icon(P.id)}" style="width:32px;height:32px">
-          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}<span title="What a hit from your weapon would do to you in a fight, wearing this.">PvP hit taken <b>${taken}</b>${eq ? '' : deltaLess(taken, pvpHitOn(myHit, fight.def, fight.maxHp))}</span></div>
+          <div><span class="piece-slot">${SLOT_LABEL[sl]}</span><div class="stats"><span>Defense <b>${rdef(P, rl)}</b>${eq ? '' : delta(rdef(P, rl), rdef(cur, cl))}</span>${P.hp || cur.hp ? `<span>Health <b>${rhp(P, rl)}</b>${eq ? '' : delta(rhp(P, rl), rhp(cur, cl))}</span>` : ''}</div>
           ${P.perk === 'doubleDash' ? `<div class="setbonus" style="margin-top:4px"><span class="on">Double dash · dash twice in a row, but dashes recharge slower</span></div>` : ''}${owned || !P.recipe ? '' : `<div class="chips" style="margin-top:4px">${recipeChips(P.recipe)}</div>`}</div>${act}</div>`;
       }).join('');
       const n = counts[sid] || 0, allOwned = SLOTS.every(sl => s.pieces.includes(sid + ':' + sl));
@@ -378,13 +375,13 @@ function renderArmory() {
       const owned = s.shields.includes(id);
       if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
       if (!gearVisible(sh.recipe, owned)) { hidden++; continue; }
-      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0, blocked = Math.round(myHit * (1 - Math.min(.97, sh.block + .01 * shl)) * 20 / (20 + fight.def));
+      const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
       const desc = perk ? sh.desc.replace(perk, '').trim() : sh.desc;       // the perk has its own line below: the card doesn't say it twice
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
-        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span title="What a blocked hit from your weapon would still do to you in a fight.">PvP blocked hit <b>${blocked}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
+        <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(desc)}${desc ? ' ' : ''}Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
