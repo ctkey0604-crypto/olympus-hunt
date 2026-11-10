@@ -70,6 +70,7 @@ const NEWS = [
       'A long part name can’t push its price off the side of Melita’s Market on a small screen any more.',
       'Dark armor pieces (Shade, Starseer, Warlord, a brigand’s boots and more) no longer vanish on the Forge’s black tiles. They have a pale outline now.',
       'After a fight, the results no longer say “Parts carried home”, and the button says where it takes you: back to the Coliseum.',
+      'A new player who joins by invite link sees the goal line again. The room box sat on top of it.',
     ] },
   { v: 'Beta 0.9', date: 'October 2026', title: 'Online co-op and the last hunt',
     new: [

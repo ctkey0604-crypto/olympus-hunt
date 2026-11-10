@@ -567,6 +567,8 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
 /* online co-op: the room box (top left) and the Oracle's room list */
 #mpBox{position:absolute;left:calc(var(--px)*6);top:calc(var(--px)*19);display:grid;gap:calc(var(--px)*2);font-size:.85em;max-width:48%;pointer-events:auto;z-index:2}
 #mpBox.q{top:calc(var(--px)*44)}
+/* a new player who came in by invite link has both: the room box goes under the tutorial's goal line, not over it */
+#hud:has(#goal:not([hidden])) #mpBox:not(.q){top:calc(var(--px)*31)}
 .mp-tag{display:flex;gap:calc(var(--px)*3);align-items:baseline;background:#000b;padding:0 calc(var(--px)*3);box-shadow:0 0 0 max(1px,calc(var(--px)*.6)) #000;width:max-content}
 .mp-tag b{color:var(--aegean);letter-spacing:.12em;text-transform:uppercase;font-size:.85em}
 .mp-tag span{color:var(--bone-dim)}
