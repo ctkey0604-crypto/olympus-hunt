@@ -377,12 +377,24 @@ const STONE = ['#4a463f', '#77716a', '#a39d91', '#cfc9bc', '#ebe6db'], GOLDR = [
 
 // Icons for every item, weapon, armor piece and shield.
 const ICON_CANVAS = {};
+// Near-black armor (Shade's robes, Starseer's night blue, a brigand's boots) vanished on the black icon tiles in the Forge. A piece
+// that dark gets a pale rim in place of the dark outline, so its shape still reads. Rank forms are tinted darker still (r), which counts.
+const ICON_RIM = '#85735d';
+function pieceDim(P, r) {
+  const lum = h => { const [R, G, B] = hexRgb(h); return R * .3 + G * .59 + B * .11; };
+  const T = r ? RANK_TINT[r] : null, a = T ? T.amt * .85 : 0;                // the tint recolorCanvas gives a rank form's icon
+  return lum(ARMOR_SETS[P.set].colors[P.slot][0]) * (1 - a) + (T ? lum(T.mix) * a : 0) < 66;       // 66: dark leather boots and darker
+}
+function pieceIcon(P, rim) {
+  const col = ARMOR_SETS[P.set].colors[P.slot];
+  return makeSprite(PIECE_ICON_T[P.slot], rim ? ICON_RIM : OUTLINE, { a: col[0], b: col[1], c: (P.slot === 'chest' ? col[2] : null) || (P.slot === 'legs' ? ARMOR_SETS[P.set].colors.chest[0] : col[1]) });
+}
 function iconCanvas(id) {
   if (ICON_CANVAS[id]) return ICON_CANVAS[id];
   let c = null;
   const r = rankOf(id);
   if (r) {                                   // High and God Rank forms: the base icon, recoloured, with a rank gem in the corner
-    const b = iconCanvas(baseId(id)); if (!b) return null;
+    const BP = PIECES[baseId(id)], b = BP && pieceDim(BP, r) ? pieceIcon(BP, true) : iconCanvas(baseId(id)); if (!b) return null;
     c = mkCanvas(b.width + 1, b.height + 1); const x = c.getContext('2d'); x.drawImage(recolorCanvas(b, r), 0, 1);
     const col = RANK_TINT[r].trim; x.fillStyle = OUTLINE; x.fillRect(c.width - 4, 0, 4, 4); x.fillStyle = col; x.fillRect(c.width - 3, 1, 2, 2);
     if (r === 2) { x.fillStyle = '#ffffff'; x.fillRect(c.width - 3, 1, 1, 1); }
@@ -391,10 +403,7 @@ function iconCanvas(id) {
   if (ICON_DATA[id]) c = makeSprite(ICON_DATA[id]);
   else if (ITEMS[id] && ITEMS[id].icon) { const [t, a, b, cc] = ITEMS[id].icon; c = makeSprite(ICON_TEMPLATES[t], OUTLINE, { a, b: b || a, c: cc || a }); }
   else if (WEAPONS[id]) { const [a, b, cc] = WEAPON_COLORS[id] || ['#c7ccd1', '#8a5a34', '#5a3a22']; c = makeSprite(WEAPON_ICON_T[WEAPONS[id].kind], OUTLINE, { a, b, c: cc }); }
-  else if (PIECES[id]) {
-    const P = PIECES[id], col = ARMOR_SETS[P.set].colors[P.slot];
-    c = makeSprite(PIECE_ICON_T[P.slot], OUTLINE, { a: col[0], b: col[1], c: (P.slot === 'chest' ? col[2] : null) || (P.slot === 'legs' ? ARMOR_SETS[P.set].colors.chest[0] : col[1]) });
-  }
+  else if (PIECES[id]) c = pieceIcon(PIECES[id], pieceDim(PIECES[id], 0));
   else if (SHIELDS[id]) { const [a, b, cc] = SHIELDS[id].colors; c = makeSprite(PIECE_ICON_T.shield, OUTLINE, { a, b, c: cc }); }
   else if (id.startsWith('potion:')) { const [a, b, cc] = POTIONS[id.slice(7)].col; c = makeSprite(['...cc...', '...ww...', '..waaw..', '.waaaab.', '.wacaab.', '.aaaabb.', '..abbb..', '........'], OUTLINE, { a, b, c: cc, w: '#e6e1d6' }); }
   else if (ITEMS[id]) c = makeSprite(ICON_TEMPLATES.shard, OUTLINE, { a: '#d8ccb4', b: '#85735d', c: '#ffffff' });
@@ -402,7 +411,6 @@ function iconCanvas(id) {
 }
 const ICONS = {};
 function icon(id) { if (ICONS[id]) return ICONS[id]; const c = iconCanvas(id); if (!c) return ''; return (ICONS[id] = c.toDataURL()); }
-const ITEM_SPR = new Proxy({}, { get: (_, id) => iconCanvas(id) });
 
 /* ---- the hero: built from the four armor pieces you wear ---- */
 // Codes: i/I/c = head piece, a/A/t = chest, l/L = legs, f/F = feet, s/S = skin, k = eye, h/H = hair.

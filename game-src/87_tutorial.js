@@ -16,7 +16,7 @@ function tutGoal() {
   const show = tutOn() && s.tut >= TUT.TALK && G.mode === 'village' && V && V.id === 'village';
   el.hidden = !show; if (!show) return;
   $('goalText').textContent = s.tut === TUT.TALK ? 'Talk to Kleon the Herald'
-    : s.tut === TUT.FORGE ? 'Forge new gear at Dion the Smith'
+    : s.tut === TUT.FORGE ? 'Forge new gear with Dion the Smith'
     : s.tut === TUT.NEXT ? 'Take your next hunt from Kleon'
     : 'Pick a hunt from Kleon the Herald';
 }

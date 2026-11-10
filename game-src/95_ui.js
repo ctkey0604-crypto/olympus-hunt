@@ -67,12 +67,14 @@ async function copyText(text) {
   let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); return ok;
 }
 // "High Rank: 5 of 17 gods · 2 of 8 Titans": hunted on the rank you're on, so it starts again at 0 when a new rank opens.
+// Before High Rank there's no rank in front, and the Titans are only counted once the stairway to them has opened.
 // Typhon down: "Game complete · Endless mode: best wave 12" (slot cards add the last run).
 function huntTally(s, slot) {
   const e = s.endless || {};
   if (s.cleared[TYPHON_Q]) return `Game complete · Endless mode: ${e.best ? `best wave ${e.best}${slot && e.last ? `, last run wave ${e.last}` : ''}` : 'not tried yet'}`;
   const r = s.rank || 0, gods = ALL_GOD_QUESTS.filter(id => s.cleared[rid(id, r)]).length, titans = TITANS.filter(t => s.cleared[rid(t.quest, r)]).length;
-  return `${slot && r ? '' : RANKS[r].name + ': '}${gods} of ${ALL_GOD_QUESTS.length} gods · ${titans} of ${TITANS.length} Titans`;
+  // Like the board, this doesn't talk about ranks or Titans until the game has shown them to you: a new save just counts gods.
+  return `${r && !slot ? RANKS[r].name + ': ' : ''}${gods} of ${ALL_GOD_QUESTS.length} gods${s.stairs || r ? ` · ${titans} of ${TITANS.length} Titans` : ''}`;
 }
 
 async function renderSlots() {
@@ -86,8 +88,8 @@ async function renderSlots() {
     : CG.data ? 'CrazyGames keeps your saves. Sign in to CrazyGames and they follow you to any device.'
     : Store.cloud ? 'Saves sync to your Claude account and also stay in this browser.'
     : Store.api && Store.localOk ? 'Saves stay in this browser on this device until you sign in.'
-    : Store.localOk ? 'Saves stay in this browser on this device. To move a save, press Esc in the village and use Show save code in Options.'
-    : 'This browser is blocking storage, so progress is lost when you close the page. Copy your save code from your home in the village to keep it.';
+    : Store.localOk ? 'Saves stay in this browser on this device. To move a save, pause in the village and use Show save code in Options.'
+    : 'This browser is blocking storage, so progress is lost when you close the page. To keep it, pause in the village, open Options and copy your save code.';
   const saves = [];
   for (let n = 1; n <= 3; n++) saves.push(await Store.load(n));
   list.innerHTML = '';
@@ -243,7 +245,12 @@ function renderBoard() {
   if (s.stairs && titans.some(qd => isUnlocked(qd))) {
     html += `<p class="rank titans">Beneath the temple</p>`;
     let lockShown = false;
-    for (const qd of titans) { if (isUnlocked(qd) || s.cleared[qd.id]) html += questCard(qd); else if (!lockShown) { lockShown = true; html += `<div class="qlock">${esc(godName(qd.god))} · beat the Titan before to unlock</div>`; } }
+    for (const qd of titans) {
+      if (isUnlocked(qd) || s.cleared[qd.id]) { html += questCard(qd); continue; }
+      if (lockShown) continue;
+      lockShown = true; const prev = titans[titans.indexOf(qd) - 1];                 // like the gods above: name who stands in the way
+      html += `<div class="qlock">${esc(godName(qd.god))} · beat ${prev ? esc(godName(prev.god)) : 'the Titan before'} to unlock</div>`;
+    }
   } else if (s.stairs && r > 0) html += `<div class="qlock">The Titans · hunt every god on this rank first</div>`;
   // Typhon: God Rank only, once every god and Titan on it has fallen
   if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
@@ -281,7 +288,7 @@ function recipeChips(rec) {
   return parts + `<span class="chip ${G.save.money >= rec.cost ? 'ok' : 'short'}"><b>${fmtMoney(rec.cost)}</b> dr</span>`;
 }
 // The smith's refinement: what the next + costs, or a note that it's maxed out.
-const refineTag = lv => lv ? ` <span class="refine-tag">+${lv}</span>` : '';
+const refineTag = lv => lv ? `&nbsp;<span class="refine-tag">+${lv}</span>` : '';   // never left alone on a line of its own
 function refineRow(kind, id) {
   const lv = refineLevel(id), what = kind === 'weapon' ? 'damage' : kind === 'shield' ? 'guard' : 'defense for every piece';
   if (lv >= REFINE_MAX) return `<div class="refine"><div class="refine-top"><b>Fully refined</b><span>+${Math.round(REFINE_GAIN[kind] * 100 * lv)}% ${what}</span></div></div>`;
@@ -374,10 +381,11 @@ function renderArmory() {
       const eq = s.shield === id, shl = owned ? refineLevel(id) : 0, blocked = Math.round(myHit * (1 - Math.min(.97, sh.block + .01 * shl)) * 20 / (20 + fight.def));
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
+      const desc = perk ? sh.desc.replace(perk, '').trim() : sh.desc;       // the perk has its own line below: the card doesn't say it twice
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
         <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span title="What a blocked hit from your weapon would still do to you in a fight.">PvP blocked hit <b>${blocked}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
-        <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
+        <p class="desc">${esc(desc)}${desc ? ' ' : ''}Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
         <div class="actions">${act}</div></article>`;
@@ -406,7 +414,7 @@ function renderLoadouts() {
   const worn = list.some(L => loadoutSame(L, s));
   return `<p class="muted" style="margin:0 0 12px">Keep up to ${LOADOUT_MAX} gear sets here and swap between them in one click. Click a name to change it.</p>
     ${list.length ? `<div class="grid meal-grid">${list.map(card).join('')}</div>` : `<div class="empty-note">Nothing saved yet. Save what you’re wearing, and you can change back to it here any time.</div>`}
-    <div class="actions" style="margin-top:12px"><button class="btn" type="button" data-ldnew="1" ${list.length >= LOADOUT_MAX || worn ? 'disabled' : ''}>Save what I’m wearing</button>${list.length >= LOADOUT_MAX ? `<span class="muted">All ${LOADOUT_MAX} are in use. Save over one, or delete one.</span>` : worn ? `<span class="muted">You’re wearing a saved loadout.</span>` : ''}</div>`;
+    <div class="row" style="margin-top:12px"><button class="btn" type="button" data-ldnew="1" ${list.length >= LOADOUT_MAX || worn ? 'disabled' : ''}>Save what I’m wearing</button>${list.length >= LOADOUT_MAX ? `<span class="muted">All ${LOADOUT_MAX} are in use. Save over one, or delete one.</span>` : worn ? `<span class="muted">You’re wearing a saved loadout.</span>` : ''}</div>`;
 }
 function renderChestParts() {
   const s = G.save;
@@ -417,7 +425,7 @@ function renderChestParts() {
   const droppers = id => [...Object.values(ENEMIES), ...Object.values(BOSSES)].filter(e => e.loot.some(l => l[0] === baseId(id))).map(e => e.name);
   const usedIn = id => {
     const out = Object.values(WEAPONS).filter(g => g.recipe && g.recipe.items[id]).map(g => g.name);
-    for (const [sid, set] of Object.entries(ARMOR_SETS)) if (set.recipe && set.recipe.items[id]) out.push(set.name + ' armor');
+    for (const set of Object.values(ARMOR_SETS)) if (set.recipe && set.recipe.items[id]) out.push(set.name + ' armor');
     for (const sh of Object.values(SHIELDS)) if (sh.recipe.items[id]) out.push(sh.name);
     return out;
   };
@@ -444,7 +452,7 @@ function shopParts() {
 function renderParts() {
   const s = G.save, ids = shopParts();
   if (!ids.length) return `<p class="muted" style="margin:16px 0 0">Clear a hunt and Melita will stock its parts here.</p>`;
-  return `<p class="sub" style="margin:18px 0 6px">Parts</p><p class="muted" style="margin:0 0 10px">Parts from hunts you've cleared. Hunting them is cheaper, but this saves a trip.</p><div class="stash">${ids.map(id => {
+  return `<p class="sub" style="margin:18px 0 6px">Parts</p><p class="muted" style="margin:0 0 10px">Parts from hunts you’ve cleared. Hunting them is cheaper, but this saves a trip.</p><div class="stash shop">${ids.map(id => {
     const it = partItem(id), cost = partCost(id);
     return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>You have ${s.inv[id] || 0}</p></div><button class="btn small" type="button" data-part="${id}" ${s.money < cost ? 'disabled' : ''}>${fmtMoney(cost)} dr</button></div>`;
   }).join('')}</div>`;
@@ -523,7 +531,7 @@ function saveBinds(b) { Settings.data.binds = b; Settings.save(); applyBinds(); 
 function captureBind(code) {
   const a = G.rebinding;
   if (code === 'Escape') { G.rebinding = null; bindNote = ''; renderHub(); return; }
-  if (RESERVED.has(code)) { bindNote = `${codeLabel(code)} can't be used. Pick another key.`; renderHub(); return; }
+  if (RESERVED.has(code)) { bindNote = `${codeLabel(code)} can’t be used. Pick another key.`; renderHub(); return; }
   const b = JSON.parse(JSON.stringify(Input.bind));
   let moved = '';
   for (const [k, list] of Object.entries(b)) {
@@ -688,7 +696,7 @@ function finishQuest(win) {
   }
   persist(true);
   const unlocked = QUESTS.filter(x => isUnlocked(x) && !before.has(x.id));
-  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
+  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.final ? 'The last hunt' : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
   const title = $('resTitle'); title.textContent = run ? (run.record ? 'A new record' : 'The hunt is over') : win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win || (run && run.record) ? 'win' : 'lose');
   if (run) $('resStats').innerHTML = `<div><span>Wave reached</span><b>${run.reached}${run.record ? ' ★' : ''}</b></div><div><span>Best wave</span><b>${s.endless.best}</b></div><div><span>Pay</span><b style="color:var(--gold)">${fmtMoney(run.pay)} dr</b></div><div><span>Time</span><b>${fmtTime(q.elapsed)}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>`;
   else $('resStats').innerHTML =`<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
@@ -714,6 +722,7 @@ function finishQuest(win) {
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
     : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+  $('resLootHead').hidden = false; $('btnResContinue').textContent = 'Return to the village';     // a fight's results change both (84_pvp.js)
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   const next = win && !run && !wasNet && !netOn() ? nextQuest(s, d.id) : null;           // on your own, a win offers the next hunt (a room picks its own)
   resNextButton(next);
@@ -952,6 +961,12 @@ addEventListener('keydown', e => {
   if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
   if (G.mode === 'forum') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); forumBack(); } return; }
   if (G.mode === 'owner') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeOwner(); } return; }
+  // The title screen: Enter is Play, so a keyboard player never needs the touchpad. A button that has the focus keeps its own Enter.
+  if (G.mode === 'title') {
+    const onButton = e.target && e.target.closest && e.target.closest('button, a, summary');
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && !fading && !$('scrTitle').hidden && !onButton) { e.preventDefault(); $('btnPlay').click(); }
+    return;
+  }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();

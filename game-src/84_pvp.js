@@ -178,6 +178,7 @@ function pvpFinish(quit = false) {
   const title = $('resTitle'); title.textContent = quit ? 'You left the fight' : wonIt ? 'Victory' : 'Defeat'; title.className = 'res-title ' + (wonIt ? 'win' : 'lose');
   $('resStats').innerHTML = `<div><span>Rounds won</span><b>${P.wins[me.team] || 0}</b></div><div><span>Kills</span><b>${mine[0]}</b></div><div><span>Deaths</span><b>${mine[1]}</b></div><div><span>Damage dealt</span><b>${Math.round(q.stats.dealt)}</b></div>`;
   $('resUnlock').innerHTML = ''; $('resLoot').innerHTML = `<div class="muted">Fights pay nothing. They’re for the glory.</div>`; $('resNote').textContent = '';
+  $('resLootHead').hidden = true; $('btnResContinue').textContent = 'Back to the Coliseum';      // nothing was carried home, and that's where the button goes
   $('btnResAgain').hidden = true; resNextButton(null); G.lastQuest = null; G.arenaBack = true;
   G.mode = 'results'; q = null; show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);

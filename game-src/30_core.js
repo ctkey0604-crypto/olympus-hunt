@@ -184,7 +184,7 @@ function renderTitleControls() {
   $('titleControls').innerHTML = controlsItems().map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
   // the hand-position tip follows whatever keys are set
   const first = a => kbd(Input.bind[a][0]), move = ['up', 'left', 'down', 'right'].map(a => kbd(Input.bind[a][0])).join('');
-  $('titleTip').innerHTML = `On a Chromebook or laptop: one hand on ${move}, the other on ${first('attack')} ${first('dodge')} ${first('ability')}. No touchpad needed. You can change any key in Options.`;
+  $('titleTip').innerHTML = `On a Chromebook or laptop: one hand on ${move}, the other on ${first('attack')} ${first('dodge')} ${first('ability')}. No touchpad needed: ${kbd('Enter')} starts the game. You can change any key in Options.`;
 }
 
 /* ============================== SAVES ==================================== */
@@ -435,7 +435,8 @@ const Settings = {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
-        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse', 'mpMin']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        // tips: the Options switch. practiceTip, drawTip: one-time hints already shown, so they stay shown-once after a reload.
+        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse', 'mpMin', 'tips', 'practiceTip', 'drawTip']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
         for (const k of ['sfxVol', 'musicVol']) if (typeof s[k] === 'number' && s[k] >= 0 && s[k] <= 1) this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {

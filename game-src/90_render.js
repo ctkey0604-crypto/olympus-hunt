@@ -818,7 +818,7 @@ function updateHud() {
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
   updatePotionBar(p);
-  let wave = '';
+  let wave;
   if (q.phase === 'boss') wave = '';
   else if (q.phase === 'victory') wave = 'Victory';
   else if (q.phase === 'defeat') wave = 'Defeated';

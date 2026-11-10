@@ -517,7 +517,7 @@ function drawSpr(name, fi, x, y, flip, tint, alpha = 1, scale = 1) {
   if (alpha < 1) ctx.globalAlpha = 1;
 }
 const DIGITS = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001001010010', '8': '111101111101111', '9': '111101111001111', '+': '000010111010000', '-': '000000111000000', '!': '010010010000010' };
-const numGlyph = ch => DIGITS[ch];
+const numGlyph = ch => DIGITS[ch] || GLYPHS[ch];             // floating words too (MAX, MISS): the name tags' capital letters (90_render.js)
 function drawNum(str, x, y, col) {
   const w = str.length * 4 - 1;
   ctx.drawImage(pixelText(str, col, numGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
@@ -530,7 +530,6 @@ function godRank(god, save = G.save) {
   let best = -1; for (const qd of QUESTS) if (qd.boss === god && save.cleared[qd.id] && qd.rank > best) best = qd.rank;
   return best;
 }
-function godBeaten(god) { return godRank(god) >= 0; }
 function flame(sx, sy, w, h, seed) {
   const R = mulberry(Math.floor(G.time * 12) + seed);
   for (let i = 0; i < w + 3; i++) { const fx = sx - w / 2 + R() * w, fh = 2 + R() * h; ctx.fillStyle = R() < .4 ? '#ffd463' : R() < .7 ? '#ff8a2b' : '#d9493b'; ctx.fillRect(Math.round(fx), Math.round(sy - fh), 1, Math.round(fh)); }

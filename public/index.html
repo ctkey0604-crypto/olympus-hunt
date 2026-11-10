@@ -219,7 +219,7 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 .gear-head{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
 .gear-head b{display:block;font-size:1.08rem}
 .gear-head span{color:var(--bone-dim);font-size:.85rem}
-.stats{display:flex;gap:14px;flex-wrap:wrap;font-size:.92rem}
+.stats{display:flex;gap:3px 14px;flex-wrap:wrap;font-size:.92rem}
 .stats span{color:var(--bone-mute)}
 .stats b{color:var(--bone);font-variant-numeric:tabular-nums}
 .stats .up{color:var(--olive)}
@@ -231,8 +231,10 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 
 /* stash */
 .stash{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-.mat{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;background:var(--glaze-2);padding:12px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
-.mat b{display:block}
+.mat{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;background:var(--glaze-2);padding:12px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
+.mat b{display:block;overflow-wrap:anywhere}
+/* Melita's parts: wider cards, so a name and its price sit on one line */
+.stash.shop{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
 .mat .qty{font-family:var(--font-display);font-size:2rem;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
 .mat p{margin:2px 0 0;font-size:.85rem;color:var(--bone-dim)}
 .r1{color:var(--r1)}.r2{color:var(--r2)}.r3{color:var(--r3)}.r4{color:var(--r4)}
@@ -278,6 +280,10 @@ textarea:focus{outline:2px solid var(--gold)}
 .res-item{display:flex;align-items:center;gap:10px;background:var(--glaze-2);padding:8px 10px;box-shadow:0 0 0 2px #000}
 .res-item img{width:32px;height:32px;image-rendering:pixelated}
 .res-item b{margin-left:auto;color:var(--gold);font-variant-numeric:tabular-nums}
+.res-loot>.muted{grid-column:1/-1}
+/* the buttons stay in reach at the bottom of the screen however long the list of parts is (phones show little above them) */
+/* (the shadow fills the strip of screen padding under the bar, so nothing scrolls through below the buttons) */
+.res-actions{position:sticky;bottom:0;z-index:2;margin:-6px -4px 0;padding:14px 4px 4px;background:linear-gradient(to bottom,transparent,var(--glaze) 12px);box-shadow:0 40px 0 var(--glaze)}
 .unlock{background:var(--gold);color:#160e0b;padding:10px 14px;font-weight:600}
 .results h3{margin:4px 0 0;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute)}
 
@@ -321,6 +327,7 @@ textarea:focus{outline:2px solid var(--gold)}
 .preview{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--glaze-2);padding:12px 14px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .preview canvas{image-rendering:pixelated;width:72px;height:96px;background:#0007;box-shadow:inset 0 0 0 2px var(--line)}
 .preview .stats{font-size:.95rem}
+.preview>div{flex:1 1 0;min-width:0}   /* the numbers sit beside the figure, not under it: the forge's top card stays short */
 .hero-pick{margin:4px 0 14px}
 .hero-pick .lbl{display:block;margin:0 0 8px;font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute)}
 
@@ -547,6 +554,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   .stats{gap:4px 10px}
   .ability{padding:5px 8px}
   .stash{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+  .stash.shop{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
   .mat{padding:8px;gap:8px}
   .mat .qty{font-size:1.5rem}
   .mat p:first-of-type{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
@@ -834,10 +842,10 @@ input[type=range]{accent-color:var(--clay)}
     <h2 class="res-title" id="resTitle">Quest complete</h2>
     <div class="res-stats" id="resStats"></div>
     <div id="resUnlock" style="display:grid;gap:8px"></div>
-    <h3>Parts carried home</h3>
+    <h3 id="resLootHead">Parts carried home</h3>
     <div class="res-loot" id="resLoot"></div>
     <p class="muted" id="resNote" style="margin:0"></p>
-    <div class="row"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResNext" type="button" hidden>Next quest</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
+    <div class="row res-actions"><button class="btn" id="btnResContinue" type="button">Return to the village</button><button class="btn ghost" id="btnResNext" type="button" hidden>Next quest</button><button class="btn ghost" id="btnResAgain" type="button">Quest again</button></div>
   </div>
 </section>
 
@@ -921,7 +929,6 @@ const CLASS = {
   medium: { hpM: 5.5, dmgP: .14, heal: .16 },     // 4-8 hits, one attack that makes you react
   heavy:  { hpM: 18,  dmgP: .26, heal: .5 },      // anchors a wave, big area attack
 };
-const ATTACK_TURNS = { melee: 3, ranged: 2 };    // how many monsters may attack you at the same moment
 // Ranks. Low Rank is everything until every god and Titan falls; then the herald opens High Rank, and later God Rank.
 // hp / dmg: on top of the tier curve. tempo: how fast monsters and gods think (shorter windups and rests).
 // gear: name prefix for that rank's forged gear; item: suffix for its parts.
@@ -2396,12 +2403,24 @@ const STONE = ['#4a463f', '#77716a', '#a39d91', '#cfc9bc', '#ebe6db'], GOLDR = [
 
 // Icons for every item, weapon, armor piece and shield.
 const ICON_CANVAS = {};
+// Near-black armor (Shade's robes, Starseer's night blue, a brigand's boots) vanished on the black icon tiles in the Forge. A piece
+// that dark gets a pale rim in place of the dark outline, so its shape still reads. Rank forms are tinted darker still (r), which counts.
+const ICON_RIM = '#85735d';
+function pieceDim(P, r) {
+  const lum = h => { const [R, G, B] = hexRgb(h); return R * .3 + G * .59 + B * .11; };
+  const T = r ? RANK_TINT[r] : null, a = T ? T.amt * .85 : 0;                // the tint recolorCanvas gives a rank form's icon
+  return lum(ARMOR_SETS[P.set].colors[P.slot][0]) * (1 - a) + (T ? lum(T.mix) * a : 0) < 66;       // 66: dark leather boots and darker
+}
+function pieceIcon(P, rim) {
+  const col = ARMOR_SETS[P.set].colors[P.slot];
+  return makeSprite(PIECE_ICON_T[P.slot], rim ? ICON_RIM : OUTLINE, { a: col[0], b: col[1], c: (P.slot === 'chest' ? col[2] : null) || (P.slot === 'legs' ? ARMOR_SETS[P.set].colors.chest[0] : col[1]) });
+}
 function iconCanvas(id) {
   if (ICON_CANVAS[id]) return ICON_CANVAS[id];
   let c = null;
   const r = rankOf(id);
   if (r) {                                   // High and God Rank forms: the base icon, recoloured, with a rank gem in the corner
-    const b = iconCanvas(baseId(id)); if (!b) return null;
+    const BP = PIECES[baseId(id)], b = BP && pieceDim(BP, r) ? pieceIcon(BP, true) : iconCanvas(baseId(id)); if (!b) return null;
     c = mkCanvas(b.width + 1, b.height + 1); const x = c.getContext('2d'); x.drawImage(recolorCanvas(b, r), 0, 1);
     const col = RANK_TINT[r].trim; x.fillStyle = OUTLINE; x.fillRect(c.width - 4, 0, 4, 4); x.fillStyle = col; x.fillRect(c.width - 3, 1, 2, 2);
     if (r === 2) { x.fillStyle = '#ffffff'; x.fillRect(c.width - 3, 1, 1, 1); }
@@ -2410,10 +2429,7 @@ function iconCanvas(id) {
   if (ICON_DATA[id]) c = makeSprite(ICON_DATA[id]);
   else if (ITEMS[id] && ITEMS[id].icon) { const [t, a, b, cc] = ITEMS[id].icon; c = makeSprite(ICON_TEMPLATES[t], OUTLINE, { a, b: b || a, c: cc || a }); }
   else if (WEAPONS[id]) { const [a, b, cc] = WEAPON_COLORS[id] || ['#c7ccd1', '#8a5a34', '#5a3a22']; c = makeSprite(WEAPON_ICON_T[WEAPONS[id].kind], OUTLINE, { a, b, c: cc }); }
-  else if (PIECES[id]) {
-    const P = PIECES[id], col = ARMOR_SETS[P.set].colors[P.slot];
-    c = makeSprite(PIECE_ICON_T[P.slot], OUTLINE, { a: col[0], b: col[1], c: (P.slot === 'chest' ? col[2] : null) || (P.slot === 'legs' ? ARMOR_SETS[P.set].colors.chest[0] : col[1]) });
-  }
+  else if (PIECES[id]) c = pieceIcon(PIECES[id], pieceDim(PIECES[id], 0));
   else if (SHIELDS[id]) { const [a, b, cc] = SHIELDS[id].colors; c = makeSprite(PIECE_ICON_T.shield, OUTLINE, { a, b, c: cc }); }
   else if (id.startsWith('potion:')) { const [a, b, cc] = POTIONS[id.slice(7)].col; c = makeSprite(['...cc...', '...ww...', '..waaw..', '.waaaab.', '.wacaab.', '.aaaabb.', '..abbb..', '........'], OUTLINE, { a, b, c: cc, w: '#e6e1d6' }); }
   else if (ITEMS[id]) c = makeSprite(ICON_TEMPLATES.shard, OUTLINE, { a: '#d8ccb4', b: '#85735d', c: '#ffffff' });
@@ -2421,7 +2437,6 @@ function iconCanvas(id) {
 }
 const ICONS = {};
 function icon(id) { if (ICONS[id]) return ICONS[id]; const c = iconCanvas(id); if (!c) return ''; return (ICONS[id] = c.toDataURL()); }
-const ITEM_SPR = new Proxy({}, { get: (_, id) => iconCanvas(id) });
 
 /* ---- the hero: built from the four armor pieces you wear ---- */
 // Codes: i/I/c = head piece, a/A/t = chest, l/L = legs, f/F = feet, s/S = skin, k = eye, h/H = hair.
@@ -2764,7 +2779,7 @@ function renderTitleControls() {
   $('titleControls').innerHTML = controlsItems().map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join('');
   // the hand-position tip follows whatever keys are set
   const first = a => kbd(Input.bind[a][0]), move = ['up', 'left', 'down', 'right'].map(a => kbd(Input.bind[a][0])).join('');
-  $('titleTip').innerHTML = `On a Chromebook or laptop: one hand on ${move}, the other on ${first('attack')} ${first('dodge')} ${first('ability')}. No touchpad needed. You can change any key in Options.`;
+  $('titleTip').innerHTML = `On a Chromebook or laptop: one hand on ${move}, the other on ${first('attack')} ${first('dodge')} ${first('ability')}. No touchpad needed: ${kbd('Enter')} starts the game. You can change any key in Options.`;
 }
 
 /* ============================== SAVES ==================================== */
@@ -3015,7 +3030,8 @@ const Settings = {
     try {
       const s = JSON.parse(localStorage.getItem('olympus-hunt/settings') || 'null');
       if (s && typeof s === 'object') {
-        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse', 'mpMin']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
+        // tips: the Options switch. practiceTip, drawTip: one-time hints already shown, so they stay shown-once after a reload.
+        for (const k of ['sound', 'music', 'shake', 'autoAim', 'mouse', 'mpMin', 'tips', 'practiceTip', 'drawTip']) if (typeof s[k] === 'boolean') this.data[k] = s[k];
         for (const k of ['sfxVol', 'musicVol']) if (typeof s[k] === 'number' && s[k] >= 0 && s[k] <= 1) this.data[k] = s[k];
         if ([1, 2, 3].includes(s.lastSlot)) this.data.lastSlot = s.lastSlot;
         if (s.binds && typeof s.binds === 'object') {
@@ -4062,7 +4078,7 @@ function drawSpr(name, fi, x, y, flip, tint, alpha = 1, scale = 1) {
   if (alpha < 1) ctx.globalAlpha = 1;
 }
 const DIGITS = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001001010010', '8': '111101111101111', '9': '111101111001111', '+': '000010111010000', '-': '000000111000000', '!': '010010010000010' };
-const numGlyph = ch => DIGITS[ch];
+const numGlyph = ch => DIGITS[ch] || GLYPHS[ch];             // floating words too (MAX, MISS): the name tags' capital letters (90_render.js)
 function drawNum(str, x, y, col) {
   const w = str.length * 4 - 1;
   ctx.drawImage(pixelText(str, col, numGlyph), Math.round(x - w / 2) - 1, Math.round(y) - 1);
@@ -4075,7 +4091,6 @@ function godRank(god, save = G.save) {
   let best = -1; for (const qd of QUESTS) if (qd.boss === god && save.cleared[qd.id] && qd.rank > best) best = qd.rank;
   return best;
 }
-function godBeaten(god) { return godRank(god) >= 0; }
 function flame(sx, sy, w, h, seed) {
   const R = mulberry(Math.floor(G.time * 12) + seed);
   for (let i = 0; i < w + 3; i++) { const fx = sx - w / 2 + R() * w, fh = 2 + R() * h; ctx.fillStyle = R() < .4 ? '#ffd463' : R() < .7 ? '#ff8a2b' : '#d9493b'; ctx.fillRect(Math.round(fx), Math.round(sy - fh), 1, Math.round(fh)); }
@@ -5619,10 +5634,9 @@ function healHunter(p, n, show = true) {
   if (show && got > 0) addText(p.x, p.y - 18, '+' + got, '#9bbb55');
   return got;
 }
-const healPlayer = (n, show = true) => healHunter(q.player, n, show);
 // One step for one hunter. Everything it does comes from p.in (its controls this step), never straight from the keyboard.
 function updateHunter(p, dt) {
-  const st = p.st, K = st.kind, F = p.fx, I = p.in, me = isLocal(p);
+  const st = p.st, K = st.kind, F = p.fx, I = p.in;
   p.invuln = Math.max(0, p.invuln - dt); p.flash = Math.max(0, p.flash - dt); p.aegisT = Math.max(0, p.aegisT - dt);
   p.atkCd = Math.max(0, p.atkCd - dt); tickDashes(p, dt); p.abilCd = Math.max(0, p.abilCd - dt);
   p.guardPress = Math.max(0, p.guardPress - dt); p.guardTapCd = Math.max(0, p.guardTapCd - dt); p.guardFlash = Math.max(0, p.guardFlash - dt);
@@ -5984,7 +5998,7 @@ function hurtHunter(p, dmg, ang, knock = 140, o = {}) {
 function hurtHunter0(p, dmg, ang, knock, o) {
   const st = p.st, me = isLocal(p);
   if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
-  if (q.pv && p.dodgeT > .08) { addText(p.x, p.y - 20, 'miss', '#e6f2ff'); return 0; }   // except a well-timed dash in a fight
+  if (q.pv && p.dodgeT > .08) { addText(p.x, p.y - 20, 'MISS', '#e6f2ff'); return 0; }   // except a well-timed dash in a fight
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
@@ -6029,7 +6043,6 @@ function hurtHunter0(p, dmg, ang, knock, o) {
   if (p.hp <= 0) checkDown(p);
   return 1;
 }
-const hurtPlayer = (dmg, ang, knock, o) => hurtHunter(q.player, dmg, ang, knock, o);
 // Titanmother armor: once per hunt, a hit that would drop you leaves you standing on 1 health.
 function checkDown(p) {
   if (q && q.def.prologue) { proSave(p); return; }           // nobody falls on the road to Akros
@@ -8434,6 +8447,7 @@ function pvpFinish(quit = false) {
   const title = $('resTitle'); title.textContent = quit ? 'You left the fight' : wonIt ? 'Victory' : 'Defeat'; title.className = 'res-title ' + (wonIt ? 'win' : 'lose');
   $('resStats').innerHTML = `<div><span>Rounds won</span><b>${P.wins[me.team] || 0}</b></div><div><span>Kills</span><b>${mine[0]}</b></div><div><span>Deaths</span><b>${mine[1]}</b></div><div><span>Damage dealt</span><b>${Math.round(q.stats.dealt)}</b></div>`;
   $('resUnlock').innerHTML = ''; $('resLoot').innerHTML = `<div class="muted">Fights pay nothing. They’re for the glory.</div>`; $('resNote').textContent = '';
+  $('resLootHead').hidden = true; $('btnResContinue').textContent = 'Back to the Coliseum';      // nothing was carried home, and that's where the button goes
   $('btnResAgain').hidden = true; resNextButton(null); G.lastQuest = null; G.arenaBack = true;
   G.mode = 'results'; q = null; show('scrResults');
   setTimeout(() => { if (G.mode === 'results') $('btnResContinue').focus({ preventScroll: true }); }, 900);
@@ -9187,7 +9201,6 @@ function openPanel(kind, title = null) {
 }
 function closePanel() { if (G.mode !== 'panel') return; Sound.play('door'); resumeVillage(); }
 // Hestia's blessing: one offering, and the next time you fall in a hunt you get back up.
-function highestTier() { let t = 1; for (const qd of QUESTS) if (isUnlocked(qd)) t = Math.max(t, Math.floor(qd.tier)); return t; }
 function offeringCost() { return rankPrice(400); }      // fixed per rank, like the potions
 
 
@@ -9343,7 +9356,7 @@ function tutGoal() {
   const show = tutOn() && s.tut >= TUT.TALK && G.mode === 'village' && V && V.id === 'village';
   el.hidden = !show; if (!show) return;
   $('goalText').textContent = s.tut === TUT.TALK ? 'Talk to Kleon the Herald'
-    : s.tut === TUT.FORGE ? 'Forge new gear at Dion the Smith'
+    : s.tut === TUT.FORGE ? 'Forge new gear with Dion the Smith'
     : s.tut === TUT.NEXT ? 'Take your next hunt from Kleon'
     : 'Pick a hunt from Kleon the Herald';
 }
@@ -10614,7 +10627,7 @@ function updateHud() {
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
   updatePotionBar(p);
-  let wave = '';
+  let wave;
   if (q.phase === 'boss') wave = '';
   else if (q.phase === 'victory') wave = 'Victory';
   else if (q.phase === 'defeat') wave = 'Defeated';
@@ -10985,7 +10998,6 @@ const NEWS = [
       'Weapon skills work in fights: stuns, burns, marks and knockback all land on players. Stuns are short and can’t be chained.',
       'The fight board in the Coliseum ranks players by score, with their K/D beside it. Beating a better player earns more.',
       'Practice mode: try your gear on the dummy in the Coliseum any time, no room needed.',
-      'Community vote: help pick what update 1.1 will be, from the banner on the title screen.',
       'Invite links: press Invite in the room box and send the link. Friends land right in your room.',
       'Saved loadouts: keep up to five gear sets in the chest at home and swap between them in one click.',
       'Forager’s Figs at the Tavern: 25% more drops on your next hunt. In a room, everyone gets the extra drops.',
@@ -11026,6 +11038,9 @@ const NEWS = [
       '“Hunter” is now “Player” in menus and messages.',
       'The progress gems are gone from the temple roofs.',
       'The Armory’s shield card has a Take off button.',
+      'The Forge shows your numbers beside your hunter instead of under them, so the gear list starts much higher on phones and small windows.',
+      'The buttons on the quest complete screen stay at the bottom of the screen, so you never have to scroll down for them.',
+      'Enter starts the game from the title screen.',
     ],
     fixed: [
       'A co-op hunt no longer freezes for everyone when the player leading it switches to another tab or window.',
@@ -11033,6 +11048,11 @@ const NEWS = [
       'Rooms with a player whose connection died (a sleeping PC) clear out, and old duplicate rooms no longer stay in the list.',
       'The room box shows again right after you leave a menu, and gear warnings update straight away.',
       'A guest’s game can’t report impossible damage to the host.',
+      'Turning tips off now stays off after you close the game, and the one-time bow and practice tips really do show only once.',
+      'A dash that slips a hit in a fight now shows MISS, and Momentum shows MAX at full strength. Neither ever appeared before.',
+      'A long part name can’t push its price off the side of Melita’s Market on a small screen any more.',
+      'Dark armor pieces (Shade, Starseer, Warlord, a brigand’s boots and more) no longer vanish on the Forge’s black tiles. They have a pale outline now.',
+      'After a fight, the results no longer say “Parts carried home”, and the button says where it takes you: back to the Coliseum.',
     ] },
   { v: 'Beta 0.9', date: 'October 2026', title: 'Online co-op and the last hunt',
     new: [
@@ -11245,7 +11265,7 @@ $('ideasBody').addEventListener('click', ev => {
 // Players post one idea each and vote for someone else's, one vote each that they can change. The one with the most votes when the
 // round ends gets made. The server keeps it all (Lobby.suggest) and filters what's posted.
 const SG_MAX = 150;
-let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '';
+let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '', sgCMsg = '';   // sgCMsg: what went wrong with a comment, shown by its box
 function renderSuggest() {
   const d = sgData, votes = c => `${c} ${c === 1 ? 'vote' : 'votes'}`, own = d && d.posts.find(p => p.yours);
   const lead = !Store.api ? 'Community voting needs the online version of the game.' : !d ? (sgMsg ? '' : 'Looking…') : d.on ? 'Update 1.1 will be The North, coming soon! Post one idea for what comes next, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.'
@@ -11265,23 +11285,23 @@ function sgComHTML(id) {
   const c = sgCom && sgCom.id === id ? sgCom : null, busy = sgBusy ? 'disabled' : '';
   return `<div class="sg-comments">${!c ? '<p class="muted">Looking…</p>' : c.comments.length ? c.comments.map(x => `<div class="sg-com"><p>${esc(x.text).replace(/\n/g, '<br>')}</p>
     <div class="fm-meta"><span>${esc(x.name)} · ${fmAgo(x.at)}</span>${x.yours || isOwner() ? `<button class="fm-del" type="button" data-sgcdel="${esc(x.id)}" ${busy}>Delete</button>` : ''}</div></div>`).join('') : '<p class="muted">No comments yet.</p>'}
-    ${Store.user && sgData && sgData.on ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
+    ${sgCMsg ? `<p class="sg-err" style="margin:0">${esc(sgCMsg)}</p>` : ''}${Store.user && sgData && sgData.on ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
     <div class="row"><button class="btn small" type="submit" ${busy}>Comment</button></div></form>` : ''}</div>`;
 }
 async function sgComLoad(id) {
-  sgOpen = id; sgCom = null; renderSuggest();
+  sgOpen = id; sgCom = null; sgCMsg = ''; renderSuggest();
   try { sgCom = await Store.call('GET', 'suggest/c/' + id); } catch (e) { sgMsg = e.message || 'The comments can’t be reached right now.'; sgOpen = null; }
   renderSuggest();
 }
 async function sgComAct(path, body) {
   if (sgBusy) return;
-  sgBusy = true; sgMsg = ''; renderSuggest();
+  sgBusy = true; sgMsg = sgCMsg = ''; renderSuggest();
   try { sgCom = await Store.call('POST', path, body); if (path === 'suggest/comment') sgCDraft = ''; const p = sgData && sgData.posts.find(x => x.id === sgCom.id); if (p) p.c = sgCom.comments.length; }
-  catch (e) { sgMsg = e.message || 'That didn’t go through. Try again.'; }
+  catch (e) { sgCMsg = e.message || 'That didn’t go through. Try again.'; }      // beside the comment box: the top of the list may be far off screen
   sgBusy = false; renderSuggest();
 }
 async function sgLoad() {
-  sgData = null; sgMsg = ''; sgOpen = null; renderSuggest();
+  sgData = null; sgMsg = sgCMsg = ''; sgOpen = null; renderSuggest();
   await Store.ready; if (!Store.api) { renderSuggest(); return; }
   try { sgData = await Store.call('GET', 'suggest'); } catch (e) { sgMsg = 'The ideas can’t be reached right now. Check your connection.'; }
   renderSuggest();
@@ -11369,12 +11389,14 @@ async function copyText(text) {
   let ok = false; try { ok = document.execCommand('copy'); } catch (e) {} ta.remove(); return ok;
 }
 // "High Rank: 5 of 17 gods · 2 of 8 Titans": hunted on the rank you're on, so it starts again at 0 when a new rank opens.
+// Before High Rank there's no rank in front, and the Titans are only counted once the stairway to them has opened.
 // Typhon down: "Game complete · Endless mode: best wave 12" (slot cards add the last run).
 function huntTally(s, slot) {
   const e = s.endless || {};
   if (s.cleared[TYPHON_Q]) return `Game complete · Endless mode: ${e.best ? `best wave ${e.best}${slot && e.last ? `, last run wave ${e.last}` : ''}` : 'not tried yet'}`;
   const r = s.rank || 0, gods = ALL_GOD_QUESTS.filter(id => s.cleared[rid(id, r)]).length, titans = TITANS.filter(t => s.cleared[rid(t.quest, r)]).length;
-  return `${slot && r ? '' : RANKS[r].name + ': '}${gods} of ${ALL_GOD_QUESTS.length} gods · ${titans} of ${TITANS.length} Titans`;
+  // Like the board, this doesn't talk about ranks or Titans until the game has shown them to you: a new save just counts gods.
+  return `${r && !slot ? RANKS[r].name + ': ' : ''}${gods} of ${ALL_GOD_QUESTS.length} gods${s.stairs || r ? ` · ${titans} of ${TITANS.length} Titans` : ''}`;
 }
 
 async function renderSlots() {
@@ -11388,8 +11410,8 @@ async function renderSlots() {
     : CG.data ? 'CrazyGames keeps your saves. Sign in to CrazyGames and they follow you to any device.'
     : Store.cloud ? 'Saves sync to your Claude account and also stay in this browser.'
     : Store.api && Store.localOk ? 'Saves stay in this browser on this device until you sign in.'
-    : Store.localOk ? 'Saves stay in this browser on this device. To move a save, press Esc in the village and use Show save code in Options.'
-    : 'This browser is blocking storage, so progress is lost when you close the page. Copy your save code from your home in the village to keep it.';
+    : Store.localOk ? 'Saves stay in this browser on this device. To move a save, pause in the village and use Show save code in Options.'
+    : 'This browser is blocking storage, so progress is lost when you close the page. To keep it, pause in the village, open Options and copy your save code.';
   const saves = [];
   for (let n = 1; n <= 3; n++) saves.push(await Store.load(n));
   list.innerHTML = '';
@@ -11545,7 +11567,12 @@ function renderBoard() {
   if (s.stairs && titans.some(qd => isUnlocked(qd))) {
     html += `<p class="rank titans">Beneath the temple</p>`;
     let lockShown = false;
-    for (const qd of titans) { if (isUnlocked(qd) || s.cleared[qd.id]) html += questCard(qd); else if (!lockShown) { lockShown = true; html += `<div class="qlock">${esc(godName(qd.god))} · beat the Titan before to unlock</div>`; } }
+    for (const qd of titans) {
+      if (isUnlocked(qd) || s.cleared[qd.id]) { html += questCard(qd); continue; }
+      if (lockShown) continue;
+      lockShown = true; const prev = titans[titans.indexOf(qd) - 1];                 // like the gods above: name who stands in the way
+      html += `<div class="qlock">${esc(godName(qd.god))} · beat ${prev ? esc(godName(prev.god)) : 'the Titan before'} to unlock</div>`;
+    }
   } else if (s.stairs && r > 0) html += `<div class="qlock">The Titans · hunt every god on this rank first</div>`;
   // Typhon: God Rank only, once every god and Titan on it has fallen
   if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
@@ -11583,7 +11610,7 @@ function recipeChips(rec) {
   return parts + `<span class="chip ${G.save.money >= rec.cost ? 'ok' : 'short'}"><b>${fmtMoney(rec.cost)}</b> dr</span>`;
 }
 // The smith's refinement: what the next + costs, or a note that it's maxed out.
-const refineTag = lv => lv ? ` <span class="refine-tag">+${lv}</span>` : '';
+const refineTag = lv => lv ? `&nbsp;<span class="refine-tag">+${lv}</span>` : '';   // never left alone on a line of its own
 function refineRow(kind, id) {
   const lv = refineLevel(id), what = kind === 'weapon' ? 'damage' : kind === 'shield' ? 'guard' : 'defense for every piece';
   if (lv >= REFINE_MAX) return `<div class="refine"><div class="refine-top"><b>Fully refined</b><span>+${Math.round(REFINE_GAIN[kind] * 100 * lv)}% ${what}</span></div></div>`;
@@ -11676,10 +11703,11 @@ function renderArmory() {
       const eq = s.shield === id, shl = owned ? refineLevel(id) : 0, blocked = Math.round(myHit * (1 - Math.min(.97, sh.block + .01 * shl)) * 20 / (20 + fight.def));
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
       const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
+      const desc = perk ? sh.desc.replace(perk, '').trim() : sh.desc;       // the perk has its own line below: the card doesn't say it twice
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
         <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
         <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span title="What a blocked hit from your weapon would still do to you in a fight.">PvP blocked hit <b>${blocked}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
-        <p class="desc">${esc(sh.desc)} Hold guard to block from the front. Ground attacks go under it.</p>
+        <p class="desc">${esc(desc)}${desc ? ' ' : ''}Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
         ${owned ? refineRow('shield', id) : `<div class="chips">${recipeChips(sh.recipe)}</div>`}
         <div class="actions">${act}</div></article>`;
@@ -11708,7 +11736,7 @@ function renderLoadouts() {
   const worn = list.some(L => loadoutSame(L, s));
   return `<p class="muted" style="margin:0 0 12px">Keep up to ${LOADOUT_MAX} gear sets here and swap between them in one click. Click a name to change it.</p>
     ${list.length ? `<div class="grid meal-grid">${list.map(card).join('')}</div>` : `<div class="empty-note">Nothing saved yet. Save what you’re wearing, and you can change back to it here any time.</div>`}
-    <div class="actions" style="margin-top:12px"><button class="btn" type="button" data-ldnew="1" ${list.length >= LOADOUT_MAX || worn ? 'disabled' : ''}>Save what I’m wearing</button>${list.length >= LOADOUT_MAX ? `<span class="muted">All ${LOADOUT_MAX} are in use. Save over one, or delete one.</span>` : worn ? `<span class="muted">You’re wearing a saved loadout.</span>` : ''}</div>`;
+    <div class="row" style="margin-top:12px"><button class="btn" type="button" data-ldnew="1" ${list.length >= LOADOUT_MAX || worn ? 'disabled' : ''}>Save what I’m wearing</button>${list.length >= LOADOUT_MAX ? `<span class="muted">All ${LOADOUT_MAX} are in use. Save over one, or delete one.</span>` : worn ? `<span class="muted">You’re wearing a saved loadout.</span>` : ''}</div>`;
 }
 function renderChestParts() {
   const s = G.save;
@@ -11719,7 +11747,7 @@ function renderChestParts() {
   const droppers = id => [...Object.values(ENEMIES), ...Object.values(BOSSES)].filter(e => e.loot.some(l => l[0] === baseId(id))).map(e => e.name);
   const usedIn = id => {
     const out = Object.values(WEAPONS).filter(g => g.recipe && g.recipe.items[id]).map(g => g.name);
-    for (const [sid, set] of Object.entries(ARMOR_SETS)) if (set.recipe && set.recipe.items[id]) out.push(set.name + ' armor');
+    for (const set of Object.values(ARMOR_SETS)) if (set.recipe && set.recipe.items[id]) out.push(set.name + ' armor');
     for (const sh of Object.values(SHIELDS)) if (sh.recipe.items[id]) out.push(sh.name);
     return out;
   };
@@ -11746,7 +11774,7 @@ function shopParts() {
 function renderParts() {
   const s = G.save, ids = shopParts();
   if (!ids.length) return `<p class="muted" style="margin:16px 0 0">Clear a hunt and Melita will stock its parts here.</p>`;
-  return `<p class="sub" style="margin:18px 0 6px">Parts</p><p class="muted" style="margin:0 0 10px">Parts from hunts you've cleared. Hunting them is cheaper, but this saves a trip.</p><div class="stash">${ids.map(id => {
+  return `<p class="sub" style="margin:18px 0 6px">Parts</p><p class="muted" style="margin:0 0 10px">Parts from hunts you’ve cleared. Hunting them is cheaper, but this saves a trip.</p><div class="stash shop">${ids.map(id => {
     const it = partItem(id), cost = partCost(id);
     return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>You have ${s.inv[id] || 0}</p></div><button class="btn small" type="button" data-part="${id}" ${s.money < cost ? 'disabled' : ''}>${fmtMoney(cost)} dr</button></div>`;
   }).join('')}</div>`;
@@ -11825,7 +11853,7 @@ function saveBinds(b) { Settings.data.binds = b; Settings.save(); applyBinds(); 
 function captureBind(code) {
   const a = G.rebinding;
   if (code === 'Escape') { G.rebinding = null; bindNote = ''; renderHub(); return; }
-  if (RESERVED.has(code)) { bindNote = `${codeLabel(code)} can't be used. Pick another key.`; renderHub(); return; }
+  if (RESERVED.has(code)) { bindNote = `${codeLabel(code)} can’t be used. Pick another key.`; renderHub(); return; }
   const b = JSON.parse(JSON.stringify(Input.bind));
   let moved = '';
   for (const [k, list] of Object.entries(b)) {
@@ -11990,7 +12018,7 @@ function finishQuest(win) {
   }
   persist(true);
   const unlocked = QUESTS.filter(x => isUnlocked(x) && !before.has(x.id));
-  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
+  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.final ? 'The last hunt' : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
   const title = $('resTitle'); title.textContent = run ? (run.record ? 'A new record' : 'The hunt is over') : win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win || (run && run.record) ? 'win' : 'lose');
   if (run) $('resStats').innerHTML = `<div><span>Wave reached</span><b>${run.reached}${run.record ? ' ★' : ''}</b></div><div><span>Best wave</span><b>${s.endless.best}</b></div><div><span>Pay</span><b style="color:var(--gold)">${fmtMoney(run.pay)} dr</b></div><div><span>Time</span><b>${fmtTime(q.elapsed)}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>`;
   else $('resStats').innerHTML =`<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
@@ -12016,6 +12044,7 @@ function finishQuest(win) {
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
     : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+  $('resLootHead').hidden = false; $('btnResContinue').textContent = 'Return to the village';     // a fight's results change both (84_pvp.js)
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   const next = win && !run && !wasNet && !netOn() ? nextQuest(s, d.id) : null;           // on your own, a win offers the next hunt (a room picks its own)
   resNextButton(next);
@@ -12254,6 +12283,12 @@ addEventListener('keydown', e => {
   if (G.mode === 'vote') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeVote(); } return; }
   if (G.mode === 'forum') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); forumBack(); } return; }
   if (G.mode === 'owner') { if (e.code === 'Escape' && !e.repeat) { e.preventDefault(); closeOwner(); } return; }
+  // The title screen: Enter is Play, so a keyboard player never needs the touchpad. A button that has the focus keeps its own Enter.
+  if (G.mode === 'title') {
+    const onButton = e.target && e.target.closest && e.target.closest('button, a, summary');
+    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && !fading && !$('scrTitle').hidden && !onButton) { e.preventDefault(); $('btnPlay').click(); }
+    return;
+  }
   if (G.mode !== 'quest' && G.mode !== 'village') return;
   if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
     e.preventDefault();

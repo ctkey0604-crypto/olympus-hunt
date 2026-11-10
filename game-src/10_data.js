@@ -57,7 +57,6 @@ const CLASS = {
   medium: { hpM: 5.5, dmgP: .14, heal: .16 },     // 4-8 hits, one attack that makes you react
   heavy:  { hpM: 18,  dmgP: .26, heal: .5 },      // anchors a wave, big area attack
 };
-const ATTACK_TURNS = { melee: 3, ranged: 2 };    // how many monsters may attack you at the same moment
 // Ranks. Low Rank is everything until every god and Titan falls; then the herald opens High Rank, and later God Rank.
 // hp / dmg: on top of the tier curve. tempo: how fast monsters and gods think (shorter windups and rests).
 // gear: name prefix for that rank's forged gear; item: suffix for its parts.

@@ -99,10 +99,9 @@ function healHunter(p, n, show = true) {
   if (show && got > 0) addText(p.x, p.y - 18, '+' + got, '#9bbb55');
   return got;
 }
-const healPlayer = (n, show = true) => healHunter(q.player, n, show);
 // One step for one hunter. Everything it does comes from p.in (its controls this step), never straight from the keyboard.
 function updateHunter(p, dt) {
-  const st = p.st, K = st.kind, F = p.fx, I = p.in, me = isLocal(p);
+  const st = p.st, K = st.kind, F = p.fx, I = p.in;
   p.invuln = Math.max(0, p.invuln - dt); p.flash = Math.max(0, p.flash - dt); p.aegisT = Math.max(0, p.aegisT - dt);
   p.atkCd = Math.max(0, p.atkCd - dt); tickDashes(p, dt); p.abilCd = Math.max(0, p.abilCd - dt);
   p.guardPress = Math.max(0, p.guardPress - dt); p.guardTapCd = Math.max(0, p.guardTapCd - dt); p.guardFlash = Math.max(0, p.guardFlash - dt);
@@ -464,7 +463,7 @@ function hurtHunter(p, dmg, ang, knock = 140, o = {}) {
 function hurtHunter0(p, dmg, ang, knock, o) {
   const st = p.st, me = isLocal(p);
   if (p.dead || p.invuln > 0 || p.aegisT > 0 || q.phase === 'victory') return 0;   // dashing doesn't make you untouchable: dash away from attacks, not through them
-  if (q.pv && p.dodgeT > .08) { addText(p.x, p.y - 20, 'miss', '#e6f2ff'); return 0; }   // except a well-timed dash in a fight
+  if (q.pv && p.dodgeT > .08) { addText(p.x, p.y - 20, 'MISS', '#e6f2ff'); return 0; }   // except a well-timed dash in a fight
   // Foresight (Spear of the Axis): you step out of the way on your own.
   if (p.fx.foresight > 0 && p.foresightN > 0) {
     p.foresightN--; p.invuln = .35; const a = ang + (Math.random() < .5 ? 1 : -1) * Math.PI / 2;
@@ -509,7 +508,6 @@ function hurtHunter0(p, dmg, ang, knock, o) {
   if (p.hp <= 0) checkDown(p);
   return 1;
 }
-const hurtPlayer = (dmg, ang, knock, o) => hurtHunter(q.player, dmg, ang, knock, o);
 // Titanmother armor: once per hunt, a hit that would drop you leaves you standing on 1 health.
 function checkDown(p) {
   if (q && q.def.prologue) { proSave(p); return; }           // nobody falls on the road to Akros

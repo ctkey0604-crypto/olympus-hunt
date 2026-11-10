@@ -52,7 +52,7 @@ $('ideasBody').addEventListener('click', ev => {
 // Players post one idea each and vote for someone else's, one vote each that they can change. The one with the most votes when the
 // round ends gets made. The server keeps it all (Lobby.suggest) and filters what's posted.
 const SG_MAX = 150;
-let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '';
+let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '', sgCMsg = '';   // sgCMsg: what went wrong with a comment, shown by its box
 function renderSuggest() {
   const d = sgData, votes = c => `${c} ${c === 1 ? 'vote' : 'votes'}`, own = d && d.posts.find(p => p.yours);
   const lead = !Store.api ? 'Community voting needs the online version of the game.' : !d ? (sgMsg ? '' : 'Looking…') : d.on ? 'Update 1.1 will be The North, coming soon! Post one idea for what comes next, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.'
@@ -72,23 +72,23 @@ function sgComHTML(id) {
   const c = sgCom && sgCom.id === id ? sgCom : null, busy = sgBusy ? 'disabled' : '';
   return `<div class="sg-comments">${!c ? '<p class="muted">Looking…</p>' : c.comments.length ? c.comments.map(x => `<div class="sg-com"><p>${esc(x.text).replace(/\n/g, '<br>')}</p>
     <div class="fm-meta"><span>${esc(x.name)} · ${fmAgo(x.at)}</span>${x.yours || isOwner() ? `<button class="fm-del" type="button" data-sgcdel="${esc(x.id)}" ${busy}>Delete</button>` : ''}</div></div>`).join('') : '<p class="muted">No comments yet.</p>'}
-    ${Store.user && sgData && sgData.on ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
+    ${sgCMsg ? `<p class="sg-err" style="margin:0">${esc(sgCMsg)}</p>` : ''}${Store.user && sgData && sgData.on ? `<form class="fm-form" id="sgCForm" autocomplete="off"><textarea id="sgCText" maxlength="300" rows="2" placeholder="Write a comment" aria-label="Your comment">${esc(sgCDraft)}</textarea>
     <div class="row"><button class="btn small" type="submit" ${busy}>Comment</button></div></form>` : ''}</div>`;
 }
 async function sgComLoad(id) {
-  sgOpen = id; sgCom = null; renderSuggest();
+  sgOpen = id; sgCom = null; sgCMsg = ''; renderSuggest();
   try { sgCom = await Store.call('GET', 'suggest/c/' + id); } catch (e) { sgMsg = e.message || 'The comments can’t be reached right now.'; sgOpen = null; }
   renderSuggest();
 }
 async function sgComAct(path, body) {
   if (sgBusy) return;
-  sgBusy = true; sgMsg = ''; renderSuggest();
+  sgBusy = true; sgMsg = sgCMsg = ''; renderSuggest();
   try { sgCom = await Store.call('POST', path, body); if (path === 'suggest/comment') sgCDraft = ''; const p = sgData && sgData.posts.find(x => x.id === sgCom.id); if (p) p.c = sgCom.comments.length; }
-  catch (e) { sgMsg = e.message || 'That didn’t go through. Try again.'; }
+  catch (e) { sgCMsg = e.message || 'That didn’t go through. Try again.'; }      // beside the comment box: the top of the list may be far off screen
   sgBusy = false; renderSuggest();
 }
 async function sgLoad() {
-  sgData = null; sgMsg = ''; sgOpen = null; renderSuggest();
+  sgData = null; sgMsg = sgCMsg = ''; sgOpen = null; renderSuggest();
   await Store.ready; if (!Store.api) { renderSuggest(); return; }
   try { sgData = await Store.call('GET', 'suggest'); } catch (e) { sgMsg = 'The ideas can’t be reached right now. Check your connection.'; }
   renderSuggest();

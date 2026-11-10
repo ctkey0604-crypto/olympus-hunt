@@ -210,7 +210,7 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 .gear-head{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
 .gear-head b{display:block;font-size:1.08rem}
 .gear-head span{color:var(--bone-dim);font-size:.85rem}
-.stats{display:flex;gap:14px;flex-wrap:wrap;font-size:.92rem}
+.stats{display:flex;gap:3px 14px;flex-wrap:wrap;font-size:.92rem}
 .stats span{color:var(--bone-mute)}
 .stats b{color:var(--bone);font-variant-numeric:tabular-nums}
 .stats .up{color:var(--olive)}
@@ -222,8 +222,10 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 
 /* stash */
 .stash{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-.mat{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;background:var(--glaze-2);padding:12px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
-.mat b{display:block}
+.mat{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;background:var(--glaze-2);padding:12px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
+.mat b{display:block;overflow-wrap:anywhere}
+/* Melita's parts: wider cards, so a name and its price sit on one line */
+.stash.shop{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
 .mat .qty{font-family:var(--font-display);font-size:2rem;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
 .mat p{margin:2px 0 0;font-size:.85rem;color:var(--bone-dim)}
 .r1{color:var(--r1)}.r2{color:var(--r2)}.r3{color:var(--r3)}.r4{color:var(--r4)}
@@ -269,6 +271,10 @@ textarea:focus{outline:2px solid var(--gold)}
 .res-item{display:flex;align-items:center;gap:10px;background:var(--glaze-2);padding:8px 10px;box-shadow:0 0 0 2px #000}
 .res-item img{width:32px;height:32px;image-rendering:pixelated}
 .res-item b{margin-left:auto;color:var(--gold);font-variant-numeric:tabular-nums}
+.res-loot>.muted{grid-column:1/-1}
+/* the buttons stay in reach at the bottom of the screen however long the list of parts is (phones show little above them) */
+/* (the shadow fills the strip of screen padding under the bar, so nothing scrolls through below the buttons) */
+.res-actions{position:sticky;bottom:0;z-index:2;margin:-6px -4px 0;padding:14px 4px 4px;background:linear-gradient(to bottom,transparent,var(--glaze) 12px);box-shadow:0 40px 0 var(--glaze)}
 .unlock{background:var(--gold);color:#160e0b;padding:10px 14px;font-weight:600}
 .results h3{margin:4px 0 0;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute)}
 
@@ -312,6 +318,7 @@ textarea:focus{outline:2px solid var(--gold)}
 .preview{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--glaze-2);padding:12px 14px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line)}
 .preview canvas{image-rendering:pixelated;width:72px;height:96px;background:#0007;box-shadow:inset 0 0 0 2px var(--line)}
 .preview .stats{font-size:.95rem}
+.preview>div{flex:1 1 0;min-width:0}   /* the numbers sit beside the figure, not under it: the forge's top card stays short */
 .hero-pick{margin:4px 0 14px}
 .hero-pick .lbl{display:block;margin:0 0 8px;font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-mute)}
 
@@ -538,6 +545,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   .stats{gap:4px 10px}
   .ability{padding:5px 8px}
   .stash{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+  .stash.shop{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
   .mat{padding:8px;gap:8px}
   .mat .qty{font-size:1.5rem}
   .mat p:first-of-type{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
