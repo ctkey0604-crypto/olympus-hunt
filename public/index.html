@@ -4486,7 +4486,44 @@ function paintGateway(x, g, B, R, road) {
     dot(sx, py, '#7f7765', gp + 3, 4);
     for (let px = sx - ((py >> 2) % 2) * 3; px < sx + gp + 3; px += 6) { const a = Math.max(px, sx), b = Math.min(px + 5, sx + gp + 3); if (b > a) dot(a, py, ['#b5ab98', '#a69c88', '#c2b8a4', '#ada390'][(R() * 4) | 0], b - a, 3); }
   }
-  if (road) paintGatePassage(x, R, x0, x1, y0, H, H, 'closed');
+  if (!road) return;
+  // the passage is kept without its doors too (g.clean), so the doors can be drawn swinging open over it (Sigrun, 85_vindheim.js)
+  paintGatePassage(x, R, x0, x1, y0, H, H, 'none');
+  g.clean = mkCanvas(x1 - x0, H - y0); g.clean.getContext('2d').drawImage(x.canvas, x0, y0, x1 - x0, H - y0, 0, 0, x1 - x0, H - y0);
+  g.at = { x0, x1, y0, by: gateDoorY(y0, H) };
+  drawGateDoors(x, x0, x1, g.at.by, 0);
+}
+// Akros' gate doors seen from above, each hinged on the cut end of the wall. k 0: shut, their top edges across the gap
+// (painted into the ground). k 1: swung all the way in, toward the town, flat against the sides.
+const gateDoorY = (yTop, wallEnd) => yTop + Math.round((wallEnd - yTop) * .42);
+function drawGateDoors(x, x0, x1, by, k) {
+  const dot = (px, py, col, w = 1, h = 1) => { x.fillStyle = col; x.fillRect(px | 0, py | 0, w, h); }, w = x1 - x0 - 6;
+  if (k <= 0) {
+    dot(x0 + 3, by + 6, 'rgba(0,0,0,.28)', w, 3);
+    dot(x0 + 3, by - 1, '#1a1210', w, 7); dot(x0 + 4, by, '#6b4528', w - 2, 5); dot(x0 + 4, by, '#8a5a34', w - 2, 1);
+    for (let px = x0 + 8; px < x1 - 5; px += 5) dot(px, by + 1, '#5a3a22', 1, 4);
+    dot(Math.round((x0 + x1) / 2) - 1, by - 1, '#1a1210', 2, 7);
+    for (const px of [x0 + 9, x0 + 17, x1 - 11, x1 - 19]) { dot(px, by + 2, '#3a2416', 2, 2); dot(px, by + 2, '#9aa0a6'); }
+    return;
+  }
+  // Swinging: each pixel is mapped back onto its door (s along it from the hinge, u across it from the town side).
+  const L = w / 2, a = Math.min(1, k) * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+  const doors = [[x0 + 3, 1], [x1 - 3, -1]].map(([hx, d]) => ({ hx, d }));
+  const onDoor = (px, py) => {
+    for (const { hx, d } of doors) {
+      const rx = px + .5 - hx, ry = py + .5 - (by - 1), s = rx * d * ca - ry * sa, u = rx * d * sa + ry * ca;
+      if (s >= 0 && s < L && u >= 0 && u < 7) return [s, u];
+    }
+    return null;
+  };
+  for (let py = Math.floor(by - L - 2); py < by + 10; py++) for (let px = x0; px < x1; px++) {
+    const o = onDoor(px, py);
+    if (!o) { if (onDoor(px, py - 3)) dot(px, py, 'rgba(0,0,0,.28)'); continue; }   // its shadow, a little to the south
+    const [s, u] = o, si = Math.floor(s), ui = Math.floor(u);
+    dot(px, py, ui === 0 || ui === 6 || si === 0 || s >= L - 1 ? '#1a1210' : ui === 1 ? '#8a5a34'
+      : (si === 6 || si === 7 || si === 14 || si === 15) && (ui === 3 || ui === 4) ? (si % 8 === 6 && ui === 3 ? '#9aa0a6' : '#3a2416')
+      : si % 5 === 0 ? '#5a3a22' : '#6b4528');
+  }
 }
 // Akros' gate, the same from inside the town and from the road outside: the street's cobbles run into the gap and give
 // way to the dirt road, and the cut ends of the wall show on both sides. doors: 'closed' (inside Akros: the two doors
@@ -4509,15 +4546,7 @@ function paintGatePassage(x, R, x0, x1, yTop, yBot, wallEnd = yBot, doors = 'ope
     dot(lit ? fx + 3 : fx - 1, yTop, '#3a362e', 1, wallEnd - yTop);
   }
   dot(x1 - 7, yTop, 'rgba(0,0,0,.16)', 3, wallEnd - yTop);
-  if (doors === 'closed') {                                  // the doors shut, seen from above: their top edges across the gap
-    const by = yTop + Math.round((wallEnd - yTop) * .42), w = x1 - x0 - 6;
-    dot(x0 + 3, by + 6, 'rgba(0,0,0,.28)', w, 3);
-    dot(x0 + 3, by - 1, '#1a1210', w, 7); dot(x0 + 4, by, '#6b4528', w - 2, 5); dot(x0 + 4, by, '#8a5a34', w - 2, 1);
-    for (let px = x0 + 8; px < x1 - 5; px += 5) dot(px, by + 1, '#5a3a22', 1, 4);
-    dot(Math.round((x0 + x1) / 2) - 1, by - 1, '#1a1210', 2, 7);
-    for (const px of [x0 + 9, x0 + 17, x1 - 11, x1 - 19]) { dot(px, by + 2, '#3a2416', 2, 2); dot(px, by + 2, '#9aa0a6'); }
-    return;
-  }
+  if (doors === 'closed') { drawGateDoors(x, x0, x1, gateDoorY(yTop, wallEnd), 0); return; }   // the doors shut, seen from above
   if (doors !== 'open') return;
   // the gate doors, swung open flat against each side at the town end
   const dh = Math.min(22, len - 8);
@@ -10167,14 +10196,14 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: VILLAGE_MID - 1, y: VILLAGE_H - 3, w: 3 }, gateRoad: true });
+  const gate = { x: VILLAGE_MID - 1, y: VILLAGE_H - 3, w: 3 }, layers = genLayers('village', null, { gate, gateRoad: true });   // gate.clean, gate.at: for the doors opening
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > VILLAGE_MID, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
     spots.push({ id: b.id + '_door', name: /^(The |Your |\S+’s )/.test(b.name) ? b.name : 'the ' + b.name, kind: 'door', goes: b.goes, ...doorAt(b) });
   }
   return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: (VILLAGE_MID - 1) * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
-           ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
+           ground: layers.ground, gate, gateK: 0, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 // Inside the temple: the twelve gods along the back wall, the side-hunt gods along the walls, Hestia's hearth in the middle.
 function buildTemple() {
@@ -10412,6 +10441,7 @@ function sigrunAkros() {
 // Every time you walk into Akros: Sigrun is there until you've sailed with her, and the gate is a way out once you know.
 function northAkros(P) {
   const s = G.save;
+  P.gateK = 0;                                                 // the gate is shut whenever you come in
   P.npcs = P.npcs.filter(n => n.id !== 'sigrun');
   if (s.north >= 1 && s.north < 3 && !(G.cutscene && G.cutscene.kind === 'stranger')) P.npcs.push(sigrunAkros());
   P.spots = P.spots.filter(sp => sp.id !== 'harbor');
@@ -10681,26 +10711,40 @@ function drawVoyage(cs) {
   ctx.drawImage(vignette, 0, 0);
   if (t > 1.2) { const w = pixelText(touchMode ? 'TAP TO SKIP' : 'PRESS ' + codeLabel(Input.bind.guard[0]).toUpperCase() + ' TO SKIP', '#c2b293', tagGlyph); ctx.globalAlpha = .7; ctx.drawImage(w, W - w.width - 6, H - 12); ctx.globalAlpha = 1; }
 }
-// Sigrun walks in through Akros' gate and stops just inside it.
+// Sigrun walks up to Akros' gate, pushes its doors open, comes through and stops just inside it. The doors swing shut
+// behind her. V.gateK is how far open they are (0 shut, as painted into the ground; drawn by drawAkrosGate).
 function tickStranger(cs, dt) {
-  cs.t += dt; const n = cs.npc, at = sigrunSpot(), p = V.player, sp = 32 * dt;
+  cs.t += dt; const n = cs.npc, at = sigrunSpot(), p = V.player, sp = 32 * dt, g = V.gate && V.gate.at;
+  if (!g) cs.opened = true;
   const tx = clamp((n.x + p.x) / 2 - VIEW_W / 2, 0, WORLD_W - VIEW_W), ty = clamp((n.y + p.y) / 2 - 10 - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.cam.x += (tx - G.cam.x) * Math.min(1, dt * 3); G.cam.y += (ty - G.cam.y) * Math.min(1, dt * 3);
-  // up the road and through the gate, then a step to the side of it
+  // up the road to the doors, open them, through the gate, then a step to the side of it
   n.moving = false;
   if (cs.t > .8) {
-    if (n.y > at.y) { n.y = Math.max(at.y, n.y - sp); n.moving = true; }
+    const stop = cs.opened ? at.y : Math.max(at.y, g.by + 12);
+    if (n.y > stop) { n.y = Math.max(stop, n.y - sp); n.moving = true; }
+    else if (!cs.opened) { if (!cs.push) { cs.push = true; Sound.play('door'); } V.gateK = Math.min(1, (V.gateK || 0) + dt / .8); if (V.gateK >= 1) cs.opened = true; }
     else if (n.x > at.x) { n.x = Math.max(at.x, n.x - sp); n.moving = true; n.flip = true; }
     else n.flip = false;
     if (n.moving) n.walkT += dt;
   }
+  if (g && cs.opened && n.y < g.y0 - 8 && V.gateK > 0) {         // she's through: the doors swing shut
+    if (!cs.shut) { cs.shut = true; Sound.play('door'); }
+    V.gateK = Math.max(0, V.gateK - dt / .8);
+  }
   p.face = Math.atan2(n.y - p.y, n.x - p.x);                   // you watch her come in
-  if (cs.t > .6 && !cs.b1) { cs.b1 = true; banner('A stranger at the gate', 'She has come a long way to find you', true); Sound.play('door'); }
-  if (cs.t > 1.5 && !n.moving && n.y <= at.y && n.x <= at.x && !cs.done) { cs.done = true; cs.end = cs.t + 1.2; }
+  if (cs.t > .6 && !cs.b1) { cs.b1 = true; banner('A stranger at the gate', 'She has come a long way to find you', true); }
+  if (cs.t > 1.5 && !n.moving && n.y <= at.y && n.x <= at.x && !V.gateK && !cs.done) { cs.done = true; cs.end = cs.t + 1.2; }
   if (cs.done && cs.t > cs.end) {
     G.cutscene = null; G.save.north = 1; persist(true); n.moving = false; n.flip = false; Music.play('akros');
     banner('Sigrun is waiting by the gate', 'Go and talk to her');
   }
+}
+// Akros' gate while it stands open: the passage without its painted doors, then the doors at their angle (40_world.js).
+function drawAkrosGate(cx, cy) {
+  const g = V.gate, a = g && g.at; if (!a || !(V.gateK > 0)) return;
+  ctx.drawImage(g.clean, a.x0 - cx, a.y0 - cy);
+  ctx.save(); ctx.translate(-cx, -cy); drawGateDoors(ctx, a.x0, a.x1, a.by, V.gateK); ctx.restore();
 }
 const NORTH_CUTSCENES = { voyage: tickVoyage, stranger: tickStranger };
 const CUTSCENE_DRAW = { voyage: drawVoyage };
@@ -12042,6 +12086,7 @@ function renderVillage() {
   const S = (x, y) => [Math.round(x - cx), Math.round(y - cy)];
   if (V.id === 'temple') drawStairs(S, G.save.stairs ? 1 : G.cutscene ? G.cutscene.open || 0 : 0, true);
   if (V.id === 'hall') drawStairs(S, 1, false);
+  if (V.id === 'village') drawAkrosGate(cx, cy);                // the gate swinging open for Sigrun (85_vindheim.js)
   const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.3)'); };
   for (const n of V.npcs) shadow(n.x, n.y, 4);
   shadow(V.player.x, V.player.y, 5);
