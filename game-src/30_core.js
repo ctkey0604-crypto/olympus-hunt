@@ -79,6 +79,7 @@ const Sound = {
       case 'click': this.tone(660, .03, 'square', .07); break;
       case 'craft': [440, 660, 880].forEach((f, i) => this.tone(f, .12, 'square', .1, 1, i * .07)); this.noise(.2, .2, 2500, 1, 'highpass', .2); break;
       case 'clink': this.tone(1500, .05, 'square', .07, .7); break;
+      case 'coin': this.tone(1320, .05, 'square', .08); this.tone(1760, .1, 'triangle', .1, 1, .05); this.tone(2093, .08, 'triangle', .06, 1, .11); break;   // selling at the market
     }
   },
 };
@@ -367,8 +368,10 @@ function newSave() {
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
            meal: null,                                              // a Tavern meal waiting for the next hunt
            loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
-           finishTime: 0,                                           // play time, in seconds, when Typhon first fell: the speedrun board
-           hero: 'boy' };                                           // 'boy' or 'girl', picked in Options
+           finishTime: 0,                                           // play time, in seconds, when Typhon first fell (the leaderboard tab for it is gone; the server still reads it)
+           hero: 'boy',                                             // 'boy' or 'girl', picked in Options
+           north: 0, northEnd: false,                               // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
+           purse: PURSE_MAX, purseAt: 0 };                          // what the traders can pay for parts right now, and the play time it was counted at
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
 const heroLook = s => ({ ...s.equip, girl: s.hero === 'girl' });
@@ -384,7 +387,7 @@ function sanitize(s) {
   out.createdAt = num(s.createdAt, Date.now()); out.savedAt = num(s.savedAt, 0);
   out.playtime = Math.max(0, num(s.playtime, 0));
   out.money = Math.max(0, Math.floor(num(s.money, 0)));
-  if (s.inv && typeof s.inv === 'object') for (const k of Object.keys(ITEMS)) { const v = Math.floor(num(s.inv[k], 0)); if (v > 0) out.inv[k] = Math.min(v, 9999); }
+  if (s.inv && typeof s.inv === 'object') for (const k of Object.keys(ITEMS)) { if (ITEMS[k].north && !ITEMS[k].base) continue; const v = Math.floor(num(s.inv[k], 0)); if (v > 0) out.inv[k] = Math.min(v, 9999); }   // (the North's plain part forms are only for drawing icons)
   out.weapons = ['bronze_sword', ...new Set(arr(s.weapons).filter(w => WEAPONS[w] && w !== 'bronze_sword'))];
   out.weapon = out.weapons.includes(s.weapon) ? s.weapon : 'bronze_sword';
   const pieces = new Set(out.pieces);
@@ -426,6 +429,10 @@ function sanitize(s) {
   out.hints = { skill: !!(s.hints && s.hints.skill), guard: !!(s.hints && s.hints.guard) };
   out.blessing = s.blessing === true;
   for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);
+  // the North (1.1): only after Typhon. Saves from before it start at 0 and see Sigrun arrive the next time they're in Akros.
+  out.north = out.cleared[TYPHON_Q] ? clamp(Math.floor(num(s.north, 0)), 0, 3) : 0;
+  out.northEnd = s.northEnd === true && !!out.cleared[FENRIR_Q];
+  out.purse = clamp(num(s.purse, PURSE_MAX), 0, PURSE_MAX); out.purseAt = clamp(num(s.purseAt, out.playtime), 0, out.playtime);
   return out;
 }
 

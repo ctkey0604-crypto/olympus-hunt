@@ -68,10 +68,10 @@ async function copyText(text) {
 }
 // "High Rank: 5 of 17 gods · 2 of 8 Titans": hunted on the rank you're on, so it starts again at 0 when a new rank opens.
 // Before High Rank there's no rank in front, and the Titans are only counted once the stairway to them has opened.
-// Typhon down: "Game complete · Endless mode: best wave 12" (slot cards add the last run).
+// Typhon down: "Olympus Saga complete · Endless mode: best wave 12" (slot cards add the last run). Fenrir too: both sagas.
 function huntTally(s, slot) {
   const e = s.endless || {};
-  if (s.cleared[TYPHON_Q]) return `Game complete · Endless mode: ${e.best ? `best wave ${e.best}${slot && e.last ? `, last run wave ${e.last}` : ''}` : 'not tried yet'}`;
+  if (s.cleared[TYPHON_Q]) return `${s.cleared[FENRIR_Q] ? 'Both sagas complete' : 'Olympus Saga complete'} · Endless mode: ${e.best ? `best wave ${e.best}${slot && e.last ? `, last run wave ${e.last}` : ''}` : 'not tried yet'}`;
   const r = s.rank || 0, gods = ALL_GOD_QUESTS.filter(id => s.cleared[rid(id, r)]).length, titans = TITANS.filter(t => s.cleared[rid(t.quest, r)]).length;
   // Like the board, this doesn't talk about ranks or Titans until the game has shown them to you: a new save just counts gods.
   return `${r && !slot ? RANKS[r].name + ': ' : ''}${gods} of ${ALL_GOD_QUESTS.length} gods${s.stairs || r ? ` · ${titans} of ${TITANS.length} Titans` : ''}`;
@@ -157,7 +157,7 @@ function slotCard(n, s) {
   const el = document.createElement('article'); el.className = 'slot' + (s ? '' : ' empty');
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
-    const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless), cleared = base.filter(qd => s.cleared[qd.id]).length;
+    const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless && !qd.north), cleared = base.filter(qd => s.cleared[qd.id]).length;
     el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
@@ -178,7 +178,7 @@ function slotCard(n, s) {
 function renderHub() {
   const s = G.save, info = PANEL_INFO[G.panel] || PANEL_INFO.quests;
   $('hubTitle').textContent = G.panelTitle || (G.panel === 'quests' && netOn() ? 'Multiplayer quests' : info.title);
-  $('hubMoney').textContent = fmtMoney(s.money);
+  $('hubMoney').textContent = fmtMoney(s.money); $('hubMoney').parentElement.style.display = G.panel === 'map' ? 'none' : '';   // the map is only the map
   const eqBox = $('hubEquip');
   eqBox.hidden = G.panel !== 'armory';
   if (G.panel === 'armory') {
@@ -202,12 +202,13 @@ function renderHub() {
   else if (G.panel === 'oracle') { body.innerHTML = renderOracle(); orLoad(); }
   else if (G.panel === 'arena') body.innerHTML = renderArena();
   else if (G.panel === 'pvpboard') { body.innerHTML = renderFightBoard(); pvpBoardLoad(); }
+  else if (G.panel === 'map') { body.innerHTML = renderMap(); drawMap(); }
   else body.innerHTML = renderBoard();
 }
 function questCard(qd) {
   const s = G.save, un = isUnlocked(qd), done = s.cleared[qd.id];
-  const status = !un ? `<span class="chip">Locked</span>` : qd.endless ? (s.endless.best ? `<span class="chip done">Best wave ${s.endless.best}</span>` : `<span class="chip urgent">Endless</span>`) : done ?`<span class="chip done">Cleared ×${done}</span>` : qd.final ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
-  return `<button type="button" class="qcard ${qd.id === G.selQuest ? 'sel' : ''} ${un ? '' : 'locked'}" data-quest="${qd.id}" data-rank="${qd.rank}">
+  const status = !un ? `<span class="chip">Locked</span>` : qd.endless ? (s.endless.best ? `<span class="chip done">Best wave ${s.endless.best}</span>` : `<span class="chip urgent">Endless</span>`) : done ?`<span class="chip done">Cleared ×${done}</span>` : qd.final || qd.northFinal ? `<span class="chip urgent">Final</span>` : qd.titan ? `<span class="chip urgent">Titan</span>` : qd.urgent ? `<span class="chip urgent">God</span>` : qd.side ? `<span class="chip urgent">Side god</span>` : `<span class="chip new">New</span>`;
+  return `<button type="button" class="qcard ${qd.id === G.selQuest ? 'sel' : ''} ${un ? '' : 'locked'}" data-quest="${qd.id}" data-rank="${northTab(qd)}">
     <span class="god">${esc(ARENAS[qd.arena].name)}</span><span class="stars">${'★'.repeat(qd.stars)}</span>
     <span class="name">${esc(qd.name)}</span><span class="st">${s.chests[qd.id] ? '<span class="chip" title="Hidden cache found">Cache ✓</span>' : ''}${status}</span></button>`;
 }
@@ -222,12 +223,16 @@ function departRow(qd, un, lockText) {
 }
 // The quest board. Ranks only show as tabs once High Rank is open; before that there's no rank talk at all.
 function renderBoard() {
-  const s = G.save;
-  if (G.boardRank === null || G.boardRank > s.rank) G.boardRank = s.rank;
-  const r = G.boardRank, mine = QUESTS.filter(qd => qd.rank === r);
+  const s = G.save, vind = atVindheim();
+  // the tabs: your ranks, and the North. Sigrun's board in Vindheim is the North's alone; in Akros the North only shows in a
+  // room, so a party can set out from there without sailing first.
+  const tabList = vind ? [NORTH_TAB] : [...(s.rank > 0 ? RANKS.slice(0, s.rank + 1).map(R => R.id) : [0]), ...(northOpen(s) && netOn() ? [NORTH_TAB] : [])];
+  if (G.boardRank === null || !tabList.includes(G.boardRank)) G.boardRank = vind ? NORTH_TAB : s.rank;
+  const r = G.boardRank, north = r === NORTH_TAB, inTab = qd => north ? !!qd.north : qd.rank === r && !qd.north, mine = QUESTS.filter(inTab);
   if (G.boardTitans) { G.boardTitans = false; const t = mine.find(qd => qd.titan && isUnlocked(qd) && !s.cleared[qd.id]) || mine.filter(qd => qd.titan && isUnlocked(qd)).pop(); if (t) G.selQuest = t.id; }
-  if (!G.selQuest || !QUEST_BY_ID[G.selQuest] || QUEST_BY_ID[G.selQuest].rank !== r || !isUnlocked(QUEST_BY_ID[G.selQuest])) G.selQuest = (mine.find(x => isUnlocked(x) && !s.cleared[x.id]) || mine.filter(x => isUnlocked(x)).pop() || mine[0]).id;
-  let html = '', shownLock = false, hidden = 0;
+  if (!G.selQuest || !QUEST_BY_ID[G.selQuest] || !inTab(QUEST_BY_ID[G.selQuest]) || !isUnlocked(QUEST_BY_ID[G.selQuest])) G.selQuest = (mine.find(x => isUnlocked(x) && !s.cleared[x.id]) || mine.filter(x => isUnlocked(x)).pop() || mine[0]).id;
+  let html = north ? northBoardList(mine) : '', shownLock = false, hidden = 0;
+  if (!north) {
   for (const g of GODS) {
     const qs = mine.filter(qd => qd.god === g.id), open = qs.some(qd => isUnlocked(qd));
     if (!open) {
@@ -253,13 +258,16 @@ function renderBoard() {
     }
   } else if (s.stairs && r > 0) html += `<div class="qlock">The Titans · hunt every god on this rank first</div>`;
   // Typhon: God Rank only, once every god and Titan on it has fallen
-  if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt</p>` + questCard(fin);
+  if (fin && (isUnlocked(fin) || s.cleared[fin.id])) html += `<p class="rank titans final">The last hunt of the Olympus Saga</p>` + questCard(fin);
   else if (fin && s.stairs) html += `<div class="qlock">Something older than the Titans is stirring · hunt every god and Titan on God Rank first</div>`;
   // the Endless Hunt: only once Typhon is down
   const endQ = mine.find(qd => qd.endless);
   if (endQ && isUnlocked(endQ)) html += `<p class="rank titans final">Beyond the last hunt</p>` + questCard(endQ);
+  }
   const qd = QUEST_BY_ID[G.selQuest], un = isUnlocked(qd);
-  const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-boardrank="${R.id}" data-rank="${R.id}" aria-pressed="${r === R.id}">${R.name}</button>`).join('')}</div>${r > 0 ? `<span class="muted">${r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : 'The gods stop holding back. Below 30% health they go berserk.'}</span>` : ''}</div>` : '';
+  const note = north ? 'A rank above God Rank: each god is stronger than the last. After a hunt here you come back to Vindheim.' : r === 1 ? 'Everything hits harder and moves faster. New gear forms drop here.' : r === 2 ? 'The gods stop holding back. Below 30% health they go berserk.' : '';
+  const tabs = tabList.length > 1 ? `<div class="board-top"><div class="seg">${tabList.map(id => `<button type="button" data-boardrank="${id}" data-rank="${id}" aria-pressed="${r === id}">${tabName(id)}</button>`).join('')}</div>${note ? `<span class="muted">${note}</span>` : ''}</div>` : '';
+  const rankBit = north ? `<span style="color:${NORDIC_COL}">${NORDIC_NAME}</span> · ` : r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : '';
   if (qd.endless) return `${tabs}<div class="board"><div class="qlist">${html}</div>
     <div class="qdetail">
       <div><p class="eyebrow"><span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · Endless · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
@@ -271,10 +279,10 @@ function renderBoard() {
   const mons = questMonsters(qd).map(t => `<span class="chip">${esc(ENEMIES[t].name)}</span>`).join('') + (qd.boss ? `<span class="chip urgent">${esc(BOSSES[qd.boss].name)}</span>` : '');
   const parts = questParts(qd).map(id => `<span class="chip"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span></span>`).join('');
   const needs = qd.requires.filter(x => !s.cleared[x]).map(x => QUEST_BY_ID[x].name);
-  const needText = qd.final ? 'every god and Titan on God Rank' : needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
+  const needText = qd.final ? 'every god and Titan on God Rank' : qd.northFinal ? 'every god of the North' : needs.length > 3 ? 'every god on this rank' : needs.map(esc).join(' and ');
   return `${tabs}<div class="board"><div class="qlist">${html}</div>
     <div class="qdetail">
-      <div><p class="eyebrow">${r > 0 ? `<span style="color:${RANKS[r].col}">${RANKS[r].name}</span> · ` : ''}${esc(qd.final ? 'The last hunt' : qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
+      <div><p class="eyebrow">${rankBit}${esc(qd.northFinal ? 'The last hunt of the North' : qd.final ? 'The last hunt of the Olympus Saga' : qd.titan ? 'Titan' : godName(qd.god))} · ${'★'.repeat(qd.stars)}</p><h3>${esc(qd.name)}</h3></div>
       <p>${esc(qd.desc)}</p>
       <div class="facts"><div><span>Reward</span><b class="gold">${fmtMoney(qd.reward)} dr</b></div><div><span>Waves</span><b>${qd.waves.length}${qd.boss ? ' + ' + (qd.final ? 'Typhon' : qd.titan ? 'Titan' : 'boss') : ''}</b></div><div><span>Best time</span><b>${s.best[qd.id] ? fmtTime(s.best[qd.id]) : '—'}</b></div><div><span>Hidden cache</span><b class="${s.chests[qd.id] ? 'good' : ''}">${s.chests[qd.id] ? 'Found' : 'Not found'}</b></div></div>
       <div><p class="sub">Monsters</p><div class="chips">${mons}</div></div>
@@ -318,22 +326,25 @@ const rankTag = r => r ? `<span class="rk" data-rank="${r}">${RANKS[r].name}</sp
 // Which gear the forge shows: the chosen rank, and optionally only what you can forge right now or already own.
 function forgeShows(rank, owned, craftable) { return rank === G.forgeRank && (G.forgeFilter === 'all' || (G.forgeFilter === 'owned' ? owned : !owned && craftable)); }
 function renderArmory() {
-  const s = G.save, tab = G.armoryTab;
-  if (G.forgeRank === null || G.forgeRank > s.rank) G.forgeRank = s.rank;
-  const ranks = s.rank > 0 ? `<div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-forgerank="${R.id}" data-rank="${R.id}" aria-pressed="${G.forgeRank === R.id}">${R.name}</button>`).join('')}</div>` : '';
+  const s = G.save, tab = G.armoryTab, brokk = atVindheim();
+  const tabList = brokk ? [NORTH_TAB] : [...(s.rank > 0 ? RANKS.slice(0, s.rank + 1).map(R => R.id) : [0]), ...(northOwned(s) ? [NORTH_TAB] : [])];
+  if (G.forgeRank === null || !tabList.includes(G.forgeRank)) G.forgeRank = brokk ? NORTH_TAB : s.rank;
+  const northHere = G.forgeRank === NORTH_TAB, wearOnly = northHere && !brokk;   // in Akros, the North's tab is only for wearing it
+  const ranks = tabList.length > 1 ? `<div class="seg">${tabList.map(id => `<button type="button" data-forgerank="${id}" data-rank="${id}" aria-pressed="${G.forgeRank === id}">${tabName(id)}</button>`).join('')}</div>` : '';
   const filters = `<div class="seg">${[['all', 'All'], ['craft', 'Can forge'], ['owned', 'Owned']].map(([k, l]) => `<button type="button" data-forgefilter="${k}" aria-pressed="${G.forgeFilter === k}">${l}</button>`).join('')}</div>`;
   const seg = `<div class="row" style="justify-content:space-between"><div class="seg">${['weapons', 'armor', 'shields'].map(t => `<button type="button" data-armtab="${t}" aria-pressed="${tab === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>${ranks}${filters}</div>`;
   let cards = '', hidden = 0;
+  const awake = northAwake(s);                                   // Fenrir is down: Nordic gear shows (and has) the top tier's numbers
   if (tab === 'weapons') {
     const cur = playerStats().weapon;
     for (const [id, w] of Object.entries(WEAPONS).sort((a, b) => b[1].wt - a[1].wt)) {
       const owned = s.weapons.includes(id);
-      if (!forgeShows(w.rank, owned, w.recipe && canCraft(w.recipe))) continue;
+      if (!forgeShows(northTab(w), owned, w.recipe && canCraft(w.recipe)) || (wearOnly && !owned)) continue;
       if (!gearVisible(w.recipe, owned)) { hidden++; continue; }
-      const eq = s.weapon === id, K = KINDS[w.kind], lv = owned ? refineLevel(id) : 0, dmg = Math.round(w.dmg * (1 + REFINE_GAIN.weapon * lv));
+      const eq = s.weapon === id, K = KINDS[w.kind], lv = owned ? refineLevel(id) : 0, dmg = Math.round((w.wtTop ? northDmg(w, awake) : w.dmg) * (1 + REFINE_GAIN.weapon * lv));
       const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="weapon:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="weapon:${id}" ${canCraft(w.recipe) ? '' : 'disabled'}>Craft</button>`;
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${rankTag(w.rank)}</span></div></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(w.name)}${refineTag(lv)}</b><span>${K.label}${owned ? ' · owned' : ''}${gearTag(w)}</span></div></div>
         <div class="stats"><span>Damage <b>${dmg}</b>${eq ? '' : delta(dmg, cur.dmg)}</span><span>Speed <b>${K.cooldown <= .2 ? 'Very fast' : K.cooldown <= .35 ? 'Fast' : K.cooldown <= .5 ? 'Medium' : 'Slow'}</b></span><span>Reach <b>${K.melee ? (K.reach >= 30 ? 'Long' : K.reach >= 20 ? 'Medium' : 'Short') : 'Ranged'}</b></span></div>
         <p class="desc">${esc(w.desc)} ${esc(K.blurb)}</p>
         ${w.ability ? `<div class="ability"><b>${esc(ABILITIES[w.ability].name)}</b> · ${esc(ABILITIES[w.ability].desc)} (${Math.round(ABILITIES[w.ability].cd * (w.cdMul || 1) * 10) / 10}s cooldown)</div>` : ''}
@@ -345,9 +356,10 @@ function renderArmory() {
     for (const [sid, set] of Object.entries(ARMOR_SETS).sort((a, b) => b[1].ch - a[1].ch || !!b[1].god - !!a[1].god)) {
       const ownedAny = SLOTS.some(sl => s.pieces.includes(sid + ':' + sl));
       const craftAny = SLOTS.some(sl => { const P = PIECES[sid + ':' + sl]; return P.recipe && !s.pieces.includes(P.id) && canCraft(P.recipe); });
-      if (!forgeShows(set.rank, ownedAny, craftAny)) continue;
+      if (!forgeShows(northTab(set), ownedAny, craftAny) || (wearOnly && !ownedAny)) continue;
       if (!gearVisible(set.recipe, ownedAny)) { hidden++; continue; }
-      const rl = refineLevel(sid), rdef = (P, l) => Math.round(P.def * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round(P.hp * (1 + .04 * l));
+      const up = awake && set.defTop, sdef = up ? set.defTop : set.def, shp = up ? set.hpTop : set.hp;
+      const rl = refineLevel(sid), rdef = (P, l) => Math.round((awake && P.defTop ? P.defTop : P.def) * (1 + REFINE_GAIN.armor * l)), rhp = (P, l) => Math.round((awake && P.defTop ? P.hpTop : P.hp) * (1 + .04 * l));
       const rows = SLOTS.map(sl => {
         const P = PIECES[sid + ':' + sl], owned = s.pieces.includes(P.id), eq = s.equip[sl] === sid, cur = PIECES[s.equip[sl] + ':' + sl], cl = refineLevel(s.equip[sl]);
         const act = eq ? `<button class="btn ghost small" type="button" disabled>Equipped</button>` : owned ? `<button class="btn small" type="button" data-equip="piece:${P.id}">Equip</button>` : `<button class="btn small" type="button" data-craft="piece:${P.id}" ${canCraft(P.recipe) ? '' : 'disabled'}>Craft</button>`;
@@ -361,7 +373,7 @@ function renderArmory() {
       if (set.two) lines.push(`<span class="${n >= 2 ? 'on' : 'off'}">2 pieces: ${esc(Object.entries(set.two).map(([k, v]) => PERK_TEXT[k](v)).join(', '))}</span>`);
       if (set.four) lines.push(`<span class="${n >= 4 ? 'on' : 'off'}">4 pieces: ${esc(Object.entries(set.four).map(([k, v]) => PERK_TEXT[k](v)).join(', '))}</span>`);
       cards += `<article class="gear ${n === 4 ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(sid + ':chest')}"><div><b>${esc(set.name)} set${refineTag(rl)}</b><span>${set.god ? 'Made from ' + esc(godName(set.god)) : 'Armor'} · ${set.def} defense${set.hp ? ' · +' + set.hp + ' health' : ''} for all 4${rankTag(set.rank)}</span></div></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(sid + ':chest')}"><div><b>${esc(set.name)} set${refineTag(rl)}</b><span>${set.god ? 'Made from ' + esc(godName(set.god)) : 'Armor'} · ${sdef} defense${shp ? ' · +' + shp + ' health' : ''} for all 4${gearTag(set)}</span></div></div>
         <p class="desc">${esc(set.desc)}</p>
         ${lines.length ? `<div class="setbonus">${lines.join('')}</div>` : ''}
         ${rows}
@@ -373,14 +385,15 @@ function renderArmory() {
     if (!oneHand) cards += `<div class="empty-note" style="grid-column:1/-1">Your ${esc(WEAPONS[s.weapon].name)} needs both hands. Shields work with swords and spears.</div>`;
     for (const [id, sh] of Object.entries(SHIELDS).sort((a, b) => b[1].ch - a[1].ch)) {
       const owned = s.shields.includes(id);
-      if (!forgeShows(sh.rank, owned, canCraft(sh.recipe))) continue;
+      if (!forgeShows(northTab(sh), owned, canCraft(sh.recipe)) || (wearOnly && !owned)) continue;
       if (!gearVisible(sh.recipe, owned)) { hidden++; continue; }
       const eq = s.shield === id, shl = owned ? refineLevel(id) : 0;
       const act = eq ? `<button class="btn ghost small" type="button" data-equip="shield:">Take off</button>` : owned ? `<button class="btn small" type="button" data-equip="shield:${id}">Equip</button>` : `<button class="btn small" type="button" data-craft="shield:${id}" ${canCraft(sh.recipe) ? '' : 'disabled'}>Craft</button>`;
-      const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.' }[sh.perk];
+      const perk = { reflect: 'Perfect blocks send projectiles back.', bash: 'Perfect blocks knock attackers flying.', wave: 'Perfect blocks push out a wave of water.', lightning: 'Perfect blocks call lightning down on the attacker.', timeslow: 'Perfect blocks freeze everything close to you for a moment.',
+        frostblock: 'Perfect blocks freeze everything close to you.' }[sh.perk];
       const desc = perk ? sh.desc.replace(perk, '').trim() : sh.desc;       // the perk has its own line below: the card doesn't say it twice
       cards += `<article class="gear ${eq ? 'equipped' : ''}">
-        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${rankTag(sh.rank)}</span></div></div>
+        <div class="gear-head"><img class="px-icon" alt="" src="${icon(id)}"><div><b>${esc(sh.name)}${refineTag(shl)}</b><span>Shield${owned ? ' · owned' : ''}${gearTag(sh)}</span></div></div>
         <div class="stats"><span>Blocks <b>${Math.round(Math.min(.97, sh.block + .01 * shl) * 100)}%</b></span><span>Guard <b>${Math.round(sh.meter * (1 + REFINE_GAIN.shield * shl)) * 10}</b></span><span>Dash recovery <b>+${sh.weight.toFixed(2)}s</b></span></div>
         <p class="desc">${esc(desc)}${desc ? ' ' : ''}Hold guard to block from the front. Ground attacks go under it.</p>
         ${perk ? `<div class="ability"><b>Perk</b> · ${esc(perk)}</div>` : ''}
@@ -388,8 +401,10 @@ function renderArmory() {
         <div class="actions">${act}</div></article>`;
     }
   }
-  if (!cards) cards = `<div class="empty-note" style="grid-column:1/-1">${G.forgeFilter === 'craft' ? 'Nothing you can forge right now. Bring home more parts.' : G.forgeFilter === 'owned' ? 'You don’t own anything here yet.' : 'Nothing here yet.'}</div>`;
-  return tutForgeNote() + seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here once you’ve fought the monsters and gods that drop its parts.</p>` : '');
+  if (!cards) cards = `<div class="empty-note" style="grid-column:1/-1">${G.forgeFilter === 'craft' ? 'Nothing you can forge right now. Bring home more parts.' : G.forgeFilter === 'owned' ? 'You don’t own anything here yet.' : brokk ? 'Nothing here yet. Hunt in the North and bring Brokk what drops.' : 'Nothing here yet.'}</div>`;
+  return tutForgeNote() + seg + `<div class="grid" style="margin-top:12px">${cards}</div>` + (hidden ? `<p class="muted" style="margin:12px 0 0">More gear shows up here once you’ve fought the monsters and gods that drop its parts.</p>` : '')
+    + (northHere ? `<p class="muted" style="margin:12px 0 0">${awake ? 'Fenrir has fallen: every piece of Nordic gear is awake, at full strength.' : 'Nordic gear gets stronger god by god. When Fenrir falls, every piece wakes to the strength of the best.'}</p>` : '')
+    + (wearOnly ? `<p class="muted" style="margin:12px 0 0">Brokk in Vindheim forges the North’s gear. Here you can put on what you already have.</p>` : '');
 }
 // The chest at home: your parts, and your saved loadouts.
 function renderStash() {
@@ -414,11 +429,11 @@ function renderLoadouts() {
     <div class="row" style="margin-top:12px"><button class="btn" type="button" data-ldnew="1" ${list.length >= LOADOUT_MAX || worn ? 'disabled' : ''}>Save what I’m wearing</button>${list.length >= LOADOUT_MAX ? `<span class="muted">All ${LOADOUT_MAX} are in use. Save over one, or delete one.</span>` : worn ? `<span class="muted">You’re wearing a saved loadout.</span>` : ''}</div>`;
 }
 function renderChestParts() {
-  const s = G.save;
-  if (G.stashRank === null || G.stashRank > s.rank) G.stashRank = s.rank;
-  const all = Object.keys(ITEMS).filter(id => s.inv[id] > 0), ids = all.filter(id => ITEMS[id].rank === G.stashRank);
-  const tabs = s.rank > 0 ? `<div class="board-top"><div class="seg">${RANKS.slice(0, s.rank + 1).map(R => `<button type="button" data-stashrank="${R.id}" data-rank="${R.id}" aria-pressed="${G.stashRank === R.id}">${R.name}<span class="n">${all.filter(id => ITEMS[id].rank === R.id).length}</span></button>`).join('')}</div></div>` : '';
-  if (!ids.length) return tabs + `<div class="empty-note">${G.stashRank ? `No ${RANKS[G.stashRank].name} parts yet. ${RANKS[G.stashRank].name} monsters drop them.` : 'No parts yet. Monsters drop parts when they die; walk near them to pick them up.'}</div>`;
+  const s = G.save, tabList = chestTabs(s);
+  if (G.stashRank === null || !tabList.includes(G.stashRank)) G.stashRank = atVindheim() && tabList.includes(NORTH_TAB) ? NORTH_TAB : s.rank;
+  const all = Object.keys(ITEMS).filter(id => s.inv[id] > 0), ids = all.filter(id => northTab(ITEMS[id]) === G.stashRank);
+  const tabs = tabList.length > 1 ? `<div class="board-top"><div class="seg">${tabList.map(r => `<button type="button" data-stashrank="${r}" data-rank="${r}" aria-pressed="${G.stashRank === r}">${tabName(r)}<span class="n">${all.filter(id => northTab(ITEMS[id]) === r).length}</span></button>`).join('')}</div></div>` : '';
+  if (!ids.length) return tabs + `<div class="empty-note">${G.stashRank === NORTH_TAB ? 'No parts from the North yet. Its monsters and gods drop them.' : G.stashRank ? `No ${RANKS[G.stashRank].name} parts yet. ${RANKS[G.stashRank].name} monsters drop them.` : 'No parts yet. Monsters drop parts when they die; walk near them to pick them up.'}</div>`;
   const droppers = id => [...Object.values(ENEMIES), ...Object.values(BOSSES)].filter(e => e.loot.some(l => l[0] === baseId(id))).map(e => e.name);
   const usedIn = id => {
     const out = Object.values(WEAPONS).filter(g => g.recipe && g.recipe.items[id]).map(g => g.name);
@@ -426,7 +441,7 @@ function renderChestParts() {
     for (const sh of Object.values(SHIELDS)) if (sh.recipe.items[id]) out.push(sh.name);
     return out;
   };
-  return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || (it.trophy ? 'nothing. It’s a trophy from the last hunt' : 'nothing yet'))}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
+  return tabs + `<div class="stash">${ids.map(id => { const it = ITEMS[id]; return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>${esc(it.desc)}</p><p>From: ${esc([...new Set(droppers(id))].join(', '))}</p><p>Used in: ${esc(usedIn(id).join(', ') || (it.trophy ? `nothing. It’s a trophy from the last hunt of the ${it.north ? 'North' : 'Olympus Saga'}` : 'nothing yet'))}</p></div><span class="qty">${s.inv[id]}</span></div>`; }).join('')}</div>`;
 }
 // Market: potions have one fixed price per rank; it steps up at High and God Rank, the same way forge costs do.
 const POTION_PRICE = { health: 150, strength: 200, speed: 175 };
@@ -442,20 +457,22 @@ function partCost(id) {
   return Math.max(20, Math.round(huntPay(PART_TIER[id] ?? 1) * PART_SHARE[partItem(id).rarity || 1] / 10) * 10);
 }
 function shopParts() {
-  const s = G.save, set = new Set();
-  for (const qd of QUESTS) if (s.cleared[qd.id] && qd.rank === s.rank) for (const id of questParts(qd)) if (partItem(id) && !partItem(id).trophy) set.add(id);   // your current rank's parts (trophies aren't for sale)
+  const s = G.save, set = new Set(), asa = trader() === 'asa';                 // Melita stocks your rank's Olympus parts, Åsa the North's
+  for (const qd of QUESTS) if (s.cleared[qd.id] && (asa ? qd.north : qd.rank === s.rank && !qd.north)) for (const id of questParts(qd)) if (partItem(id) && !partItem(id).trophy) set.add(id);   // (trophies aren't for sale)
   return [...set].sort((a, b) => (rankOf(a) - rankOf(b)) || (partItem(a).rarity - partItem(b).rarity) || partItem(a).name.localeCompare(partItem(b).name));
 }
 function renderParts() {
   const s = G.save, ids = shopParts();
-  if (!ids.length) return `<p class="muted" style="margin:16px 0 0">Clear a hunt and Melita will stock its parts here.</p>`;
+  if (!ids.length) return `<p class="muted" style="margin:16px 0 0">${trader() === 'asa' ? 'Clear a hunt in the North and Åsa will stock its parts here.' : 'Clear a hunt and Melita will stock its parts here.'}</p>`;
   return `<p class="sub" style="margin:18px 0 6px">Parts</p><p class="muted" style="margin:0 0 10px">Parts from hunts you’ve cleared. Hunting them is cheaper, but this saves a trip.</p><div class="stash shop">${ids.map(id => {
     const it = partItem(id), cost = partCost(id);
     return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>You have ${s.inv[id] || 0}</p></div><button class="btn small" type="button" data-part="${id}" ${s.money < cost ? 'disabled' : ''}>${fmtMoney(cost)} dr</button></div>`;
   }).join('')}</div>`;
 }
 function renderMarket() {
-  const s = G.save;
+  const s = G.save, sell = G.shopTab === 'sell';
+  const top = `<div class="board-top"><div class="seg"><button type="button" data-shoptab="buy" aria-pressed="${!sell}">Buy</button><button type="button" data-shoptab="sell" aria-pressed="${sell}">Sell parts</button></div></div>`;
+  if (sell) return top + renderSell();                       // selling (85_vindheim.js)
   const cards = Object.entries(POTIONS).map(([id, P]) => {
     const have = s.potions[id] || 0, cost = potionCost(id), full = have >= POTION_MAX;
     return `<article class="gear">
@@ -464,7 +481,7 @@ function renderMarket() {
       <div class="stats"><span>You have <b>${have} / ${POTION_MAX}</b></span><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-buy="${id}" ${full || s.money < cost ? 'disabled' : ''}>${full ? 'Bag full' : 'Buy'}</button></div></article>`;
   }).join('');
-  return `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. ${touchMode ? 'Tap them in the corner of the screen during a hunt.' : 'Drink them during a hunt with the keys shown, or tap them in the corner of the screen.'}</p><div class="grid">${cards}</div>` + renderParts();
+  return top + `<p class="muted" style="margin:0 0 12px">You can carry ${POTION_MAX} of each. ${touchMode ? 'Tap them in the corner of the screen during a hunt.' : 'Drink them during a hunt with the keys shown, or tap them in the corner of the screen.'}</p><div class="grid">${cards}</div>` + renderParts();
 }
 // The potions you're carrying, shown at the top of the screen during a hunt.
 function updatePotionBar(p) {
@@ -507,7 +524,7 @@ function renderOptions() {
       <div id="codeBox" hidden><textarea id="saveCode" readonly aria-label="Save code"></textarea><div class="row" style="margin-top:8px"><button class="btn small" type="button" data-opt="copy">Copy</button><span class="muted" id="copyNote"></span></div></div>
       <div id="importBox" hidden><textarea id="importCode" aria-label="Paste a save code" placeholder="Paste a save code here"></textarea><div class="row" style="margin-top:8px" id="importRow"><button class="btn small" type="button" data-opt="doimport">Load into save ${G.slot}</button><span class="muted" id="importNote"></span></div></div>
       <div class="opt-split"></div>
-      <div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Watch the credits</button>' : ''}</div>
+      <div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Olympus Saga credits</button>' : ''}${G.save.northEnd ? '<button class="btn ghost small" type="button" data-opt="ncredits">Northern Saga credits</button>' : ''}</div>
     </div>
     ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
     <details class="opt wide fold" id="ctlBox" ${G.ctlOpen || G.rebinding ? 'open' : ''}><summary><h3>Controls</h3><span class="muted">${touchMode ? 'Auto-aim' : 'Keys, auto-aim and mouse'}</span></summary>
@@ -645,7 +662,7 @@ $('scrHub').addEventListener('click', ev => {
   if (o === 'sound') { Settings.data.sound = !Settings.data.sound; Sound.setOn(Settings.data.sound); Settings.save(); Sound.play('click'); renderHub(); }
   else if (o === 'tips') { Settings.data.tips = Settings.data.tips === false; Settings.save(); renderHub(); }
   else if (o === 'shake') { Settings.data.shake = !Settings.data.shake; Settings.save(); renderHub(); }
-  else if (o === 'credits') { showCredits(() => { enterVillage('road'); openPanel('options'); }); }
+  else if (o === 'credits' || o === 'ncredits') { const back = V ? V.id : 'village'; showCredits(() => { enterPlace(back, 'road'); openPanel('options'); }, o === 'ncredits' ? 'north' : 'olympus'); }
   else if (o === 'news') openNews('scrHub');
   else if (o === 'title') { persist(true); G.mode = 'slots'; q = null; show('scrSlots'); renderSlots(); }
   else if (o === 'export') { $('importBox').hidden = true; $('codeBox').hidden = false; $('saveCode').value = encodeSave(G.save); }
@@ -671,7 +688,7 @@ function finishQuest(win) {
   if (q.net === 'host') netHostEnd(win); else if (q.net === 'guest' && q.phase !== 'victory' && q.phase !== 'defeat') netSend({ t: 'leave' });
   const before = new Set(QUESTS.filter(x => isUnlocked(x)).map(x => x.id));
   const statueWas = d.boss ? godRank(d.boss) : 9, readyWas = rankReady(), allGodsWas = allGodsDone(0), finaleWas = finaleReady(), typhonWas = typhonReady();
-  G.lastQuest = d.id; CG.gameplay(false); tutEnd(win);
+  G.lastQuest = d.id; G.lastNorth = !!d.north; CG.gameplay(false); tutEnd(win);
   if (win) for (const k of q.pickups) if (k.item !== '@heal') q.loot[k.item] = (q.loot[k.item] || 0) + 1;
   for (const [k, v] of Object.entries(q.loot)) s.inv[k] = (s.inv[k] || 0) + v;
   s.money += q.chestMoney;
@@ -680,7 +697,7 @@ function finishQuest(win) {
   let best = false;
   if (win) {
     s.money += d.reward; s.cleared[d.id] = (s.cleared[d.id] || 0) + 1;
-    if (d.id === TYPHON_Q && !s.finishTime) s.finishTime = Math.round(s.playtime);       // the speedrun board: first step to Typhon's fall
+    if (d.id === TYPHON_Q && !s.finishTime) s.finishTime = Math.round(s.playtime);       // first step to Typhon's fall (kept in the save; the leaderboard tab for it is gone)
     const t = Math.max(1, Math.round(q.elapsed)); if (!s.best[d.id] || t < s.best[d.id]) { best = !!s.best[d.id]; s.best[d.id] = t; }
   }
   // the Endless Hunt only ends in a fall (or leaving): it pays for the waves cleared and keeps the record
@@ -693,12 +710,13 @@ function finishQuest(win) {
   }
   persist(true);
   const unlocked = QUESTS.filter(x => isUnlocked(x) && !before.has(x.id));
-  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${RANKS[d.rank].col}">${RANKS[d.rank].name}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.final ? 'The last hunt' : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
+  $('resQuest').innerHTML = `${d.rank ? `<span style="color:${d.north ? NORDIC_COL : RANKS[d.rank].col}">${rankLabel(d)}</span> · ` : ''}${esc(d.endless ? ARENAS[d.arena].name : d.northFinal ? 'The last hunt of the North' : d.final ? 'The last hunt of the Olympus Saga' : d.titan ? 'Titan' : godName(d.god))} · ${esc(d.name)}`;
   const title = $('resTitle'); title.textContent = run ? (run.record ? 'A new record' : 'The hunt is over') : win ? 'Quest complete' : 'Quest failed'; title.className = 'res-title ' + (win || (run && run.record) ? 'win' : 'lose');
   if (run) $('resStats').innerHTML = `<div><span>Wave reached</span><b>${run.reached}${run.record ? ' ★' : ''}</b></div><div><span>Best wave</span><b>${s.endless.best}</b></div><div><span>Pay</span><b style="color:var(--gold)">${fmtMoney(run.pay)} dr</b></div><div><span>Time</span><b>${fmtTime(q.elapsed)}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>`;
   else $('resStats').innerHTML =`<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
   const notes = [];
-  if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue in the ${d.titan ? 'Hall of the Titans' : 'Temple of the Gods'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
+  if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue ${d.titan ? 'in the Hall of the Titans' : d.north ? 'in Vindheim' : 'in the Temple of the Gods'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
+  if (win && d.id === FENRIR_Q && s.cleared[FENRIR_Q] === 1) notes.push('You slew Fenrir. The sun still rises over the North, and every piece of Nordic gear wakes to full strength.');
   if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Gods.');
@@ -718,8 +736,9 @@ function finishQuest(win) {
   const loot = Object.entries(q.loot);
   $('resLoot').innerHTML = loot.length ? loot.map(([id, n]) => `<div class="res-item"><img alt="" src="${icon(id)}"><span class="r${ITEMS[id].rarity}">${esc(ITEMS[id].name)}</span><b>×${n}</b></div>`).join('') : `<div class="muted">Nothing this time.</div>`;
   $('resNote').textContent = run ? `You cleared ${run.cleared} wave${run.cleared === 1 ? '' : 's'}. The pay and every part you picked up are yours.`
-    : win ? 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.' :'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
-  $('resLootHead').hidden = false; $('btnResContinue').textContent = 'Return to the village';     // a fight's results change both (84_pvp.js)
+    : win ? (d.north ? 'Your parts are in your chest and the drachmae are in your purse. Visit Brokk’s forge in Vindheim to see what you can make.' : 'Your parts are in the chest at home and the drachmae are in your purse. Visit Dion at the Forge to see what you can craft.')
+    : 'You keep the parts you picked up and anything from the hidden cache. A failed quest pays no reward.';
+  $('resLootHead').hidden = false; $('btnResContinue').textContent = d.north && s.north >= 3 ? 'Return to Vindheim' : 'Return to the village';     // a fight's results change both (84_pvp.js)
   $('btnResAgain').textContent = run ? 'Go again' : win ? 'Quest again' : 'Try again'; $('btnResAgain').hidden = !!wasNet || netOn();
   const next = win && !run && !wasNet && !netOn() ? nextQuest(s, d.id) : null;           // on your own, a win offers the next hunt (a room picks its own)
   resNextButton(next);
@@ -729,7 +748,8 @@ function finishQuest(win) {
 }
 // The hunt to go on next: the first one on your rank you can take and haven't cleared, looking on from the one you just finished.
 function nextQuest(s = G.save, after = null) {
-  const list = QUESTS.filter(x => x.rank === (s.rank || 0) && !x.endless && !s.cleared[x.id] && isUnlocked(x, s)), at = QUESTS.findIndex(x => x.id === after);
+  const north = !!(after && QUEST_BY_ID[after] && QUEST_BY_ID[after].north);        // after a hunt in the North, the next one up there
+  const list = QUESTS.filter(x => (north ? x.north : x.rank === (s.rank || 0) && !x.north) && !x.endless && !s.cleared[x.id] && isUnlocked(x, s)), at = QUESTS.findIndex(x => x.id === after);
   return list.find(x => QUESTS.indexOf(x) > at) || list[0] || null;
 }
 function resNextButton(next) {
@@ -883,34 +903,43 @@ $('btnNewsBack').onclick = closeNews;
 $('btnResContinue').onclick = () => {
   Sound.play('click');
   if (G.arenaBack) { G.arenaBack = false; fadeTo(() => enterPlace('coliseum', 'arena')); return; }
-  // Typhon just fell for the first time: roll the credits before going home
+  // Typhon just fell for the first time: roll the credits before going home (then the stranger walks in, 85_vindheim.js).
+  // Fenrir: the North's own credits, then back to Vindheim.
   if (G.lastQuest === TYPHON_Q && G.save.cleared[TYPHON_Q] && !G.save.legend) { fadeTo(() => showCredits(() => enterVillage('gate'))); return; }
-  CG.midgameAd(() => fadeTo(() => enterVillage('gate')));
+  if (G.lastQuest === FENRIR_Q && G.save.cleared[FENRIR_Q] && !G.save.northEnd) { fadeTo(() => showCredits(() => enterPlace('vindheim', 'hunt'), 'north')); return; }
+  const home = G.lastNorth && G.save.north >= 3;                 // the North's hunts end in Vindheim (once you've sailed there)
+  CG.midgameAd(() => fadeTo(() => home ? enterPlace('vindheim', 'hunt') : enterVillage('gate')));
 };
 /* ---- the end credits: after Typhon falls for the first time, and from your home after that ---- */
-let creditsAfter = null, creditsRaf = 0;
-function showCredits(after) {
-  creditsAfter = after; G.mode = 'credits'; G.paused = false; CG.gameplay(false);
+let creditsAfter = null, creditsRaf = 0, creditsSaga = 'olympus';
+// saga: 'olympus' after Typhon (the end of the Olympus story, and Sigrun is waiting after it), 'north' after Fenrir.
+function showCredits(after, saga = 'olympus') {
+  creditsAfter = after; creditsSaga = saga; G.mode = 'credits'; G.paused = false; CG.gameplay(false);
   show('scrCredits'); Music.play('credits');
-  const s = G.save, dot = ' · ', names = ids => ids.map(id => esc(godName(id))).join(dot);
+  const s = G.save, dot = ' · ', names = ids => ids.map(id => esc(godName(id))).join(dot), north = saga === 'north';
   const hunts = QUESTS.filter(qd => s.cleared[qd.id]).length, caches = Object.keys(s.chests).length;
   $('creditsRoll').innerHTML = `<h1 class="logo">Olympus<br>Hunt</h1>
-    <p class="lede">You slew Typhon, the father of monsters. Olympus is safe, thanks to you.</p>
+    ${north ? `<p class="lede">You slew Fenrir, the wolf who ends the world. Ragnarök will have to wait.</p>
+    <h3>Gods of the North</h3><p>${names(NORSE_GODS.map(g => g.id))}</p>
+    <h3>The wolf</h3><p>Fenrir</p>`
+    : `<p class="lede">You slew Typhon, the father of monsters. Olympus is safe, thanks to you.</p>
     <h3>Gods hunted</h3><p>${names([...GODS, ...SIDE_GODS].map(g => g.id))}</p>
     <h3>Titans hunted</h3><p>${names(TITANS.map(t => t.id))}</p>
-    <h3>The father of monsters</h3><p>Typhon</p>
+    <h3>The father of monsters</h3><p>Typhon</p>`}
     <h3>Your hunt</h3><p>${fmtPlay(s.playtime)} played${dot}${hunts} hunts cleared${dot}${caches} hidden caches found${dot}${fmtMoney(s.money)} drachmae in the bank</p>
     <h3>Created by</h3><p>Connor Key</p>
     <h3>Creative</h3><p>Ben Watkins</p>
     <h3>Code and pixel art</h3><p>Built with Claude</p>
     <h3>Music</h3><p>A tiny NES-style band, made out of code</p>
     <h3>Playtesters</h3><p>Nick Miller${dot}Caleb Key${dot}and more</p>
-    <h3>And you</h3><p>for hunting all the way to the end</p>
-    <p class="thanks">Thank you for playing</p>`;
+    <h3>And you</h3><p>for hunting all the way to the end of the ${north ? 'Northern' : 'Olympus'} Saga</p>
+    <p class="thanks">${north ? 'The Northern Saga is complete' : 'The Olympus Saga is complete'}</p>
+    <p class="thanks-sub">Thank you for playing</p>`;
   $('btnCreditsDone').hidden = true; $('btnCreditsSkip').hidden = false;
   const roll = $('creditsRoll'), view = roll.parentElement, art = $('creditsArt'), x = art.getContext('2d'); x.imageSmoothingEnabled = false;
   // a parade of everything you hunted walks across the top
-  const parade = [...[...GODS, ...SIDE_GODS].map(g => ({ spr: BOSSES[g.id].sprite, s: 2 })), ...TITANS.map(t => ({ spr: t.id, s: 1 })), { spr: 'typhon', s: 1 }];
+  const parade = north ? [...NORSE_GODS.map(g => ({ spr: g.id, s: 2 })), { spr: 'fenrir', s: 2 }]
+    : [...[...GODS, ...SIDE_GODS].map(g => ({ spr: BOSSES[g.id].sprite, s: 2 })), ...TITANS.map(t => ({ spr: t.id, s: 1 })), { spr: 'typhon', s: 1 }];
   let px = 0; const widths = parade.map(p => SPR[p.spr][0].w * p.s + 12), total = widths.reduce((a, b) => a + b, 0);
   let off = 0, last = performance.now();
   cancelAnimationFrame(creditsRaf);
@@ -936,7 +965,8 @@ function showCredits(after) {
 function endCredits() {
   if (G.mode !== 'credits') return;
   cancelAnimationFrame(creditsRaf); G.mode = 'slots';
-  if (G.save && !G.save.legend) { G.save.legend = true; persist(true); }
+  const k = creditsSaga === 'north' ? 'northEnd' : 'legend';
+  if (G.save && !G.save[k]) { G.save[k] = true; persist(true); }
   const f = creditsAfter || (() => enterVillage('gate')); creditsAfter = null;
   fadeTo(f);
 }
@@ -1140,7 +1170,7 @@ Store.ready.then(() => { if (CG.on && G.mode === 'title') playNow(); });
 // Handy for testing from the browser console.
 // only on a local copy: the live site keeps its insides to itself
 if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) window.OlympusHunt = { Music, Store, tick, Sound, resetEID: () => { EID = 1; },
-  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, fmtRun, TYPHON_Q, netSnapRate, tridentOut, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
+  NET, netHostRoom, netJoinRoom, netBannerAction, netPost, netMessage, netUi, openOracle: () => openPanel('oracle'), guestTick, netLeave, clearQ: () => { q = null; }, useAbility, ABILITIES, dmgMul, hurtHunter, closeDialog, setPaused, drinkPotion, pvpParried, netWhyNot, QUEST_BY_ID, pvpShot: pvpShotTest, rollLoot, gearSave, orderMeal, renderTavern, pvpSides, pvpSideBox, myGear, inviteFrom, inviteJoin, netInviteUrl, renderOracle, encodeSave, decodeSave, VOTE, openVote, closeVote, Settings, nextQuest, isOwner, openOwner, closeOwner, updateTitleSub, renderFightBoard, pvpBoardLoad, TYPHON_Q, netSnapRate, tridentOut, tcOf: tc, pointBlockedV: (x, y) => { sc = V; return pointBlocked(x, y); },
   renderQuest, bossTarget, endlessBoss, playerDie, finishQuest, ENDLESS_Q, renderHub,
   renderVillage, startInteract, nearestInteract, tickVillage, closePanel, ROOMS, MEALS, PLACES, updateHud, netSendInfo, townPeers, sitAt, startEating, netFrame, pxLine, pxEllipse, pxRing, pxRingFlat, drawTag, drawNum, ownerActivityHTML, ownerPlace, statsRef, statsOff, anHit, statsRefNow: () => STATS_REF, buildHall: () => { delete PLACES.hall; },
   // co-op testing: bot teammates join your next hunts (and the one you're in, though its scaling was set when it started)
@@ -1160,6 +1190,8 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   DEBUG,
   unlockAll: () => { QUESTS.forEach(qd => { G.save.cleared[qd.id] = G.save.cleared[qd.id] || 1; }); persist(); },
   richer: () => { G.save.money += 100000; for (const id of Object.keys(ITEMS)) G.save.inv[id] = 99; persist(); },
+  // the North (1.1)
+  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, sellPart, sellPrice, purseNow, partCost, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
 };
 
 })();

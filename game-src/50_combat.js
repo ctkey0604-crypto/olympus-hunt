@@ -3,12 +3,15 @@
 function setCounts(eq) { const c = {}; for (const sl of SLOTS) c[eq[sl]] = (c[eq[sl]] || 0) + 1; return c; }
 function playerStats(save = G.save) {
   // refined gear (+1 to +5 at the smith) works from a copy with the bigger numbers and the + in its name
-  const w0 = WEAPONS[save.weapon], wl = refineLevel(save.weapon, save), K = KINDS[w0.kind], eq = save.equip;
+  // Nordic gear wakes to the top of its ladder once Fenrir has fallen (18b_norse.js): the same piece, the top tier's numbers.
+  const awake = northAwake(save), w1 = WEAPONS[save.weapon], w0 = awake && w1.wtTop ? { ...w1, dmg: northDmg(w1, true) } : w1;
+  const wl = refineLevel(save.weapon, save), K = KINDS[w0.kind], eq = save.equip;
   const w = wl ? { ...w0, dmg: Math.round(w0.dmg * (1 + REFINE_GAIN.weapon * wl)), name: `${w0.name} +${wl}`, refine: wl } : w0;
   let def = 0, hp = 0; const perks = {};
   const add = (k, v) => { perks[k] = (perks[k] || 0) + v; };
   for (const sl of SLOTS) {
-    const P = PIECES[eq[sl] + ':' + sl], rl = refineLevel(eq[sl], save); def += Math.round(P.def * (1 + REFINE_GAIN.armor * rl)); hp += Math.round(P.hp * (1 + .04 * rl));
+    const P = PIECES[eq[sl] + ':' + sl], rl = refineLevel(eq[sl], save), top = awake && P.defTop;
+    def += Math.round((top ? P.defTop : P.def) * (1 + REFINE_GAIN.armor * rl)); hp += Math.round((top ? P.hpTop : P.hp) * (1 + .04 * rl));
     for (const [k, v] of Object.entries(P.job)) if (v) add(k, v);
   }
   const bonuses = [];
@@ -31,6 +34,7 @@ function playerStats(save = G.save) {
   };
   // God Rank build bonuses (17_ranks.js)
   if (perks.glass) { st.mul += perks.glass; st.maxHp = Math.round(st.maxHp * (1 - perks.glass)); }
+  if (perks.onehand && K.oneHand && !shield) st.mul += perks.onehand;      // Oathbound: one hand, no shield, like Tyr
   if (perks.bulwark) { st.guardMax *= 2; st.dodgeDist *= .7; }
   if (perks.juggernaut) { st.maxHp = Math.round(st.maxHp * 1.3); st.speed *= .85; st.kbRes = 1; }
   // a Tavern meal (85_rooms.js), until the hunt it was eaten for is over
@@ -103,7 +107,7 @@ function healHunter(p, n, show = true) {
 function updateHunter(p, dt) {
   const st = p.st, K = st.kind, F = p.fx, I = p.in;
   p.invuln = Math.max(0, p.invuln - dt); p.flash = Math.max(0, p.flash - dt); p.aegisT = Math.max(0, p.aegisT - dt);
-  p.atkCd = Math.max(0, p.atkCd - dt); tickDashes(p, dt); p.abilCd = Math.max(0, p.abilCd - dt);
+  p.atkCd = Math.max(0, p.atkCd - dt); tickDashes(p, dt); p.abilCd = Math.max(0, p.abilCd - dt); norseHunterTick(p, dt);
   p.guardPress = Math.max(0, p.guardPress - dt); p.guardTapCd = Math.max(0, p.guardTapCd - dt); p.guardFlash = Math.max(0, p.guardFlash - dt);
   p.blockKick = Math.max(0, p.blockKick - dt); p.bashT = Math.max(0, p.bashT - dt); p.bashCd = Math.max(0, p.bashCd - dt); p.comboT = Math.max(0, p.comboT - dt); p.potionCd = Math.max(0, p.potionCd - dt);
   p.shieldT = clamp(p.shieldT + (p.guarding ? dt / .08 : -dt / .12), 0, 1);
@@ -259,7 +263,8 @@ function releaseAttack(p, s) {
   const K = p.st.kind, w = p.st.weapon;
   let dmg = w.dmg * dmgMul(p);
   if (p.fx.strike > 0) { dmg *= 1 + p.st.perks.dodgeStrike; p.fx.strike = 0; }
-  const riposte = p.fx.riposte > 0; if (riposte) { dmg *= 2; p.fx.riposte = 0; }
+  const judged = !(p.fx.riposte > 0) && p.judgeN > 0, riposte = p.fx.riposte > 0 || judged;   // Tyr's Judgment lands like a riposte (51_norse_combat.js)
+  if (riposte) { dmg *= 2; if (judged) p.judgeN--; else p.fx.riposte = 0; }
   if (K.melee && p.comboT > 0) dmg *= 1.12;                 // melee follow-up: chained hits land harder
   Sound.play(K.sfx);
   p.strikes++; if (q.onPlayerAct) q.onPlayerAct('attack', p);
@@ -314,6 +319,7 @@ function useDash(p) {
 function startDodge(p, mv) {
   const a = (mv.x || mv.y) ? Math.atan2(mv.y, mv.x) : p.face, d = p.st.dodgeDist, dash = !!p.st.perks.dashDodge;
   const sp = 235 * (dash ? 1.5 : 1) * Math.sqrt(d), time = .22 * Math.sqrt(d) * (p.st.perks.phase ? 1.15 : 1);
+  thunderDash(p);
   p.dvx = Math.cos(a) * sp; p.dvy = Math.sin(a) * sp; p.dodgeT = time; useDash(p); p.swing = null; p.guarding = false;
   p.fx.charm = 0; p.fx.drowsy = 0; p.dashHit = new Set();
   if (dash) burst(p.x, p.y - 6, 6, ['#f3e9d4', '#ebc152'], 60);
@@ -428,6 +434,8 @@ function useAbility(p, mv) {
     for (const side of [-1, 1]) spawnProj(p.x + side * 8, p.y, p.face + side * .6, 175, T * 2.2, 'lion', 'player', { r: 6, life: 4, pierce: 2, homing: 5 });
     Sound.play('roar');
   } else if (id === 'timestop') { q.timeStop = 2.5; flash(.15); Sound.play('blessing'); q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 6, r1: 160, life: .5, max: .5, c: '#e9c04f' }); }
+  else if (NORSE_SKILLS[id]) NORSE_SKILLS[id](p, { W, T, aim, near, hs, shake, flash, mv });   // the North's skills (51_norse_combat.js)
+  if (p.st.perks.watchman) hornBlast(p, W);                  // the Watchman's horn sounds with every skill
 }
 // Player ground attacks (Earthquake spikes, Eruption fire).
 function updatePSpikes(dt) {
@@ -477,6 +485,7 @@ function hurtHunter0(p, dmg, ang, knock, o) {
     q.fx.push({ t: 'ring', x: p.x, y: p.y - 6, r0: 4, r1: 14, life: .25, max: .25, c: '#e6f2ff' }); addText(p.x, p.y - 20, '0', '#e6f2ff');
     return 2;
   }
+  if (trickMiss(p)) return 2;                                // Trickster armor: it hits where you just were
   if (p.guarding && st.shield && !o.unblockable) {
     const from = ang + Math.PI;
     if (Math.abs(angDiff(p.face, from)) < 1.3) {
@@ -549,6 +558,7 @@ function perfectBlockHit(p, o, ang) {
     q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 6, r1: 64, life: .35, max: .35, c: '#e9c04f' });
     for (const e of q.enemies) if (targetable(e) && !e.boss && edist(p, e) < 64 + e.r) e.stun = Math.max(e.stun, 1.3);
   }
+  if (sh.perk === 'frostblock') frostBlock(p);
   if (sh.perk === 'wave') {
     q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 6, r1: 50, life: .3, max: .3, c: '#57c2b0' });
     for (const e of q.enemies) if (targetable(e) && !e.boss && dist(p, e) < 50 + e.r) { const a = Math.atan2(e.y - p.y, e.x - p.x); e.kbx += Math.cos(a) * 260 * (e.kbRes ?? 1); e.kby += Math.sin(a) * 260 * (e.kbRes ?? 1); }
@@ -629,6 +639,7 @@ function onPlayerHit(e, dmg) {
   const steal = (P.lifesteal || 0) + (p.fx.heart > 0 ? .12 : 0);
   if (steal) { p.stealAcc = (p.stealAcc || 0) + Math.min(dmg * steal, p.st.maxHp * .05); if (p.stealAcc >= 1) { const n = Math.floor(p.stealAcc); p.stealAcc -= n; healHunter(p, n, false); } }
   if (P.burn) { e.burnT = 2; e.burnBy = p; }
+  if (P.frost) chill(e, 2.5);                                // Rimeguard: your hits chill
   if (P.stunHit && !e.boss && Math.random() < P.stunHit) e.stun = Math.max(e.stun, .5);
   if (P.lightning) {
     p.hits++;
@@ -659,7 +670,7 @@ function killEnemy(e, o = {}) {
   q.fx.push({ t: 'ring', x: e.x, y: e.y, r0: 2, r1: e.boss ? 40 : 12, life: .3, max: .3, c: '#f0e4cc' });
   if (!o.noLoot) rollLoot(e, by);
   if (e.def.puddle === 'poison' && e.def.role === 'exploder' && !o.exploded) addPuddle(e.x, e.y, 12, 3, 'poison', .02);
-  if (!e.boss) { by.stats.kills++; if (by.st.perks.killFrenzy) by.fx.killRush = 3; }
+  if (!e.boss) { by.stats.kills++; if (by.st.perks.killFrenzy) by.fx.killRush = 3; if (by.st.perks.devour && !by.dead) healHunter(by, Math.max(1, Math.round(by.st.maxHp * by.st.perks.devour))); }
   if (e.boss) bossDefeated(e);
 }
 function finishBones(e) {
@@ -685,6 +696,7 @@ function spawnProj(x, y, ang, speed, dmg, kind, team, o = {}) {
 // Where a thrown trident turns for home, a wave breaks and shoves everything back.
 const TRIDENT_OUT = .45;                                   // seconds out before it turns
 function tridentCrash(pr) {
+  if (pr.hammer) { hammerCrash(pr); return; }                // Mjölnir: lightning where it turns (51_norse_combat.js)
   const by = pr.owner || q.player, was = q.actor, col = pr.ca || '#57c2b0';
   q.fx.push({ t: 'ring', x: pr.x, y: pr.y, r0: 6, r1: 56, life: .4, max: .4, c: col }); burst(pr.x, pr.y - 4, 14, [col, '#e6f2ff', pr.cb || '#2c7a70'], 90); Sound.play('splash');
   if (isLocal(by)) { addShake(4); G.hitstop = Math.max(G.hitstop, .06); }
@@ -872,8 +884,9 @@ function updateHazards(dt) {
         h.fired = true;
         const sp = h.speed || 210;
         if (h.kind === 'bolt') {
-          q.fx.push({ t: 'laneBolt', x0: h.x0, y0: h.y0, x1: h.x1, y1: h.y1, life: .3, max: .3, seed: (h.y0 + h.x0) | 0, col: h.col }); Sound.play('zap'); G.flash = Math.max(G.flash, .08);
-          for (const p of hazHunters()) if (!p.dead && distToSeg(p.x, p.y, h.x0, h.y0, h.x1, h.y1) < 9) hurtHunter(p, h.dmg, Math.atan2(h.y1 - h.y0, h.x1 - h.x0) + Math.PI / 2, 150, { unblockable: true });
+          q.fx.push({ t: h.fx || 'laneBolt', x0: h.x0, y0: h.y0, x1: h.x1, y1: h.y1, life: .3, max: .3, seed: (h.y0 + h.x0) | 0, col: h.col });   // fx: laneSlash for Tyr's sword strokes
+          if (h.fx) Sound.play('swing'); else { Sound.play('zap'); G.flash = Math.max(G.flash, .08); }
+          for (const p of hazHunters()) if (!p.dead && distToSeg(p.x, p.y, h.x0, h.y0, h.x1, h.y1) < (h.w || 9)) hurtHunter(p, h.dmg, Math.atan2(h.y1 - h.y0, h.x1 - h.x0) + Math.PI / 2, 150, { unblockable: true });
         } else if (q.net !== 'guest') {
           const a = Math.atan2(h.y1 - h.y0, h.x1 - h.x0);
           spawnProj(h.x0, h.y0, a, sp, h.dmg, h.kind === 'wave' ? 'wave' : 'goat', 'enemy', { r: h.kind === 'wave' ? 8 : 5, life: 6, knock: h.kind === 'wave' ? 260 : 200 });
@@ -885,7 +898,8 @@ function updateHazards(dt) {
   }
   q.hazards = q.hazards.filter(h => !h.dead);
 }
-function hazardCol(kind) { return { curse: '#3f9a8a', soulfire: '#7fe08a', witchfire: '#57c2b0', note: '#7fa548', sky: '#9fb8ff', axis: '#e6f2ff', memory: '#c8b8ff', judgment: '#ffd463', stone: '#c9a46b', star: '#ffffff' }[kind] || '#ff5a3c'; }
+function hazardCol(kind) { return { curse: '#3f9a8a', soulfire: '#7fe08a', witchfire: '#57c2b0', note: '#7fa548', sky: '#9fb8ff', axis: '#e6f2ff', memory: '#c8b8ff', judgment: '#ffd463', stone: '#c9a46b', star: '#ffffff',
+  amber: '#ffb347', runefire: '#9fd0ff', lokistab: '#7fe08a' }[kind] || '#ff5a3c'; }
 function distToSeg(px, py, x0, y0, x1, y1) {
   const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 1, t = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
   return Math.hypot(px - (x0 + dx * t), py - (y0 + dy * t));

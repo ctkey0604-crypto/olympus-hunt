@@ -392,7 +392,7 @@ function pieceIcon(P, rim) {
 function iconCanvas(id) {
   if (ICON_CANVAS[id]) return ICON_CANVAS[id];
   let c = null;
-  const r = rankOf(id);
+  const north = isNorthId(id), r = north ? 0 : rankOf(id);   // the North's things keep their colours (21_norse_art.js)
   if (r) {                                   // High and God Rank forms: the base icon, recoloured, with a rank gem in the corner
     const BP = PIECES[baseId(id)], b = BP && pieceDim(BP, r) ? pieceIcon(BP, true) : iconCanvas(baseId(id)); if (!b) return null;
     c = mkCanvas(b.width + 1, b.height + 1); const x = c.getContext('2d'); x.drawImage(recolorCanvas(b, r), 0, 1);
@@ -407,6 +407,7 @@ function iconCanvas(id) {
   else if (SHIELDS[id]) { const [a, b, cc] = SHIELDS[id].colors; c = makeSprite(PIECE_ICON_T.shield, OUTLINE, { a, b, c: cc }); }
   else if (id.startsWith('potion:')) { const [a, b, cc] = POTIONS[id.slice(7)].col; c = makeSprite(['...cc...', '...ww...', '..waaw..', '.waaaab.', '.wacaab.', '.aaaabb.', '..abbb..', '........'], OUTLINE, { a, b, c: cc, w: '#e6e1d6' }); }
   else if (ITEMS[id]) c = makeSprite(ICON_TEMPLATES.shard, OUTLINE, { a: '#d8ccb4', b: '#85735d', c: '#ffffff' });
+  if (north && c) c = northGem(c);
   return (ICON_CANVAS[id] = c);
 }
 const ICONS = {};
@@ -472,7 +473,7 @@ function heroFrames(eq) {
   const hc = H.colors.head, cc = C.colors.chest, lc = L.colors.legs, fc = F.colors.feet;
   const hair = style === 'hair' && H === ARMOR_SETS.traveler ? hc : ['#5a3a22', '#3a2416'];
   // High and God Rank: spiked pauldrons on the chest piece, glowing eyes under the helmet, spiked knees.
-  const cr = C.rank || 0, hr = H.rank || 0, lr = L.rank || 0;
+  const rk = S => S.north ? 0 : S.rank || 0, cr = rk(C), hr = rk(H), lr = rk(L);      // the North's armor has no rank marks
   if (cr) rows = patchRows(rows, { 9: '_p_______p__', 10: '_pp_____pp__', 11: '_p_________' });
   if (lr) rows = patchRows(rows, { [girl ? 18 : 17]: '__q_________' });
   const pal = Object.assign({}, PAL, {

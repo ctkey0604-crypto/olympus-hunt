@@ -66,7 +66,7 @@ function recolorCanvas(src, r) {
 const RANK_FR = [{}, {}, {}];
 function rankFrames(name, r) {
   const base = SPR[name];
-  if (!r || !base) return base;
+  if (!r || !base || NORTH_SPR.has(name)) return base;            // the North keeps its own colours
   if (RANK_FR[r][name]) return RANK_FR[r][name];
   return (RANK_FR[r][name] = base.map(fr => { const n = recolorCanvas(fr.n, r); return { ...fr, n, f: flipCanvas(n) }; }));
 }

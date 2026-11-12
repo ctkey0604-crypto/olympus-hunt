@@ -43,6 +43,15 @@ for (const [sid, set] of Object.entries(ARMOR_SETS)) {
     }[slot];
     PIECES[`${sid}:${slot}`] = { id: `${sid}:${slot}`, set: sid, slot, name: `${set.name} ${SLOT_LABEL[slot]}`, def, hp, job, recipe, rank: set.rank || 0, perk };
   }
+  // Nordic sets (18b_norse.js) also carry what each piece holds once Fenrir has fallen, split the same way.
+  if (set.defTop) {
+    let d = set.defTop, h = set.hpTop;
+    for (const slot of SLOTS) {
+      const sp = SLOT_SPLIT[slot], P = PIECES[`${sid}:${slot}`];
+      P.defTop = slot === 'feet' ? d : Math.round(set.defTop * sp.def); P.hpTop = slot === 'legs' ? h : Math.round(set.hpTop * sp.hp);
+      d -= P.defTop; h -= P.hpTop;
+    }
+  }
 }
 
 // Gods and Titans: how many on-curve sword hits they take to bring down. The real health is worked out per rank.

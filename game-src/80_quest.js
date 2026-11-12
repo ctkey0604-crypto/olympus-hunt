@@ -2,6 +2,7 @@
 function isUnlocked(qd, save = G.save) {
   if ((save.rank || 0) < qd.rank) return false;
   if (qd.titan && !save.stairs) return false;                  // the Titans wait until the stairway under the temple opens
+  if (qd.north && !northOpen(save)) return false;              // the North waits until Sigrun has told you about it (85_vindheim.js)
   return qd.requires.every(r => save.cleared[r]);
 }
 function questMonsters(qd) { const set = new Set(); qd.waves.forEach(w => Object.keys(w).forEach(t => set.add(t))); return [...set]; }
@@ -19,7 +20,7 @@ function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !def.pvp && !opts.guest && !isUnlocked(def))) return;
   anHit('play'); if (!def.prologue && !def.practice && !def.pvp) anHit('hunt');
   G.rebinding = null;
-  Music.rankGrit = def.final ? 3 : def.rank || 0;      // God Rank and Typhon play rougher
+  Music.rankGrit = def.final || def.northFinal ? 3 : def.rank || 0;      // God Rank, Typhon and Fenrir play rougher
   if (def.prologue) Music.play('road'); else if (def.practice || def.pvp) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
   // online: the room's roster (hid 0 = the host). opts.guest: you're a guest and the host runs this hunt.
@@ -56,7 +57,7 @@ function startQuest(id, opts = {}) {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   Input.down.clear(); Input.endFrame();
   hudMode('quest'); hudReset();
-  banner(def.name, (def.rank ? RANKS[def.rank].name + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
+  banner(def.name, (def.rank ? rankLabel(def) + ' · ' : '') + A.name + (q.blessed ? ' · Hestia watches over you' : ''));
   tutStart();
   if (def.practice) {                                      // practice explains itself once, the first time you ever go in
     if (!Settings.data.practiceTip && Settings.data.tips !== false) { Settings.data.practiceTip = true; Settings.save(); showHint(`${touchMode ? 'Attack and dash with the buttons on the right. Pause to leave' : `${kbd(Input.bind.attack[0])} attack · ${kbd(Input.bind.dodge[0])} dash · hold to keep swinging · ${kbd('Escape')} to leave`}`, 9); }
@@ -221,12 +222,13 @@ function tick(dt) {
   const frozen = q.timeStop > 0; if (frozen) q.timeStop -= sdt;    // Stop Time: monsters freeze, gods and Titans slow down
   for (const h of q.hunters) h.tok.melee = h.tok.ranged = 0;       // attack turns are counted per hunter (q.tokUse is yours)
   for (const e of q.enemies) { if (e.tok && TOK_STATES.has(e.state) && !e.dead) (e.tokH || q.player).tok[e.tok]++; else e.tok = null; }
-  for (const e of q.enemies) if (!e.dead) { if (e.pvp) continue; if (e.boss) updateBoss(e, sdt); else if (!frozen) updateEnemy(e, sdt); else e.flash = 0; }
+  for (const e of q.enemies) if (!e.dead) { if (e.pvp) continue; const ck = chillK(e, sdt); if (e.boss) updateBoss(e, sdt * ck); else if (!frozen) updateEnemy(e, sdt * ck); else e.flash = 0; }   // chilled: slower (51_norse_combat.js)
   q.enemies = q.enemies.filter(e => !e.dead);
   updateProjs(sdt); if (!frozen) updateHazards(sdt); updatePSpikes(sdt); updatePickups(sdt);
   if (q.weather === 'embers' && Math.random() < .5) q.parts.push({ x: G.cam.x + rand(0, VIEW_W), y: G.cam.y + VIEW_H + 4, vx: rand(-8, 8), vy: rand(-40, -20), g: 0, life: 3, max: 3, c: Math.random() < .5 ? '#ff7a2b' : '#ffd463', s: 1 });
   if (q.weather === 'petals' && Math.random() < .35) q.parts.push({ x: G.cam.x + rand(0, VIEW_W + 40), y: G.cam.y - 4, vx: rand(-24, -8), vy: rand(14, 26), g: 0, life: 6, max: 6, c: Math.random() < .5 ? '#f2a7c0' : '#ffffff', s: 1 });
   if (q.weather === 'storm') { q.flashT -= dt; if (q.flashT <= 0) { q.flashT = rand(5, 10); G.flash = .12; } }
+  if (q.weather === 'snow' && Math.random() < .35) q.parts.push({ x: G.cam.x + rand(-10, VIEW_W + 40), y: G.cam.y - 4, vx: rand(-16, -4), vy: rand(16, 30), g: 0, life: 9, max: 9, c: Math.random() < .7 ? '#ffffff' : '#cfe3f5', s: Math.random() < .25 ? 2 : 1 });
   for (const f of q.fog) { f.x += f.v * dt; if (f.x - f.r > WORLD_W) f.x = -f.r; }
   tickParticles(sdt);
   updateQuestFlow(sdt);

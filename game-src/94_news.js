@@ -2,6 +2,26 @@
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1', date: 'November 2026', title: 'The North',
+    new: [
+      'The North: once Typhon has fallen, a stranger walks in through Akros’ gate. Sail north with Sigrun to Vindheim, a village at the edge of the world.',
+      'Six gods of the North to hunt, each with moves of their own: Heimdall, Freyja, Tyr, Loki, Thor and Odin. And 24 new monsters, from the chosen dead to frost giants.',
+      'The last hunt of the North: Fenrir, the wolf who ends the world. First he’s bound, then he’s loose, then the sun goes dark.',
+      'Vindheim: Sigrun posts the hunts, Brokk forges the North’s gear, Åsa trades, and your chest is there too. Akros’ gate now leads to the harbor and a map.',
+      'Brokk’s forge: 13 weapons with 7 new skills (Bifröst, Falcon Dive, Tyr’s Judgment, Likeness, Mjölnir, Gungnir and Howl of Fenrir), 10 armor sets with new set bonuses, and 3 shields.',
+      'Sell your parts: Melita (and Åsa, up north) buy any part for a tenth of what they charge for it. Their purse fills back up as you play.',
+      'Nordic Rank: a new rank above God Rank. Every god of the North is stronger than the last, and so is the gear forged from them: Typhon’s gear gets you past Heimdall, and from there you forge your way up.',
+      'When Fenrir falls, every piece of Nordic gear you own wakes to the strength of the best, so all ten sets are end-game sets.',
+      'In a room, Kleon’s board has a Nordic Rank tab, so a party can set out from Akros. The Coliseum has Nordic Rank fights; in the other fights and in God Rank hunts online, Nordic gear has to come off.',
+      'New music for the North: a theme for every god and for Fenrir, the hunts, Vindheim and the crossing.',
+    ],
+    changed: [
+      'Typhon’s credits now close the Olympus Saga. Already beaten him? Sigrun will be waiting the next time you’re in Akros.',
+      'The Coliseum’s leaderboard is now two tabs, Fights and Endless. Time to Complete has been taken off.',
+    ],
+    fixed: [
+      'Your weapon no longer vanishes while you dash.',
+    ] },
   { v: '1.0', date: 'November 2026', title: 'The full release',
     new: [
       'The vote is in: update 1.1 is The North, coming soon. Thanks to everyone who voted!',

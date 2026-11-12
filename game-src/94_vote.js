@@ -55,7 +55,7 @@ const SG_MAX = 150;
 let sgData = null, sgBusy = false, sgMsg = '', sgDraft = '', sgOpen = null, sgCom = null, sgCDraft = '', sgCMsg = '';   // sgCMsg: what went wrong with a comment, shown by its box
 function renderSuggest() {
   const d = sgData, votes = c => `${c} ${c === 1 ? 'vote' : 'votes'}`, own = d && d.posts.find(p => p.yours);
-  const lead = !Store.api ? 'Community voting needs the online version of the game.' : !d ? (sgMsg ? '' : 'Looking…') : d.on ? 'Update 1.1 will be The North, coming soon! Post one idea for what comes next, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.'
+  const lead = !Store.api ? 'Community voting needs the online version of the game.' : !d ? (sgMsg ? '' : 'Looking…') : d.on ? 'Update 1.1, the Norse update, is out now! Post one idea for what comes next, and vote for your favorite. When the round ends, the idea with the most votes gets added to Olympus Hunt.'
     : 'Community voting is closed right now. You can still read the ideas.';
   const form = d && d.on && Store.user && !own ? `<form class="sg-form" id="sgForm" autocomplete="off"><input id="sgInput" maxlength="${SG_MAX}" placeholder="Your idea (one per player)" value="${esc(sgDraft)}" spellcheck="true" aria-label="Your idea">
     <button class="btn" type="submit" ${sgBusy ? 'disabled' : ''}>Post</button></form>` : '';

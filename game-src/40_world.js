@@ -214,6 +214,22 @@ function paintFloor(x, T, R, ax = WORLD_W / 2) {
       let px = R() * W, py = R() * H;
       for (let k = 0; k < 40; k++) { dot(px - 1, py, '#2c1a14', 3, 1); dot(px, py, R() < .2 ? '#ffd463' : '#ff7a2b'); px += R() * 2 - .4; py += R() * 2 - 1; }
     }
+  } else if (T.floor === 'snow') {                        // the North: packed snow, drifts with a blue shadow under them, ice, stones poking through
+    x.fillStyle = T.base; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < W * H / 7; i++) dot(R() * W, R() * H, pick(T.shades));
+    if (T.patches) for (let i = 0; i < 9; i++) blob(80 + R() * (W - 160), 80 + R() * (H - 160), 14 + R() * 22, 7 + R() * 9, T.patches, .7);   // trampled ground
+    for (let i = 0; i < 70; i++) { const px = R() * W, py = R() * H, len = 10 + R() * 26; for (let k = 0; k < len; k++) { const yy = py + Math.round(Math.sin((px + k) / 8) * 1.2); dot(px + k, yy, T.drift); dot(px + k, yy + 1, T.shadow); } }
+    if (T.ice) for (let i = 0; i < T.ice; i++) {
+      const cx = 60 + R() * (W - 120), cy = 60 + R() * (H - 120), rx = 10 + R() * 18, ry = 4 + R() * 6;
+      blob(cx, cy, rx, ry, T.iceCols, 1); for (let k = 0; k < 5; k++) dot(cx - rx * .6 + R() * rx * 1.2, cy - ry * .5 + R() * ry, '#ffffff', 2 + ((R() * 3) | 0), 1);
+    }
+    for (let i = 0; i < 200; i++) { const px = R() * W, py = R() * H; dot(px, py, T.pebble, 2, 1); dot(px, py + 1, T.crack, 2, 1); }
+    if (T.tufts) for (let i = 0; i < T.tufts; i++) { const px = R() * W, py = R() * H; dot(px, py, T.tuft, 1, 2); dot(px + 2, py, T.tuft, 1, 2); dot(px + 1, py - 1, T.tuft, 1, 2); }
+    if (T.rainbow) {                                       // Bifröst: the bridge's colours run faintly under the frost
+      const cols = T.rainbow, bandH = 18, top = Math.round(H / 2 - cols.length * bandH / 2);
+      for (let i = 0; i < cols.length; i++) for (let py = top + i * bandH; py < top + (i + 1) * bandH; py++) for (let px = 0; px < W; px++) if ((px + py) % 2 === 0 || R() < .3) dot(px, py, cols[i]);
+    }
+    for (let i = 0; i < 240; i++) dot(R() * W, R() * H, '#ffffff');      // frost glinting
   } else if (T.floor === 'planks') {                      // indoors: boards running across the room, joints staggered
     x.fillStyle = T.base; x.fillRect(0, 0, W, H);
     for (let py = 0; py < H; py += 6) for (let px = -((R() * 40) | 0); px < W;) {
@@ -670,9 +686,9 @@ function drawObstacleNow(o, sx, sy) {
       break;
     }
     case 'column': case 'brokencol': {
-      const gold = o.variant === 'gold', hgt = o.kind === 'column' ? 34 : 13;
-      const dark = (sc && sc.theme === 'underworld') || o.variant === 'dark';
-      const C = gold ? ['#e9c04f', '#c9a032', '#fff0b0', '#a8842a'] : dark ? ['#4a4652', '#3a3640', '#5e5a66', '#2e2a34'] : ['#e8dfca', '#c9bda4', '#f3ecdb', '#b5a98f'];
+      const look = o.variant || (sc && THEMES[sc.theme] && THEMES[sc.theme].colLook), gold = look === 'gold', hgt = o.kind === 'column' ? 34 : 13;   // colLook: a theme's own pillars (the North's are carved wood)
+      const dark = (sc && sc.theme === 'underworld') || look === 'dark';
+      const C = gold ? ['#e9c04f', '#c9a032', '#fff0b0', '#a8842a'] : look === 'wood' ? ['#8a5a34', '#6b4528', '#a3713f', '#4e321d'] : dark ? ['#4a4652', '#3a3640', '#5e5a66', '#2e2a34'] : ['#e8dfca', '#c9bda4', '#f3ecdb', '#b5a98f'];
       pxEllipse(sx + 3, sy + 2, 9, 3, 'rgba(0,0,0,.3)');
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 8, sy - 3, 16, 5); ctx.fillRect(sx - 6, sy - hgt - 1, 12, hgt);
       ctx.fillStyle = C[3]; ctx.fillRect(sx - 7, sy - 2, 14, 3);

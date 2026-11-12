@@ -17,6 +17,12 @@ for (const mode of Object.keys(PVP_MODES)) RANKS.forEach((R, r) => {
   const id = pvpId(mode, r);
   QUEST_BY_ID[id] = { id, base: id, pvp: true, mode, name: PVP_MODES[mode], god: 'ares', arena: 'coliseum', rank: r, tier: 13 + R.off, mt: 13 + R.off, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
 });
+// Nordic Rank fights (1.1): everything is allowed, Nordic gear too. The other three keep it out, since it is a rank above
+// God Rank's (gearAbove, 49_net.js). Underneath they are God Rank fights, which is all the room server needs to know.
+for (const mode of Object.keys(PVP_MODES)) {
+  const id = pvpId(mode, NORTH_TAB), R = RANKS[2];
+  QUEST_BY_ID[id] = { id, base: id, pvp: true, nordic: true, mode, name: PVP_MODES[mode], god: 'ares', arena: 'coliseum', rank: 2, tier: 13 + R.off, mt: 13 + R.off, waves: [{}], requires: [], reward: 0, stars: 1, desc: '' };
+}
 let shotHit = false;                                                     // the hit being handled came from a shot, not a swing
 // What a hit does in a fight. Weapons aren't scaled down: armor takes its share exactly as it does when a monster hits you,
 // and the only limit is that no one hit takes more than a fifth of someone's health.
@@ -174,7 +180,7 @@ function pvpFinish(quit = false) {
   if (quit || P.ph === 'done') pvpReport(quit);
   if (q.net === 'host') netHostEnd(P.ph === 'done'); else if (q.net === 'guest' && quit) netSend({ t: 'leave' });
   CG.gameplay(false);
-  $('resQuest').innerHTML = `<span style="color:${RANKS[q.def.rank].col}">${RANKS[q.def.rank].name} gear</span> · ${esc(PVP_MODES[q.def.mode])}`;
+  $('resQuest').innerHTML = `<span style="color:${q.def.nordic ? NORDIC_COL : RANKS[q.def.rank].col}">${rankLabel(q.def)} gear</span> · ${esc(PVP_MODES[q.def.mode])}`;
   const title = $('resTitle'); title.textContent = quit ? 'You left the fight' : wonIt ? 'Victory' : 'Defeat'; title.className = 'res-title ' + (wonIt ? 'win' : 'lose');
   $('resStats').innerHTML = `<div><span>Rounds won</span><b>${P.wins[me.team] || 0}</b></div><div><span>Kills</span><b>${mine[0]}</b></div><div><span>Deaths</span><b>${mine[1]}</b></div><div><span>Damage dealt</span><b>${Math.round(q.stats.dealt)}</b></div>`;
   $('resUnlock').innerHTML = ''; $('resLoot').innerHTML = `<div class="muted">Fights pay nothing. They’re for the glory.</div>`; $('resNote').textContent = '';
@@ -188,20 +194,20 @@ function renderArena() {
   const R = NET.room;
   if (!netOn() || R.members.length < 2) return `<div class="empty-note">You need a room with at least two players. Talk to the Oracle in the square.</div>`;
   const rows = Object.entries(PVP_MODES).map(([mode, label]) => `<div class="opt"><h3>${label}</h3><p>${mode === 'duel' ? 'Everyone for themselves. With two players, it’s one on one.' : 'Two sides. Pick yours from the room box once the fight is posted. You can’t hurt your own side.'}</p><div class="stack">`
-    + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('') + `</div></div>`).join('');
+    + RANKS.map((Rk, r) => `<button class="btn${r ? ' ghost' : ''}" type="button" data-ar="${pvpId(mode, r)}" ${R.phase === 'town' ? '' : 'disabled'}>${esc(Rk.name)} gear</button>`).join('')
+    + (northOpen(G.save) ? `<button class="btn ghost" type="button" data-ar="${pvpId(mode, NORTH_TAB)}" ${R.phase === 'town' ? '' : 'disabled'}>${NORDIC_NAME} gear</button>` : '') + `</div></div>`).join('');   // (shown once you've found the North)
   return `<p class="muted">Best of three rounds. Pick the highest gear rank allowed: anything stronger has to come off first. No potions or meals. Then everyone readies up from the room box.</p><div class="opts">${rows}</div>`;
 }
 $('hubBody').addEventListener('click', ev => { const b = ev.target.closest('[data-ar]'); if (b) netPost(b.dataset.ar); });
 /* ---- the fight board ---- */
 const pvpKd = p => (p.d ? p.k / p.d : p.k).toFixed(2);
-// The leaderboards at the Coliseum: fights, the fastest run to Typhon, and the deepest Endless wave.
-const BOARD_TABS = { fights: 'Fights', speed: 'Time to Complete', endless: 'Endless' };
+// The leaderboards at the Coliseum: fights, and the deepest Endless wave. (The fastest-run tab was taken out in 1.1; the
+// server still sends that list, and it is simply not shown.)
+const BOARD_TABS = { fights: 'Fights', endless: 'Endless' };
 const BOARD_HOW = {
   fights: 'Everyone starts at 1000. Win a fight to gain score, lose one to drop it: 12 points in an even fight, up to 24 for beating someone far above you. The same two players only count for 10 wins and 30 kills a day.',
-  speed: 'Play time from your first step to Typhon’s fall. Your best save counts.',
   endless: 'The deepest wave reached in the Endless Hunt. Your best save counts.',
 };
-const fmtRun = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = Math.floor(t % 60); return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; };
 function renderFightBoard() {
   const tab = BOARD_TABS[G.boardTab] ? G.boardTab : 'fights';
   return `<div class="board-top"><div class="seg">${Object.entries(BOARD_TABS).map(([k, name]) => `<button type="button" data-fbtab="${k}" aria-pressed="${tab === k}">${name}</button>`).join('')}</div></div>
@@ -214,9 +220,8 @@ async function pvpBoardLoad() {
   try {
     const list = tab === 'fights' ? (await Store.call('GET', 'pvp/board')).board || [] : (await Store.call('GET', 'boards'))[tab] || [], box = $('pvpBoard');
     if (!box || (BOARD_TABS[G.boardTab] ? G.boardTab : 'fights') !== tab) return;     // you've moved on to another tab
-    box.innerHTML = !list.length ? `<p class="fb-note">${tab === 'fights' ? 'Nobody has fought here yet.' : tab === 'speed' ? 'Nobody has a run on the board yet.' : 'Nobody has a wave on the board yet.'}</p>`
+    box.innerHTML = !list.length ? `<p class="fb-note">${tab === 'fights' ? 'Nobody has fought here yet.' : 'Nobody has a wave on the board yet.'}</p>`
       : tab === 'fights' ? rows(['', 'Player', 'K/D', 'Score'], list, p => `<span>${pvpKd(p)}</span><b class="fb-score">${p.r}</b>`)
-      : tab === 'speed' ? rows(['', 'Player', 'Time'], list, p => `<b class="fb-score">${fmtRun(p.time)}</b>`)
       : rows(['', 'Player', 'Wave'], list, p => `<b class="fb-score">${p.wave}</b>`);
   } catch (e) { if ($('pvpBoard')) $('pvpBoard').innerHTML = `<p class="fb-note">The board can’t be read right now. Check your connection.</p>`; }
 }

@@ -11,10 +11,10 @@ const ENDLESS_TIER = .55, ENDLESS_TEMPO = .012, ENDLESS_TEMPO_MAX = 1.3;
   const ty = QUEST_BY_ID[TYPHON_Q];
   // every monster that turns up in a God Rank hunt, by class
   const pool = { fodder: [], medium: [], heavy: [] }, seen = new Set();
-  for (const qd of QUESTS) if (qd.rank === 2 && !qd.prologue) for (const w of qd.waves) for (const t of Object.keys(w))
+  for (const qd of QUESTS) if (qd.rank === 2 && !qd.prologue && !qd.north) for (const w of qd.waves) for (const t of Object.keys(w))   // Etna's monsters, not the North's
     if (!seen.has(t) && ENEMIES[t] && pool[ENEMIES[t].cls] && ENEMIES[t].speed !== 0) { seen.add(t); pool[ENEMIES[t].cls].push(t); }
   // the gods it can send: every god and side god with a God Rank hunt of their own (no Titans)
-  const gods = [...new Set(QUESTS.filter(qd => qd.rank === 2 && qd.boss && !qd.titan && !qd.final).map(qd => qd.boss))].filter(b => BOSSES[b] && !BOSSES[b].titan);
+  const gods = [...new Set(QUESTS.filter(qd => qd.rank === 2 && qd.boss && !qd.titan && !qd.final && !qd.north).map(qd => qd.boss))].filter(b => BOSSES[b] && !BOSSES[b].titan);
   // it starts a little gentler than Typhon's own waves and passes them around wave 6
   const def = { id: ENDLESS_Q, base: 'endless_hunt', god: 'typhon', endless: true, rank: 2, tier: ty.tier, mt: ty.tier - 3, boss: null, stars: 10, urgent: false,
     name: 'The Endless Hunt', arena: 'etna', requires: [TYPHON_Q], pool, gods,

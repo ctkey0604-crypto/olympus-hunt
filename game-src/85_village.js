@@ -38,17 +38,17 @@ const rankDone = (r, save = G.save) => [...ALL_GOD_QUESTS, ...TITANS.map(t => t.
 const allGodsDone = (r, save = G.save) => ALL_GOD_QUESTS.every(id => save.cleared[rid(id, r)]);
 // The rank the herald is waiting to open (shown as a ! over his head), or 0.
 function rankReady(save = G.save) { return save && save.rank < RANKS.length - 1 && rankDone(save.rank, save) ? save.rank + 1 : 0; }
-// Everything hunted on the last rank: Kleon has a word for you (for now, the end of the game).
+// Everything hunted on the last rank: Kleon has a word for you (the end of the Olympus Saga; the North comes after it).
 // God Rank done: Typhon climbs out from under Etna, and Kleon has to tell you. Typhon down: Kleon's last word.
 function typhonReady(save = G.save) { return !!save && save.rank === RANKS.length - 1 && rankDone(save.rank, save) && !save.cleared[TYPHON_Q] && !save.typhonTold; }
 function finaleReady(save = G.save) { return !!save && !!save.cleared[TYPHON_Q] && !save.finale; }
 // Typhon's statue stands in the Titans' hall once his hunt is open: stone until he falls, then amethyst.
 function typhonShown(save = G.save) { return !!save && (!!save.cleared[TYPHON_Q] || save.typhonTold || (save.rank === RANKS.length - 1 && rankDone(save.rank, save))); }
 const heraldNews = () => !!(rankReady() || typhonReady() || finaleReady());
-function finishGame() {
+function finishSaga() {
   const s = G.save; if (s.finale) return;
   s.finale = true; persist(true);
-  banner('Thank you for playing', 'Olympus Hunt', true); Sound.play('blessing'); CG.happy(); Music.play('credits');
+  banner('The Olympus Saga is complete', 'Thank you for playing', true); Sound.play('blessing'); CG.happy(); Music.play('credits');
 }
 function unlockRank(r) {
   const s = G.save; if (s.rank >= r) return;
@@ -69,9 +69,10 @@ function npcLines(n) {
         'Then Mount Etna split open. Zeus buried Typhon under it once, the father of every monster you’ve ever hunted.',
         'He’s out. A hundred serpent heads, wings like a storm, and he throws the mountain itself.', 'His hunt is on the board. This is the last one. Go finish it.'];
       if (finaleReady()) return ['You slew Typhon. The father of monsters, gone for good.', 'Every god, every Titan, and the father of monsters himself. Nobody has ever hunted like you.',
-        'Congratulations. You finished Olympus Hunt. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.',
+        'Congratulations. You finished the Olympus Saga. Thank you for playing.', 'The board still has work and the forge still has fire, whenever you want them.',
         'One more thing. Etna hasn’t gone quiet: monsters keep crawling out of the fire. The Endless Hunt is on the board. See how deep you can go.'];
-      if (s.cleared[TYPHON_Q]) return [s.endless && s.endless.best ? `They’re still singing about how you slew Typhon. Your deepest run into Etna reached wave ${s.endless.best}. Think you can beat it?` : 'They’re still singing about how you slew Typhon. And Etna keeps spitting out monsters: the Endless Hunt is on the board.'];
+      if (s.cleared[TYPHON_Q]) return [s.endless && s.endless.best ? `They’re still singing about how you slew Typhon. Your deepest run into Etna reached wave ${s.endless.best}. Think you can beat it?` : 'They’re still singing about how you slew Typhon. And Etna keeps spitting out monsters: the Endless Hunt is on the board.',
+        ...(northOpen(s) ? [s.cleared[FENRIR_Q] ? 'And now they say you put down a wolf the size of a hill up north. I’d believe it.' : 'Sigrun’s longship is still down at the harbor, if the North is calling you.'] : [])];
       if (s.typhonTold) return ['Typhon’s hunt is on the board. The last one. Go finish it.'];
       if (s.finale) return ['You’ve hunted everything there is, on every rank. More is coming. Until then, the board still has work.'];
       if (!c.road_bandits) return ['You’re new here? Good. Bandits are robbing travelers on the Delphi road.', 'Pick a hunt from the board and I’ll send you out.'];
@@ -87,7 +88,7 @@ function npcLines(n) {
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
     case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
-    case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.'];
+    case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.', 'Got parts you don’t need? I’ll buy those too.'];
     case 'arena': {
       if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The practice room is free any time, if you want to try out your gear.'];
       if (NET.room.members.length < 2) return ['You have a room, but nobody in it to fight.', 'You need at least two players. Share your room code or find another room at the Oracle, then come back.'];
@@ -103,7 +104,7 @@ function npcLines(n) {
       return ['Every hunting ground hides a cache. Walk into the right wall and it gives way.', A.secret.hint || nookHint(A.name, A.theme, A.secret)];
     }
   }
-  return ['…'];
+  return northLines(n) || ['…'];                                // Sigrun, Brokk and Åsa (85_vindheim.js)
 }
 function godName(id) { return (BOSSES[id] || {}).name || id; }
 // Under the temple: eight Titans along the walls and the gate their hunts start from.
@@ -176,19 +177,21 @@ function paintTartarusGate(x, R, x0, x1, yTop, yBot) {
 // Where a building's door is, out in the square.
 function doorAt(b) { return { x: b.kind === 'temple' ? (b.x + b.w / 2) * TILE : tc(b.x + Math.floor(b.w / 2)), y: (b.y + b.h) * TILE + 6 }; }
 function enterPlace(id, from) {
-  anHit('play');
+  anHit('play'); document.body.classList.remove('voyaging');   // (the voyage north hides the town HUD, 85_vindheim.js)
   // a brand-new hunter starts on the road outside the gate, where the controls are taught
   if (id === 'village' && G.save.tut === TUT.ROAD) { if (Settings.data.tips !== false) { startPrologue(); return; } G.save.tut = TUT.TALK; }
   const room = ROOMS[id];
-  setWorldSize(room ? room.wt : id === 'village' ? VILLAGE_W : 40, room ? room.ht : id === 'village' ? VILLAGE_H : 26);
+  setWorldSize(room ? room.wt : id === 'village' ? VILLAGE_W : id === 'vindheim' ? VIND_W : 40, room ? room.ht : id === 'village' ? VILLAGE_H : id === 'vindheim' ? VIND_H : 26);
   // the temple is rebuilt when the stairway has opened since it was last built
   if (id === 'temple' && PLACES.temple && PLACES.temple.stairsOpen !== !!G.save.stairs) delete PLACES.temple;
   if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
-  if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : room ? buildRoom(id) : buildVillage();
+  if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : id === 'vindheim' ? buildVindheim() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
+  if (id === 'village') northAkros(V);                         // Sigrun at the gate, and the harbor road (85_vindheim.js)
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
-  if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
+  if (id === 'vindheim') vindheimArrive(p);
+  else if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
   else if (id === 'temple' || room) { p.x = room ? WORLD_W / 2 : tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
   else if (from === 'gate' || from === 'road') { p.x = tc(VILLAGE_MID); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
@@ -212,6 +215,8 @@ function enterPlace(id, from) {
     else banner('Hall of the Titans', '');
   }
   if (room) banner(V.name, V.sub);
+  if (id === 'vindheim') vindheimBanner(from);
+  if (id === 'village') northStory();                          // after Typhon: the stranger at the gate
 }
 function enterVillage(from) { enterPlace('village', from); }
 function resumeVillage() {
@@ -236,7 +241,7 @@ function startInteract(t) {
   if (t.kind === 'npc') {
     const n = t.npc; n.talkT = 4; n.flip = V.player.x < n.x;
     const ready = n.id === 'herald' ? rankReady() : 0, ty = n.id === 'herald' && typhonReady(), fin = n.id === 'herald' && finaleReady();
-    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : n.id === 'arena' && netOn() && NET.room.members.length >= 2 ? 'arena' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishGame : n.opens;
+    const after = n.id === 'oracle' && oracleOnline() ? 'oracle' : n.id === 'arena' && netOn() && NET.room.members.length >= 2 ? 'arena' : ready ? () => unlockRank(ready) : ty ? () => { G.save.typhonTold = true; persist(true); G.boardRank = 2; G.selQuest = TYPHON_Q; openPanel('quests'); } : fin ? finishSaga : n.opens;
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'seat') sitAt(t);
   else if (t.kind === 'practice') fadeTo(startPractice);
@@ -302,6 +307,7 @@ function tickVillage(dt) {
     else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id; fadeTo(() => enterPlace('village', from)); Input.endFrame(); return; }
   }
   updateNpcs(dt); netTownTick(dt);
+  if (V.tick) V.tick(dt);                                       // a place's own weather (Vindheim's snow)
   if (V.id === 'hall' && Math.random() < .25) V.parts.push({ x: tc(20) - 8 + rand(-18, 18), y: IPX.maxY + rand(10, 44), vx: rand(-3, 3), vy: rand(-16, -7), g: 0, life: 1.4, max: 1.4, c: Math.random() < .5 ? '#b48cff' : '#8a5ad8', s: 1 });   // Tartarus' light drifting up from the gate
   if (V.id === 'village') {
     V.smokeT -= dt;
@@ -314,6 +320,7 @@ function tickVillage(dt) {
 }
 // The floor of the temple opens: the camera goes to the slab behind the hearth, the ground shakes, the slab slides away.
 function tickCutscene(dt) {
+  if (G.cutscene.kind !== 'stairs') { NORTH_CUTSCENES[G.cutscene.kind](G.cutscene, dt); return; }   // the voyage, Sigrun's arrival (85_vindheim.js)
   const cs = G.cutscene, p = V.player; cs.t += dt;
   const tx = STAIRS.x + STAIRS.w / 2, ty = STAIRS.y + STAIRS.h / 2;
   G.cam.x += (clamp(tx - VIEW_W / 2, 0, WORLD_W - VIEW_W) - G.cam.x) * Math.min(1, dt * 3); G.cam.y += (clamp(ty - VIEW_H / 2, 0, WORLD_H - VIEW_H) - G.cam.y) * Math.min(1, dt * 3);
@@ -334,7 +341,7 @@ function openPanel(kind, title = null) {
   G.panel = kind; G.panelTitle = title; G.mode = 'panel'; G.rebinding = null; bindNote = '';
   // the back button says where it goes: the square, or the room you're standing in
   const n = V ? V.name.replace(/^The /, 'the ') : '';
-  $('btnPanelBack').textContent = !V || V.id === 'village' ? 'Back to the village' : V.id === 'home' ? 'Back home' : 'Back to ' + (/^(the |\S+’s )/.test(n) ? n : 'the ' + n);
+  $('btnPanelBack').textContent = !V || V.id === 'village' ? 'Back to the village' : V.id === 'home' ? 'Back home' : V.id === 'vindheim' ? 'Back to Vindheim' : 'Back to ' + (/^(the |\S+’s )/.test(n) ? n : 'the ' + n);
   Sound.play('door');
   show('scrHub'); tutPanel(kind); renderHub();
 }

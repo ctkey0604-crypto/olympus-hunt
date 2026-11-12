@@ -131,6 +131,7 @@ function myGear(s = G.save) {
   const ref = {}; for (const id of [s.weapon, s.shield, ...Object.values(s.equip)]) if (id && s.refine && s.refine[id]) ref[id] = s.refine[id];
   const gear = { look: { ...s.equip }, weapon: s.weapon, shield: s.shield || null, refine: ref, meal: s.meal || null, hero: s.hero === 'girl' ? 'girl' : 'boy' };
   if (NET.side === 0 || NET.side === 1) gear.side = NET.side;                  // the side you picked for a team fight
+  if (northAwake(s)) gear.wake = 1;                                            // Fenrir is down: your Nordic gear is at full strength
   return gear;
 }
 function netSendInfo() {
@@ -150,7 +151,7 @@ function netSendInfo() {
 // and no gear from a higher rank. Returns why you can't take it, or null.
 // The pieces you have on that come from a rank above r: what to take off, by name.
 function gearAbove(r, s = G.save) {
-  const out = [], rk = (id, def) => Math.max(rankOf(id), (def && def.rank) || 0);
+  const out = [], rk = (id, def) => def && def.north ? NORTH_TAB : Math.max(rankOf(id), (def && def.rank) || 0);   // Nordic gear is a rank above God Rank's
   if (s.weapon && rk(s.weapon, WEAPONS[s.weapon]) > r) out.push(WEAPONS[s.weapon].name);
   if (s.shield && rk(s.shield, SHIELDS[s.shield]) > r) out.push(SHIELDS[s.shield].name);
   for (const sl of SLOTS) { const id = s.equip[sl], P = PIECES[id + ':' + sl]; if (id && rk(id, ARMOR_SETS[id]) > r) out.push(P ? P.name : (ARMOR_SETS[id] || {}).name || id); }
@@ -159,12 +160,16 @@ function gearAbove(r, s = G.save) {
 // Why you can't take a hunt online, in full (with what to do about it), or null. short: a few words for the others' list.
 function netWhyNot(qd, short = false) {
   const s = G.save, qr = qd.rank || 0; if (!s) return null;
-  if (qd.pvp) { const high = gearAbove(qr, s); return !high.length ? null : short ? 'gear too strong' : `This fight allows ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`; }
+  // the gear a hunt or a fight allows: its own rank's and below. Nordic hunts and Nordic fights allow everything, and so
+  // does the Endless Hunt, which is past the end of both sagas.
+  const cap = qd.endless ? NORTH_TAB : northTab(qd);
+  if (qd.pvp) { const high = gearAbove(cap, s); return !high.length ? null : short ? 'gear too strong' : `This fight allows ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`; }
   if ((s.rank || 0) < qr) return short ? `needs ${RANKS[qr].name}` : `This is a ${RANKS[qr].name} hunt, and you haven’t reached ${RANKS[qr].name} yet. Hunt every god and Titan on ${RANKS[(s.rank || 0)].name}, then talk to Kleon.`;
   if (qd.titan && !s.stairs) return short ? 'hasn’t opened the Titans' : 'You haven’t opened the Titans’ hall yet. Hunt every god first; the stairway under the temple opens after that.';
+  if (qd.north && !northOpen(s)) return short ? 'hasn’t found the North' : 'This hunt is in the North, and you haven’t found the way there yet. Slay Typhon, then talk to the stranger at Akros’ gate.';
   const miss = (qd.requires || []).filter(r => !s.cleared[r]);
   if (miss.length) return short ? 'hasn’t unlocked it' : `You haven’t unlocked this hunt yet. Clear ${QUEST_BY_ID[miss[0]] ? `“${QUEST_BY_ID[miss[0]].name}”` : 'the hunts before it'}${miss.length > 1 ? ` (and ${miss.length - 1} more)` : ''} on Kleon’s board first.`;
-  const high = gearAbove(qr, s);
+  const high = gearAbove(cap, s);
   if (high.length) return short ? 'gear too strong' : `Online, a ${RANKS[qr].name} hunt needs ${RANKS[qr].name} gear or lower. Take off: ${high.join(', ')}. Dion in the Forge can swap them.`;
   return null;
 }
@@ -174,7 +179,7 @@ function gearSave(g) {
   for (const sl of SLOTS) look[sl] = g.look && ARMOR_SETS[g.look[sl]] && PIECES[g.look[sl] + ':' + sl] ? g.look[sl] : 'traveler';
   const weapon = WEAPONS[g.weapon] ? g.weapon : 'bronze_sword', shield = g.shield && SHIELDS[g.shield] ? g.shield : null, refine = {};
   if (g.refine) for (const [k, v] of Object.entries(g.refine)) refine[k] = clamp(Math.floor(+v || 0), 0, 5);
-  return { weapon, shield, equip: look, refine, potions: { health: 0, strength: 0, speed: 0 }, meal: g.meal && MEALS[g.meal] ? g.meal : null, hero: g.hero === 'girl' ? 'girl' : 'boy' };
+  return { weapon, shield, equip: look, refine, wake: g.wake === 1, potions: { health: 0, strength: 0, speed: 0 }, meal: g.meal && MEALS[g.meal] ? g.meal : null, hero: g.hero === 'girl' ? 'girl' : 'boy' };
 }
 
 /* ---- messages in ---- */
@@ -283,11 +288,11 @@ function netUi() {
   if (wait) html += `<div class="mp-card mp-post"><span class="muted">${wait}</span></div>`;
   else if (q && q.pv) html += `<div class="mp-card mp-post"><span class="muted">${esc(pvpScore())}</span></div>`;
   else if (G.mode === 'village') {
-    if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}${R.quest ? ` (${RANKS[R.quest.rank || 0].name})` : ''}.</span></div>`;
+    if (R.phase === 'hunt') html += `<div class="mp-card"><span class="muted">The party is out on ${esc(R.quest ? R.quest.name : 'a hunt')}${R.quest ? ` (${qd ? rankLabel(qd) : RANKS[R.quest.rank || 0].name})` : ''}.</span></div>`;
     else if (R.quest) {
       const me = R.members.find(m => m.id === R.me), poster = netPoster(R), mine = poster === R.me, all = R.members.every(m => m.ready || m.id === poster), why = qd && netWhyNot(qd);
       const qr = R.quest.rank || 0;                      // the rank goes first, big, in its own colour: you can't miss which one it is
-      html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qr}">${RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
+      html += `<div class="mp-card mp-post"><div class="mp-rank" data-rank="${qd ? northTab(qd) : qr}">${qd ? rankLabel(qd) : RANKS[qr].name}</div><div class="mp-q"><b>${esc(R.quest.name)}</b></div>
         <div class="mp-who">${R.members.map(m => { const ok = m.ready || m.id === poster, no = !ok && m.id !== R.me && m.why;   // ✓ ready, · not yet, ✗ can't take it (and why)
           return `<span class="${ok ? 'ok' : no ? 'no' : ''}">${ok ? '✓' : no ? '✗' : '·'} ${esc(m.name)}${m.id === R.host ? ' (host)' : ''}${no ? ` <i>${esc(m.why)}</i>` : ''}</span>`; }).join('')}</div>
         ${qd && qd.pvp && qd.mode === 'team' ? pvpSideBox(R) : ''}

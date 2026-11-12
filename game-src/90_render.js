@@ -66,6 +66,7 @@ function drawBossTelegraph(b, S, sx, sy) {
   }
   if (st === 'quake' || st === 'wave' || st === 'confuse') pxRingFlat(sx, sy, 6 + (st === 'quake' ? (1 - b.st / .6) : (1 - b.st / .7)) * 18, blink(16) ? '#ff5a3c' : '#ebc152', 2);
   if (st === 'vanished') { pxEllipse(sx, sy + 1, 7, 3, 'rgba(20,10,30,.55)'); if (blink(6)) pxRingFlat(sx, sy, 8, '#7fe08a', 3); }
+  norseTelegraph(b, S, sx, sy);
 }
 function drawHazards(S) {
   // puddles first, they sit on the floor
@@ -80,7 +81,7 @@ function drawHazards(S) {
     const [sx, sy] = S(h.x, h.y);
     if (h.type === 'circle' && !h.fired) {
       const k = clamp(h.t / h.delay, 0, 1), col = { bolt: '#57c2b0', lob: '#c8b8ff', geyser: '#5aa3c0', curse: '#3f9a8a', soulfire: '#7fe08a', witchfire: '#57c2b0', apple: '#e9c04f', shadow: '#7fe08a', sunfire: '#ffd463',
-        sky: '#9fb8ff', axis: '#e6f2ff', memory: '#c8b8ff', judgment: '#ffd463', stone: '#c9a46b', etna: '#ff8a2b' }[h.kind] || '#ff5a3c';
+        sky: '#9fb8ff', axis: '#e6f2ff', memory: '#c8b8ff', judgment: '#ffd463', stone: '#c9a46b', etna: '#ff8a2b', amber: '#ffb347', runefire: '#9fd0ff', lokistab: '#7fe08a' }[h.kind] || '#ff5a3c';
       if (h.kind === 'star') { const tw = blink(10) ? 3 : 2; ctx.fillStyle = '#ffffff'; ctx.fillRect(sx - tw, sy - 6, tw * 2 + 1, 1); ctx.fillRect(sx, sy - 6 - tw, 1, tw * 2 + 1); pxRingFlat(sx, sy, 5, '#9fd0ff', 2); continue; }
       const fill = h.kind === 'lob' ? 'rgba(154,107,192,.25)' : h.kind === 'bolt' || h.kind === 'axis' ? 'rgba(87,194,176,.3)' : h.kind === 'sky' ? 'rgba(80,100,200,.3)' : h.kind === 'judgment' ? 'rgba(233,192,79,.3)' : 'rgba(217,73,59,.3)';
       pxEllipse(sx, sy, Math.round(h.r * k), Math.round(h.r * k * .6), fill);
@@ -166,6 +167,7 @@ function renderQuest0() {
     else if (f.t === 'spear') { const [sx, sy] = S(f.x, f.y); ctx.globalAlpha = clamp(f.life / f.max * 2, 0, 1); pxLine(sx, sy - 15, sx, sy - 2, f.col || '#8a5a34'); pxLine(sx, sy - 2, sx, sy + 1, '#c7ccd1'); ctx.globalAlpha = 1; }
     else if (f.t === 'zap') { const [ax, ay] = S(f.x0, f.y0), [bx, by] = S(f.x1, f.y1); jagged(ax, ay, bx, by, '#ffffff', 4, 6, f.seed); jagged(ax, ay + 1, bx, by + 1, '#57c2b0', 4, 6, f.seed + 3); }
     else if (f.t === 'beamfx') { const [sx, sy] = S(f.x, f.y); ctx.globalAlpha = clamp(f.life / f.max * 2, 0, 1); for (let o = -1; o <= 1; o++) pxLine(sx, sy + o, sx + Math.cos(f.a) * f.len, sy + o + Math.sin(f.a) * f.len, o ? f.c : '#ffffff'); ctx.globalAlpha = 1; }
+    else if (FX_DRAW[f.t]) FX_DRAW[f.t](f, S);
   }
   for (const pr of q.projs) drawProj(pr, S);
   proDraw(S);
@@ -202,6 +204,7 @@ function drawWeather(S) {
     g.addColorStop(0, 'rgba(8,10,30,.05)'); g.addColorStop(1, 'rgba(8,10,30,.5)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
+  if (q.ragnarok) drawRagnarok(S);                         // Fenrir has swallowed the sun (91_norse_render.js)
 }
 function drawBeam(b, S) {
   const P = b.cur.p1, [sx, sy] = S(b.x, b.y - 8), a = b.beam.a, len = P.len, col = P.col || '#ffd463';
@@ -287,6 +290,7 @@ function drawPlayer(p, S) {
   if (shDraw && shDraw.front) drawShield(sh, shDraw.cx, shDraw.cy, shDraw.rx, shDraw.ry, shDraw.flash, shDraw.glow);
   if (p.fx && (p.fx.str > 0 || p.fx.spd > 0) && Math.random() < .2) sc.parts.push({ x: p.x + rand(-5, 5), y: p.y - rand(2, 14), vx: 0, vy: -16, g: 0, life: .35, max: .35, c: p.fx.str > 0 ? '#e9a030' : '#57c2b0', s: 1 });
   if (p.aegisT > 0) { pxRing(sx, sy - 9, 12, blink(16) ? '#ebc152' : '#5b9bd5'); pxRing(sx, sy - 9, 13, '#fff6d8', 3); }
+  if (p.st && p.st.perks.ravens) drawRavens(p, sx, sy);        // the Allfather's set (91_norse_render.js)
   const top = sy - 26 - bob, F = p.fx || {};
   if (F.charm > 0) for (let i = 0; i < 2; i++) { const a = G.time * 4 + i * 3.1, x = Math.round(sx + Math.cos(a) * 6), y = Math.round(top + Math.sin(a) * 2); ctx.fillStyle = '#f2a7c0'; ctx.fillRect(x - 1, y, 1, 1); ctx.fillRect(x + 1, y, 1, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1); }
   if (F.confuse > 0) for (let i = 0; i < 3; i++) { const a = -G.time * 5 + i * 2.1; ctx.fillStyle = '#9a6bc0'; ctx.fillRect(Math.round(sx + Math.cos(a) * 6), Math.round(top + 2 + Math.sin(a) * 1.5), 1, 1); }
@@ -310,7 +314,7 @@ function weaponTint(id) {
   return r ? mixHex(c || '#c7ccd1', RANK_TINT[r].trim, .55) : c;
 }
 function drawWeapon(p, hx, hy) {
-  if (p.dodgeT > 0 || tridentOut(p)) return;
+  if (tridentOut(p)) return;                                // (it used to vanish for the length of a dash, too)
   const w = p.st.weapon, fullId = (p.save || G.save).weapon, id = baseId(fullId), kind = w.kind, K = KINDS[kind];
   let ang = p.face, ext = 0, trail = null;
   if (p.swing) {
@@ -442,6 +446,7 @@ function drawHeld(god, hx, hy, flip, raised) {
     case 'torches': for (const o of [-6, 6]) { pxLine(hx + o * d * .5 - 3 * d, hy + 4, hx + o * d * .5 - 3 * d, hy - 6 + up, '#5a3a22'); flame(hx + o * d * .5 - 3 * d, hy - 6 + up, 3, 4, o + 3); const R = mulberry(Math.floor(G.time * 10) + o); ctx.fillStyle = R() < .5 ? col : '#c8b8ff'; ctx.fillRect(hx + o * d * .5 - 3 * d, hy - 9 + up - Math.floor(R() * 3), 1, 2); } break;
     case 'apple': pxEllipse(hx, hy - 2 + up, 2, 2, '#140d0b'); pxEllipse(hx, hy - 2 + up, 1, 1, col); ctx.fillStyle = '#fff6d8'; ctx.fillRect(hx - 1, hy - 3 + up, 1, 1); break;
     case 'mirror': pxEllipse(hx, hy - 4 + up, 2, 3, '#140d0b'); pxEllipse(hx, hy - 4 + up, 1, 2, '#e6f2ff'); pxLine(hx, hy - 1 + up, hx, hy + 2 + up, col); break;
+    default: if (HELD_ART[kind]) HELD_ART[kind](hx, hy, d, up, col);   // the North's (91_norse_render.js)
   }
 }
 function drawBoss(b, sx, sy) {
@@ -479,7 +484,8 @@ function drawBoss(b, sx, sy) {
     if (P3) { pxRing(sx, sy - hover - 12, 14 + Math.sin(G.time * 6) * 2, blink(10) ? '#ffd463' : '#57c2b0', 2); if (!tint && blink(5)) tint = 'gold'; }
     drawSpr(RF('zeus'), 0, sx, sy - hover, b.flip, tint, b.alpha);
     if (b.phase >= 2 && Math.random() < (P3 ? .6 : .3)) sc.parts.push({ x: b.x + rand(-10, 10), y: b.y - rand(10, 28) - hover, vx: rand(-20, 20), vy: rand(-20, 10), g: 0, life: .2, max: .2, c: P3 ? '#ffd463' : '#57c2b0', s: 1 });
-  } else {
+  } else if (BOSS_DRAW[b.type]) { if (!b.hidden) BOSS_DRAW[b.type](b, sx, sy, tint); }   // Fenrir (91_norse_render.js)
+  else {
     if (b.hidden) return;
     const lift = Math.round(b.z || 0), moving = b.state === 'idle' && Math.hypot(b.vx, b.vy) > 5;
     const fi = moving ? Math.floor(b.walkT * 6) % 2 : 0, crouch = b.state === 'leapAim' ? 2 : 0;
@@ -523,6 +529,7 @@ function drawProj(pr, S) {
     }
     case 'godweapon': drawThrown(pr.weapon, sx, y, a, pr.t); break;
     case 'trident': {                                       // Poseidon's trident, thrown: a gold shaft, three teal prongs, and a trail of drops
+      if (pr.hammer) { drawHammerProj(pr, sx, y); break; }   // Mjölnir flies the same way (91_norse_render.js)
       const dx = pr.ret ? -ca : ca, dy = pr.ret ? -sa : sa;   // it comes home shaft first, ready to catch
       const x0 = sx - dx * 10, y0 = y - dy * 10, x1 = sx + dx * 6, y1 = y + dy * 6, nx = -dy, ny = dx, tip = (o, l) => [x1 + nx * o + dx * l, y1 + ny * o + dy * l];   // the size it is in the player's hand: 20 long, 5 wide
       const head = pr.ca || '#57c2b0';
@@ -548,6 +555,7 @@ function drawProj(pr, S) {
     case 'crescent': for (let k = -1.2; k <= 1.2; k += .1) { const px = sx + Math.cos(a + k) * 7 - ca * 4, py = y + Math.sin(a + k) * 7 - sa * 4; ctx.fillStyle = Math.abs(k) > .9 ? '#ffd463' : '#ffffff'; ctx.fillRect(Math.round(px), Math.round(py), 1, 1); } break;
     case 'piercer': pxLine(sx - ca * 10, y - sa * 10, sx, y, '#ffffff'); pxLine(sx - ca * 10, y - sa * 10 + 1, sx, y + 1, '#ffd463'); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(sx + ca), Math.round(y + sa), 2, 2); break;
     default: {
+      if (PROJ_DRAW[pr.kind]) { PROJ_DRAW[pr.kind](pr, sx, y, a, sy); break; }   // the North's (91_norse_render.js)
       const [c1, c2] = PROJ_COL[pr.kind] || ['#ff5a3c', '#ffd463'], big = pr.kind === 'soul' || pr.kind === 'dream' || pr.kind === 'witchfire' || pr.kind === 'typhonfire';
       pxEllipse(sx, y, big ? 3 : 2, big ? 3 : 2, '#140d0b'); pxEllipse(sx, y, big ? 2 : 1, big ? 2 : 1, Math.floor(pr.t * 12) % 2 ? c1 : c2);
       if (big && Math.random() < .3) sc.parts.push({ x: pr.x, y: pr.y - 6, vx: 0, vy: -10, g: 0, life: .25, max: .25, c: c1, s: 1 });
@@ -664,6 +672,7 @@ function drawColiseum(b, sx, sy, W, H, t) {
   }
 }
 function renderVillage() {
+  if (G.cutscene && CUTSCENE_DRAW[G.cutscene.kind]) { CUTSCENE_DRAW[G.cutscene.kind](G.cutscene); return; }   // the voyage north (85_vindheim.js)
   const [cx, cy] = camOffset();
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.drawImage(V.ground, -cx, -cy);
@@ -677,7 +686,7 @@ function renderVillage() {
   for (const b of V.buildings) list.push({ y: b.box.y + b.box.h, draw: () => { const [sx, sy] = S(b.box.x, b.box.y); drawBuilding(b, sx, sy); } });
   for (const o of V.props) list.push({ y: o.y + o.h / 2, draw: () => { const [sx, sy] = S(o.x, o.y); drawObstacle(o, sx, sy + o.h / 2); } });
   for (const n of V.npcs) list.push({ y: n.y, draw: () => {
-    const [sx, sy] = S(n.x, n.y); drawSpr(n.sprite, 0, sx, sy, n.flip);
+    const [sx, sy] = S(n.x, n.y); drawSpr(n.sprite, n.moving ? Math.floor(n.walkT * 8) % 2 : 0, sx, sy, n.flip);   // someone walking in (Sigrun at the gate)
     if (n.id === 'herald' && heraldNews()) { const by = sy - 24 - (Math.floor(G.time * 3) % 2); ctx.fillStyle = OUTLINE; ctx.fillRect(sx - 2, by - 8, 5, 12); ctx.fillStyle = '#ebc152'; ctx.fillRect(sx - 1, by - 7, 3, 6); ctx.fillRect(sx - 1, by + 1, 3, 2); }
   } });
   V.player.sitting = !!V.seat;                                  // someone on a stool is drawn over it
@@ -766,7 +775,8 @@ function hudMode(m) {
   for (const k in hudCache) delete hudCache[k];
   $('qhud').hidden = m !== 'quest'; $('vhud').hidden = m !== 'village'; $('hint').hidden = true; $('hint').classList.remove('tut'); $('goal').hidden = true;
   const r = m === 'quest' && q ? q.def.rank : G.save ? G.save.rank : 0, tag = $(m === 'quest' ? 'hudRank' : 'vRank');
-  if (tag) { tag.hidden = !r; tag.dataset.rank = r; tag.textContent = r ? RANKS[r].name : ''; }
+  const nordic = m === 'quest' && q && northTab(q.def) === NORTH_TAB;         // a hunt in the North shows its own rank, in ice blue
+  if (tag) { tag.hidden = !r; tag.dataset.rank = nordic ? NORTH_TAB : r; tag.textContent = nordic ? NORDIC_NAME : r ? RANKS[r].name : ''; }
   $('prompt').hidden = true; $('dialog').hidden = true; $('banner').hidden = true;
   $('tAttack').textContent = m === 'village' ? 'Use' : 'Attack';
   const st = G.save ? playerStats() : null;

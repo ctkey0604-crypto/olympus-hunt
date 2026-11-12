@@ -502,6 +502,7 @@ const BOSS_AI = {
         b.vx = b.vy = 0; b.st -= dt; b.reflectT = b.st;
         if (b.st <= 0) { b.reflectT = 0; b.state = 'recover'; b.st = .3; }
         break;
+      default: if (NORSE_STATES[b.state]) NORSE_STATES[b.state](b, dt, c, P, dm);   // the North's own moves (76_norse_ai.js)
     }
     bossContact(b, dm(d.contact));
   },
@@ -531,6 +532,7 @@ function startBossAttack(b, c) {
     case 'vanish': b.state = 'vanishOut'; b.st = .4; Sound.play('dodge'); break;
     case 'stampede': b.state = 'stampede'; b.st = .5; break;
     case 'reflect': b.state = 'reflect'; b.st = P.time; Sound.play('perfect'); break;
+    default: if (NORSE_MOVES[id]) NORSE_MOVES[id](b, c, P);
   }
 }
 function updateBoss(b, dt) {

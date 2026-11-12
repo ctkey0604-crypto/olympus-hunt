@@ -186,6 +186,8 @@ kbd{font-family:var(--font-ui);font-size:.82rem;color:var(--gold);background:#00
 .chip.short{color:var(--bone-dim)}
 .chip.short b{color:var(--blood)}
 .qdetail{background:var(--glaze-2);padding:18px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);display:grid;gap:14px;align-content:start}
+/* beside a long list the hunt you picked stays in view as you scroll, so Depart is never off the screen */
+@media (min-width:761px){.qdetail{position:sticky;top:8px;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);overflow-y:auto}}
 .qdetail h3{margin:0;font-family:var(--font-display);font-weight:400;font-size:2.3rem;line-height:.95;letter-spacing:.02em}
 .qdetail p{margin:0;max-width:60ch}
 .facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;background:#000}
@@ -464,6 +466,20 @@ textarea:focus{outline:2px solid var(--gold)}
 .board-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .qcard[data-rank="1"].sel{box-shadow:0 0 0 2px #000,inset 4px 0 0 #e2603f}
 .qcard[data-rank="2"].sel{box-shadow:0 0 0 2px #000,inset 4px 0 0 #b48cff}
+/* Nordic Rank (1.1): ice blue where the other ranks have their colours */
+.rank-tag[data-rank="3"]{color:#9fd0ff}
+.mp-rank[data-rank="3"]{background:#5b9bd5;color:#0d1a2a}
+.seg button[data-rank="3"][aria-pressed="true"]{background:#5b9bd5}
+.qcard[data-rank="3"].sel{box-shadow:0 0 0 2px #000,inset 4px 0 0 #9fd0ff}
+.gear .rk[data-rank="3"]{color:#9fd0ff}
+.map-box{display:flex;justify-content:center}
+#mapCanvas{display:block;width:min(100%,960px,calc((100vh - 250px) * 16 / 9));width:min(100%,960px,calc((100dvh - 250px) * 16 / 9));height:auto;image-rendering:pixelated;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);touch-action:manipulation}
+#mapCanvas:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+.map-tip{text-align:center;margin:12px 0 0}
+.voyaging #vhud{visibility:hidden}
+.sell-btns{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.warn-soft{color:#e9c04f}
+.credits-roll .thanks-sub{margin-top:10px;font-family:var(--font-display);font-size:1.5rem;color:var(--bone-dim)}
 .rank.titans{color:#c9a0ff}
 .rank.titans.final{color:#ff8a2b}
 /* the end credits */
@@ -538,6 +554,7 @@ body.touch .keys-only,body.touch .pot kbd{display:none!important}
   .qlist{gap:5px}
   .qcard{padding:7px 10px;gap:2px 8px}
   .qdetail{padding:12px;gap:9px;position:sticky;top:0;max-height:calc(100vh - 24px);overflow-y:auto}
+  #mapCanvas{width:min(100%,960px,calc((100vh - 140px) * 16 / 9));width:min(100%,960px,calc((100dvh - 140px) * 16 / 9))}   /* the header is one short row here, so the map can be taller */
   .qdetail h3{font-size:1.7rem}
   .facts div{padding:5px 8px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
