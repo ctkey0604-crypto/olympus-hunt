@@ -126,14 +126,14 @@ function buildHall() {
 function buildVillage() {
   const buildings = BUILDINGS.map(b => ({ ...b, box: { x: b.x * TILE, y: b.y * TILE, w: b.w * TILE, h: b.h * TILE } }));
   const props = VILLAGE_PROPS.map(([k, tx, ty, v]) => mkObstacle(k, tx, ty, v));
-  const layers = genLayers('village', null, { gate: { x: VILLAGE_MID - 1, y: VILLAGE_H - 3, w: 3 }, gateRoad: true });
+  const gate = { x: VILLAGE_MID - 1, y: VILLAGE_H - 3, w: 3 }, layers = genLayers('village', null, { gate, gateRoad: true });   // gate.clean, gate.at: for the doors opening
   const npcs = NPCS.map(n => ({ ...n, x: tc(n.tx), y: tc(n.ty), r: 4, flip: n.tx > VILLAGE_MID, walkT: 0, moving: false, talkT: 0 }));
   const spots = [];
   for (const b of buildings) {
     spots.push({ id: b.id + '_door', name: /^(The |Your |\S+’s )/.test(b.name) ? b.name : 'the ' + b.name, kind: 'door', goes: b.goes, ...doorAt(b) });
   }
   return { id: 'village', name: 'Akros', theme: 'village', world: makeWorld([...buildings.map(b => b.box), ...props.filter(o => o.kind !== 'gatedoors').map(o => o.box), { x: (VILLAGE_MID - 1) * TILE, y: IPX.maxY - 6, w: 3 * TILE, h: 6 }]),
-           ground: layers.ground, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
+           ground: layers.ground, gate, gateK: 0, buildings, props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
 // Inside the temple: the twelve gods along the back wall, the side-hunt gods along the walls, Hestia's hearth in the middle.
 function buildTemple() {

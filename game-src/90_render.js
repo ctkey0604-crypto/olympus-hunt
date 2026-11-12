@@ -679,6 +679,7 @@ function renderVillage() {
   const S = (x, y) => [Math.round(x - cx), Math.round(y - cy)];
   if (V.id === 'temple') drawStairs(S, G.save.stairs ? 1 : G.cutscene ? G.cutscene.open || 0 : 0, true);
   if (V.id === 'hall') drawStairs(S, 1, false);
+  if (V.id === 'village') drawAkrosGate(cx, cy);                // the gate swinging open for Sigrun (85_vindheim.js)
   const shadow = (x, y, rx) => { const [sx, sy] = S(x, y); pxEllipse(sx, sy + 1, rx, Math.max(1, Math.round(rx / 2.6)), 'rgba(0,0,0,.3)'); };
   for (const n of V.npcs) shadow(n.x, n.y, 4);
   shadow(V.player.x, V.player.y, 5);

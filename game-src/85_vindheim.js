@@ -19,6 +19,7 @@ function sigrunAkros() {
 // Every time you walk into Akros: Sigrun is there until you've sailed with her, and the gate is a way out once you know.
 function northAkros(P) {
   const s = G.save;
+  P.gateK = 0;                                                 // the gate is shut whenever you come in
   P.npcs = P.npcs.filter(n => n.id !== 'sigrun');
   if (s.north >= 1 && s.north < 3 && !(G.cutscene && G.cutscene.kind === 'stranger')) P.npcs.push(sigrunAkros());
   P.spots = P.spots.filter(sp => sp.id !== 'harbor');
@@ -288,26 +289,40 @@ function drawVoyage(cs) {
   ctx.drawImage(vignette, 0, 0);
   if (t > 1.2) { const w = pixelText(touchMode ? 'TAP TO SKIP' : 'PRESS ' + codeLabel(Input.bind.guard[0]).toUpperCase() + ' TO SKIP', '#c2b293', tagGlyph); ctx.globalAlpha = .7; ctx.drawImage(w, W - w.width - 6, H - 12); ctx.globalAlpha = 1; }
 }
-// Sigrun walks in through Akros' gate and stops just inside it.
+// Sigrun walks up to Akros' gate, pushes its doors open, comes through and stops just inside it. The doors swing shut
+// behind her. V.gateK is how far open they are (0 shut, as painted into the ground; drawn by drawAkrosGate).
 function tickStranger(cs, dt) {
-  cs.t += dt; const n = cs.npc, at = sigrunSpot(), p = V.player, sp = 32 * dt;
+  cs.t += dt; const n = cs.npc, at = sigrunSpot(), p = V.player, sp = 32 * dt, g = V.gate && V.gate.at;
+  if (!g) cs.opened = true;
   const tx = clamp((n.x + p.x) / 2 - VIEW_W / 2, 0, WORLD_W - VIEW_W), ty = clamp((n.y + p.y) / 2 - 10 - VIEW_H / 2, 0, WORLD_H - VIEW_H);
   G.cam.x += (tx - G.cam.x) * Math.min(1, dt * 3); G.cam.y += (ty - G.cam.y) * Math.min(1, dt * 3);
-  // up the road and through the gate, then a step to the side of it
+  // up the road to the doors, open them, through the gate, then a step to the side of it
   n.moving = false;
   if (cs.t > .8) {
-    if (n.y > at.y) { n.y = Math.max(at.y, n.y - sp); n.moving = true; }
+    const stop = cs.opened ? at.y : Math.max(at.y, g.by + 12);
+    if (n.y > stop) { n.y = Math.max(stop, n.y - sp); n.moving = true; }
+    else if (!cs.opened) { if (!cs.push) { cs.push = true; Sound.play('door'); } V.gateK = Math.min(1, (V.gateK || 0) + dt / .8); if (V.gateK >= 1) cs.opened = true; }
     else if (n.x > at.x) { n.x = Math.max(at.x, n.x - sp); n.moving = true; n.flip = true; }
     else n.flip = false;
     if (n.moving) n.walkT += dt;
   }
+  if (g && cs.opened && n.y < g.y0 - 8 && V.gateK > 0) {         // she's through: the doors swing shut
+    if (!cs.shut) { cs.shut = true; Sound.play('door'); }
+    V.gateK = Math.max(0, V.gateK - dt / .8);
+  }
   p.face = Math.atan2(n.y - p.y, n.x - p.x);                   // you watch her come in
-  if (cs.t > .6 && !cs.b1) { cs.b1 = true; banner('A stranger at the gate', 'She has come a long way to find you', true); Sound.play('door'); }
-  if (cs.t > 1.5 && !n.moving && n.y <= at.y && n.x <= at.x && !cs.done) { cs.done = true; cs.end = cs.t + 1.2; }
+  if (cs.t > .6 && !cs.b1) { cs.b1 = true; banner('A stranger at the gate', 'She has come a long way to find you', true); }
+  if (cs.t > 1.5 && !n.moving && n.y <= at.y && n.x <= at.x && !V.gateK && !cs.done) { cs.done = true; cs.end = cs.t + 1.2; }
   if (cs.done && cs.t > cs.end) {
     G.cutscene = null; G.save.north = 1; persist(true); n.moving = false; n.flip = false; Music.play('akros');
     banner('Sigrun is waiting by the gate', 'Go and talk to her');
   }
+}
+// Akros' gate while it stands open: the passage without its painted doors, then the doors at their angle (40_world.js).
+function drawAkrosGate(cx, cy) {
+  const g = V.gate, a = g && g.at; if (!a || !(V.gateK > 0)) return;
+  ctx.drawImage(g.clean, a.x0 - cx, a.y0 - cy);
+  ctx.save(); ctx.translate(-cx, -cy); drawGateDoors(ctx, a.x0, a.x1, a.by, V.gateK); ctx.restore();
 }
 const NORTH_CUTSCENES = { voyage: tickVoyage, stranger: tickStranger };
 const CUTSCENE_DRAW = { voyage: drawVoyage };
