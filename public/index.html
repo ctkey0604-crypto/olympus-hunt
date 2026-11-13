@@ -5089,7 +5089,7 @@ Object.assign(THEMES, {
 /* ---- props ---- */
 // soft: walk over it. Sizes are the footprint you bump into; the art stands up from the bottom of it.
 Object.assign(OBST, {
-  runestone: { w: 10, h: 6 }, snowpine: { w: 8, h: 6 }, icecrystal: { w: 10, h: 6 }, logpile: { w: 20, h: 8 }, meadbarrel: { w: 10, h: 6 },
+  runestone: { w: 10, h: 6 }, eirstone: { w: 10, h: 6 }, snowpine: { w: 8, h: 6 }, icecrystal: { w: 10, h: 6 }, logpile: { w: 20, h: 8 }, meadbarrel: { w: 10, h: 6 },
   longhouse: { w: 96, h: 40 }, smallhouse: { w: 60, h: 32 }, norsestall: { w: 30, h: 10 }, forgefire: { w: 24, h: 10 }, longship: { w: 8, h: 4, soft: true }, pier: { w: 8, h: 4, soft: true }, rowboat: { w: 8, h: 4, soft: true }, harborlamp: { w: 4, h: 4 },
 });
 for (const k of ['runestone', 'snowpine', 'logpile', 'meadbarrel']) STATIC_PROPS.add(k);
@@ -5106,6 +5106,12 @@ const NORSE_PROPS = {
     const R = mulberry(o.seed); ctx.fillStyle = '#3e3e3a';
     for (let i = 0; i < 4; i++) { const y = sy - 18 + i * 4; ctx.fillRect(sx - 1, y, 1, 3); ctx.fillRect(R() < .5 ? sx : sx - 2, y + (R() < .5 ? 0 : 1), 1, 1); }
     if (onSnow()) { ctx.fillStyle = '#f2f7fb'; ctx.fillRect(sx - 3, sy - 25, 6, 2); ctx.fillRect(sx - 5, sy - 23, 2, 1); }
+  },
+  // Eir's stone in Vindheim: a runestone like the others, with a soft green glow around it (brighter while her blessing is on you).
+  eirstone(o, sx, sy) {
+    const mine = G.save && G.save.blessing && G.save.blessGod === 'eir', pulse = .5 + .5 * Math.sin(G.time * 2.2);
+    pxEllipse(sx, sy - 11, 13 + pulse * 2, 15 + pulse * 2, `rgba(127,224,138,${(mine ? .2 : .1) + pulse * .06})`);
+    NORSE_PROPS.runestone(o, sx, sy);
   },
   // a pine with snow along every tier
   snowpine(o, sx, sy) {
@@ -10567,7 +10573,7 @@ const VIND_W = 40, VIND_H = 30, VIND_IN = { x0: 3, y0: 3, x1: 36, y1: 21 }, VIND
 const VIND_PROPS = [
   ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
   ['statue', 5.5, 7.2, 'heimdall'], ['statue', 8.5, 7.2, 'freyja'], ['statue', 11.5, 7.2, 'tyr'], ['statue', 28.5, 7.2, 'loki'], ['statue', 31.5, 7.2, 'thor'], ['statue', 34.5, 7.2, 'odin'],
-  ['tstatue', 20, 15.8, 'fenrir'], ['runestone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
+  ['tstatue', 20, 15.8, 'fenrir'], ['eirstone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
   ['snowpine', 4, 4], ['snowpine', 36, 4], ['snowpine', 4, 13], ['snowpine', 36.2, 10.6], ['snowpine', 35.6, 20.2], ['snowpine', 4.4, 20.6], ['snowpine', 28.2, 20.6],
   ['logpile', 14, 13.6], ['logpile', 26.4, 19.4], ['meadbarrel', 16.6, 9.8], ['meadbarrel', 34, 13], ['meadbarrel', 28.6, 13.6], ['rock', 31, 18.8], ['stump', 15.4, 20.6],
   ['crate', 27.9, 25.5], ['meadbarrel', 27.3, 25], ['harborlamp', 29, 24.75], ['pier', 19, 24.5], ['rowboat', 17.375, 23.375], ['longship', 25.375, 24.1875],
@@ -10594,7 +10600,7 @@ function buildVindheim() {
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_stall', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 26 });   // talk to Åsa from in front of her stall
   for (const o of props) if (o.kind === 'statue' || o.kind === 'tstatue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
   for (const o of props) if (ROOMS[o.variant]) spots.push({ id: o.variant + '_door', name: ROOMS[o.variant].name.replace(/^The /, 'the '), kind: 'door', goes: o.variant, x: o.x, y: o.box.y + o.box.h + 6 });   // the Mead Hall and the Smithy
-  const stone = props.find(o => o.kind === 'runestone');                       // Eir's stone: the North's Hestia
+  const stone = props.find(o => o.kind === 'eirstone');                        // Eir's stone: the North's Hestia
   if (stone) spots.push({ id: 'eir', name: 'Eir’s stone', kind: 'shrine', opens: 'shrine', title: 'Eir’s Stone', x: stone.x, y: stone.box.y + stone.box.h + 6 });
   return { id: 'vindheim', name: 'Vindheim', theme: 'vindheim', music: 'vindheim', exitTo: null, tick: vindheimTick,
            world: makeWorld([...props.filter(o => !OBST[o.kind].soft).map(o => o.box), ...JETTY_EDGE], JETTY_OPEN, VIND_IN), ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
