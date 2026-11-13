@@ -1186,7 +1186,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   clearBots: () => { G.partyBots = []; }, PARTY_SCALE, botLocal: v => { G.botLocal = !!v; },   // botLocal: your own hunter plays itself (for bot parties)
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
-  damageEnemy, resNextButton, updatePotionBar,
+  damageEnemy, resNextButton, updatePotionBar, moveEntity,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },
   godMode: () => { if (q) { q.player.invuln = 9999; q.player.hp = 1e6; } },
   DEBUG,

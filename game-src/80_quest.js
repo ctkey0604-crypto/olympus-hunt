@@ -44,6 +44,7 @@ function startQuest(id, opts = {}) {
         tokUse: { melee: 0, ranged: 0 }, blessed: !!G.save.blessing, usedBlessing: false, seenBones: false,
         stats: { kills: 0, dealt: 0, taken: 0, perfect: 0 }, timeStop: 0, ghosts: [], mem: null, current: null, onPlayerAct: null,
         hunters: [], partyN: n, actor: null, faints: PARTY_FAINTS };
+  if (s) q.world.nook = { x: s.x, y: s.y, w: s.w, h: s.h, open: false };   // the cache's hollow: shut to monsters until it's found (40_world.js)
   sc = q;
   const mine = roster ? roster.find(r => r.id === NET.me) : null;
   q.player = makeHunter({ local: true, name: Store.user || 'You', hid: mine ? mine.hid : 0 });
@@ -185,6 +186,7 @@ function updateQuestFlow(dt) {
   if (q.phase === 'between') { q.timer -= dt; if (q.timer <= 0) { if (q.nextIsBoss) startBoss(); else startWave(q.waveIdx + 1); } }
   if (q.phase === 'victory' || q.phase === 'defeat') { q.endT -= dt; if (q.endT <= 0) { finishQuest(q.phase === 'victory'); return; } }
   if (q.chest && !q.chest.open && q.hunters.some(p => !p.dead && dist(p, q.chest) < 13)) openChest();
+  const nook = q.world.nook; if (nook && !nook.open && q.hunters.some(p => !p.dead && inNook(nook, p.x, p.y))) nook.open = true;   // found: monsters may follow you in now
 }
 function tickParticles(dt) {
   // moved and pruned in place: the same list every frame, not a new one (less for the browser to clean up)

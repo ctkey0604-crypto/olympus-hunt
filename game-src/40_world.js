@@ -49,9 +49,14 @@ function resolveCircleBox(e, b) {
   }
   const d = Math.sqrt(d2), push = e.r - d; e.x += dx / d * push; e.y += dy / d * push; return true;
 }
+// The hidden cache's hollow in the wall (world.nook, set in startQuest): monsters and gods (anything with a def) treat it
+// as wall until a hunter has found it this hunt (nook.open, 80_quest.js), so they never give the secret away.
+const inNook = (n, x, y) => { const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE); return tx >= n.x && tx < n.x + n.w && ty >= n.y && ty < n.y + n.h; };
 // Moves an entity with collision. Flyers ignore obstacles and only stay inside the arena.
 function moveEntity(e, mx, my, fly = false) {
   let blocked = false;
+  const nook = sc.world.nook, shut = !!(e.def && nook && !nook.open);
+  const solid = (tx, ty) => solidTile(tx, ty) || (shut && tx >= nook.x && tx < nook.x + nook.w && ty >= nook.y && ty < nook.y + nook.h);
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(mx), Math.abs(my)) / 3));
   for (let i = 0; i < steps; i++) {
     e.x += mx / steps; e.y += my / steps;
@@ -61,7 +66,7 @@ function moveEntity(e, mx, my, fly = false) {
     }
     const x0 = Math.floor((e.x - e.r) / TILE), x1 = Math.floor((e.x + e.r) / TILE), y0 = Math.floor((e.y - e.r) / TILE), y1 = Math.floor((e.y + e.r) / TILE);
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++)
-      if (solidTile(tx, ty) && resolveCircleBox(e, { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE })) blocked = true;
+      if (solid(tx, ty) && resolveCircleBox(e, { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE })) blocked = true;
     for (const b of sc.world.boxes) if (resolveCircleBox(e, b)) blocked = true;
   }
   return blocked;
