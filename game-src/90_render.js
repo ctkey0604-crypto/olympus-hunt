@@ -776,7 +776,7 @@ function hudMode(m) {
   for (const k in hudCache) delete hudCache[k];
   $('qhud').hidden = m !== 'quest'; $('vhud').hidden = m !== 'village'; $('hint').hidden = true; $('hint').classList.remove('tut'); $('goal').hidden = true;
   const r = m === 'quest' && q ? q.def.rank : G.save ? G.save.rank : 0, tag = $(m === 'quest' ? 'hudRank' : 'vRank');
-  const nordic = m === 'quest' && q && northTab(q.def) === NORTH_TAB;         // a hunt in the North shows its own rank, in ice blue
+  const nordic = m === 'quest' && q ? northTab(q.def) === NORTH_TAB : playerRankTab(G.save) === NORTH_TAB;   // a hunt in the North, or you once you've sailed north: Nordic Rank, in ice blue
   if (tag) { tag.hidden = !r; tag.dataset.rank = nordic ? NORTH_TAB : r; tag.textContent = nordic ? NORDIC_NAME : r ? RANKS[r].name : ''; }
   $('prompt').hidden = true; $('dialog').hidden = true; $('banner').hidden = true;
   $('tAttack').textContent = m === 'village' ? 'Use' : 'Attack';

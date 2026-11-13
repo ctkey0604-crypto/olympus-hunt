@@ -377,3 +377,6 @@ const SELL_SHARE = .1;
 const NORTH_TAB = 3, NORDIC_NAME = 'Nordic Rank', NORDIC_COL = '#9fd0ff';
 const northTab = d => d && (d.north || d.nordic) ? NORTH_TAB : (d && d.rank) || 0;   // (nordic: a Coliseum fight with Nordic gear allowed, 84_pvp.js)
 const rankLabel = d => northTab(d) === NORTH_TAB ? NORDIC_NAME : RANKS[(d && d.rank) || 0].name;
+// Your own rank as shown in town and on your save: Nordic Rank once you've sailed north (still God Rank underneath).
+const playerRankTab = s => s && (s.rank || 0) >= 2 && s.north >= 3 ? NORTH_TAB : (s && s.rank) || 0;
+const playerRankName = s => { const r = playerRankTab(s); return r === NORTH_TAB ? NORDIC_NAME : RANKS[r].name; };

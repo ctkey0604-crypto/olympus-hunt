@@ -579,7 +579,7 @@ function downed(p = q.player) {
     burst(p.x, p.y - 8, 30, ['#ffd463', '#ff8a2b', '#fff6d8'], 120);
     q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 6, r1: 70, life: .5, max: .5, c: '#ffd463' });
     for (const e of q.enemies) if (targetable(e) && dist(p, e) < 70) { const a = Math.atan2(e.y - p.y, e.x - p.x); e.kbx += Math.cos(a) * 300 * (e.kbRes ?? 1); e.kby += Math.sin(a) * 300 * (e.kbRes ?? 1); if (!e.boss) e.stun = Math.max(e.stun, 1); }
-    banner('Hestia’s blessing', 'You rise again');
+    banner(`${blessGod(G.save)}’s blessing`, 'You rise again');
     return;
   }
   if (q.net === 'guest' || q.pv) { knockDown(p); return; }       // the host decides when the whole party is down

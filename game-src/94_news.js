@@ -2,6 +2,19 @@
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1.2', date: 'November 2026', title: 'Vindheim’s halls',
+    new: [
+      'Vindheim’s longhouse is now the Mead Hall: sit down and order a meal before a hunt. The small house is Brokk’s Smithy, and Brokk works inside now. Both have signs over the door.',
+      'Eir’s stone in Vindheim: the North’s healer gives the same blessing as Hestia, and gets you back up once if you fall.',
+      'In a room: a chime when someone joins, chimes when you send and get a chat message, and you can see when someone is typing.',
+    ],
+    changed: [
+      'Once you’ve sailed north, your rank shows as Nordic Rank in town and on your save.',
+      'The map no longer has a compass on it.',
+    ],
+    fixed: [
+      'Getting a teammate back up online works more reliably: you can stand a little further away, and the one who’s down sees their ring fill.',
+    ] },
   { v: '1.1.1', date: 'November 2026', title: 'The market',
     changed: [
       'Melita and Åsa no longer have a purse: they always have the drachmae for whatever you sell them.',

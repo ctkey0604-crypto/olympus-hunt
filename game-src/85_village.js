@@ -187,7 +187,7 @@ function enterPlace(id, from) {
   if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : id === 'vindheim' ? buildVindheim() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
-  const town = id === 'vindheim' ? 'vindheim' : 'akros'; if (G.save.town !== town) { G.save.town = town; persist(); }   // where Continue brings you back (85_vindheim.js)
+  const town = id === 'vindheim' || (room && room.north) ? 'vindheim' : 'akros'; if (G.save.town !== town) { G.save.town = town; persist(); }   // where Continue brings you back (85_vindheim.js)
   if (id === 'village') northAkros(V);                         // Sigrun at the gate, and the harbor road (85_vindheim.js)
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
@@ -249,7 +249,7 @@ function startInteract(t) {
   else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${TONE_WORD[statueTone(t.god, r)]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
-  else if (t.opens) openPanel(t.opens);
+  else if (t.opens) openPanel(t.opens, t.title || null);
 }
 function openDialog(who, lines, after, face = null) {
   G.dialog = { who, lines, i: 0, chars: 0, after };
@@ -299,13 +299,13 @@ function tickVillage(dt) {
   } else if (V.seat) {                                  // sitting at a tavern table: order something, or move to get up
     const mv = moveVector();
     if (mv.x || mv.y || Input.hit('dodge')) { V.seat = null; villageMove(p, dt); }
-    else { p.moving = false; V.target = { kind: 'order', name: 'a meal', x: p.x, y: p.y }; if (interactPressed()) { Sound.play('click'); openPanel('tavern'); } }
+    else { p.moving = false; V.target = { kind: 'order', name: 'a meal', x: p.x, y: p.y }; if (interactPressed()) { Sound.play('click'); openPanel('tavern', V.id === 'meadhall' ? 'The Mead Hall' : null); } }
   } else {
     villageMove(p, dt);
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
     else if (!V.target && Input.enter && netOn() && netEnterKey()) {}   // Enter: ready up, or depart as host
-    else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id; fadeTo(() => enterPlace('village', from)); Input.endFrame(); return; }
+    else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id, to = V.exitTo === 'vindheim' ? 'vindheim' : 'village'; fadeTo(() => enterPlace(to, from)); Input.endFrame(); return; }
   }
   updateNpcs(dt); netTownTick(dt);
   if (V.tick) V.tick(dt);                                       // a place's own weather (Vindheim's snow)

@@ -15,6 +15,8 @@ Object.assign(THEMES, {
   arena:      { floor: 'rock', base: '#c9b48a', shades: ['#c2ad82', '#d1bd94', '#baa57a', '#d6c39c'], crack: '#a8926c', pebble: '#ab9570',
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
+// Vindheim's Mead Hall and Smithy: the same floors, inside timber walls like the North's halls (41_norse_world.js)
+Object.assign(THEMES, { meadroom: { ...THEMES.tavernroom, ...LONGWALL, frieze: '#9fd0ff' }, smithroom: { ...THEMES.forgeroom, ...LONGWALL, frieze: '#ff8a2b' } });
 // The Coliseum's floor, for practice and for fights between players.
 Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null, dress: (x, R) => paintColiseum(x, R),
   obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14],
@@ -138,6 +140,16 @@ const ROOMS = {
             ['amphora', 3.8, 16.8], ['amphora', 4.8, 17.5], ['crate', 3.8, 18], ['barrel', 31.4, 16.6, 'water'], ['barrel', 30.4, 17.6, 'water'], ['crate', 31.6, 18]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
     spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 190 }, { id: 'dummy2', name: 'practice mode', kind: 'practice', x: 384, y: 162 }, { id: 'dummy3', name: 'practice mode', kind: 'practice', x: 432, y: 162 }, { id: 'fights', name: 'the leaderboards', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
+  // Vindheim's (north: true): you come out into Vindheim, and they count as being in Vindheim (atVindheim, save.town)
+  meadhall: { name: 'The Mead Hall', theme: 'meadroom', sub: 'Sit down and order something for the road', north: true, music: 'vindheim',
+    props: [['counter', 11.5, 4.4, 'tavern'], ['fireplace', 4.8, 3.2], ['meadbarrel', 17.6, 3.6], ['meadbarrel', 19.2, 3.6], ['meadbarrel', 19.2, 5],
+            ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
+            ['logpile', 3.6, 10.2], ['meadbarrel', 20, 10.2]],
+    seats: [[85, 131, 0], [123, 131, Math.PI], [261, 131, 0], [299, 131, Math.PI]],
+    rugs: [[128, 108, 128, 44, '#2b4f7a', '#9fd0ff']] },
+  smithy: { name: 'Brokk’s Smithy', theme: 'smithroom', sub: 'Brokk forges the North’s gear', north: true, music: 'vindheim',
+    props: [['forgefire', 11.5, 3.1], ['anvil', 11.5, 6.4], ['rack', 5, 3.5], ['rack', 7, 3.5], ['logpile', 18.6, 3.8], ['barrel', 5, 9.4, 'water'], ['meadbarrel', 19.2, 9.6]],
+    npcs: [{ id: 'brokk', name: 'Brokk the Smith', sprite: 'brokk', x: 216, y: 114, flip: true, opens: () => openPanel('armory', 'Brokk’s Forge') }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
@@ -152,7 +164,7 @@ function buildRoom(id) {
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
-  return { id, name: D.name, theme: D.theme, sub: D.sub, music: Music.songs['room_' + id] ? 'room_' + id : 'akros', exitTo: 'village',
+  return { id, name: D.name, theme: D.theme, sub: D.sub, music: D.music || (Music.songs['room_' + id] ? 'room_' + id : 'akros'), exitTo: D.north ? 'vindheim' : 'village',
            world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: gate.x, y: gate.y, w: 2, h: 2 }]),
            ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }

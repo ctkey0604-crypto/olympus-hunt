@@ -77,6 +77,9 @@ const Sound = {
       case 'win': [523, 659, 784, 1046].forEach((f, i) => this.tone(f, .25, 'square', .1, 1, i * .12)); break;
       case 'lose': [392, 330, 262].forEach((f, i) => this.tone(f, .35, 'triangle', .16, 1, i * .18)); break;
       case 'click': this.tone(660, .03, 'square', .07); break;
+      case 'join': [523, 659, 784].forEach((f, i) => this.tone(f, .18, 'triangle', .09, 1, i * .08)); break;   // someone joined your room
+      case 'chatSend': this.tone(880, .05, 'sine', .07); this.tone(1175, .06, 'sine', .05, 1, .05); break;      // your chat line went out
+      case 'chatGet': this.tone(1047, .08, 'triangle', .08); this.tone(784, .12, 'triangle', .07, 1, .08); break;   // someone else's came in
       case 'craft': [440, 660, 880].forEach((f, i) => this.tone(f, .12, 'square', .1, 1, i * .07)); this.noise(.2, .2, 2500, 1, 'highpass', .2); break;
       case 'clink': this.tone(1500, .05, 'square', .07, .7); break;
       case 'coin': this.tone(1320, .05, 'square', .08); this.tone(1760, .1, 'triangle', .1, 1, .05); this.tone(2093, .08, 'triangle', .06, 1, .11); break;   // selling at the market
@@ -386,7 +389,7 @@ function newSave() {
   return { v: 3, createdAt: Date.now(), savedAt: Date.now(), playtime: 0, money: START_MONEY, inv: {},
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
-           shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
+           shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false, blessGod: 'hestia',
            rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
            meal: null,                                              // a Tavern meal waiting for the next hunt
@@ -450,7 +453,7 @@ function sanitize(s) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }
   out.hints = { skill: !!(s.hints && s.hints.skill), guard: !!(s.hints && s.hints.guard) };
-  out.blessing = s.blessing === true;
+  out.blessing = s.blessing === true; out.blessGod = s.blessGod === 'eir' ? 'eir' : 'hestia';   // whose blessing it is (Hestia's hearth, or Eir's stone in Vindheim)
   for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);
   // the North (1.1): only after Typhon. Saves from before it start at 0 and see Sigrun arrive the next time they're in Akros.
   out.north = out.cleared[TYPHON_Q] ? clamp(Math.floor(num(s.north, 0)), 0, 3) : 0;

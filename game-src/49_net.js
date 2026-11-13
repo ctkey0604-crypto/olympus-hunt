@@ -198,15 +198,17 @@ function netMessage(data) {
     case 'back': if (q && q.net === 'host') netBack(m.from); break;
     case 'runner': netRunner(m); break;
     case 'hostleft': if (q && q.net === 'guest') netHuntLost('The party leader left the room'); else toast('The party leader left.'); break;
-    case 'chat': netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('click'); break;
+    case 'chat': netTyping(m.from, 0); netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('chatGet'); break;
+    case 'emote': if ('typing' in m) netTyping(m.from, m.typing); break;   // someone's typing in the chat (passed along by the server as is)
     case 'kick': NET.gone.add(m.id); netChatAdd({ sys: `${m.name} was removed from the room.` }); break;
   }
 }
 function netRoom(m) {
   const was = NET.room, reId = NET.reId, held = l => r => (l.away || []).some(a => a.id === r.id); NET.room = m; NET.me = m.me; NET.reId = 0;
   if (reId) netRejoined(m, reId);
+  if (!was && !reId) Sound.play('join');                               // you're in
   if (was && !reId) {                                                // who came and went, for the chat (someone whose place is held hasn't left yet)
-    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) { if (!held(was)(x)) netChatAdd({ sys: `${x.name} joined.` }); else if (q && q.net) netChatAdd({ sys: `${x.name} is back.` }); }
+    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) { if (!held(was)(x)) { netChatAdd({ sys: `${x.name} joined.` }); Sound.play('join'); } else if (q && q.net) netChatAdd({ sys: `${x.name} is back.` }); }
     for (const y of [...was.members, ...(was.away || [])]) if (!m.members.some(x => x.id === y.id) && !held(m)(y) && !NET.gone.delete(y.id)) netChatAdd({ sys: `${y.name} left.` });
   }
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
@@ -322,7 +324,10 @@ function netChatRender() {
   const now = performance.now(), lines = NET.chatOpen ? NET.chat : Settings.data.mpMin ? [] : NET.chat.slice(-CHAT_SHOW).filter(l => now - l.at < CHAT_FADE);
   log.innerHTML = lines.map(l => { const fade = NET.chatOpen ? '' : ` style="animation-delay:${Math.round(CHAT_FADE - 1500 - (now - l.at))}ms"`;   // fades over its last 1.5 s
     return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 6}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
-  log.hidden = !lines.length; log.classList.toggle('open', NET.chatOpen);
+  const T = NET.typing || {}, who = Object.keys(T).filter(id => T[id] > now && +id !== NET.me).map(id => (netMember(+id) || {}).name).filter(Boolean);
+  const typing = who.length ? `<p class="sys typing" style="animation:none">${esc(who.length > 2 ? 'Several people are' : who.join(' and ') + (who.length > 1 ? ' are' : ' is'))} typing…</p>` : '';
+  if (typing && !Settings.data.mpMin) log.innerHTML += typing;
+  log.hidden = !lines.length && !(typing && !Settings.data.mpMin); log.classList.toggle('open', NET.chatOpen);
   if (NET.chatOpen) log.scrollTop = log.scrollHeight;
 }
 function netChatOpen() {
@@ -335,7 +340,21 @@ function netChatOpen() {
   }
   inp.focus();                                                       // already open (you clicked the game): back to typing
 }
+// Typing: while your chat box has words in it the room hears "typing" every few seconds, and "stopped" when you send or close.
+// Someone else's shows for 4 s after their last word.
+function netTyping(id, on) {
+  NET.typing = NET.typing || {};
+  if (on) { NET.typing[id] = performance.now() + 4000; setTimeout(netChatRender, 4100); } else delete NET.typing[id];
+  netChatRender();
+}
+function netTypingOut(on) {
+  if (!netChatOk()) return;
+  const now = performance.now();
+  if (on && now - (NET.typSent || 0) > 2500) { NET.typSent = now; netSend({ t: 'emote', typing: 1 }); }
+  else if (!on && NET.typSent) { NET.typSent = 0; netSend({ t: 'emote', typing: 0 }); }
+}
 function netChatClose() {
+  netTypingOut(false);
   if (!NET.chatOpen) { netChatRender(); return; }
   NET.chatOpen = false; $('mpForm').hidden = true;
   const inp = $('mpInput'); if (document.activeElement === inp) inp.blur();
@@ -343,7 +362,7 @@ function netChatClose() {
 }
 function netChatSend() {
   const inp = $('mpInput'), text = inp.value.replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
-  if (text) netSend({ t: 'chat', text });
+  if (text) { netSend({ t: 'chat', text }); Sound.play('chatSend'); }
   netChatClose();
 }
 setInterval(() => { if (NET.chat.length && !NET.chatOpen) netChatRender(); }, 1000);   // let old lines fade out
@@ -636,7 +655,10 @@ function netDown(m) {
   if (NET.downAt) { const gap = Math.min(.5, (now - NET.downAt) / 1000); NET.gap = NET.gap ? NET.gap * .85 + gap * .15 : gap; }   // how far apart snapshots really arrive
   NET.downAt = now;
   if (m.g) netGlobalsIn(m.g);
-  if (m.h) for (const a of m.h) { if (a[0] === mine) continue; const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now); }
+  if (m.h) for (const a of m.h) {
+    if (a[0] === mine) { if (q.player.downed) q.player.reviveT = a[16] || 0; continue; }   // down: your own ring fills as the host counts the revive
+    const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now);
+  }
   netMirror(m.e, m.ex, q.enemies, (id, d) => {
     const def = d.boss ? BOSSES[d.type] : ENEMIES[d.type]; if (!def) return null;
     const e = { def, kbx: 0, kby: 0, vx: 0, vy: 0, walkT: 0, mirror: true }; return e;

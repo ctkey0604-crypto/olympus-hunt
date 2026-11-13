@@ -22,7 +22,9 @@ const PARTY_SCALE = [null,
 ];
 const PARTY_MAX = 6;
 const partyScale = () => PARTY_SCALE[clamp((q && q.partyN) || 1, 1, PARTY_MAX)];
-const REVIVE_TIME = 3, REVIVE_R = 22;            // stand this close to a downed teammate for this long to get them up
+// Stand this close to a downed teammate for this long to get them up. (30, not 22: online the host sees everyone a moment
+// behind, so standing right beside the body could still read as too far and the ring kept stalling.)
+const REVIVE_TIME = 3, REVIVE_R = 30;
 // Faints. null: no limit, the hunt fails only when everyone is down at once. A number: a shared pool per hunt.
 const PARTY_FAINTS = null;
 // true: a part one hunter picks up goes into every hunter's own haul. false: only the one who grabbed it gets it.

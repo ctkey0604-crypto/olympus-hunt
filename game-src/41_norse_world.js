@@ -171,6 +171,12 @@ function drawLonghouse(o, sx, sy, W, wallH, roofH) {
   // the doorway, warm light inside
   ctx.fillStyle = K; ctx.fillRect(sx - 6, sy - 13, 12, 13); ctx.fillStyle = '#3a2416'; ctx.fillRect(sx - 5, sy - 12, 10, 12);
   ctx.fillStyle = '#c9792a'; ctx.fillRect(sx - 3, sy - 10, 6, 10); ctx.fillStyle = '#ffb347'; ctx.fillRect(sx - 2, sy - 8, 4, 8);
+  if (o.variant) {                                    // a sign beside the door: a mug for the Mead Hall, an anvil for the Smithy
+    const gx = sx - 24, gy = sy - wallH + 2;
+    ctx.fillStyle = K; ctx.fillRect(gx - 1, gy - 1, 16, 12); ctx.fillStyle = '#c09a63'; ctx.fillRect(gx, gy, 14, 10); ctx.fillStyle = '#a07e4c'; ctx.fillRect(gx, gy + 9, 14, 1);
+    if (o.variant === 'meadhall') { ctx.fillStyle = K; ctx.fillRect(gx + 3, gy + 2, 7, 7); ctx.fillRect(gx + 10, gy + 4, 2, 3); ctx.fillStyle = '#8a5a34'; ctx.fillRect(gx + 4, gy + 4, 5, 4); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(gx + 4, gy + 3, 5, 1); }
+    else { ctx.fillStyle = K; ctx.fillRect(gx + 2, gy + 2, 11, 4); ctx.fillRect(gx + 5, gy + 6, 5, 2); ctx.fillRect(gx + 3, gy + 8, 9, 1); ctx.fillStyle = '#6b7078'; ctx.fillRect(gx + 3, gy + 3, 9, 2); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(gx + 3, gy + 3, 9, 1); }
+  }
   // the roof: turf under deep snow, wider at the eaves
   for (let y = 0; y <= roofH; y++) {
     const k = y / roofH, ins = Math.round((1 - k) * 12), x0 = sx - half - 4 + ins, x1 = sx + half + 4 - ins;

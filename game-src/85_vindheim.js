@@ -6,7 +6,7 @@
 // save.north: 0 nothing yet · 1 Sigrun waits at Akros' gate · 2 she has told you (the map is open) · 3 you have sailed north.
 Object.assign(PROP_ART, NORSE_PROPS);
 Object.assign(PANEL_INFO, { map: { title: 'The Map' } });
-const atVindheim = () => !!(V && V.id === 'vindheim');
+const atVindheim = () => !!(V && (V.id === 'vindheim' || (ROOMS[V.id] && ROOMS[V.id].north)));   // (its Mead Hall and Smithy count too)
 
 /* ---- Akros: Sigrun at the gate, and the harbor road ---- */
 // She waits just inside the gate, to the left of it.
@@ -43,7 +43,7 @@ function northToldYou() {
 // 40 x 30 tiles, but the village itself stops at row 21: below it is the harbor, deep enough for the longship to lie in.
 const VIND_W = 40, VIND_H = 30, VIND_IN = { x0: 3, y0: 3, x1: 36, y1: 21 }, VIND_PX = { minX: 48, maxX: 592, minY: 48, maxY: 352 };
 const VIND_PROPS = [
-  ['longhouse', 20, 6.4], ['smallhouse', 7.5, 19.6], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
+  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 19.6, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
   ['statue', 5.5, 7.2, 'heimdall'], ['statue', 8.5, 7.2, 'freyja'], ['statue', 11.5, 7.2, 'tyr'], ['statue', 28.5, 7.2, 'loki'], ['statue', 31.5, 7.2, 'thor'], ['statue', 34.5, 7.2, 'odin'],
   ['tstatue', 20, 15.8, 'fenrir'], ['runestone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
   ['snowpine', 4, 4], ['snowpine', 36, 4], ['snowpine', 4, 13], ['snowpine', 36.2, 10.6], ['snowpine', 35.6, 20.2], ['snowpine', 4.4, 20.6], ['snowpine', 28.2, 20.6],
@@ -60,7 +60,6 @@ const JETTY_LINES = [[362, SHIP_AT.x - 48, SHIP_AT.y - 16], [440, SHIP_AT.x + 40
 const jettyPiles = () => [10, 46, 82, 118, 154].map(d => JETTY.hx0 + d);
 const VIND_NPCS = [
   { id: 'sigrun', name: 'Sigrun', sprite: 'sigrun', tx: 20, ty: 10.4, opens: () => openPanel('quests', 'Hunts in the North') },
-  { id: 'brokk', name: 'Brokk the Smith', sprite: 'brokk', tx: 10, ty: 15.2, opens: () => openPanel('armory', 'Brokk’s Forge') },
   { id: 'asa', name: 'Åsa the Trader', sprite: 'asa', tx: 31, ty: 11.9, behind: true, opens: () => openPanel('market', 'Åsa’s Trading Post') },
 ];
 function buildVindheim() {
@@ -72,6 +71,9 @@ function buildVindheim() {
                  { id: 'dock', name: 'the longship', kind: 'dock', opens: 'map', x: SHIP_AT.x, y: JETTY.hy0 + 6 }];
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_stall', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 26 });   // talk to Åsa from in front of her stall
   for (const o of props) if (o.kind === 'statue' || o.kind === 'tstatue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
+  for (const o of props) if (ROOMS[o.variant]) spots.push({ id: o.variant + '_door', name: ROOMS[o.variant].name.replace(/^The /, 'the '), kind: 'door', goes: o.variant, x: o.x, y: o.box.y + o.box.h + 6 });   // the Mead Hall and the Smithy
+  const stone = props.find(o => o.kind === 'runestone');                       // Eir's stone: the North's Hestia
+  if (stone) spots.push({ id: 'eir', name: 'Eir’s stone', kind: 'shrine', opens: 'shrine', title: 'Eir’s Stone', x: stone.x, y: stone.box.y + stone.box.h + 6 });
   return { id: 'vindheim', name: 'Vindheim', theme: 'vindheim', music: 'vindheim', exitTo: null, tick: vindheimTick,
            world: makeWorld([...props.filter(o => !OBST[o.kind].soft).map(o => o.box), ...JETTY_EDGE], JETTY_OPEN, VIND_IN), ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
@@ -125,11 +127,13 @@ function vindheimTick(dt) {
 }
 function vindheimArrive(p, from) {
   if (from === 'start') { p.x = tc(20); p.y = tc(13.5); p.face = Math.PI / 2; return; }   // back in the game: in the middle of the village
+  const door = V.spots.find(s => s.kind === 'door' && s.goes === from);
+  if (door) { p.x = door.x; p.y = door.y + 6; p.face = Math.PI / 2; return; }            // out of the Mead Hall or the Smithy
   p.x = SHIP_AT.x; p.y = JETTY.hy0 + 9; p.face = Math.PI;                                 // stepping off the ship onto the landing, looking toward the village
 }
 function vindheimBanner(from) {
   if (from === 'ship') banner('Vindheim', G.save.north >= 3 ? 'Sigrun’s village, at the edge of the world' : '');
-  else if (from === 'start') banner('Vindheim', '');
+  else if (from === 'start' || ROOMS[from]) banner('Vindheim', '');
   else banner('Vindheim', 'Back from the hunt');
 }
 // Back into the game (Play, or Continue on a save): the town you were in last. save.town is set as you go (enterPlace).
@@ -222,10 +226,9 @@ function drawMap() {
   for (let i = 0; i < 9; i++) { const fx = 30 + R() * 260, fy = 46 + R() * 22; x.fillStyle = OUTLINE; x.fillRect(fx | 0, fy | 0, 6, 3); x.fillStyle = '#e6f6ff'; x.fillRect((fx + 1) | 0, (fy + 1) | 0, 4, 1); }   // ice floes
   // Greece along the bottom: Akros' island and its neighbours
   blob(66, 148, 36, 14, ['#7a9a48', '#8aa856', '#c9b48e']); blob(150, 164, 20, 8, ['#7a9a48', '#c9b48e']); blob(252, 154, 30, 11, ['#6f9040', '#8aa856', '#c9b48e']); blob(300, 172, 14, 6, ['#7a9a48', '#c9b48e']);
-  // the route between them, a compass, and the longship where you are
+  // the route between them, and the longship where you are
   const [A, B] = MAP_PLACES, hot = mapHover && MAP_PLACES.find(p => p.id === mapHover);
   for (let i = 0; i <= 40; i++) { const k = i / 40, px = lerp(A.x, B.x, k) + Math.sin(k * 6) * 14, py = lerp(A.y, B.y, k); if (i % 2 === 0) { x.fillStyle = hot ? '#ffd463' : '#f3e9d4'; x.fillRect(px | 0, py | 0, 2, 1); } }
-  { const cx = 290, cy = 96; x.fillStyle = '#c9d0dc'; x.fillRect(cx, cy - 9, 1, 19); x.fillRect(cx - 9, cy, 19, 1); x.fillStyle = '#ffd463'; x.fillRect(cx - 1, cy - 9, 3, 4); x.drawImage(pixelText('N', '#ffd463', tagGlyph), cx - 1, cy - 18); }
   for (const P of MAP_PLACES) {
     const on = P === hot, cur = P.id === here, sz = on ? 5 : 3;
     if (on) for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + G.time * 2; x.fillStyle = P.lab; x.fillRect((P.x + Math.cos(a) * 11) | 0, (P.y + Math.sin(a) * 8) | 0, 1, 1); }

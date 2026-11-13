@@ -158,7 +158,7 @@ function slotCard(n, s) {
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
     const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless && !qd.north), cleared = base.filter(qd => s.cleared[qd.id]).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${playerRankTab(s)}">${playerRankName(s)}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -495,11 +495,13 @@ function updatePotionBar(p) {
   setHTML('potionBar', html);
 }
 $('potionBar').addEventListener('pointerdown', ev => { const b = ev.target.closest('[data-pot]'); if (!b || !q || G.paused) return; ev.preventDefault(); drinkPotion(b.dataset.pot); });
+// Hestia's hearth in the temple, or Eir's stone in Vindheim: the same blessing (you hold one at a time), from whichever goddess.
+const blessGod = s => s && s.blessGod === 'eir' ? 'Eir' : 'Hestia';
 function renderShrine() {
-  const s = G.save, cost = offeringCost();
+  const s = G.save, cost = offeringCost(), here = atVindheim() ? 'Eir' : 'Hestia', other = s.blessing && blessGod(s) !== here;
   return `<div class="opts"><div class="opt wide">
-    <p>Make an offering and Hestia saves you once: the next time you fall in a hunt, you get back up with half your health. It lasts until it’s used.</p>
-    <div class="row">${s.blessing ? `<button class="btn" type="button" disabled>Blessing active</button><span class="muted">Hestia is already watching over you.</span>`
+    <p>${here === 'Eir' ? 'Eir is the North’s healer. Make an offering at her stone and she saves you once' : 'Make an offering and Hestia saves you once'}: the next time you fall in a hunt, you get back up with half your health. It lasts until it’s used.</p>
+    <div class="row">${s.blessing ? `<button class="btn" type="button" disabled>Blessing active</button><span class="muted">${other ? `${blessGod(s)}’s blessing is already on you. You can carry one at a time.` : `${here} is already watching over you.`}</span>`
       : `<button class="btn" type="button" data-offer="1" ${s.money >= cost ? '' : 'disabled'}>Make an offering (${fmtMoney(cost)} dr)</button>${s.money >= cost ? '' : '<span class="muted">Not enough drachmae.</span>'}`}</div>
   </div></div>`;
 }
@@ -621,7 +623,7 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.meal) { orderMeal(t.dataset.meal); return; }
   if (t.dataset.offer) {
     const cost = offeringCost(); if (s.blessing || s.money < cost) return;
-    s.money -= cost; s.blessing = true; Sound.play('blessing'); persist(); renderHub(); toast('Hestia will watch over you'); return;
+    s.money -= cost; s.blessing = true; s.blessGod = atVindheim() ? 'eir' : 'hestia'; Sound.play('blessing'); persist(); renderHub(); toast(`${blessGod(s)} will watch over you`); return;
   }
   if (t.dataset.wearset) { const sid = t.dataset.wearset; SLOTS.forEach(sl => { if (s.pieces.includes(sid + ':' + sl)) s.equip[sl] = sid; }); Sound.play('click'); persist(); renderHub(); toast(`Equipped the ${ARMOR_SETS[sid].name} set`); return; }
   if (t.dataset.equip) {
@@ -717,7 +719,7 @@ function finishQuest(win) {
   const notes = [];
   if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue ${d.titan ? 'in the Hall of the Titans' : d.north ? 'in Vindheim' : 'in the Temple of the Gods'} is now ${TONE_WORD[statueTone(d.boss, godRank(d.boss))].toLowerCase().replace('-', ' ')}.`);
   if (win && d.id === FENRIR_Q && s.cleared[FENRIR_Q] === 1) notes.push('You slew Fenrir. The sun still rises over the North, every piece of Nordic gear wakes to full strength, and the statues in Vindheim turn ice blue.');
-  if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
+  if (q.usedBlessing) notes.push(blessGod(s) === 'Eir' ? 'Eir’s blessing was used up. Visit her stone in Vindheim to ask again.' : 'Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Gods.');
   if (win && !readyWas && rankReady()) notes.push('Every god and Titan on this rank has fallen. Kleon the Herald wants a word.');
@@ -807,6 +809,7 @@ document.addEventListener('submit', ev => {
 });
 $('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
 $('mpForm').addEventListener('submit', ev => { ev.preventDefault(); netChatSend(); });
+$('mpInput').addEventListener('input', ev => netTypingOut(!!ev.target.value.trim()));
 $('mpInput').addEventListener('keydown', ev => { if (ev.code === 'Escape') { ev.preventDefault(); ev.stopPropagation(); netChatClose(); } });
 // clicked back into the game with nothing typed: put the chat line away (late enough that a tap on Send still counts)
 $('mpInput').addEventListener('blur', () => setTimeout(() => { if (NET.chatOpen && document.activeElement !== $('mpInput') && !$('mpInput').value.trim()) netChatClose(); }, 200));
