@@ -20,6 +20,9 @@ function startQuest(id, opts = {}) {
   const def = typeof id === 'object' ? id : QUEST_BY_ID[id]; if (!def || (!def.prologue && !def.pvp && !opts.guest && !isUnlocked(def))) return;
   anHit('play'); if (!def.prologue && !def.practice && !def.pvp) anHit('hunt');
   G.rebinding = null;
+  // A room's hunt can start while you're walking out of Akros or out at sea (85_vindheim.js): the trip is called off, so
+  // nothing of it is left running when you come back to town.
+  if (G.cutscene) { G.cutscene = null; document.body.classList.remove('voyaging'); if (V) V.gateK = 0; }
   Music.rankGrit = def.final || def.northFinal ? 3 : def.rank || 0;      // God Rank, Typhon and Fenrir play rougher
   if (def.prologue) Music.play('road'); else if (def.practice || def.pvp) Music.play('room_coliseum'); else if (def.titan) Music.play(def.boss, 0); else if (def.endless) Music.play('typhon', 0); else Music.play(Music.huntTrack(def.god));
   // the party: you, plus bot teammates for testing (G.partyBots). Bigger parties get bigger arenas.
