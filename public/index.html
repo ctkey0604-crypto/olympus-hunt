@@ -4204,9 +4204,14 @@ function resolveCircleBox(e, b) {
   }
   const d = Math.sqrt(d2), push = e.r - d; e.x += dx / d * push; e.y += dy / d * push; return true;
 }
+// The hidden cache's hollow in the wall (world.nook, set in startQuest): monsters and gods (anything with a def) treat it
+// as wall until a hunter has found it this hunt (nook.open, 80_quest.js), so they never give the secret away.
+const inNook = (n, x, y) => { const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE); return tx >= n.x && tx < n.x + n.w && ty >= n.y && ty < n.y + n.h; };
 // Moves an entity with collision. Flyers ignore obstacles and only stay inside the arena.
 function moveEntity(e, mx, my, fly = false) {
   let blocked = false;
+  const nook = sc.world.nook, shut = !!(e.def && nook && !nook.open);
+  const solid = (tx, ty) => solidTile(tx, ty) || (shut && tx >= nook.x && tx < nook.x + nook.w && ty >= nook.y && ty < nook.y + nook.h);
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(mx), Math.abs(my)) / 3));
   for (let i = 0; i < steps; i++) {
     e.x += mx / steps; e.y += my / steps;
@@ -4216,7 +4221,7 @@ function moveEntity(e, mx, my, fly = false) {
     }
     const x0 = Math.floor((e.x - e.r) / TILE), x1 = Math.floor((e.x + e.r) / TILE), y0 = Math.floor((e.y - e.r) / TILE), y1 = Math.floor((e.y + e.r) / TILE);
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++)
-      if (solidTile(tx, ty) && resolveCircleBox(e, { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE })) blocked = true;
+      if (solid(tx, ty) && resolveCircleBox(e, { x: tx * TILE, y: ty * TILE, w: TILE, h: TILE })) blocked = true;
     for (const b of sc.world.boxes) if (resolveCircleBox(e, b)) blocked = true;
   }
   return blocked;
@@ -9316,6 +9321,7 @@ function startQuest(id, opts = {}) {
         tokUse: { melee: 0, ranged: 0 }, blessed: !!G.save.blessing, usedBlessing: false, seenBones: false,
         stats: { kills: 0, dealt: 0, taken: 0, perfect: 0 }, timeStop: 0, ghosts: [], mem: null, current: null, onPlayerAct: null,
         hunters: [], partyN: n, actor: null, faints: PARTY_FAINTS };
+  if (s) q.world.nook = { x: s.x, y: s.y, w: s.w, h: s.h, open: false };   // the cache's hollow: shut to monsters until it's found (40_world.js)
   sc = q;
   const mine = roster ? roster.find(r => r.id === NET.me) : null;
   q.player = makeHunter({ local: true, name: Store.user || 'You', hid: mine ? mine.hid : 0 });
@@ -9457,6 +9463,7 @@ function updateQuestFlow(dt) {
   if (q.phase === 'between') { q.timer -= dt; if (q.timer <= 0) { if (q.nextIsBoss) startBoss(); else startWave(q.waveIdx + 1); } }
   if (q.phase === 'victory' || q.phase === 'defeat') { q.endT -= dt; if (q.endT <= 0) { finishQuest(q.phase === 'victory'); return; } }
   if (q.chest && !q.chest.open && q.hunters.some(p => !p.dead && dist(p, q.chest) < 13)) openChest();
+  const nook = q.world.nook; if (nook && !nook.open && q.hunters.some(p => !p.dead && inNook(nook, p.x, p.y))) nook.open = true;   // found: monsters may follow you in now
 }
 function tickParticles(dt) {
   // moved and pruned in place: the same list every frame, not a new one (less for the browser to clean up)
@@ -14363,7 +14370,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   clearBots: () => { G.partyBots = []; }, PARTY_SCALE, botLocal: v => { G.botLocal = !!v; },   // botLocal: your own hunter plays itself (for bot parties)
   G, q: () => q, V: () => V, startQuest, enterVillage, enterPlace, openPanel, ITEMS, WEAPONS, ARMOR_SETS, PIECES, SHIELDS, QUESTS, BOSSES, ENEMIES, ARENAS,
   playerStats, sanitize, newSave, heroFrames, makeEnemy, makeBoss, isUnlocked, SPR, statueImg, RANKS, TITANS, rid, godRank, rankReady, Input,
-  damageEnemy, resNextButton, updatePotionBar,
+  damageEnemy, resNextButton, updatePotionBar, moveEntity,
   killAll: () => { if (q) q.enemies.forEach(e => { if (e.state !== 'spawn') { e.hidden = false; e.air = false; killEnemy(e, { final: true }); } }); },
   godMode: () => { if (q) { q.player.invuln = 9999; q.player.hp = 1e6; } },
   DEBUG,
