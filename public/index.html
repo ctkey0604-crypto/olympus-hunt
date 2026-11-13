@@ -2278,13 +2278,11 @@ Object.assign(ARENAS, {
 });
 // Gleipnir's reach on Lyngvi, in pixels around the middle of the island: inside the ring of stones.
 const GLEIPNIR = { rx: 112, ry: 68 };
-// Selling parts (Melita and Åsa, 85_vindheim.js). A part sells for a tenth of what the market asks for it: selling a
-// hunt's whole haul then pays about a third of that hunt's reward (a quarter paid as much again as the hunt itself), and
-// the rare parts you'd sell for the most are the ones the forge wants. The traders have a purse that refills as you play:
-// the account server turns away a save whose drachmae jump faster than about 1200 a second of play plus 150,000, so a whole
-// stockpile sold at once must never get near that. 50,000 at most at once, and 200 a second after that, keeps every real
-// save safe with room to spare.
-const SELL_SHARE = .1, PURSE_MAX = 50000, PURSE_RATE = 200;
+// Selling parts (Melita and Åsa, 85_vindheim.js). A part sells for a tenth of what the market asks for it, and the rare
+// parts you'd sell for the most are the ones the forge wants. The traders always have the drachmae (1.1 gave them a purse
+// that refilled as you play; it's gone). A big sale is paid in steps so the account server's check on how fast drachmae
+// climb never turns the save away: Store.room in 30_core.js.
+const SELL_SHARE = .1;
 // To the player the North is a rank of its own, Nordic Rank, after the other three: a tab in the board, the forge, the chest
 // and the market, the tag on its gear, and the rank shown in its hunts and on a room's posting, all in ice blue. Underneath,
 // its hunts and gear are God Rank's (rank 2), so saves, the server's checks and multiplayer needed nothing new.
@@ -3351,7 +3349,7 @@ const Store = {
   },
   forget() {
     for (const n in this.timers) clearTimeout(this.timers[n]);
-    this.token = null; this.user = null; this.remote = null; this.pending = {}; this.timers = {};
+    this.token = null; this.user = null; this.remote = null; this.pending = {}; this.timers = {}; this.base = {};
     try { localStorage.removeItem('olympus-hunt/session'); localStorage.removeItem('olympus-hunt/user'); } catch (e) {}
   },
   // Fetch the account's three saves (used by the save list).
@@ -3378,15 +3376,38 @@ const Store = {
     for (let n = 1; n <= 3; n++) this.delLocal(n);
     this.forget();
   },
+  // Resolves true once the server has taken the save (and remembers what it took: see room), false if it didn't.
   push(n, keepalive = false) {
     clearTimeout(this.timers[n]); this.timers[n] = null;
-    const data = this.pending[n]; if (!data || !this.user) return Promise.resolve();
+    const data = this.pending[n]; if (!data || !this.user) return Promise.resolve(false);
     delete this.pending[n];
-    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(e => {
-      if (e && e.check) { this.refused(e.message); return; }      // the server's save checks said no: sending it again won't help
+    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).then(() => {
+      this.base[n] = { money: data.money || 0, play: data.playtime || 0, created: data.createdAt };
+      return true;
+    }).catch(e => {
+      if (e && e.check) { this.refused(e.message); return false; }      // the server's save checks said no: sending it again won't help
       if (!this.pending[n]) this.pending[n] = data;
       if (!this.timers[n]) this.timers[n] = setTimeout(() => this.push(n), 20000);   // it's safe on this device: keep trying
+      return false;
     });
+  },
+  // The account server turns away a save whose drachmae went up faster than hunting pays: more than 1200 a second of play
+  // since its last copy, plus 150,000 (src/index.js, SAVE_RATE and SAVE_SLACK). Selling a big pile of parts at the market
+  // can do that, so the market asks how much more this game can gain before the next save (with a margin), and when a sale
+  // needs more, it sends the save first (syncNow) and goes on from the server's new copy. Infinity: no account to check it.
+  base: {},
+  room(n, s) {
+    if (!this.user) return Infinity;
+    let b = this.base[n];
+    if (!b && this.remote && this.remote[n] && this.remote[n].save) { const r = this.remote[n].save; b = { money: r.money || 0, play: r.playtime || 0, created: r.createdAt }; }
+    if (!b || b.created !== s.createdAt) return 0;                 // not known yet: send the save first
+    return Math.max(0, Math.max(0, s.playtime - b.play) * 1000 + 120000 - (s.money - b.money));
+  },
+  syncNow(n, data) {
+    if (!this.user) return Promise.resolve(true);
+    data.savedAt = Date.now(); this.writeLocal(n, data);
+    this.pending[n] = JSON.parse(JSON.stringify(data));
+    return this.push(n);
   },
   // Said once per reason: the save stays on this device, the account keeps its last good copy.
   refused(msg) { if (this.refusedMsg === msg) return; this.refusedMsg = msg; if (typeof toast === 'function') toast(msg + ' It’s still saved on this device.', 7000); },
@@ -3467,8 +3488,7 @@ function newSave() {
            loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
            finishTime: 0,                                           // play time, in seconds, when Typhon first fell (the leaderboard tab for it is gone; the server still reads it)
            hero: 'boy',                                             // 'boy' or 'girl', picked in Options
-           north: 0, northEnd: false,                               // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
-           purse: PURSE_MAX, purseAt: 0 };                          // what the traders can pay for parts right now, and the play time it was counted at
+           north: 0, northEnd: false };                             // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
 const heroLook = s => ({ ...s.equip, girl: s.hero === 'girl' });
@@ -3529,7 +3549,7 @@ function sanitize(s) {
   // the North (1.1): only after Typhon. Saves from before it start at 0 and see Sigrun arrive the next time they're in Akros.
   out.north = out.cleared[TYPHON_Q] ? clamp(Math.floor(num(s.north, 0)), 0, 3) : 0;
   out.northEnd = s.northEnd === true && !!out.cleared[FENRIR_Q];
-  out.purse = clamp(num(s.purse, PURSE_MAX), 0, PURSE_MAX); out.purseAt = clamp(num(s.purseAt, out.playtime), 0, out.playtime);
+  // (1.1's traders had a purse, saved as purse and purseAt. The market has none now, so those are left behind.)
   return out;
 }
 
@@ -10751,9 +10771,8 @@ const CUTSCENE_DRAW = { voyage: drawVoyage };
 
 /* ---- trading: buying parts, and selling them ---- */
 // Melita (Akros) and Åsa (Vindheim) both buy any part you carry, for a tenth of what they'd charge you for it. Each has
-// stock from the hunts you've cleared in her part of the world. Their shared purse refills as you play (see PURSE_MAX).
+// stock from the hunts you've cleared in her part of the world. They always have the drachmae: there's no purse.
 const trader = () => atVindheim() ? 'asa' : 'melita';
-function purseNow(s = G.save) { return Math.floor(Math.min(PURSE_MAX, (s.purse || 0) + Math.max(0, s.playtime - (s.purseAt || 0)) * PURSE_RATE)); }
 function sellPrice(id) { return Math.max(1, Math.round(partCost(id) * SELL_SHARE)); }
 // Gear you haven't forged yet that this part goes into (so the sell list can warn you).
 function partWanted(id) {
@@ -10763,25 +10782,33 @@ function partWanted(id) {
   for (const [sid, sh] of Object.entries(SHIELDS)) if (sh.recipe && sh.recipe.items[id] && !s.shields.includes(sid)) return true;
   return false;
 }
-function sellPart(id, n) {
-  const s = G.save, have = s.inv[id] || 0, price = sellPrice(id), purse = purseNow(s), k = Math.min(n, have, Math.floor(purse / price));
-  if (k <= 0) return null;
-  const got = k * price;
-  s.inv[id] = have - k; if (s.inv[id] <= 0) delete s.inv[id];
-  s.money += got; s.purse = purse - got; s.purseAt = s.playtime; persist();
-  return { n: k, got };
+// The account server turns away a save whose drachmae climb faster than hunting pays (Store.room, 30_core.js). A sale
+// bigger than that is paid in steps, sending the save between them; it only stops early if the account can't be reached.
+let selling = false;
+async function sellPart(id, n) {
+  const s = G.save, price = sellPrice(id), want = Math.min(n, s.inv[id] || 0);
+  let left = want, got = 0;
+  while (left > 0 && G.save === s) {
+    let room = Store.room(G.slot, s);
+    if (room < price) { await Store.syncNow(G.slot, s); room = Store.room(G.slot, s); if (room < price || G.save !== s) break; }
+    const k = Math.min(left, Math.floor(room / price), s.inv[id] || 0); if (k <= 0) break;
+    s.inv[id] -= k; if (s.inv[id] <= 0) delete s.inv[id];
+    s.money += k * price; left -= k; got += k * price;
+  }
+  if (got && G.save === s) persist();
+  return { n: want - left, got, left };
 }
 function renderSell() {
-  const s = G.save, who = trader() === 'asa' ? 'Åsa' : 'Melita', purse = purseNow(s);
+  const s = G.save, who = trader() === 'asa' ? 'Åsa' : 'Melita';
   const tabs = chestTabs(), tab = tabs.includes(G.sellTab) ? G.sellTab : tabs[tabs.length - 1]; G.sellTab = tab;
   const ids = Object.keys(ITEMS).filter(id => s.inv[id] > 0 && northTab(ITEMS[id]) === tab).sort((a, b) => ITEMS[a].rarity - ITEMS[b].rarity || ITEMS[a].name.localeCompare(ITEMS[b].name));
   const seg = tabs.length > 1 ? `<div class="board-top"><div class="seg">${tabs.map(r => `<button type="button" data-selltab="${r}" data-rank="${r}" aria-pressed="${tab === r}">${tabName(r)}<span class="n">${Object.keys(s.inv).filter(id => s.inv[id] > 0 && ITEMS[id] && northTab(ITEMS[id]) === r).length}</span></button>`).join('')}</div></div>` : '';
-  const head = `<p class="muted" style="margin:0 0 10px">${who} buys any part for a tenth of what she sells it for. She can pay up to <b class="gold">${fmtMoney(purse)} dr</b> right now${purse < PURSE_MAX ? ', and her purse fills back up as you play' : ''}.</p>`;
+  const head = `<p class="muted" style="margin:0 0 10px">${who} buys any part for a tenth of what she sells it for.</p>`;
   if (!ids.length) return head + seg + `<div class="empty-note">Nothing to sell here. Parts you bring home from hunts show up here.</div>`;
   return head + seg + `<div class="stash shop">${ids.map(id => {
-    const it = ITEMS[id], n = s.inv[id], price = sellPrice(id), want = partWanted(id), all = Math.min(n, Math.floor(purse / price));
+    const it = ITEMS[id], n = s.inv[id], price = sellPrice(id), want = partWanted(id);
     return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>You have ${n}</p>${want ? '<p class="warn-soft">Needed for gear</p>' : ''}</div>
-      <div class="sell-btns"><button class="btn small" type="button" data-sell="${id}:1" ${price > purse ? 'disabled' : ''}>Sell 1 · ${fmtMoney(price)} dr</button>${n > 1 ? `<button class="btn ghost small" type="button" data-sell="${id}:all" ${all < 1 ? 'disabled' : ''}>Sell ${all < n ? all : 'all'} · ${fmtMoney(all * price)} dr</button>` : ''}</div></div>`;
+      <div class="sell-btns"><button class="btn small" type="button" data-sell="${id}:1">Sell 1 · ${fmtMoney(price)} dr</button>${n > 1 ? `<button class="btn ghost small" type="button" data-sell="${id}:all">Sell all · ${fmtMoney(n * price)} dr</button>` : ''}</div></div>`;
   }).join('')}</div>`;
 }
 // The tabs the chest and the sell list use: each rank you've reached, and the North once anything from it is yours.
@@ -10796,10 +10823,14 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.travel) { travelTo(t.dataset.travel); return; }
   if (t.dataset.shoptab) { G.shopTab = t.dataset.shoptab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.selltab) { G.sellTab = +t.dataset.selltab; Sound.play('click'); renderHub(); return; }
-  if (t.dataset.sell) {
-    const [id, n] = t.dataset.sell.split(':'), r = sellPart(id, n === 'all' ? 1e9 : +n || 1);
-    if (!r) { toast((trader() === 'asa' ? 'Åsa' : 'Melita') + ' can’t pay for that right now. Her purse fills back up as you play.'); return; }
-    Sound.play('coin'); renderHub(); toast(`Sold ${r.n > 1 ? r.n + ' × ' : ''}${ITEMS[id].name} for ${fmtMoney(r.got)} dr`);
+  if (t.dataset.sell && !selling) {
+    const [id, n] = t.dataset.sell.split(':'), name = ITEMS[id].name; selling = true;
+    sellPart(id, n === 'all' ? 1e9 : +n || 1).then(r => {
+      selling = false; if (G.mode === 'panel' && G.panel === 'market') renderHub();
+      if (r.n) Sound.play('coin');
+      if (r.left) toast(r.n ? `Sold ${r.n}. Your account can’t be reached right now, so you kept the rest. Try again in a moment.` : 'Your account can’t be reached right now. Try again in a moment.', 6000);
+      else toast(`Sold ${r.n > 1 ? r.n + ' × ' : ''}${name} for ${fmtMoney(r.got)} dr`);
+    }, () => { selling = false; });
   }
 });
 /* ============================== THE ROAD TO AKROS ============================== */
@@ -12702,6 +12733,10 @@ $('forumBody').addEventListener('submit', ev => {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1.1', date: 'November 2026', title: 'The market',
+    changed: [
+      'Melita and Åsa no longer have a purse: they always have the drachmae for whatever you sell them.',
+    ] },
   { v: '1.1', date: 'November 2026', title: 'The North',
     new: [
       'The North: once Typhon has fallen, a stranger walks in through Akros’ gate. Sail north with Sigrun to Vindheim, a village at the edge of the world.',
@@ -14252,7 +14287,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   unlockAll: () => { QUESTS.forEach(qd => { G.save.cleared[qd.id] = G.save.cleared[qd.id] || 1; }); persist(); },
   richer: () => { G.save.money += 100000; for (const id of Object.keys(ITEMS)) G.save.inv[id] = 99; persist(); },
   // the North (1.1)
-  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, sellPart, sellPrice, purseNow, partCost, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
+  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, sellPart, sellPrice, partCost, renderMarket, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
 };
 
 })();
