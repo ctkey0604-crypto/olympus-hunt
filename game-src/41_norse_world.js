@@ -39,7 +39,7 @@ Object.assign(THEMES, {
 /* ---- props ---- */
 // soft: walk over it. Sizes are the footprint you bump into; the art stands up from the bottom of it.
 Object.assign(OBST, {
-  runestone: { w: 10, h: 6 }, snowpine: { w: 8, h: 6 }, icecrystal: { w: 10, h: 6 }, logpile: { w: 20, h: 8 }, meadbarrel: { w: 10, h: 6 },
+  runestone: { w: 10, h: 6 }, eirstone: { w: 10, h: 6 }, snowpine: { w: 8, h: 6 }, icecrystal: { w: 10, h: 6 }, logpile: { w: 20, h: 8 }, meadbarrel: { w: 10, h: 6 },
   longhouse: { w: 96, h: 40 }, smallhouse: { w: 60, h: 32 }, norsestall: { w: 30, h: 10 }, forgefire: { w: 24, h: 10 }, longship: { w: 8, h: 4, soft: true }, pier: { w: 8, h: 4, soft: true }, rowboat: { w: 8, h: 4, soft: true }, harborlamp: { w: 4, h: 4 },
 });
 for (const k of ['runestone', 'snowpine', 'logpile', 'meadbarrel']) STATIC_PROPS.add(k);
@@ -56,6 +56,12 @@ const NORSE_PROPS = {
     const R = mulberry(o.seed); ctx.fillStyle = '#3e3e3a';
     for (let i = 0; i < 4; i++) { const y = sy - 18 + i * 4; ctx.fillRect(sx - 1, y, 1, 3); ctx.fillRect(R() < .5 ? sx : sx - 2, y + (R() < .5 ? 0 : 1), 1, 1); }
     if (onSnow()) { ctx.fillStyle = '#f2f7fb'; ctx.fillRect(sx - 3, sy - 25, 6, 2); ctx.fillRect(sx - 5, sy - 23, 2, 1); }
+  },
+  // Eir's stone in Vindheim: a runestone like the others, with a soft green glow around it (brighter while her blessing is on you).
+  eirstone(o, sx, sy) {
+    const mine = G.save && G.save.blessing && G.save.blessGod === 'eir', pulse = .5 + .5 * Math.sin(G.time * 2.2);
+    pxEllipse(sx, sy - 11, 13 + pulse * 2, 15 + pulse * 2, `rgba(127,224,138,${(mine ? .2 : .1) + pulse * .06})`);
+    NORSE_PROPS.runestone(o, sx, sy);
   },
   // a pine with snow along every tier
   snowpine(o, sx, sy) {
