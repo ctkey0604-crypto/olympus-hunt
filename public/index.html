@@ -2289,6 +2289,9 @@ const SELL_SHARE = .1;
 const NORTH_TAB = 3, NORDIC_NAME = 'Nordic Rank', NORDIC_COL = '#9fd0ff';
 const northTab = d => d && (d.north || d.nordic) ? NORTH_TAB : (d && d.rank) || 0;   // (nordic: a Coliseum fight with Nordic gear allowed, 84_pvp.js)
 const rankLabel = d => northTab(d) === NORTH_TAB ? NORDIC_NAME : RANKS[(d && d.rank) || 0].name;
+// Your own rank as shown in town and on your save: Nordic Rank once you've sailed north (still God Rank underneath).
+const playerRankTab = s => s && (s.rank || 0) >= 2 && s.north >= 3 ? NORTH_TAB : (s && s.rank) || 0;
+const playerRankName = s => { const r = playerRankTab(s); return r === NORTH_TAB ? NORDIC_NAME : RANKS[r].name; };
 /* ============================== FINISH DATA ============================== */
 // Numbers worked out from the tables above, for every rank.
 for (const w of Object.values(WEAPONS)) w.dmg = Math.round(tierW(w.wt) * KINDS[w.kind].dmgM);
@@ -3191,6 +3194,9 @@ const Sound = {
       case 'win': [523, 659, 784, 1046].forEach((f, i) => this.tone(f, .25, 'square', .1, 1, i * .12)); break;
       case 'lose': [392, 330, 262].forEach((f, i) => this.tone(f, .35, 'triangle', .16, 1, i * .18)); break;
       case 'click': this.tone(660, .03, 'square', .07); break;
+      case 'join': [523, 659, 784].forEach((f, i) => this.tone(f, .18, 'triangle', .09, 1, i * .08)); break;   // someone joined your room
+      case 'chatSend': this.tone(880, .05, 'sine', .07); this.tone(1175, .06, 'sine', .05, 1, .05); break;      // your chat line went out
+      case 'chatGet': this.tone(1047, .08, 'triangle', .08); this.tone(784, .12, 'triangle', .07, 1, .08); break;   // someone else's came in
       case 'craft': [440, 660, 880].forEach((f, i) => this.tone(f, .12, 'square', .1, 1, i * .07)); this.noise(.2, .2, 2500, 1, 'highpass', .2); break;
       case 'clink': this.tone(1500, .05, 'square', .07, .7); break;
       case 'coin': this.tone(1320, .05, 'square', .08); this.tone(1760, .1, 'triangle', .1, 1, .05); this.tone(2093, .08, 'triangle', .06, 1, .11); break;   // selling at the market
@@ -3500,7 +3506,7 @@ function newSave() {
   return { v: 3, createdAt: Date.now(), savedAt: Date.now(), playtime: 0, money: START_MONEY, inv: {},
            weapons: ['bronze_sword'], weapon: 'bronze_sword',
            pieces: SLOTS.map(s => 'traveler:' + s), equip: { head: 'traveler', chest: 'traveler', legs: 'traveler', feet: 'traveler' },
-           shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false,
+           shields: [], shield: null, potions: { health: 0, strength: 0, speed: 0 }, cleared: {}, best: {}, chests: {}, seenIntro: false, blessing: false, blessGod: 'hestia',
            rank: 0, stairs: false, seenHall: false, tut: 0, hints: {}, finale: false, refine: {}, typhonTold: false, legend: false,
            endless: { best: 0, last: 0 },                           // the Endless Hunt: best wave reached, and the last run's
            meal: null,                                              // a Tavern meal waiting for the next hunt
@@ -3564,7 +3570,7 @@ function sanitize(s) {
     const n = clamp(Math.floor(num(v, 0)), 0, REFINE_MAX); if (n > 0 && (WEAPONS[k] || ARMOR_SETS[k] || SHIELDS[k])) out.refine[k] = n;
   }
   out.hints = { skill: !!(s.hints && s.hints.skill), guard: !!(s.hints && s.hints.guard) };
-  out.blessing = s.blessing === true;
+  out.blessing = s.blessing === true; out.blessGod = s.blessGod === 'eir' ? 'eir' : 'hestia';   // whose blessing it is (Hestia's hearth, or Eir's stone in Vindheim)
   for (const id of Object.keys(POTIONS)) out.potions[id] = clamp(Math.floor(num(s.potions && s.potions[id], 0)), 0, POTION_MAX);
   // the North (1.1): only after Typhon. Saves from before it start at 0 and see Sigrun arrive the next time they're in Akros.
   out.north = out.cleared[TYPHON_Q] ? clamp(Math.floor(num(s.north, 0)), 0, 3) : 0;
@@ -5215,6 +5221,12 @@ function drawLonghouse(o, sx, sy, W, wallH, roofH) {
   // the doorway, warm light inside
   ctx.fillStyle = K; ctx.fillRect(sx - 6, sy - 13, 12, 13); ctx.fillStyle = '#3a2416'; ctx.fillRect(sx - 5, sy - 12, 10, 12);
   ctx.fillStyle = '#c9792a'; ctx.fillRect(sx - 3, sy - 10, 6, 10); ctx.fillStyle = '#ffb347'; ctx.fillRect(sx - 2, sy - 8, 4, 8);
+  if (o.variant) {                                    // a sign beside the door: a mug for the Mead Hall, an anvil for the Smithy
+    const gx = sx - 24, gy = sy - wallH + 2;
+    ctx.fillStyle = K; ctx.fillRect(gx - 1, gy - 1, 16, 12); ctx.fillStyle = '#c09a63'; ctx.fillRect(gx, gy, 14, 10); ctx.fillStyle = '#a07e4c'; ctx.fillRect(gx, gy + 9, 14, 1);
+    if (o.variant === 'meadhall') { ctx.fillStyle = K; ctx.fillRect(gx + 3, gy + 2, 7, 7); ctx.fillRect(gx + 10, gy + 4, 2, 3); ctx.fillStyle = '#8a5a34'; ctx.fillRect(gx + 4, gy + 4, 5, 4); ctx.fillStyle = '#f3e9d4'; ctx.fillRect(gx + 4, gy + 3, 5, 1); }
+    else { ctx.fillStyle = K; ctx.fillRect(gx + 2, gy + 2, 11, 4); ctx.fillRect(gx + 5, gy + 6, 5, 2); ctx.fillRect(gx + 3, gy + 8, 9, 1); ctx.fillStyle = '#6b7078'; ctx.fillRect(gx + 3, gy + 3, 9, 2); ctx.fillStyle = '#9aa0a6'; ctx.fillRect(gx + 3, gy + 3, 9, 1); }
+  }
   // the roof: turf under deep snow, wider at the eaves
   for (let y = 0; y <= roofH; y++) {
     const k = y / roofH, ins = Math.round((1 - k) * 12), x0 = sx - half - 4 + ins, x1 = sx + half + 4 - ins;
@@ -5328,7 +5340,9 @@ const PARTY_SCALE = [null,
 ];
 const PARTY_MAX = 6;
 const partyScale = () => PARTY_SCALE[clamp((q && q.partyN) || 1, 1, PARTY_MAX)];
-const REVIVE_TIME = 3, REVIVE_R = 22;            // stand this close to a downed teammate for this long to get them up
+// Stand this close to a downed teammate for this long to get them up. (30, not 22: online the host sees everyone a moment
+// behind, so standing right beside the body could still read as too far and the ring kept stalling.)
+const REVIVE_TIME = 3, REVIVE_R = 30;
 // Faints. null: no limit, the hunt fails only when everyone is down at once. A number: a shared pool per hunt.
 const PARTY_FAINTS = null;
 // true: a part one hunter picks up goes into every hunter's own haul. false: only the one who grabbed it gets it.
@@ -5772,15 +5786,17 @@ function netMessage(data) {
     case 'back': if (q && q.net === 'host') netBack(m.from); break;
     case 'runner': netRunner(m); break;
     case 'hostleft': if (q && q.net === 'guest') netHuntLost('The party leader left the room'); else toast('The party leader left.'); break;
-    case 'chat': netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('click'); break;
+    case 'chat': netTyping(m.from, 0); netChatAdd({ from: m.from, name: m.name, text: m.text }); if (m.from !== NET.me) Sound.play('chatGet'); break;
+    case 'emote': if ('typing' in m) netTyping(m.from, m.typing); break;   // someone's typing in the chat (passed along by the server as is)
     case 'kick': NET.gone.add(m.id); netChatAdd({ sys: `${m.name} was removed from the room.` }); break;
   }
 }
 function netRoom(m) {
   const was = NET.room, reId = NET.reId, held = l => r => (l.away || []).some(a => a.id === r.id); NET.room = m; NET.me = m.me; NET.reId = 0;
   if (reId) netRejoined(m, reId);
+  if (!was && !reId) Sound.play('join');                               // you're in
   if (was && !reId) {                                                // who came and went, for the chat (someone whose place is held hasn't left yet)
-    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) { if (!held(was)(x)) netChatAdd({ sys: `${x.name} joined.` }); else if (q && q.net) netChatAdd({ sys: `${x.name} is back.` }); }
+    for (const x of m.members) if (!was.members.some(y => y.id === x.id)) { if (!held(was)(x)) { netChatAdd({ sys: `${x.name} joined.` }); Sound.play('join'); } else if (q && q.net) netChatAdd({ sys: `${x.name} is back.` }); }
     for (const y of [...was.members, ...(was.away || [])]) if (!m.members.some(x => x.id === y.id) && !held(m)(y) && !NET.gone.delete(y.id)) netChatAdd({ sys: `${y.name} left.` });
   }
   for (const id of Object.keys(NET.peers)) if (!m.members.some(x => x.id === +id)) { delete NET.peers[id]; delete NET.peerObj[id]; }
@@ -5896,7 +5912,10 @@ function netChatRender() {
   const now = performance.now(), lines = NET.chatOpen ? NET.chat : Settings.data.mpMin ? [] : NET.chat.slice(-CHAT_SHOW).filter(l => now - l.at < CHAT_FADE);
   log.innerHTML = lines.map(l => { const fade = NET.chatOpen ? '' : ` style="animation-delay:${Math.round(CHAT_FADE - 1500 - (now - l.at))}ms"`;   // fades over its last 1.5 s
     return l.sys ? `<p class="sys"${fade}>${esc(l.sys)}</p>` : `<p${fade}><b class="c${(l.from || 0) % 6}">${esc(l.name)}</b> ${esc(l.text)}</p>`; }).join('');
-  log.hidden = !lines.length; log.classList.toggle('open', NET.chatOpen);
+  const T = NET.typing || {}, who = Object.keys(T).filter(id => T[id] > now && +id !== NET.me).map(id => (netMember(+id) || {}).name).filter(Boolean);
+  const typing = who.length ? `<p class="sys typing" style="animation:none">${esc(who.length > 2 ? 'Several people are' : who.join(' and ') + (who.length > 1 ? ' are' : ' is'))} typing…</p>` : '';
+  if (typing && !Settings.data.mpMin) log.innerHTML += typing;
+  log.hidden = !lines.length && !(typing && !Settings.data.mpMin); log.classList.toggle('open', NET.chatOpen);
   if (NET.chatOpen) log.scrollTop = log.scrollHeight;
 }
 function netChatOpen() {
@@ -5909,7 +5928,21 @@ function netChatOpen() {
   }
   inp.focus();                                                       // already open (you clicked the game): back to typing
 }
+// Typing: while your chat box has words in it the room hears "typing" every few seconds, and "stopped" when you send or close.
+// Someone else's shows for 4 s after their last word.
+function netTyping(id, on) {
+  NET.typing = NET.typing || {};
+  if (on) { NET.typing[id] = performance.now() + 4000; setTimeout(netChatRender, 4100); } else delete NET.typing[id];
+  netChatRender();
+}
+function netTypingOut(on) {
+  if (!netChatOk()) return;
+  const now = performance.now();
+  if (on && now - (NET.typSent || 0) > 2500) { NET.typSent = now; netSend({ t: 'emote', typing: 1 }); }
+  else if (!on && NET.typSent) { NET.typSent = 0; netSend({ t: 'emote', typing: 0 }); }
+}
 function netChatClose() {
+  netTypingOut(false);
   if (!NET.chatOpen) { netChatRender(); return; }
   NET.chatOpen = false; $('mpForm').hidden = true;
   const inp = $('mpInput'); if (document.activeElement === inp) inp.blur();
@@ -5917,7 +5950,7 @@ function netChatClose() {
 }
 function netChatSend() {
   const inp = $('mpInput'), text = inp.value.replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
-  if (text) netSend({ t: 'chat', text });
+  if (text) { netSend({ t: 'chat', text }); Sound.play('chatSend'); }
   netChatClose();
 }
 setInterval(() => { if (NET.chat.length && !NET.chatOpen) netChatRender(); }, 1000);   // let old lines fade out
@@ -6210,7 +6243,10 @@ function netDown(m) {
   if (NET.downAt) { const gap = Math.min(.5, (now - NET.downAt) / 1000); NET.gap = NET.gap ? NET.gap * .85 + gap * .15 : gap; }   // how far apart snapshots really arrive
   NET.downAt = now;
   if (m.g) netGlobalsIn(m.g);
-  if (m.h) for (const a of m.h) { if (a[0] === mine) continue; const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now); }
+  if (m.h) for (const a of m.h) {
+    if (a[0] === mine) { if (q.player.downed) q.player.reviveT = a[16] || 0; continue; }   // down: your own ring fills as the host counts the revive
+    const p = q.hunters[a[0]]; if (p) netApplyHunter(p, a, now);
+  }
   netMirror(m.e, m.ex, q.enemies, (id, d) => {
     const def = d.boss ? BOSSES[d.type] : ENEMIES[d.type]; if (!def) return null;
     const e = { def, kbx: 0, kby: 0, vx: 0, vy: 0, walkT: 0, mirror: true }; return e;
@@ -7025,7 +7061,7 @@ function downed(p = q.player) {
     burst(p.x, p.y - 8, 30, ['#ffd463', '#ff8a2b', '#fff6d8'], 120);
     q.fx.push({ t: 'ring', x: p.x, y: p.y, r0: 6, r1: 70, life: .5, max: .5, c: '#ffd463' });
     for (const e of q.enemies) if (targetable(e) && dist(p, e) < 70) { const a = Math.atan2(e.y - p.y, e.x - p.x); e.kbx += Math.cos(a) * 300 * (e.kbRes ?? 1); e.kby += Math.sin(a) * 300 * (e.kbRes ?? 1); if (!e.boss) e.stun = Math.max(e.stun, 1); }
-    banner('Hestia’s blessing', 'You rise again');
+    banner(`${blessGod(G.save)}’s blessing`, 'You rise again');
     return;
   }
   if (q.net === 'guest' || q.pv) { knockDown(p); return; }       // the host decides when the whole party is down
@@ -9781,6 +9817,8 @@ Object.assign(THEMES, {
   arena:      { floor: 'rock', base: '#c9b48a', shades: ['#c2ad82', '#d1bd94', '#baa57a', '#d6c39c'], crack: '#a8926c', pebble: '#ab9570',
                 border: 'wall', wallBase: '#7d7362', wall: ['#b5a98f', '#a69a80'], wallHi: '#d0c4aa', frieze: '#c0412e' },
 });
+// Vindheim's Mead Hall and Smithy: the same floors, inside timber walls like the North's halls (41_norse_world.js)
+Object.assign(THEMES, { meadroom: { ...THEMES.tavernroom, ...LONGWALL, frieze: '#9fd0ff' }, smithroom: { ...THEMES.forgeroom, ...LONGWALL, frieze: '#ff8a2b' } });
 // The Coliseum's floor, for practice and for fights between players.
 Object.assign(ARENAS, { coliseum: { name: 'The Coliseum', theme: 'arena', wt: 46, ht: 30, secret: null, dress: (x, R) => paintColiseum(x, R),
   obstacles: [['column', 12, 9], ['column', 33, 9], ['column', 12, 20], ['column', 33, 20], ['column', 22, 7], ['column', 23, 22], ['brokencol', 7, 15], ['brokencol', 38, 14],
@@ -9904,6 +9942,16 @@ const ROOMS = {
             ['amphora', 3.8, 16.8], ['amphora', 4.8, 17.5], ['crate', 3.8, 18], ['barrel', 31.4, 16.6, 'water'], ['barrel', 30.4, 17.6, 'water'], ['crate', 31.6, 18]],
     npcs: [{ id: 'arena', name: 'Agon the Arena Master', sprite: 'arena', x: 200, y: 150 }],
     spots: [{ id: 'dummy', name: 'practice mode', kind: 'practice', x: 408, y: 190 }, { id: 'dummy2', name: 'practice mode', kind: 'practice', x: 384, y: 162 }, { id: 'dummy3', name: 'practice mode', kind: 'practice', x: 432, y: 162 }, { id: 'fights', name: 'the leaderboards', kind: 'board', opens: 'pvpboard', x: 288, y: 84 }] },
+  // Vindheim's (north: true): you come out into Vindheim, and they count as being in Vindheim (atVindheim, save.town)
+  meadhall: { name: 'The Mead Hall', theme: 'meadroom', sub: 'Sit down and order something for the road', north: true, music: 'vindheim',
+    props: [['counter', 11.5, 4.4, 'tavern'], ['fireplace', 4.8, 3.2], ['meadbarrel', 17.6, 3.6], ['meadbarrel', 19.2, 3.6], ['meadbarrel', 19.2, 5],
+            ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
+            ['logpile', 3.6, 10.2], ['meadbarrel', 20, 10.2]],
+    seats: [[85, 131, 0], [123, 131, Math.PI], [261, 131, 0], [299, 131, Math.PI]],
+    rugs: [[128, 108, 128, 44, '#2b4f7a', '#9fd0ff']] },
+  smithy: { name: 'Brokk’s Smithy', theme: 'smithroom', sub: 'Brokk forges the North’s gear', north: true, music: 'vindheim',
+    props: [['forgefire', 11.5, 3.1], ['anvil', 11.5, 6.4], ['rack', 5, 3.5], ['rack', 7, 3.5], ['logpile', 18.6, 3.8], ['barrel', 5, 9.4, 'water'], ['meadbarrel', 19.2, 9.6]],
+    npcs: [{ id: 'brokk', name: 'Brokk the Smith', sprite: 'brokk', x: 216, y: 114, flip: true, opens: () => openPanel('armory', 'Brokk’s Forge') }] },
 };
 for (const R of Object.values(ROOMS)) { R.wt = R.wt || 24; R.ht = R.ht || 15; }
 
@@ -9918,7 +9966,7 @@ function buildRoom(id) {
   const spots = (D.spots || []).map(s => ({ ...s }));
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_counter', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 24 });   // just in front of the counter
   (D.seats || []).forEach(([x, y, face], i) => spots.push({ id: 'seat' + i, name: 'a seat', kind: 'seat', x, y, face }));
-  return { id, name: D.name, theme: D.theme, sub: D.sub, music: Music.songs['room_' + id] ? 'room_' + id : 'akros', exitTo: 'village',
+  return { id, name: D.name, theme: D.theme, sub: D.sub, music: D.music || (Music.songs['room_' + id] ? 'room_' + id : 'akros'), exitTo: D.north ? 'vindheim' : 'village',
            world: makeWorld(props.filter(o => !OBST[o.kind].soft).map(o => o.box), [{ x: gate.x, y: gate.y, w: 2, h: 2 }]),
            ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
@@ -10308,7 +10356,7 @@ function enterPlace(id, from) {
   if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : id === 'vindheim' ? buildVindheim() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
-  const town = id === 'vindheim' ? 'vindheim' : 'akros'; if (G.save.town !== town) { G.save.town = town; persist(); }   // where Continue brings you back (85_vindheim.js)
+  const town = id === 'vindheim' || (room && room.north) ? 'vindheim' : 'akros'; if (G.save.town !== town) { G.save.town = town; persist(); }   // where Continue brings you back (85_vindheim.js)
   if (id === 'village') northAkros(V);                         // Sigrun at the gate, and the harbor road (85_vindheim.js)
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
@@ -10370,7 +10418,7 @@ function startInteract(t) {
   else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${TONE_WORD[statueTone(t.god, r)]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
-  else if (t.opens) openPanel(t.opens);
+  else if (t.opens) openPanel(t.opens, t.title || null);
 }
 function openDialog(who, lines, after, face = null) {
   G.dialog = { who, lines, i: 0, chars: 0, after };
@@ -10420,13 +10468,13 @@ function tickVillage(dt) {
   } else if (V.seat) {                                  // sitting at a tavern table: order something, or move to get up
     const mv = moveVector();
     if (mv.x || mv.y || Input.hit('dodge')) { V.seat = null; villageMove(p, dt); }
-    else { p.moving = false; V.target = { kind: 'order', name: 'a meal', x: p.x, y: p.y }; if (interactPressed()) { Sound.play('click'); openPanel('tavern'); } }
+    else { p.moving = false; V.target = { kind: 'order', name: 'a meal', x: p.x, y: p.y }; if (interactPressed()) { Sound.play('click'); openPanel('tavern', V.id === 'meadhall' ? 'The Mead Hall' : null); } }
   } else {
     villageMove(p, dt);
     V.target = nearestInteract(p);
     if (V.target && interactPressed()) startInteract(V.target);
     else if (!V.target && Input.enter && netOn() && netEnterKey()) {}   // Enter: ready up, or depart as host
-    else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id; fadeTo(() => enterPlace('village', from)); Input.endFrame(); return; }
+    else if (p.y > IPX.maxY + 6 && (V.id === 'temple' || V.exitTo)) { Sound.play('door'); const from = V.id, to = V.exitTo === 'vindheim' ? 'vindheim' : 'village'; fadeTo(() => enterPlace(to, from)); Input.endFrame(); return; }
   }
   updateNpcs(dt); netTownTick(dt);
   if (V.tick) V.tick(dt);                                       // a place's own weather (Vindheim's snow)
@@ -10480,7 +10528,7 @@ function offeringCost() { return rankPrice(400); }      // fixed per rank, like 
 // save.north: 0 nothing yet · 1 Sigrun waits at Akros' gate · 2 she has told you (the map is open) · 3 you have sailed north.
 Object.assign(PROP_ART, NORSE_PROPS);
 Object.assign(PANEL_INFO, { map: { title: 'The Map' } });
-const atVindheim = () => !!(V && V.id === 'vindheim');
+const atVindheim = () => !!(V && (V.id === 'vindheim' || (ROOMS[V.id] && ROOMS[V.id].north)));   // (its Mead Hall and Smithy count too)
 
 /* ---- Akros: Sigrun at the gate, and the harbor road ---- */
 // She waits just inside the gate, to the left of it.
@@ -10517,7 +10565,7 @@ function northToldYou() {
 // 40 x 30 tiles, but the village itself stops at row 21: below it is the harbor, deep enough for the longship to lie in.
 const VIND_W = 40, VIND_H = 30, VIND_IN = { x0: 3, y0: 3, x1: 36, y1: 21 }, VIND_PX = { minX: 48, maxX: 592, minY: 48, maxY: 352 };
 const VIND_PROPS = [
-  ['longhouse', 20, 6.4], ['smallhouse', 7.5, 19.6], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
+  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
   ['statue', 5.5, 7.2, 'heimdall'], ['statue', 8.5, 7.2, 'freyja'], ['statue', 11.5, 7.2, 'tyr'], ['statue', 28.5, 7.2, 'loki'], ['statue', 31.5, 7.2, 'thor'], ['statue', 34.5, 7.2, 'odin'],
   ['tstatue', 20, 15.8, 'fenrir'], ['runestone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
   ['snowpine', 4, 4], ['snowpine', 36, 4], ['snowpine', 4, 13], ['snowpine', 36.2, 10.6], ['snowpine', 35.6, 20.2], ['snowpine', 4.4, 20.6], ['snowpine', 28.2, 20.6],
@@ -10534,7 +10582,6 @@ const JETTY_LINES = [[362, SHIP_AT.x - 48, SHIP_AT.y - 16], [440, SHIP_AT.x + 40
 const jettyPiles = () => [10, 46, 82, 118, 154].map(d => JETTY.hx0 + d);
 const VIND_NPCS = [
   { id: 'sigrun', name: 'Sigrun', sprite: 'sigrun', tx: 20, ty: 10.4, opens: () => openPanel('quests', 'Hunts in the North') },
-  { id: 'brokk', name: 'Brokk the Smith', sprite: 'brokk', tx: 10, ty: 15.2, opens: () => openPanel('armory', 'Brokk’s Forge') },
   { id: 'asa', name: 'Åsa the Trader', sprite: 'asa', tx: 31, ty: 11.9, behind: true, opens: () => openPanel('market', 'Åsa’s Trading Post') },
 ];
 function buildVindheim() {
@@ -10546,6 +10593,9 @@ function buildVindheim() {
                  { id: 'dock', name: 'the longship', kind: 'dock', opens: 'map', x: SHIP_AT.x, y: JETTY.hy0 + 6 }];
   for (const n of npcs) if (n.behind) spots.push({ id: n.id + '_stall', kind: 'npc', npc: n, name: n.name, x: n.x, y: n.y + 26 });   // talk to Åsa from in front of her stall
   for (const o of props) if (o.kind === 'statue' || o.kind === 'tstatue') spots.push({ id: 'statue_' + o.variant, name: 'the statue', kind: 'statue', god: o.variant, x: o.x, y: o.y + 10 });
+  for (const o of props) if (ROOMS[o.variant]) spots.push({ id: o.variant + '_door', name: ROOMS[o.variant].name.replace(/^The /, 'the '), kind: 'door', goes: o.variant, x: o.x, y: o.box.y + o.box.h + 6 });   // the Mead Hall and the Smithy
+  const stone = props.find(o => o.kind === 'runestone');                       // Eir's stone: the North's Hestia
+  if (stone) spots.push({ id: 'eir', name: 'Eir’s stone', kind: 'shrine', opens: 'shrine', title: 'Eir’s Stone', x: stone.x, y: stone.box.y + stone.box.h + 6 });
   return { id: 'vindheim', name: 'Vindheim', theme: 'vindheim', music: 'vindheim', exitTo: null, tick: vindheimTick,
            world: makeWorld([...props.filter(o => !OBST[o.kind].soft).map(o => o.box), ...JETTY_EDGE], JETTY_OPEN, VIND_IN), ground: layers.ground, buildings: [], props, npcs, spots, parts: [], fx: [], texts: [], player: null, target: null, smokeT: 0 };
 }
@@ -10599,11 +10649,13 @@ function vindheimTick(dt) {
 }
 function vindheimArrive(p, from) {
   if (from === 'start') { p.x = tc(20); p.y = tc(13.5); p.face = Math.PI / 2; return; }   // back in the game: in the middle of the village
+  const door = V.spots.find(s => s.kind === 'door' && s.goes === from);
+  if (door) { p.x = door.x; p.y = door.y + 6; p.face = Math.PI / 2; return; }            // out of the Mead Hall or the Smithy
   p.x = SHIP_AT.x; p.y = JETTY.hy0 + 9; p.face = Math.PI;                                 // stepping off the ship onto the landing, looking toward the village
 }
 function vindheimBanner(from) {
   if (from === 'ship') banner('Vindheim', G.save.north >= 3 ? 'Sigrun’s village, at the edge of the world' : '');
-  else if (from === 'start') banner('Vindheim', '');
+  else if (from === 'start' || ROOMS[from]) banner('Vindheim', '');
   else banner('Vindheim', 'Back from the hunt');
 }
 // Back into the game (Play, or Continue on a save): the town you were in last. save.town is set as you go (enterPlace).
@@ -10696,10 +10748,9 @@ function drawMap() {
   for (let i = 0; i < 9; i++) { const fx = 30 + R() * 260, fy = 46 + R() * 22; x.fillStyle = OUTLINE; x.fillRect(fx | 0, fy | 0, 6, 3); x.fillStyle = '#e6f6ff'; x.fillRect((fx + 1) | 0, (fy + 1) | 0, 4, 1); }   // ice floes
   // Greece along the bottom: Akros' island and its neighbours
   blob(66, 148, 36, 14, ['#7a9a48', '#8aa856', '#c9b48e']); blob(150, 164, 20, 8, ['#7a9a48', '#c9b48e']); blob(252, 154, 30, 11, ['#6f9040', '#8aa856', '#c9b48e']); blob(300, 172, 14, 6, ['#7a9a48', '#c9b48e']);
-  // the route between them, a compass, and the longship where you are
+  // the route between them, and the longship where you are
   const [A, B] = MAP_PLACES, hot = mapHover && MAP_PLACES.find(p => p.id === mapHover);
   for (let i = 0; i <= 40; i++) { const k = i / 40, px = lerp(A.x, B.x, k) + Math.sin(k * 6) * 14, py = lerp(A.y, B.y, k); if (i % 2 === 0) { x.fillStyle = hot ? '#ffd463' : '#f3e9d4'; x.fillRect(px | 0, py | 0, 2, 1); } }
-  { const cx = 290, cy = 96; x.fillStyle = '#c9d0dc'; x.fillRect(cx, cy - 9, 1, 19); x.fillRect(cx - 9, cy, 19, 1); x.fillStyle = '#ffd463'; x.fillRect(cx - 1, cy - 9, 3, 4); x.drawImage(pixelText('N', '#ffd463', tagGlyph), cx - 1, cy - 18); }
   for (const P of MAP_PLACES) {
     const on = P === hot, cur = P.id === here, sz = on ? 5 : 3;
     if (on) for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + G.time * 2; x.fillStyle = P.lab; x.fillRect((P.x + Math.cos(a) * 11) | 0, (P.y + Math.sin(a) * 8) | 0, 1, 1); }
@@ -12295,7 +12346,7 @@ function hudMode(m) {
   for (const k in hudCache) delete hudCache[k];
   $('qhud').hidden = m !== 'quest'; $('vhud').hidden = m !== 'village'; $('hint').hidden = true; $('hint').classList.remove('tut'); $('goal').hidden = true;
   const r = m === 'quest' && q ? q.def.rank : G.save ? G.save.rank : 0, tag = $(m === 'quest' ? 'hudRank' : 'vRank');
-  const nordic = m === 'quest' && q && northTab(q.def) === NORTH_TAB;         // a hunt in the North shows its own rank, in ice blue
+  const nordic = m === 'quest' && q ? northTab(q.def) === NORTH_TAB : playerRankTab(G.save) === NORTH_TAB;   // a hunt in the North, or you once you've sailed north: Nordic Rank, in ice blue
   if (tag) { tag.hidden = !r; tag.dataset.rank = nordic ? NORTH_TAB : r; tag.textContent = nordic ? NORDIC_NAME : r ? RANKS[r].name : ''; }
   $('prompt').hidden = true; $('dialog').hidden = true; $('banner').hidden = true;
   $('tAttack').textContent = m === 'village' ? 'Use' : 'Attack';
@@ -12814,6 +12865,19 @@ $('forumBody').addEventListener('submit', ev => {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1.2', date: 'November 2026', title: 'Vindheim’s halls',
+    new: [
+      'Vindheim’s longhouse is now the Mead Hall: sit down and order a meal before a hunt. The small house is Brokk’s Smithy, and Brokk works inside now. Both have signs over the door.',
+      'Eir’s stone in Vindheim: the North’s healer gives the same blessing as Hestia, and gets you back up once if you fall.',
+      'In a room: a chime when someone joins, chimes when you send and get a chat message, and you can see when someone is typing.',
+    ],
+    changed: [
+      'Once you’ve sailed north, your rank shows as Nordic Rank in town and on your save.',
+      'The map no longer has a compass on it.',
+    ],
+    fixed: [
+      'Getting a teammate back up online works more reliably: you can stand a little further away, and the one who’s down sees their ring fill.',
+    ] },
   { v: '1.1.1', date: 'November 2026', title: 'The market',
     changed: [
       'Melita and Åsa no longer have a purse: they always have the drachmae for whatever you sell them.',
@@ -13342,7 +13406,7 @@ function slotCard(n, s) {
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
     const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless && !qd.north), cleared = base.filter(qd => s.cleared[qd.id]).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${s.rank}">${RANKS[s.rank].name}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${playerRankTab(s)}">${playerRankName(s)}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -13679,11 +13743,13 @@ function updatePotionBar(p) {
   setHTML('potionBar', html);
 }
 $('potionBar').addEventListener('pointerdown', ev => { const b = ev.target.closest('[data-pot]'); if (!b || !q || G.paused) return; ev.preventDefault(); drinkPotion(b.dataset.pot); });
+// Hestia's hearth in the temple, or Eir's stone in Vindheim: the same blessing (you hold one at a time), from whichever goddess.
+const blessGod = s => s && s.blessGod === 'eir' ? 'Eir' : 'Hestia';
 function renderShrine() {
-  const s = G.save, cost = offeringCost();
+  const s = G.save, cost = offeringCost(), here = atVindheim() ? 'Eir' : 'Hestia', other = s.blessing && blessGod(s) !== here;
   return `<div class="opts"><div class="opt wide">
-    <p>Make an offering and Hestia saves you once: the next time you fall in a hunt, you get back up with half your health. It lasts until it’s used.</p>
-    <div class="row">${s.blessing ? `<button class="btn" type="button" disabled>Blessing active</button><span class="muted">Hestia is already watching over you.</span>`
+    <p>${here === 'Eir' ? 'Eir is the North’s healer. Make an offering at her stone and she saves you once' : 'Make an offering and Hestia saves you once'}: the next time you fall in a hunt, you get back up with half your health. It lasts until it’s used.</p>
+    <div class="row">${s.blessing ? `<button class="btn" type="button" disabled>Blessing active</button><span class="muted">${other ? `${blessGod(s)}’s blessing is already on you. You can carry one at a time.` : `${here} is already watching over you.`}</span>`
       : `<button class="btn" type="button" data-offer="1" ${s.money >= cost ? '' : 'disabled'}>Make an offering (${fmtMoney(cost)} dr)</button>${s.money >= cost ? '' : '<span class="muted">Not enough drachmae.</span>'}`}</div>
   </div></div>`;
 }
@@ -13805,7 +13871,7 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.meal) { orderMeal(t.dataset.meal); return; }
   if (t.dataset.offer) {
     const cost = offeringCost(); if (s.blessing || s.money < cost) return;
-    s.money -= cost; s.blessing = true; Sound.play('blessing'); persist(); renderHub(); toast('Hestia will watch over you'); return;
+    s.money -= cost; s.blessing = true; s.blessGod = atVindheim() ? 'eir' : 'hestia'; Sound.play('blessing'); persist(); renderHub(); toast(`${blessGod(s)} will watch over you`); return;
   }
   if (t.dataset.wearset) { const sid = t.dataset.wearset; SLOTS.forEach(sl => { if (s.pieces.includes(sid + ':' + sl)) s.equip[sl] = sid; }); Sound.play('click'); persist(); renderHub(); toast(`Equipped the ${ARMOR_SETS[sid].name} set`); return; }
   if (t.dataset.equip) {
@@ -13901,7 +13967,7 @@ function finishQuest(win) {
   const notes = [];
   if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue ${d.titan ? 'in the Hall of the Titans' : d.north ? 'in Vindheim' : 'in the Temple of the Gods'} is now ${TONE_WORD[statueTone(d.boss, godRank(d.boss))].toLowerCase().replace('-', ' ')}.`);
   if (win && d.id === FENRIR_Q && s.cleared[FENRIR_Q] === 1) notes.push('You slew Fenrir. The sun still rises over the North, every piece of Nordic gear wakes to full strength, and the statues in Vindheim turn ice blue.');
-  if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
+  if (q.usedBlessing) notes.push(blessGod(s) === 'Eir' ? 'Eir’s blessing was used up. Visit her stone in Vindheim to ask again.' : 'Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Gods.');
   if (win && !readyWas && rankReady()) notes.push('Every god and Titan on this rank has fallen. Kleon the Herald wants a word.');
@@ -13991,6 +14057,7 @@ document.addEventListener('submit', ev => {
 });
 $('mpBox').addEventListener('click', ev => { const b = ev.target.closest('[data-mp]'); if (b) netBannerAction(b.dataset.mp); });
 $('mpForm').addEventListener('submit', ev => { ev.preventDefault(); netChatSend(); });
+$('mpInput').addEventListener('input', ev => netTypingOut(!!ev.target.value.trim()));
 $('mpInput').addEventListener('keydown', ev => { if (ev.code === 'Escape') { ev.preventDefault(); ev.stopPropagation(); netChatClose(); } });
 // clicked back into the game with nothing typed: put the chat line away (late enough that a tap on Send still counts)
 $('mpInput').addEventListener('blur', () => setTimeout(() => { if (NET.chatOpen && document.activeElement !== $('mpInput') && !$('mpInput').value.trim()) netChatClose(); }, 200));
