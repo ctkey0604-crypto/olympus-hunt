@@ -753,7 +753,7 @@ function drawObstacleNow(o, sx, sy) {
       // Out on a hunt, a statue never shows above that hunt's rank (a God Rank win doesn't turn it amethyst on a Normal hunt).
       // The trophies in the temple keep your best.
       const god = o.variant || 'owl', cap = !o.trophy && G.mode === 'quest' && q ? (q.def.rank || 0) : 9;
-      const gr = god === 'owl' ? -1 : Math.min(godRank(god), cap), gold = gr >= 0, img = statueImg(god, gold ? STATUE_TONE[gr] : 'stone');
+      const gr = god === 'owl' ? -1 : Math.min(godRank(god), cap), gold = gr >= 0, img = statueImg(god, statueTone(god, gr));
       const big = !!o.big;
       pxEllipse(sx + 2, sy + 2, 9, 3, 'rgba(0,0,0,.3)');
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 8, sy - 9, 16, 11);
@@ -765,7 +765,7 @@ function drawObstacleNow(o, sx, sy) {
       break;
     }
     case 'tstatue': {                                 // a Titan on a wide plinth, dark until you beat it
-      const gr = godRank(o.variant), img = statueImg(o.variant, gr >= 0 ? STATUE_TONE[gr] : 'stone');
+      const gr = godRank(o.variant), tone = statueTone(o.variant, gr), img = statueImg(o.variant, tone);
       if (o.variant === 'typhon') {                   // Typhon: twice as big, on a taller plinth in the middle of the hall
         pxEllipse(sx + 2, sy + 2, 20, 4, 'rgba(0,0,0,.4)');
         ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 19, sy - 15, 38, 17);
@@ -781,7 +781,7 @@ function drawObstacleNow(o, sx, sy) {
       pxEllipse(sx + 2, sy + 2, 13, 3, 'rgba(0,0,0,.35)');
       ctx.fillStyle = '#1a1210'; ctx.fillRect(sx - 12, sy - 11, 24, 13);
       ctx.fillStyle = '#4a4652'; ctx.fillRect(sx - 11, sy - 10, 22, 11); ctx.fillStyle = '#6a6672'; ctx.fillRect(sx - 11, sy - 10, 22, 2);
-      ctx.fillStyle = gr >= 0 ? RANK_TINT[gr] ? RANK_TINT[gr].trim : '#e9c04f' : '#2a2630'; ctx.fillRect(sx - 7, sy - 5, 14, 1);
+      ctx.fillStyle = tone === 'ice' ? '#9fd0ff' : tone === 'blue' ? '#4f8ae0' : gr >= 0 ? RANK_TINT[gr] ? RANK_TINT[gr].trim : '#e9c04f' : '#2a2630'; ctx.fillRect(sx - 7, sy - 5, 14, 1);
       if (gr < 0) ctx.globalAlpha = .7;
       ctx.drawImage(img, Math.round(sx - img.width / 2), Math.round(sy - 10 - img.height + 1));
       ctx.globalAlpha = 1;

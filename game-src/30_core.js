@@ -393,7 +393,8 @@ function newSave() {
            loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
            finishTime: 0,                                           // play time, in seconds, when Typhon first fell (the leaderboard tab for it is gone; the server still reads it)
            hero: 'boy',                                             // 'boy' or 'girl', picked in Options
-           north: 0, northEnd: false };                             // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
+           north: 0, northEnd: false,                               // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
+           town: 'akros' };                                         // the town you were in last ('akros' or 'vindheim'): Continue takes you back there
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
 const heroLook = s => ({ ...s.equip, girl: s.hero === 'girl' });
@@ -454,6 +455,7 @@ function sanitize(s) {
   // the North (1.1): only after Typhon. Saves from before it start at 0 and see Sigrun arrive the next time they're in Akros.
   out.north = out.cleared[TYPHON_Q] ? clamp(Math.floor(num(s.north, 0)), 0, 3) : 0;
   out.northEnd = s.northEnd === true && !!out.cleared[FENRIR_Q];
+  out.town = s.town === 'vindheim' && out.north >= 3 ? 'vindheim' : 'akros';   // (saves from before this start in Akros)
   // (1.1's traders had a purse, saved as purse and purseAt. The market has none now, so those are left behind.)
   return out;
 }

@@ -187,10 +187,11 @@ function enterPlace(id, from) {
   if (id === 'hall' && PLACES.hall && PLACES.hall.typhon !== typhonShown()) delete PLACES.hall;   // and the hall, once Typhon's statue goes up
   if (!PLACES[id]) PLACES[id] = id === 'temple' ? buildTemple() : id === 'hall' ? buildHall() : id === 'vindheim' ? buildVindheim() : room ? buildRoom(id) : buildVillage();
   V = PLACES[id]; sc = V; q = null; V.parts = []; V.fx = []; V.texts = []; V.eat = null; V.seat = null;
+  const town = id === 'vindheim' ? 'vindheim' : 'akros'; if (G.save.town !== town) { G.save.town = town; persist(); }   // where Continue brings you back (85_vindheim.js)
   if (id === 'village') northAkros(V);                         // Sigrun at the gate, and the harbor road (85_vindheim.js)
   Music.play(V.music || (id === 'village' ? 'akros' : id));
   const p = makePlayer(), outOf = id === 'village' && BUILDINGS.find(b => b.goes === from);
-  if (id === 'vindheim') vindheimArrive(p);
+  if (id === 'vindheim') vindheimArrive(p, from);
   else if (id === 'hall') { p.x = tc(20) - 8; p.y = IPX.minY + 24; p.face = Math.PI / 2; }
   else if (id === 'temple' && from === 'hall') { p.x = STAIRS.x + STAIRS.w / 2; p.y = STAIRS.y + STAIRS.h + 10; p.face = Math.PI / 2; }
   else if (id === 'temple' || room) { p.x = room ? WORLD_W / 2 : tc(20); p.y = IPX.maxY - 14; p.face = -Math.PI / 2; }
@@ -245,7 +246,7 @@ function startInteract(t) {
     openDialog(n.name, npcLines(n), after, n.sprite);
   } else if (t.kind === 'seat') sitAt(t);
   else if (t.kind === 'practice') fadeTo(startPractice);
-  else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${STATUE_WORD[r]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
+  else if (t.kind === 'statue') { const r = godRank(t.god); openDialog('Statue', [r >= 0 ? `${TONE_WORD[statueTone(t.god, r)]} statue of ${godName(t.god)}.` : `Statue of ${godName(t.god)}.`], null); }
   else if (t.goes) { Sound.play('door'); fadeTo(() => enterPlace(t.goes, V.id)); }
   else if (t.kind === 'tgate') { G.boardTitans = true; openPanel('quests'); }
   else if (t.opens) openPanel(t.opens);

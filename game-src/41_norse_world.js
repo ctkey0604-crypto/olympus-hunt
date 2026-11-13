@@ -181,7 +181,7 @@ function drawLonghouse(o, sx, sy, W, wallH, roofH) {
   // the ridge, and the crossed boards at both ends that end in carved heads
   ctx.fillStyle = '#4e321d'; ctx.fillRect(sx - half + 10, top - 1, W - 20, 2);
   for (const d of [-1, 1]) { const gx = sx + d * (half - 10); pxLine(gx - 5, top - 7, gx + 4, top + 2, '#4e321d'); pxLine(gx + 5, top - 7, gx - 4, top + 2, '#4e321d'); ctx.fillStyle = '#c9a032'; ctx.fillRect(gx - 6, top - 8, 2, 2); ctx.fillRect(gx + 5, top - 8, 2, 2); }
-  if (Math.random() < .12 && sc && sc.parts) sc.parts.push({ x: o.x + rand(-4, 4), y: o.y + o.h / 2 - wallH - roofH, vx: rand(2, 6), vy: rand(-12, -6), g: 0, life: 2, max: 2, c: Math.random() < .5 ? '#8f8a82' : '#b5b0a6', s: 2 });   // smoke from the hearth inside
+  // (no smoke off the roof: there's no chimney to come from)
 }
 /* ---- the longship ---- */
 // Seen from the side, the way the houses are: a clinker hull that curves up to a dragon's head at the bow and a curled tail

@@ -335,12 +335,20 @@ function flipCanvas(src) { const c = mkCanvas(src.width, src.height), x = c.getC
 function solidCanvas(src, color) { const c = mkCanvas(src.width, src.height), x = c.getContext('2d'); x.drawImage(src, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height); return c; }
 function hexRgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
 // Re-shades a sprite by brightness into a colour ramp (used for stone and gold statues).
-function toneCanvas(src, ramp) {
+// spread: share the sprite's shades out evenly over the ramp, darkest to lightest (a dark sprite like Fenrir would
+// otherwise only ever reach the ramp's darkest shade)
+function toneCanvas(src, ramp, spread = false) {
   const c = mkCanvas(src.width, src.height), x = c.getContext('2d'); x.drawImage(src, 0, 0);
-  const d = x.getImageData(0, 0, c.width, c.height), cols = ramp.map(hexRgb);
+  const d = x.getImageData(0, 0, c.width, c.height), cols = ramp.map(hexRgb), lum = i => (d.data[i] * .3 + d.data[i + 1] * .59 + d.data[i + 2] * .11) / 255;
+  let rank = null;
+  if (spread) {                                                // each shade's place among all the sprite's pixels, 0 to 1
+    const all = []; for (let i = 0; i < d.data.length; i += 4) if (d.data[i + 3]) all.push(lum(i));
+    all.sort((a, b) => a - b); rank = new Map();
+    for (let k = 0; k < all.length; k++) if (!rank.has(all[k])) { let e = k; while (e + 1 < all.length && all[e + 1] === all[k]) e++; rank.set(all[k], (k + e) / 2 / Math.max(1, all.length - 1)); }
+  }
   for (let i = 0; i < d.data.length; i += 4) {
     if (!d.data[i + 3]) continue;
-    const l = (d.data[i] * .3 + d.data[i + 1] * .59 + d.data[i + 2] * .11) / 255;
+    const l = rank ? rank.get(lum(i)) : lum(i);
     const col = cols[Math.min(cols.length - 1, Math.floor(l * cols.length))];
     d.data[i] = col[0]; d.data[i + 1] = col[1]; d.data[i + 2] = col[2];
   }

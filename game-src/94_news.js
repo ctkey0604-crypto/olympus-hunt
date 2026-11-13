@@ -5,6 +5,13 @@ const NEWS = [
   { v: '1.1.1', date: 'November 2026', title: 'The market',
     changed: [
       'Melita and Åsa no longer have a purse: they always have the drachmae for whatever you sell them.',
+      'Leaving Akros for the harbor, you walk out through the gate.',
+      'After the first voyage, sailing between Akros and Vindheim is a short ride with just you aboard.',
+      'Continue takes you back to the town you were in last, Akros or Vindheim.',
+      'The statues in Vindheim turn blue when you beat their god, and ice blue once Fenrir has fallen.',
+    ],
+    fixed: [
+      'Vindheim’s houses no longer puff smoke out of roofs that have no chimney.',
     ] },
   { v: '1.1', date: 'November 2026', title: 'The North',
     new: [

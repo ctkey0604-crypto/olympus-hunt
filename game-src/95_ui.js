@@ -40,7 +40,7 @@ async function playNow() {
   G.slot = n; G.save = s || newSave(); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null;
   if (!s) persist(true);
   rememberSlot(n);
-  fadeTo(() => enterVillage('start'));
+  fadeTo(() => enterTown());
 }
 function rememberSlot(n) { Settings.data.lastSlot = n; Settings.save(); }
 async function updateTitleSub() {
@@ -166,7 +166,7 @@ function slotCard(n, s) {
   el.addEventListener('click', async ev => {
     const btn = ev.target.closest('button'); if (!btn) return;
     const a = btn.dataset.a; Sound.init(); Sound.play('click');
-    if (a === 'continue') { G.slot = n; G.save = s; G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
+    if (a === 'continue') { G.slot = n; G.save = s; G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterTown()); }
     else if (a === 'new') { if (Store.user && !Store.remote) { toast('Can’t reach your account right now, and a new game could replace a save there. Try again in a moment.', 7000); return; } G.slot = n; G.save = newSave(); persist(true); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
     else if (a === 'delete') { el.querySelector('.slot-actions').innerHTML = `<span class="warn">Delete save ${n} for good?</span><button class="btn danger" type="button" data-a="confirmdel">Delete</button><button class="btn ghost" type="button" data-a="canceldel">Keep it</button>`; }
     else if (a === 'confirmdel') { await Store.del(n); renderSlots(); }
@@ -715,8 +715,8 @@ function finishQuest(win) {
   if (run) $('resStats').innerHTML = `<div><span>Wave reached</span><b>${run.reached}${run.record ? ' ★' : ''}</b></div><div><span>Best wave</span><b>${s.endless.best}</b></div><div><span>Pay</span><b style="color:var(--gold)">${fmtMoney(run.pay)} dr</b></div><div><span>Time</span><b>${fmtTime(q.elapsed)}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>`;
   else $('resStats').innerHTML =`<div><span>Time</span><b>${fmtTime(q.elapsed)}${best ? ' ★' : ''}</b></div><div><span>Reward</span><b style="color:var(--gold)">${win ? fmtMoney(d.reward) : 0} dr</b></div><div><span>Hidden cache</span><b style="color:${q.chestFound ? 'var(--gold)' : 'var(--bone-mute)'}">${q.chestFound ? '+' + fmtMoney(q.chestMoney) + ' dr' : 'Not found'}</b></div><div><span>Monsters slain</span><b>${q.stats.kills}</b></div><div><span>Damage taken</span><b>${q.stats.taken}</b></div>${q.stats.perfect ? `<div><span>Perfect blocks</span><b>${q.stats.perfect}</b></div>` : ''}`;
   const notes = [];
-  if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue ${d.titan ? 'in the Hall of the Titans' : d.north ? 'in Vindheim' : 'in the Temple of the Gods'} is now ${['gold', 'diamond', 'amethyst'][godRank(d.boss)]}.`);
-  if (win && d.id === FENRIR_Q && s.cleared[FENRIR_Q] === 1) notes.push('You slew Fenrir. The sun still rises over the North, and every piece of Nordic gear wakes to full strength.');
+  if (win && d.boss && godRank(d.boss) > statueWas) notes.push(`${godName(d.boss)}’s statue ${d.titan ? 'in the Hall of the Titans' : d.north ? 'in Vindheim' : 'in the Temple of the Gods'} is now ${TONE_WORD[statueTone(d.boss, godRank(d.boss))].toLowerCase().replace('-', ' ')}.`);
+  if (win && d.id === FENRIR_Q && s.cleared[FENRIR_Q] === 1) notes.push('You slew Fenrir. The sun still rises over the North, every piece of Nordic gear wakes to full strength, and the statues in Vindheim turn ice blue.');
   if (q.usedBlessing) notes.push('Hestia’s blessing was used up. Visit her hearth in the temple to ask again.');
   if (d.id === 'zeus_hunt' && s.cleared.zeus_hunt === 1 && win) notes.push('You’ve hunted all twelve gods of Olympus.');
   if (win && !allGodsWas && allGodsDone(0) && !s.stairs) notes.push('Every god has fallen. Something stirs beneath the Temple of the Gods.');
@@ -1025,6 +1025,8 @@ cv.addEventListener('mousedown', ev => {
 });
 addEventListener('mouseup', ev => { if (ev.button === 0) Input.mouse.held = false; });
 cv.addEventListener('contextmenu', ev => ev.preventDefault());
+// No right-click menu anywhere in the game, except in boxes you type in (so pasting a save code or a post still works).
+document.addEventListener('contextmenu', ev => { if (!(ev.target.closest && ev.target.closest('input, textarea, [contenteditable]'))) ev.preventDefault(); });
 // The middle button and a gaming mouse's side buttons (Mouse 4 and 5) can be bound like keys in Options. In the game and
 // its menus they never act as the browser's Back and Forward, so a stray thumb press can't leave the page.
 const MOUSE_KEYS = { 1: 'MouseMiddle', 3: 'Mouse4', 4: 'Mouse5' };
@@ -1191,7 +1193,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   unlockAll: () => { QUESTS.forEach(qd => { G.save.cleared[qd.id] = G.save.cleared[qd.id] || 1; }); persist(); },
   richer: () => { G.save.money += 100000; for (const id of Object.keys(ITEMS)) G.save.inv[id] = 99; persist(); },
   // the North (1.1)
-  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, sellPart, sellPrice, partCost, renderMarket, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
+  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, enterTown, sellPart, sellPrice, partCost, renderMarket, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
 };
 
 })();

@@ -123,10 +123,20 @@ function paintJetty(x, R) {
 function vindheimTick(dt) {
   if (Math.random() < .35) V.parts.push({ x: G.cam.x + rand(-10, VIEW_W + 40), y: G.cam.y - 4, vx: rand(-14, -4), vy: rand(14, 26), g: 0, life: 9, max: 9, c: Math.random() < .7 ? '#ffffff' : '#cfe3f5', s: Math.random() < .25 ? 2 : 1 });
 }
-function vindheimArrive(p) { p.x = SHIP_AT.x; p.y = JETTY.hy0 + 9; p.face = Math.PI; }   // stepping off the ship onto the landing, looking toward the village
+function vindheimArrive(p, from) {
+  if (from === 'start') { p.x = tc(20); p.y = tc(13.5); p.face = Math.PI / 2; return; }   // back in the game: in the middle of the village
+  p.x = SHIP_AT.x; p.y = JETTY.hy0 + 9; p.face = Math.PI;                                 // stepping off the ship onto the landing, looking toward the village
+}
 function vindheimBanner(from) {
   if (from === 'ship') banner('Vindheim', G.save.north >= 3 ? 'Sigrun’s village, at the edge of the world' : '');
+  else if (from === 'start') banner('Vindheim', '');
   else banner('Vindheim', 'Back from the hunt');
+}
+// Back into the game (Play, or Continue on a save): the town you were in last. save.town is set as you go (enterPlace).
+function enterTown() {
+  const s = G.save;
+  if (s.town === 'vindheim' && s.north >= 3 && northOpen(s)) enterPlace('vindheim', 'start');
+  else enterVillage('start');
 }
 
 /* ---- what they say ---- */
@@ -232,28 +242,66 @@ function drawMapShip(x, sx, sy) {
   x.fillStyle = OUTLINE; x.fillRect(sx - 6, sy - 1, 13, 4); x.fillStyle = '#6b4528'; x.fillRect(sx - 5, sy, 11, 2); x.fillRect(sx - 6, sy - 1, 1, 1); x.fillRect(sx + 6, sy - 2, 1, 2);
   x.fillStyle = OUTLINE; x.fillRect(sx - 3, sy - 9, 7, 8); for (let i = 0; i < 5; i++) { x.fillStyle = i % 2 ? '#f3e9d4' : '#b0382a'; x.fillRect(sx - 2 + i, sy - 8, 1, 6); }
 }
+// Leaving Akros you walk out through its gate first (startLeave). The first crossing north is the long voyage with Sigrun;
+// every crossing after that, either way, is a short ride with just you aboard.
+const SAIL_SECS = 3.5;
 function travelTo(dest) {
   const s = G.save;
   if (dest === 'vindheim') {
     if (!northOpen(s)) return;
-    Sound.play('door');
-    if (s.north < 3) { fadeTo(startVoyage); return; }
-    fadeTo(() => enterPlace('vindheim', 'ship'));
-  } else { Sound.play('door'); fadeTo(() => enterVillage('gate')); }
+    const sail = () => startVoyage(s.north < 3 ? {} : { dur: SAIL_SECS, solo: true });
+    if (V && V.id === 'village' && V.gate && V.gate.at) fadeTo(() => startLeave(sail));
+    else { Sound.play('door'); fadeTo(sail); }
+  } else { Sound.play('door'); fadeTo(() => startVoyage({ dur: SAIL_SECS, solo: true, south: true })); }
 }
-// The first crossing: the longship heads north out of the warm sea, past ice, under the northern lights.
-function startVoyage() {
+// o.dur: how long (the first voyage: 9 s). o.solo: just you aboard. o.south: heading home to Akros.
+function startVoyage(o = {}) {
   if (!V) enterVillage('gate');
-  resumeVillage(); G.cutscene = { kind: 'voyage', t: 0 }; Music.play('voyage'); document.body.classList.add('voyaging');   // (hides the town's place name and purse)
+  resumeVillage(); G.cutscene = { kind: 'voyage', t: 0, ...o }; Music.play('voyage'); document.body.classList.add('voyaging');   // (hides the town's place name and purse)
 }
 // No words on the way: the sea, the ice and the northern lights tell it.
 function tickVoyage(cs, dt) {
+  cs.t += dt; const dur = cs.dur || 9;
+  if (cs.t > (cs.dur ? .4 : 1.2) && interactPressed()) cs.t = Math.max(cs.t, dur - .2);       // seen it before? Skip ahead
+  if (cs.t > dur) {
+    G.cutscene = null;
+    if (cs.south) enterVillage('gate');
+    else { G.save.north = 3; persist(true); enterPlace('vindheim', 'ship'); }
+  }
+}
+// Walking out of Akros: down to the gate, its doors swing open, and out you go (Sigrun with you, the first time).
+function startLeave(then) {
+  resumeVillage();
+  const p = V.player; p.moving = false; p.face = Math.PI / 2; V.gateK = 0;
+  G.cutscene = { kind: 'leave', t: 0, then, sig: V.npcs.find(n => n.id === 'sigrun') || null };
+}
+function tickLeave(cs, dt) {
   cs.t += dt;
-  if (cs.t > 1.2 && interactPressed()) cs.t = Math.max(cs.t, 8.8);       // seen it before? Skip ahead
-  if (cs.t > 9) { G.cutscene = null; G.save.north = 3; persist(true); enterPlace('vindheim', 'ship'); }
+  const p = V.player, g = V.gate.at, sp = 36 * dt, mid = tc(VILLAGE_MID), stop = g.by - 12;
+  if (cs.t > .4 && interactPressed()) cs.skip = true;
+  p.moving = false;
+  if (cs.t > .2 && !cs.out) {
+    if (!cs.opened && Math.abs(p.x - mid) > .5) { const d = clamp(mid - p.x, -sp, sp); p.x += d; p.face = d > 0 ? 0 : Math.PI; p.moving = true; }
+    else if (!cs.opened && p.y < stop) { p.x = mid; p.y = Math.min(stop, p.y + sp); p.face = Math.PI / 2; p.moving = true; }
+    else if (!cs.opened) {
+      if (!cs.push) { cs.push = true; Sound.play('door'); }
+      p.face = Math.PI / 2; V.gateK = Math.min(1, (V.gateK || 0) + dt / .8); if (V.gateK >= 1) cs.opened = true;
+    } else { p.y += sp; p.face = Math.PI / 2; p.moving = true; if (p.y > WORLD_H + 14) cs.out = true; }
+  }
+  if (p.moving) p.walkT += dt;
+  const n = cs.sig;                                            // Sigrun a step behind you
+  if (n) {
+    const tx = mid - 6, ty = cs.opened ? p.y - 16 : stop - 14, dx = tx - n.x, dy = ty - n.y, d = Math.hypot(dx, dy);
+    n.moving = d > 1 && cs.t > .5;
+    if (n.moving) { const k = Math.min(1, sp * 1.1 / d); n.x += dx * k; n.y += dy * k; n.walkT += dt; if (Math.abs(dx) > .5) n.flip = dx < 0; }
+  }
+  const tx = clamp(p.x - VIEW_W / 2, 0, WORLD_W - VIEW_W), ty = clamp(Math.min(p.y, WORLD_H) - 8 - VIEW_H / 2, 0, WORLD_H - VIEW_H);
+  G.cam.x += (tx - G.cam.x) * Math.min(1, dt * 5); G.cam.y += (ty - G.cam.y) * Math.min(1, dt * 5);
+  if ((cs.out || cs.skip) && !cs.going) { cs.going = true; fadeTo(() => { G.cutscene = null; V.gateK = 0; cs.then(); }); }
 }
 function drawVoyage(cs) {
-  const t = cs.t, k = clamp(t / 9, 0, 1), W = VIEW_W, H = VIEW_H, horizon = 92, R = mulberry(Math.floor(t * 6));
+  // st: how far along the story is (0 to 9, however long the crossing); k: how far north (cold and dark the further it is)
+  const t = cs.t, st = t * 9 / (cs.dur || 9), k = cs.south ? clamp(1 - st / 9, 0, 1) : clamp(st / 9, 0, 1), W = VIEW_W, H = VIEW_H, horizon = 92, R = mulberry(Math.floor(t * 6));
   // the sky goes from a warm blue to a cold night
   for (let y = 0; y < horizon; y++) { const a = y / horizon; const c0 = [lerp(120, 12, k), lerp(170, 22, k), lerp(220, 48, k)], c1 = [lerp(230, 40, k), lerp(220, 60, k), lerp(190, 96, k)];
     ctx.fillStyle = `rgb(${Math.round(lerp(c0[0], c1[0], a))},${Math.round(lerp(c0[1], c1[1], a))},${Math.round(lerp(c0[2], c1[2], a))})`; ctx.fillRect(0, y, W, 1); }
@@ -264,10 +312,10 @@ function drawVoyage(cs) {
     for (let px = 0; px < W; px += 2) { const y0 = 14 + Math.sin(px / 30 + t * .8) * 8 + Math.sin(px / 11 + t * 1.7) * 3, h = 14 + Math.sin(px / 19 + t) * 6; for (let yy = 0; yy < h; yy += 2) { ctx.fillStyle = yy < h * .4 ? '#7fe08a' : yy < h * .75 ? '#57c2b0' : '#b48cff'; ctx.fillRect(px, Math.round(y0 + yy), 2, 2); } }
     ctx.globalAlpha = 1;
   }
-  // far shores: a green island behind you at first, snowy mountains ahead later
-  const isl = W * .1 - t * 14;
+  // far shores: a green island behind you at first, snowy mountains ahead later (heading home: the other way round)
+  const isl = cs.south ? W + 40 - st * 14 : W * .1 - st * 14;
   if (isl > -60) { ctx.fillStyle = '#6f9040'; for (let i = -30; i <= 30; i++) ctx.fillRect(Math.round(isl + i), horizon - Math.round(8 * Math.sqrt(1 - (i / 30) ** 2)), 1, 9); }
-  const mt = W + 40 - t * 26;
+  const mt = cs.south ? W * .25 - st * 26 : W + 40 - st * 26;
   for (let i = 0; i < 6; i++) { const mx = mt + i * 34, mh = 18 + (i * 7) % 13; for (let y = 0; y < mh; y++) { ctx.fillStyle = y < 5 ? '#f2f7fb' : '#5a6a7e'; ctx.fillRect(Math.round(mx - y), horizon - mh + y, y * 2 + 1, 1); } }
   // the sea, moving past
   for (let y = horizon; y < H; y++) { const a = (y - horizon) / (H - horizon); ctx.fillStyle = `rgb(${Math.round(lerp(lerp(60, 14, k), lerp(30, 8, k), a))},${Math.round(lerp(lerp(120, 40, k), lerp(70, 26, k), a))},${Math.round(lerp(lerp(170, 72, k), lerp(120, 52, k), a))})`; ctx.fillRect(0, y, W, 1); }
@@ -282,12 +330,13 @@ function drawVoyage(cs) {
   };
   floes(false);
   for (let i = 0; i < 12; i++) { ctx.fillStyle = i % 3 ? '#e6f2ff' : '#a8d4f2'; ctx.fillRect(Math.round(W / 2 - 30 - i * 7 + R() * 4), horizon + 65 + (i % 3) - (i > 6 ? 1 : 0), 4 - (i > 8 ? 2 : 0), 1); }   // the wake
-  drawLongship(Math.round(W / 2), shipY, 1, t * 2, { sea: true, crew: [['sigrun', -36, false], [heroFrames(V.player.look), 34, false]] });   // Sigrun at the steering oar, you at the bow
+  const hero = heroFrames(V.player.look);
+  drawLongship(Math.round(W / 2), shipY, 1, t * 2, { sea: true, crew: cs.solo ? [[hero, -36, false]] : [['sigrun', -36, false], [hero, 34, false]] });   // Sigrun at the steering oar and you at the bow; alone, you steer
   floes(true);
   if (k > .3) for (let i = 0; i < Math.round(60 * (k - .3)); i++) { const r = mulberry(i * 7 + 1), px = ((r() * W - t * 20 * (1 + r())) % W + W) % W, py = ((r() * H + t * (18 + r() * 14)) % H); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(px), Math.round(py), 1, 1); }   // snow
   if (!vignette) vignette = makeVignette();
   ctx.drawImage(vignette, 0, 0);
-  if (t > 1.2) { const w = pixelText(touchMode ? 'TAP TO SKIP' : 'PRESS ' + codeLabel(Input.bind.guard[0]).toUpperCase() + ' TO SKIP', '#c2b293', tagGlyph); ctx.globalAlpha = .7; ctx.drawImage(w, W - w.width - 6, H - 12); ctx.globalAlpha = 1; }
+  if (t > (cs.dur ? .4 : 1.2)) { const w = pixelText(touchMode ? 'TAP TO SKIP' : 'PRESS ' + codeLabel(Input.bind.guard[0]).toUpperCase() + ' TO SKIP', '#c2b293', tagGlyph); ctx.globalAlpha = .7; ctx.drawImage(w, W - w.width - 6, H - 12); ctx.globalAlpha = 1; }
 }
 // Sigrun walks up to Akros' gate, pushes its doors open, comes through and stops just inside it. The doors swing shut
 // behind her. V.gateK is how far open they are (0 shut, as painted into the ground; drawn by drawAkrosGate).
@@ -324,7 +373,7 @@ function drawAkrosGate(cx, cy) {
   ctx.drawImage(g.clean, a.x0 - cx, a.y0 - cy);
   ctx.save(); ctx.translate(-cx, -cy); drawGateDoors(ctx, a.x0, a.x1, a.by, V.gateK); ctx.restore();
 }
-const NORTH_CUTSCENES = { voyage: tickVoyage, stranger: tickStranger };
+const NORTH_CUTSCENES = { voyage: tickVoyage, stranger: tickStranger, leave: tickLeave };
 const CUTSCENE_DRAW = { voyage: drawVoyage };
 
 /* ---- trading: buying parts, and selling them ---- */
