@@ -2,6 +2,10 @@
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1.1', date: 'November 2026', title: 'The market',
+    changed: [
+      'Melita and Åsa no longer have a purse: they always have the drachmae for whatever you sell them.',
+    ] },
   { v: '1.1', date: 'November 2026', title: 'The North',
     new: [
       'The North: once Typhon has fallen, a stranger walks in through Akros’ gate. Sail north with Sigrun to Vindheim, a village at the edge of the world.',

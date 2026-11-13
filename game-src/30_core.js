@@ -254,7 +254,7 @@ const Store = {
   },
   forget() {
     for (const n in this.timers) clearTimeout(this.timers[n]);
-    this.token = null; this.user = null; this.remote = null; this.pending = {}; this.timers = {};
+    this.token = null; this.user = null; this.remote = null; this.pending = {}; this.timers = {}; this.base = {};
     try { localStorage.removeItem('olympus-hunt/session'); localStorage.removeItem('olympus-hunt/user'); } catch (e) {}
   },
   // Fetch the account's three saves (used by the save list).
@@ -281,15 +281,38 @@ const Store = {
     for (let n = 1; n <= 3; n++) this.delLocal(n);
     this.forget();
   },
+  // Resolves true once the server has taken the save (and remembers what it took: see room), false if it didn't.
   push(n, keepalive = false) {
     clearTimeout(this.timers[n]); this.timers[n] = null;
-    const data = this.pending[n]; if (!data || !this.user) return Promise.resolve();
+    const data = this.pending[n]; if (!data || !this.user) return Promise.resolve(false);
     delete this.pending[n];
-    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).catch(e => {
-      if (e && e.check) { this.refused(e.message); return; }      // the server's save checks said no: sending it again won't help
+    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).then(() => {
+      this.base[n] = { money: data.money || 0, play: data.playtime || 0, created: data.createdAt };
+      return true;
+    }).catch(e => {
+      if (e && e.check) { this.refused(e.message); return false; }      // the server's save checks said no: sending it again won't help
       if (!this.pending[n]) this.pending[n] = data;
       if (!this.timers[n]) this.timers[n] = setTimeout(() => this.push(n), 20000);   // it's safe on this device: keep trying
+      return false;
     });
+  },
+  // The account server turns away a save whose drachmae went up faster than hunting pays: more than 1200 a second of play
+  // since its last copy, plus 150,000 (src/index.js, SAVE_RATE and SAVE_SLACK). Selling a big pile of parts at the market
+  // can do that, so the market asks how much more this game can gain before the next save (with a margin), and when a sale
+  // needs more, it sends the save first (syncNow) and goes on from the server's new copy. Infinity: no account to check it.
+  base: {},
+  room(n, s) {
+    if (!this.user) return Infinity;
+    let b = this.base[n];
+    if (!b && this.remote && this.remote[n] && this.remote[n].save) { const r = this.remote[n].save; b = { money: r.money || 0, play: r.playtime || 0, created: r.createdAt }; }
+    if (!b || b.created !== s.createdAt) return 0;                 // not known yet: send the save first
+    return Math.max(0, Math.max(0, s.playtime - b.play) * 1000 + 120000 - (s.money - b.money));
+  },
+  syncNow(n, data) {
+    if (!this.user) return Promise.resolve(true);
+    data.savedAt = Date.now(); this.writeLocal(n, data);
+    this.pending[n] = JSON.parse(JSON.stringify(data));
+    return this.push(n);
   },
   // Said once per reason: the save stays on this device, the account keeps its last good copy.
   refused(msg) { if (this.refusedMsg === msg) return; this.refusedMsg = msg; if (typeof toast === 'function') toast(msg + ' It’s still saved on this device.', 7000); },
@@ -370,8 +393,7 @@ function newSave() {
            loadouts: [],                                            // saved gear sets: { name, weapon, shield, equip }
            finishTime: 0,                                           // play time, in seconds, when Typhon first fell (the leaderboard tab for it is gone; the server still reads it)
            hero: 'boy',                                             // 'boy' or 'girl', picked in Options
-           north: 0, northEnd: false,                               // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
-           purse: PURSE_MAX, purseAt: 0 };                          // what the traders can pay for parts right now, and the play time it was counted at
+           north: 0, northEnd: false };                             // the North (85_vindheim.js): how far its story has got, and Fenrir's credits seen
 }
 // How a save's hero looks: the armor worn, and boy or girl (for heroFrames).
 const heroLook = s => ({ ...s.equip, girl: s.hero === 'girl' });
@@ -432,7 +454,7 @@ function sanitize(s) {
   // the North (1.1): only after Typhon. Saves from before it start at 0 and see Sigrun arrive the next time they're in Akros.
   out.north = out.cleared[TYPHON_Q] ? clamp(Math.floor(num(s.north, 0)), 0, 3) : 0;
   out.northEnd = s.northEnd === true && !!out.cleared[FENRIR_Q];
-  out.purse = clamp(num(s.purse, PURSE_MAX), 0, PURSE_MAX); out.purseAt = clamp(num(s.purseAt, out.playtime), 0, out.playtime);
+  // (1.1's traders had a purse, saved as purse and purseAt. The market has none now, so those are left behind.)
   return out;
 }
 

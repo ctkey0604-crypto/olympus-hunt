@@ -366,13 +366,11 @@ Object.assign(ARENAS, {
 });
 // Gleipnir's reach on Lyngvi, in pixels around the middle of the island: inside the ring of stones.
 const GLEIPNIR = { rx: 112, ry: 68 };
-// Selling parts (Melita and Åsa, 85_vindheim.js). A part sells for a tenth of what the market asks for it: selling a
-// hunt's whole haul then pays about a third of that hunt's reward (a quarter paid as much again as the hunt itself), and
-// the rare parts you'd sell for the most are the ones the forge wants. The traders have a purse that refills as you play:
-// the account server turns away a save whose drachmae jump faster than about 1200 a second of play plus 150,000, so a whole
-// stockpile sold at once must never get near that. 50,000 at most at once, and 200 a second after that, keeps every real
-// save safe with room to spare.
-const SELL_SHARE = .1, PURSE_MAX = 50000, PURSE_RATE = 200;
+// Selling parts (Melita and Åsa, 85_vindheim.js). A part sells for a tenth of what the market asks for it, and the rare
+// parts you'd sell for the most are the ones the forge wants. The traders always have the drachmae (1.1 gave them a purse
+// that refilled as you play; it's gone). A big sale is paid in steps so the account server's check on how fast drachmae
+// climb never turns the save away: Store.room in 30_core.js.
+const SELL_SHARE = .1;
 // To the player the North is a rank of its own, Nordic Rank, after the other three: a tab in the board, the forge, the chest
 // and the market, the tag on its gear, and the rank shown in its hunts and on a room's posting, all in ice blue. Underneath,
 // its hunts and gear are God Rank's (rank 2), so saves, the server's checks and multiplayer needed nothing new.

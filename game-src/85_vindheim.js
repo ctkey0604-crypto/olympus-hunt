@@ -329,9 +329,8 @@ const CUTSCENE_DRAW = { voyage: drawVoyage };
 
 /* ---- trading: buying parts, and selling them ---- */
 // Melita (Akros) and Åsa (Vindheim) both buy any part you carry, for a tenth of what they'd charge you for it. Each has
-// stock from the hunts you've cleared in her part of the world. Their shared purse refills as you play (see PURSE_MAX).
+// stock from the hunts you've cleared in her part of the world. They always have the drachmae: there's no purse.
 const trader = () => atVindheim() ? 'asa' : 'melita';
-function purseNow(s = G.save) { return Math.floor(Math.min(PURSE_MAX, (s.purse || 0) + Math.max(0, s.playtime - (s.purseAt || 0)) * PURSE_RATE)); }
 function sellPrice(id) { return Math.max(1, Math.round(partCost(id) * SELL_SHARE)); }
 // Gear you haven't forged yet that this part goes into (so the sell list can warn you).
 function partWanted(id) {
@@ -341,25 +340,33 @@ function partWanted(id) {
   for (const [sid, sh] of Object.entries(SHIELDS)) if (sh.recipe && sh.recipe.items[id] && !s.shields.includes(sid)) return true;
   return false;
 }
-function sellPart(id, n) {
-  const s = G.save, have = s.inv[id] || 0, price = sellPrice(id), purse = purseNow(s), k = Math.min(n, have, Math.floor(purse / price));
-  if (k <= 0) return null;
-  const got = k * price;
-  s.inv[id] = have - k; if (s.inv[id] <= 0) delete s.inv[id];
-  s.money += got; s.purse = purse - got; s.purseAt = s.playtime; persist();
-  return { n: k, got };
+// The account server turns away a save whose drachmae climb faster than hunting pays (Store.room, 30_core.js). A sale
+// bigger than that is paid in steps, sending the save between them; it only stops early if the account can't be reached.
+let selling = false;
+async function sellPart(id, n) {
+  const s = G.save, price = sellPrice(id), want = Math.min(n, s.inv[id] || 0);
+  let left = want, got = 0;
+  while (left > 0 && G.save === s) {
+    let room = Store.room(G.slot, s);
+    if (room < price) { await Store.syncNow(G.slot, s); room = Store.room(G.slot, s); if (room < price || G.save !== s) break; }
+    const k = Math.min(left, Math.floor(room / price), s.inv[id] || 0); if (k <= 0) break;
+    s.inv[id] -= k; if (s.inv[id] <= 0) delete s.inv[id];
+    s.money += k * price; left -= k; got += k * price;
+  }
+  if (got && G.save === s) persist();
+  return { n: want - left, got, left };
 }
 function renderSell() {
-  const s = G.save, who = trader() === 'asa' ? 'Åsa' : 'Melita', purse = purseNow(s);
+  const s = G.save, who = trader() === 'asa' ? 'Åsa' : 'Melita';
   const tabs = chestTabs(), tab = tabs.includes(G.sellTab) ? G.sellTab : tabs[tabs.length - 1]; G.sellTab = tab;
   const ids = Object.keys(ITEMS).filter(id => s.inv[id] > 0 && northTab(ITEMS[id]) === tab).sort((a, b) => ITEMS[a].rarity - ITEMS[b].rarity || ITEMS[a].name.localeCompare(ITEMS[b].name));
   const seg = tabs.length > 1 ? `<div class="board-top"><div class="seg">${tabs.map(r => `<button type="button" data-selltab="${r}" data-rank="${r}" aria-pressed="${tab === r}">${tabName(r)}<span class="n">${Object.keys(s.inv).filter(id => s.inv[id] > 0 && ITEMS[id] && northTab(ITEMS[id]) === r).length}</span></button>`).join('')}</div></div>` : '';
-  const head = `<p class="muted" style="margin:0 0 10px">${who} buys any part for a tenth of what she sells it for. She can pay up to <b class="gold">${fmtMoney(purse)} dr</b> right now${purse < PURSE_MAX ? ', and her purse fills back up as you play' : ''}.</p>`;
+  const head = `<p class="muted" style="margin:0 0 10px">${who} buys any part for a tenth of what she sells it for.</p>`;
   if (!ids.length) return head + seg + `<div class="empty-note">Nothing to sell here. Parts you bring home from hunts show up here.</div>`;
   return head + seg + `<div class="stash shop">${ids.map(id => {
-    const it = ITEMS[id], n = s.inv[id], price = sellPrice(id), want = partWanted(id), all = Math.min(n, Math.floor(purse / price));
+    const it = ITEMS[id], n = s.inv[id], price = sellPrice(id), want = partWanted(id);
     return `<div class="mat"><img class="px-icon" alt="" src="${icon(id)}"><div><b class="r${it.rarity}">${esc(it.name)}</b><p>You have ${n}</p>${want ? '<p class="warn-soft">Needed for gear</p>' : ''}</div>
-      <div class="sell-btns"><button class="btn small" type="button" data-sell="${id}:1" ${price > purse ? 'disabled' : ''}>Sell 1 · ${fmtMoney(price)} dr</button>${n > 1 ? `<button class="btn ghost small" type="button" data-sell="${id}:all" ${all < 1 ? 'disabled' : ''}>Sell ${all < n ? all : 'all'} · ${fmtMoney(all * price)} dr</button>` : ''}</div></div>`;
+      <div class="sell-btns"><button class="btn small" type="button" data-sell="${id}:1">Sell 1 · ${fmtMoney(price)} dr</button>${n > 1 ? `<button class="btn ghost small" type="button" data-sell="${id}:all">Sell all · ${fmtMoney(n * price)} dr</button>` : ''}</div></div>`;
   }).join('')}</div>`;
 }
 // The tabs the chest and the sell list use: each rank you've reached, and the North once anything from it is yours.
@@ -374,9 +381,13 @@ $('scrHub').addEventListener('click', ev => {
   if (t.dataset.travel) { travelTo(t.dataset.travel); return; }
   if (t.dataset.shoptab) { G.shopTab = t.dataset.shoptab; Sound.play('click'); renderHub(); return; }
   if (t.dataset.selltab) { G.sellTab = +t.dataset.selltab; Sound.play('click'); renderHub(); return; }
-  if (t.dataset.sell) {
-    const [id, n] = t.dataset.sell.split(':'), r = sellPart(id, n === 'all' ? 1e9 : +n || 1);
-    if (!r) { toast((trader() === 'asa' ? 'Åsa' : 'Melita') + ' can’t pay for that right now. Her purse fills back up as you play.'); return; }
-    Sound.play('coin'); renderHub(); toast(`Sold ${r.n > 1 ? r.n + ' × ' : ''}${ITEMS[id].name} for ${fmtMoney(r.got)} dr`);
+  if (t.dataset.sell && !selling) {
+    const [id, n] = t.dataset.sell.split(':'), name = ITEMS[id].name; selling = true;
+    sellPart(id, n === 'all' ? 1e9 : +n || 1).then(r => {
+      selling = false; if (G.mode === 'panel' && G.panel === 'market') renderHub();
+      if (r.n) Sound.play('coin');
+      if (r.left) toast(r.n ? `Sold ${r.n}. Your account can’t be reached right now, so you kept the rest. Try again in a moment.` : 'Your account can’t be reached right now. Try again in a moment.', 6000);
+      else toast(`Sold ${r.n > 1 ? r.n + ' × ' : ''}${name} for ${fmtMoney(r.got)} dr`);
+    }, () => { selling = false; });
   }
 });

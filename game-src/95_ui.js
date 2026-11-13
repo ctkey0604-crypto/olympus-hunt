@@ -1191,7 +1191,7 @@ if (location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(l
   unlockAll: () => { QUESTS.forEach(qd => { G.save.cleared[qd.id] = G.save.cleared[qd.id] || 1; }); persist(); },
   richer: () => { G.save.money += 100000; for (const id of Object.keys(ITEMS)) G.save.inv[id] = 99; persist(); },
   // the North (1.1)
-  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, sellPart, sellPrice, purseNow, partCost, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
+  FENRIR_Q, NORSE_GODS, northOpen, northStory, travelTo, startVoyage, sellPart, sellPrice, partCost, renderMarket, chestTabs, renderMap, THEMES, OBST, NORSE_STATES, CUTSCENE_DRAW, showCredits,
 };
 
 })();
