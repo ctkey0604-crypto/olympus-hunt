@@ -43,7 +43,7 @@ function northToldYou() {
 // 40 x 30 tiles, but the village itself stops at row 21: below it is the harbor, deep enough for the longship to lie in.
 const VIND_W = 40, VIND_H = 30, VIND_IN = { x0: 3, y0: 3, x1: 36, y1: 21 }, VIND_PX = { minX: 48, maxX: 592, minY: 48, maxY: 352 };
 const VIND_PROPS = [
-  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 19.6, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
+  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
   ['statue', 5.5, 7.2, 'heimdall'], ['statue', 8.5, 7.2, 'freyja'], ['statue', 11.5, 7.2, 'tyr'], ['statue', 28.5, 7.2, 'loki'], ['statue', 31.5, 7.2, 'thor'], ['statue', 34.5, 7.2, 'odin'],
   ['tstatue', 20, 15.8, 'fenrir'], ['runestone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
   ['snowpine', 4, 4], ['snowpine', 36, 4], ['snowpine', 4, 13], ['snowpine', 36.2, 10.6], ['snowpine', 35.6, 20.2], ['snowpine', 4.4, 20.6], ['snowpine', 28.2, 20.6],
