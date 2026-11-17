@@ -196,6 +196,7 @@ function renderTitleControls() {
 //  - On your own website (the Cloudflare server in src/index.js): to your account once you sign in.
 //  - As a Claude artifact: to the viewer's Claude account.
 //  - Always: this browser's localStorage too, so the game works offline and nothing is lost if the network drops.
+const TAB_ID = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);   // this tab, for the stamp on the device's copy (Store.keepLocal)
 const Store = {
   cloud: null, uid: null, localOk: false, ready: null, queue: {},
   api: false, user: null, token: null, remote: null, pending: {}, timers: {},
@@ -206,11 +207,15 @@ const Store = {
   // chosen stays on the device as a backup (bakKey), and the server keeps older copies the owner can put back.
   at: {}, blocked: {}, conflicts: {}, replace: {}, inflight: {},
   key(n, who = this.user) { return who ? `olympus-hunt/u/${who.toLowerCase()}/slot${n}` : 'olympus-hunt/slot' + n; },
-  readAt(n) { try { const v = this.ls().getItem(this.key(n) + '.at'); return v === null || v === '' ? null : Number(v); } catch (e) { return null; } },
-  setAt(n, v) { this.at[n] = v; try { if (v === null || v === undefined) this.ls().removeItem(this.key(n) + '.at'); else this.ls().setItem(this.key(n) + '.at', String(v)); } catch (e) {} },
+  // The copy on this device remembers which server copy it grew out of (_base) and which tab wrote it (_tab). Two tabs in one
+  // browser share this one copy, so the stamp lives inside it: an old tab's copy can never pass for a continuation of the newest.
+  readRaw(n) { try { const v = this.ls().getItem(this.key(n)); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+  baseOf(raw) { return raw && typeof raw._base === 'number' ? raw._base : null; },
+  keepLocal(n, d, base) { return this.writeLocal(n, Object.assign({}, d, { _base: typeof base === 'number' ? base : null, _tab: TAB_ID })); },
+  setAt(n, v) { this.at[n] = v; },
   backup(n, d) { if (d) try { this.ls().setItem(this.key(n) + '.bak', JSON.stringify(d)); } catch (e) {} },
   // Take the account's copy on this device. A different copy that was here is kept as the backup.
-  take(n, c, cAt, local) { if (local && (local.savedAt !== c.savedAt || local.playtime !== c.playtime)) this.backup(n, local); this.writeLocal(n, c); this.setAt(n, cAt); },
+  take(n, c, cAt, local) { if (local && (local.savedAt !== c.savedAt || local.playtime !== c.playtime)) this.backup(n, local); this.keepLocal(n, c, cAt); this.setAt(n, cAt); },
   // On CrazyGames saves live in their Data module (it works like localStorage and follows the player's account).
   ls() { return CG.data || localStorage; },
   readLocal(n, who) { try { const s = this.ls().getItem(this.key(n, who)); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
@@ -285,7 +290,7 @@ const Store = {
     for (let n = 1; n <= 3 && create; n++) {
       const guest = sanitize(this.readLocal(n, null)); if (!guest) continue;
       if (this.remote && !this.remote[n]) {
-        try { const r = await this.call('PUT', 'saves/' + n, { save: guest, cv: 2, base: null }); this.remote[n] = { save: Object.assign({}, guest, { _at: r.at }), savedAt: guest.savedAt }; this.writeLocal(n, guest); this.setAt(n, r.at); this.delLocal(n, null); moved.push(n); } catch (e) { kept.push(n); }
+        try { const r = await this.call('PUT', 'saves/' + n, { save: guest, cv: 2, base: null }); this.remote[n] = { save: Object.assign({}, guest, { _at: r.at }), savedAt: guest.savedAt }; this.keepLocal(n, guest, r.at); this.setAt(n, r.at); this.delLocal(n, null); moved.push(n); } catch (e) { kept.push(n); }
       } else kept.push(n);
     }
     return { moved, kept };
@@ -303,9 +308,14 @@ const Store = {
     if (this.inflight[n]) return this.inflight[n].then(() => this.push(n, keepalive));
     const data = this.pending[n]; if (!data || !this.user || this.blocked[n]) return Promise.resolve(false);
     delete this.pending[n];
-    const base = this.at[n] === undefined ? this.readAt(n) : this.at[n];
+    const base = this.at[n] === undefined ? this.baseOf(this.readRaw(n)) : this.at[n];
     const p = this.call('PUT', 'saves/' + n, { save: data, cv: 2, base, replace: !!this.replace[n] }, keepalive).then(res => {
-      if (res && typeof res.at === 'number') this.setAt(n, res.at);
+      if (res && typeof res.at === 'number') {
+        this.setAt(n, res.at);
+        // This tab's own copy on the device, if it's what went up or a later save from this tab, now grows out of the new server copy.
+        const raw = this.readRaw(n);
+        if (raw && raw._tab === TAB_ID && (raw.savedAt || 0) >= (data.savedAt || 0)) { raw._base = res.at; this.writeLocal(n, raw); }
+      }
       delete this.replace[n];
       this.base[n] = { money: data.money || 0, play: data.playtime || 0, created: data.createdAt };
       return true;
@@ -349,7 +359,7 @@ const Store = {
   },
   syncNow(n, data) {
     if (!this.user) return Promise.resolve(true);
-    data.savedAt = Date.now(); this.writeLocal(n, data);
+    data.savedAt = Date.now(); this.keepLocal(n, data, this.at[n]);
     this.pending[n] = JSON.parse(JSON.stringify(data));
     return this.push(n);
   },
@@ -367,16 +377,16 @@ const Store = {
   /* ---- Claude artifact cloud ---- */
   ref(n) { return this.cloud.doc('data/users/' + this.uid + '/slot' + n); },
   async load(n) {
-    const local = sanitize(this.readLocal(n));
+    const raw = this.readRaw(n), local = sanitize(raw);
     if (this.user) {
       delete this.conflicts[n];
-      if (!this.remote) { if (this.at[n] === undefined) this.at[n] = this.readAt(n); return local; }   // the account can't be reached: play on from this device
+      if (!this.remote) { if (this.at[n] === undefined) this.at[n] = this.baseOf(raw); return local; }   // the account can't be reached: play on from this device
       const r = this.remote[n], c = r ? sanitize(r.save) : null, cAt = r && r.save && typeof r.save._at === 'number' ? r.save._at : null;
       if (!c) { if (local) { this.setAt(n, null); this.pending[n] = local; this.push(n); } return local; }   // nothing in the account yet: this device's save goes up
       if (!local) { this.take(n, c, cAt); return c; }
       const send = replace => { this.at[n] = cAt; if (replace) this.replace[n] = true; this.pending[n] = local; this.push(n); return local; };
       // This device's copy grew out of the account's current one: anything newer here simply hasn't gone up yet.
-      if (this.readAt(n) === cAt && cAt !== null) return (local.savedAt || 0) > (c.savedAt || 0) ? send(false) : (this.take(n, c, cAt, local), c);
+      if (this.baseOf(raw) === cAt && cAt !== null) return (local.savedAt || 0) > (c.savedAt || 0) ? send(false) : (this.take(n, c, cAt, local), c);
       if (local.createdAt === c.createdAt) {
         // The copies went separate ways (another device saved in between, or a stale tab did). Go by progress, which only grows.
         const mine = aheadOf(local, c), theirs = aheadOf(c, local);
@@ -384,9 +394,8 @@ const Store = {
         if (mine) return send(true);                                    // this device is ahead (offline progress, or the one an old tab overwrote)
         this.take(n, c, cAt, local); return c;
       }
-      // a different game in the slot on each: the one saved last wins, as before, and the other is kept as the backup
-      if ((local.savedAt || 0) > (c.savedAt || 0)) { this.backup(n, c); return send(true); }
-      this.take(n, c, cAt, local); return c;
+      // A different game in the slot on each (one device started over): never guess by the clock. The player picks.
+      this.conflicts[n] = { local, cloud: c, at: cAt }; return local;
     }
     if (this.cloud) {
       try {
@@ -406,13 +415,13 @@ const Store = {
     const k = this.conflicts[n]; if (!k) return null; delete this.conflicts[n];
     if (pick === 'cloud') { this.take(n, k.cloud, k.at, k.local); return k.cloud; }
     this.backup(n, k.cloud); this.at[n] = k.at; this.replace[n] = true;
-    k.local.savedAt = Date.now(); this.writeLocal(n, k.local); this.pending[n] = JSON.parse(JSON.stringify(k.local)); this.push(n);
+    k.local.savedAt = Date.now(); this.keepLocal(n, k.local, k.at); this.pending[n] = JSON.parse(JSON.stringify(k.local)); this.push(n);
     return k.local;
   },
   // urgent: send right away (end of a quest, leaving the game). Otherwise changes are bundled for a few seconds.
   save(n, data, urgent = false) {
     data.savedAt = Date.now();
-    this.writeLocal(n, data);
+    if (this.user) this.keepLocal(n, data, this.at[n]); else this.writeLocal(n, data);
     if (this.user) {
       this.pending[n] = JSON.parse(JSON.stringify(data));
       clearTimeout(this.timers[n]);
@@ -432,7 +441,7 @@ const Store = {
     }
   },
   async del(n) {
-    this.delLocal(n); this.setAt(n, undefined); delete this.at[n]; delete this.pending[n]; delete this.conflicts[n]; delete this.blocked[n]; clearTimeout(this.timers[n]);
+    this.delLocal(n); delete this.at[n]; delete this.pending[n]; delete this.conflicts[n]; delete this.blocked[n]; clearTimeout(this.timers[n]);
     if (this.user) { try { await this.call('DELETE', 'saves/' + n); if (this.remote) delete this.remote[n]; } catch (e) {} }
     else if (this.cloud) { try { await this.ref(n).delete(); } catch (e) {} }
   },
@@ -444,9 +453,9 @@ addEventListener('pageshow', ev => { if (ev.persisted && G.save && G.slot) Store
 // Has save a made progress that save b doesn't have? Rank, hunts cleared, the Endless record and play time only ever grow,
 // so a copy that is simply older is never "ahead" (two minutes of play time is let go: menus and walking around town).
 function aheadOf(a, b) {
-  const ac = a.cleared || {}, bc = b.cleared || {};
+  const ac = a.cleared || {}, bc = b.cleared || {}, has = (x, y) => (x || []).some(id => !(y || []).includes(id));
   return (a.rank || 0) > (b.rank || 0) || (a.playtime || 0) > (b.playtime || 0) + 120 || ((a.endless && a.endless.best) || 0) > ((b.endless && b.endless.best) || 0)
-    || Object.keys(ac).some(id => (ac[id] || 0) > (bc[id] || 0));
+    || Object.keys(ac).some(id => (ac[id] || 0) > (bc[id] || 0)) || has(a.weapons, b.weapons) || has(a.shields, b.shields) || has(a.pieces, b.pieces);
 }
 addEventListener('online', () => Store.flush());                     // saves that couldn't be sent go up as soon as the connection is back
 

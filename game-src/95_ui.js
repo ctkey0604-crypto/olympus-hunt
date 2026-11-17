@@ -192,8 +192,9 @@ function saveSummary(s) {
 function pickSave(n, s) {
   const k = Store.conflicts[n]; if (!k) return Promise.resolve(s);
   return new Promise(done => {
+    const other = k.local.createdAt !== k.cloud.createdAt;
     const el = syncBox(`<h2>Save ${n} was played on two devices</h2>
-      <p>Each copy has progress the other doesn’t, and only one can carry on. Pick the one to keep.</p>
+      <p>${other ? 'They hold two different games' : 'Each copy has progress the other doesn’t'}, and only one can carry on. Pick the one to keep.</p>
       <div class="sync-pick"><div class="slot-main"><span class="lbl">On this device</span>${saveSummary(k.local)}<button class="btn" type="button" data-keep="local">Keep this one</button></div>
       <div class="slot-main"><span class="lbl">In your account</span>${saveSummary(k.cloud)}<button class="btn" type="button" data-keep="cloud">Keep this one</button></div></div>
       <p class="muted">The other copy isn’t deleted. It’s kept as a backup.</p>`);

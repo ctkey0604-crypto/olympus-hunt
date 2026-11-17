@@ -131,8 +131,9 @@ async function route(req, env, url) {
       const cv = body.cv === 2, base = typeof body.base === 'number' ? body.base : null, replace = cv && body.replace === true;
       const heldAt = prev && typeof prev._at === 'number' ? prev._at : null;
       if (cv && old && base !== heldAt) return json({ error: 'This save was played on another device since this tab loaded it.', conflict: true, at: heldAt }, 409);
-      // A tab from before November 17 2026 sends no base. Once a newer game has saved here, such a tab is out of date.
-      if (!cv && prev && prev._cv === 2) return json({ error: 'This game tab is out of date. Reload the page to keep playing.', check: true }, 409);
+      // A tab from before November 17 2026 sends no base, so nothing stops it saving over newer progress: it has to reload first.
+      // (Its progress is safe: it stays on that device, and after the reload the game works out which copy has what.)
+      if (!cv) return json({ error: 'This game tab is out of date. Reload the page to keep playing.', check: true }, 409);
       // The play-rate checks measure from the server's last copy only when this save grew out of it. A chosen copy from
       // another device grew out of an older one, so it gets the checks a fresh save gets (no weaker than a new game in the slot).
       const why = checkSave(save, replace ? null : prev, now);
