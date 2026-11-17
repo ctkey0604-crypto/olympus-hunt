@@ -33,6 +33,9 @@ function ensureTables(env) {
         created INTEGER NOT NULL, fails INTEGER NOT NULL DEFAULT 0, locked_until INTEGER NOT NULL DEFAULT 0)`),
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, name TEXT NOT NULL, expires INTEGER NOT NULL)`),
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS saves (name TEXT NOT NULL, slot INTEGER NOT NULL, data TEXT NOT NULL, saved_at INTEGER NOT NULL, PRIMARY KEY (name, slot))`),
+      // Older copies of each save, so the owner can roll a player back (see HISTORY_* below). Nothing here is ever sent to players.
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS save_history (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slot INTEGER NOT NULL, data TEXT NOT NULL, saved_at INTEGER NOT NULL, kept_at INTEGER NOT NULL, why TEXT NOT NULL)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS save_history_by_slot ON save_history (name, slot, kept_at)`),
     ]).catch(e => { tablesReady = null; throw e; });
   }
   return tablesReady;
@@ -65,9 +68,18 @@ async function route(req, env, url) {
     if (key === OWNER) return json({ error: 'You can’t delete the owner account.' }, 400);
     const u = await env.DB.prepare('SELECT display FROM users WHERE name = ?').bind(key).first();
     if (!u) return json({ error: 'No account by that name.' }, 400);
-    await env.DB.batch([env.DB.prepare('DELETE FROM saves WHERE name = ?').bind(key), env.DB.prepare('DELETE FROM sessions WHERE name = ?').bind(key), env.DB.prepare('DELETE FROM users WHERE name = ?').bind(key)]);
+    await env.DB.batch([env.DB.prepare('DELETE FROM saves WHERE name = ?').bind(key), env.DB.prepare('DELETE FROM save_history WHERE name = ?').bind(key),
+      env.DB.prepare('DELETE FROM sessions WHERE name = ?').bind(key), env.DB.prepare('DELETE FROM users WHERE name = ?').bind(key)]);
     try { await lobbyStub(env).forget(key); } catch {}
     return json({ ok: true, name: u.display });
+  }
+  // The owner's save history for one player, and putting one of its copies back.
+  if (path === '/api/owner/history' && method === 'POST') {
+    if (user.name !== OWNER) return json({ error: 'Not found.' }, 404);
+    const b = await readJson(req), key = String(b.name || '').toLowerCase();
+    if (!NAME_RE.test(key)) return json({ error: 'No account by that name.' }, 400);
+    if (b.restore !== undefined) { const r = await ownerRestore(env, key, Number(b.restore)); if (r.error) return json(r, 400); return json({ ...r, ...(await ownerHistory(env, key)) }); }
+    return json(await ownerHistory(env, key));
   }
   if (path === '/api/owner/suggest' && method === 'POST') {
     if (user.name !== OWNER) return json({ error: 'Not found.' }, 404);
@@ -109,18 +121,39 @@ async function route(req, env, url) {
       let body; try { body = JSON.parse(text); } catch { return json({ error: 'Bad save data.' }, 400); }
       const save = body && body.save;
       if (!save || typeof save !== 'object' || Array.isArray(save)) return json({ error: 'Bad save data.' }, 400);
-      const now = Date.now(), old = await env.DB.prepare('SELECT data FROM saves WHERE name = ? AND slot = ?').bind(user.name, slot).first();
+      const now = Date.now(), old = await env.DB.prepare('SELECT data, saved_at FROM saves WHERE name = ? AND slot = ?').bind(user.name, slot).first();
       let prev = null; try { prev = old ? JSON.parse(old.data) : null; } catch {}
-      const why = checkSave(save, prev, now);
+      // Which copy this save was built on. Games from November 17 2026 on send it (cv: 2) with base: the _at stamp of the
+      // server copy they loaded or last sent (null when they know of none). A save built on anything other than what the
+      // server holds now was made in a tab that fell behind: another device saved in between. Taking it would wipe that
+      // device's progress (a player lost hours that way), so the game is told to load the newer copy instead.
+      // replace: the player saw both copies and chose this one (the game asks when two devices have each made progress).
+      const cv = body.cv === 2, base = typeof body.base === 'number' ? body.base : null, replace = cv && body.replace === true;
+      const heldAt = prev && typeof prev._at === 'number' ? prev._at : null;
+      if (cv && old && base !== heldAt) return json({ error: 'This save was played on another device since this tab loaded it.', conflict: true, at: heldAt }, 409);
+      // A tab from before November 17 2026 sends no base. Once a newer game has saved here, such a tab is out of date.
+      if (!cv && prev && prev._cv === 2) return json({ error: 'This game tab is out of date. Reload the page to keep playing.', check: true }, 409);
+      // The play-rate checks measure from the server's last copy only when this save grew out of it. A chosen copy from
+      // another device grew out of an older one, so it gets the checks a fresh save gets (no weaker than a new game in the slot).
+      const why = checkSave(save, replace ? null : prev, now);
       if (why) return json({ error: `The server couldn’t store this save: ${why}.`, check: true }, 422);
       save._at = now;                                              // when the server took it (the next check measures from here)
+      if (cv) save._cv = 2;
       const savedAt = Number.isFinite(save.savedAt) ? Math.floor(save.savedAt) : Date.now();
-      // Keep whichever copy is newer, so an old tab can't overwrite newer progress.
-      const r = await env.DB.prepare(`INSERT INTO saves (name, slot, data, saved_at) VALUES (?, ?, ?, ?)
-        ON CONFLICT(name, slot) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at WHERE excluded.saved_at >= saves.saved_at`)
-        .bind(user.name, slot, JSON.stringify(save), savedAt).run();
-      if (r.meta.changes > 0) { const sc = scoreOf(save); if (sc.time || sc.wave) try { await lobbyStub(env).scoreReport(user.name, user.display, sc); } catch {} }   // the boards never cost anyone a save
-      return json({ ok: true, kept: r.meta.changes > 0 });
+      // Keep a copy of what this save replaces when it could be a loss, or every HISTORY_GAP while playing.
+      const keep = prev ? historyReason(prev, save, replace, now) : null;
+      save._snap = keep ? now : (prev && typeof prev._snap === 'number' ? prev._snap : now);
+      // Old games: keep whichever copy is newer by the clock. New games: take it only if the server still holds the copy it
+      // was built on (checked again here, in the same statement as the write, so two devices saving at once can't both win).
+      const r = await env.DB.prepare(`INSERT INTO saves (name, slot, data, saved_at) VALUES (?1, ?2, ?3, ?4)
+        ON CONFLICT(name, slot) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at
+        WHERE (?5 = 0 AND excluded.saved_at >= saves.saved_at) OR (?5 = 1 AND json_extract(saves.data, '$._at') IS ?6)`)
+        .bind(user.name, slot, JSON.stringify(save), savedAt, cv ? 1 : 0, heldAt).run();
+      const kept = r.meta.changes > 0;
+      if (cv && !kept) return json({ error: 'This save was played on another device since this tab loaded it.', conflict: true }, 409);
+      if (kept && keep) try { await keepHistory(env, user.name, slot, old.data, old.saved_at, keep, now); } catch {}   // history never costs anyone a save
+      if (kept) { const sc = scoreOf(save); if (sc.time || sc.wave) try { await lobbyStub(env).scoreReport(user.name, user.display, sc); } catch {} }   // the boards never cost anyone a save
+      return json({ ok: true, kept, at: kept ? now : null });
     }
     if (method === 'DELETE') {
       await env.DB.prepare('DELETE FROM saves WHERE name = ? AND slot = ?').bind(user.name, slot).run();
@@ -128,6 +161,49 @@ async function route(req, env, url) {
     }
   }
   return json({ error: 'Not found.' }, 404);
+}
+
+/* ---------- save history ---------- */
+// Up to HISTORY_KEEP older copies per save slot. A copy is kept when a save would replace one with less play time, fewer
+// hunts cleared or a different game (the shape of an overwrite from a stale tab), when a player picks another device's
+// copy, and otherwise at most once per HISTORY_GAP. The owner can put any of them back from the dashboard.
+const HISTORY_KEEP = 20, HISTORY_GAP = 30 * 60000;
+function historyReason(prev, next, replace, now) {
+  const clears = c => Object.values(c && typeof c === 'object' ? c : {}).reduce((n, v) => n + (typeof v === 'number' && v > 0 ? Math.floor(v) : 0), 0);
+  if (replace) return 'replaced by another device';
+  if (prev.createdAt !== next.createdAt) return 'new game in the slot';
+  if ((next.playtime || 0) < (prev.playtime || 0) || clears(next.cleared) < clears(prev.cleared)) return 'less progress than before';
+  if (now - (typeof prev._snap === 'number' ? prev._snap : 0) >= HISTORY_GAP) return 'regular';
+  return null;
+}
+async function keepHistory(env, name, slot, data, savedAt, why, now) {
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO save_history (name, slot, data, saved_at, kept_at, why) VALUES (?, ?, ?, ?, ?, ?)').bind(name, slot, data, savedAt, now, why),
+    env.DB.prepare(`DELETE FROM save_history WHERE name = ? AND slot = ? AND id NOT IN (SELECT id FROM save_history WHERE name = ? AND slot = ? ORDER BY kept_at DESC LIMIT ?)`)
+      .bind(name, slot, name, slot, HISTORY_KEEP),
+  ]);
+}
+// The owner's list of a player's kept copies: progress only, newest first.
+async function ownerHistory(env, key) {
+  const { results } = await env.DB.prepare(`SELECT id, slot, saved_at, kept_at, why, json_extract(data, '$.playtime') AS play, json_extract(data, '$.money') AS money,
+      json_extract(data, '$.rank') AS rank, json_extract(data, '$.cleared') AS cleared, json_extract(data, '$.createdAt') AS created
+    FROM save_history WHERE name = ? ORDER BY kept_at DESC LIMIT 100`).bind(key).all();
+  const { results: now } = await env.DB.prepare(`SELECT slot, saved_at, json_extract(data, '$.playtime') AS play, json_extract(data, '$.money') AS money,
+      json_extract(data, '$.rank') AS rank, json_extract(data, '$.cleared') AS cleared, json_extract(data, '$.createdAt') AS created FROM saves WHERE name = ? ORDER BY slot`).bind(key).all();
+  return { copies: results || [], saves: now || [] };
+}
+// Put a kept copy back. What it replaces is kept too, so a restore can itself be undone. The restored copy gets a fresh
+// stamp, so every device takes it as the newest the next time it loads, and any tab still open on the old one is stopped.
+async function ownerRestore(env, key, id) {
+  const h = await env.DB.prepare('SELECT slot, data FROM save_history WHERE id = ? AND name = ?').bind(id, key).first();
+  if (!h) return { error: 'That copy isn’t there any more.' };
+  let save; try { save = JSON.parse(h.data); } catch { return { error: 'That copy can’t be read.' }; }
+  const now = Date.now(), cur = await env.DB.prepare('SELECT data, saved_at FROM saves WHERE name = ? AND slot = ?').bind(key, h.slot).first();
+  if (cur) await keepHistory(env, key, h.slot, cur.data, cur.saved_at, 'before a restore', now);
+  Object.assign(save, { savedAt: now, _at: now, _snap: now, _cv: 2 });
+  await env.DB.prepare(`INSERT INTO saves (name, slot, data, saved_at) VALUES (?, ?, ?, ?) ON CONFLICT(name, slot) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at`)
+    .bind(key, h.slot, JSON.stringify(save), now).run();
+  return { ok: true, slot: h.slot };
 }
 
 /* ---------- the owner's dashboard ---------- */

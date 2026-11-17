@@ -37,6 +37,7 @@ async function playNow() {
   let n = Settings.data.lastSlot, s = n ? await Store.load(n) : null;
   if (!s) { n = 0; for (let k = 1; k <= 3; k++) { const t = await Store.load(k); if (t) { n = k; s = t; break; } } }
   if (!n) n = 1;
+  if (s) s = await pickSave(n, s);
   G.slot = n; G.save = s || newSave(); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null;
   if (!s) persist(true);
   rememberSlot(n);
@@ -158,7 +159,7 @@ function slotCard(n, s) {
   const head = `<div class="slot-n">${n}</div>`;
   if (s) {
     const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless && !qd.north), cleared = base.filter(qd => s.cleared[qd.id]).length;
-    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${playerRankTab(s)}">${playerRankName(s)}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span></div>
+    el.innerHTML = `${head}<div class="slot-main"><b>${fmtMoney(s.money)} dr${s.rank ? `<span class="rank-tag" data-rank="${playerRankTab(s)}">${playerRankName(s)}</span>` : ''}</b><span>${huntTally(s, true)} · ${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">${esc(WEAPONS[s.weapon].name)} · ${esc(armorLabel(s.equip))} · saved ${relTime(s.savedAt)}</span>${Store.conflicts[n] ? '<span class="warn">Played on two devices. You’ll pick which to keep when you continue.</span>' : ''}</div>
       <div class="slot-actions"><button class="btn" type="button" data-a="continue">Continue</button><button class="btn ghost" type="button" data-a="delete">Delete</button></div>`;
   } else {
     el.innerHTML = `${head}<div class="slot-main"><b style="color:var(--bone-dim)">Empty</b><span class="muted">Start a new game here.</span></div><div class="slot-actions"><button class="btn" type="button" data-a="new">New game</button></div>`;
@@ -166,13 +167,52 @@ function slotCard(n, s) {
   el.addEventListener('click', async ev => {
     const btn = ev.target.closest('button'); if (!btn) return;
     const a = btn.dataset.a; Sound.init(); Sound.play('click');
-    if (a === 'continue') { G.slot = n; G.save = s; G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterTown()); }
+    if (a === 'continue') { const pick = await pickSave(n, s); G.slot = n; G.save = pick; G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterTown()); }
     else if (a === 'new') { if (Store.user && !Store.remote) { toast('Can’t reach your account right now, and a new game could replace a save there. Try again in a moment.', 7000); return; } G.slot = n; G.save = newSave(); persist(true); G.selQuest = null; G.boardRank = G.forgeRank = G.stashRank = null; rememberSlot(n); fadeTo(() => enterVillage('start')); }
     else if (a === 'delete') { el.querySelector('.slot-actions').innerHTML = `<span class="warn">Delete save ${n} for good?</span><button class="btn danger" type="button" data-a="confirmdel">Delete</button><button class="btn ghost" type="button" data-a="canceldel">Keep it</button>`; }
     else if (a === 'confirmdel') { await Store.del(n); renderSlots(); }
     else if (a === 'canceldel') renderSlots();
   });
   return el;
+}
+
+/* ---- one save, two devices (Store in 30_core.js) ---- */
+// A small box over everything, for the two cases below. Built once.
+function syncBox(html) {
+  let el = $('syncBox');
+  if (!el) { el = document.createElement('div'); el.id = 'syncBox'; el.className = 'sync-box'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); document.body.appendChild(el); }
+  el.innerHTML = `<div class="sync-card">${html}</div>`; el.hidden = false; return el;
+}
+function saveSummary(s) {
+  const base = QUESTS.filter(qd => qd.rank === (s.rank || 0) && !qd.endless && !qd.north), cleared = base.filter(qd => s.cleared[qd.id]).length;
+  return `<b>${fmtMoney(s.money)} dr${s.rank ? ` · ${esc(playerRankName(s))}` : ''}</b><span>${huntTally(s, true)}</span><span>${cleared} of ${base.length} quests cleared · ${fmtPlay(s.playtime)} played</span><span class="muted">Saved ${relTime(s.savedAt)}</span>`;
+}
+// The save was played on two devices and each copy has progress the other lacks: the player picks. Nothing is lost either way:
+// the other copy stays on this device as a backup, and the server keeps the one it replaces for the owner to put back.
+function pickSave(n, s) {
+  const k = Store.conflicts[n]; if (!k) return Promise.resolve(s);
+  return new Promise(done => {
+    const el = syncBox(`<h2>Save ${n} was played on two devices</h2>
+      <p>Each copy has progress the other doesn’t, and only one can carry on. Pick the one to keep.</p>
+      <div class="sync-pick"><div class="slot-main"><span class="lbl">On this device</span>${saveSummary(k.local)}<button class="btn" type="button" data-keep="local">Keep this one</button></div>
+      <div class="slot-main"><span class="lbl">In your account</span>${saveSummary(k.cloud)}<button class="btn" type="button" data-keep="cloud">Keep this one</button></div></div>
+      <p class="muted">The other copy isn’t deleted. It’s kept as a backup.</p>`);
+    el.onclick = ev => {
+      const b = ev.target.closest('[data-keep]'); if (!b) return;
+      Sound.init(); Sound.play('click'); el.hidden = true; el.onclick = null;
+      done(Store.resolve(n, b.dataset.keep) || s);
+    };
+  });
+}
+// This tab fell behind: the save was played on another device since it was opened here. Saving from here would wipe that
+// progress, so this tab stops sending it and asks for a reload.
+function showStale(n) {
+  if (G.mode === 'quest' || G.mode === 'village') G.paused = true;
+  const el = syncBox(`<h2>Save ${n} changed on another device</h2>
+    <p>It was played somewhere else after this tab opened it. Reload to pick up where you left off on the other device.</p>
+    <p class="muted">To keep the other device’s progress safe, nothing from this tab goes to your account until you reload.</p>
+    <div class="row"><button class="btn" type="button" data-reload>Reload</button></div>`);
+  el.onclick = ev => { if (ev.target.closest('[data-reload]')) location.reload(); };
 }
 
 function renderHub() {

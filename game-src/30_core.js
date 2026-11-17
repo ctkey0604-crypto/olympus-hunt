@@ -199,7 +199,18 @@ function renderTitleControls() {
 const Store = {
   cloud: null, uid: null, localOk: false, ready: null, queue: {},
   api: false, user: null, token: null, remote: null, pending: {}, timers: {},
+  // Two devices on one account (Nov 2026): a player saved on his phone, went back to a Chromebook tab still holding the older
+  // game, and its next save wiped the phone's progress. Now every save says which server copy it grew out of (at: the
+  // server's _at stamp on it). The server turns away a save from a tab that fell behind (stale), and when two devices have
+  // each made progress the other lacks, the player picks which to keep (conflicts, pickSave in 95_ui.js). The copy not
+  // chosen stays on the device as a backup (bakKey), and the server keeps older copies the owner can put back.
+  at: {}, blocked: {}, conflicts: {}, replace: {}, inflight: {},
   key(n, who = this.user) { return who ? `olympus-hunt/u/${who.toLowerCase()}/slot${n}` : 'olympus-hunt/slot' + n; },
+  readAt(n) { try { const v = this.ls().getItem(this.key(n) + '.at'); return v === null || v === '' ? null : Number(v); } catch (e) { return null; } },
+  setAt(n, v) { this.at[n] = v; try { if (v === null || v === undefined) this.ls().removeItem(this.key(n) + '.at'); else this.ls().setItem(this.key(n) + '.at', String(v)); } catch (e) {} },
+  backup(n, d) { if (d) try { this.ls().setItem(this.key(n) + '.bak', JSON.stringify(d)); } catch (e) {} },
+  // Take the account's copy on this device. A different copy that was here is kept as the backup.
+  take(n, c, cAt, local) { if (local && (local.savedAt !== c.savedAt || local.playtime !== c.playtime)) this.backup(n, local); this.writeLocal(n, c); this.setAt(n, cAt); },
   // On CrazyGames saves live in their Data module (it works like localStorage and follows the player's account).
   ls() { return CG.data || localStorage; },
   readLocal(n, who) { try { const s = this.ls().getItem(this.key(n, who)); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
@@ -236,7 +247,7 @@ const Store = {
         body: body === undefined ? undefined : JSON.stringify(body) });
       let data = null; try { data = await res.json(); } catch (e) {}
       if (res.status === 401 && this.token && path !== 'login') this.forget();
-      if (!res.ok) { const err = new Error((data && data.error) || `The server said no (${res.status}).`); err.status = res.status; err.check = !!(data && data.check); throw err; }
+      if (!res.ok) { const err = new Error((data && data.error) || `The server said no (${res.status}).`); err.status = res.status; err.check = !!(data && data.check); err.conflict = !!(data && data.conflict); throw err; }
       return data;
     } catch (e) {
       if (e.name === 'AbortError') throw new Error('The server took too long. Check your connection.');
@@ -258,6 +269,7 @@ const Store = {
   forget() {
     for (const n in this.timers) clearTimeout(this.timers[n]);
     this.token = null; this.user = null; this.remote = null; this.pending = {}; this.timers = {}; this.base = {};
+    this.at = {}; this.blocked = {}; this.conflicts = {}; this.replace = {}; this.inflight = {};
     try { localStorage.removeItem('olympus-hunt/session'); localStorage.removeItem('olympus-hunt/user'); } catch (e) {}
   },
   // Fetch the account's three saves (used by the save list).
@@ -273,7 +285,7 @@ const Store = {
     for (let n = 1; n <= 3 && create; n++) {
       const guest = sanitize(this.readLocal(n, null)); if (!guest) continue;
       if (this.remote && !this.remote[n]) {
-        try { await this.call('PUT', 'saves/' + n, { save: guest }); this.remote[n] = { save: guest, savedAt: guest.savedAt }; this.writeLocal(n, guest); this.delLocal(n, null); moved.push(n); } catch (e) { kept.push(n); }
+        try { const r = await this.call('PUT', 'saves/' + n, { save: guest, cv: 2, base: null }); this.remote[n] = { save: Object.assign({}, guest, { _at: r.at }), savedAt: guest.savedAt }; this.writeLocal(n, guest); this.setAt(n, r.at); this.delLocal(n, null); moved.push(n); } catch (e) { kept.push(n); }
       } else kept.push(n);
     }
     return { moved, kept };
@@ -285,19 +297,43 @@ const Store = {
     this.forget();
   },
   // Resolves true once the server has taken the save (and remembers what it took: see room), false if it didn't.
+  // One send per slot at a time, so each one names the copy the server took last (base) as what it grew out of.
   push(n, keepalive = false) {
     clearTimeout(this.timers[n]); this.timers[n] = null;
-    const data = this.pending[n]; if (!data || !this.user) return Promise.resolve(false);
+    if (this.inflight[n]) return this.inflight[n].then(() => this.push(n, keepalive));
+    const data = this.pending[n]; if (!data || !this.user || this.blocked[n]) return Promise.resolve(false);
     delete this.pending[n];
-    return this.call('PUT', 'saves/' + n, { save: data }, keepalive).then(() => {
+    const base = this.at[n] === undefined ? this.readAt(n) : this.at[n];
+    const p = this.call('PUT', 'saves/' + n, { save: data, cv: 2, base, replace: !!this.replace[n] }, keepalive).then(res => {
+      if (res && typeof res.at === 'number') this.setAt(n, res.at);
+      delete this.replace[n];
       this.base[n] = { money: data.money || 0, play: data.playtime || 0, created: data.createdAt };
       return true;
     }).catch(e => {
+      if (e && e.conflict) { this.stale(n); return false; }             // another device saved since: this tab is behind
       if (e && e.check) { this.refused(e.message); return false; }      // the server's save checks said no: sending it again won't help
       if (!this.pending[n]) this.pending[n] = data;
       if (!this.timers[n]) this.timers[n] = setTimeout(() => this.push(n), 20000);   // it's safe on this device: keep trying
       return false;
-    });
+    }).finally(() => { if (this.inflight[n] === p) delete this.inflight[n]; });
+    this.inflight[n] = p;
+    return p;
+  },
+  // This tab's copy of save n is behind the account's: nothing more goes up from it until the page is reloaded (it stays on the
+  // device, and after the reload load() works out which copy has what).
+  stale(n) {
+    if (this.blocked[n]) return;
+    this.blocked[n] = true; delete this.pending[n]; clearTimeout(this.timers[n]); this.timers[n] = null;
+    if (typeof showStale === 'function') showStale(n);
+  },
+  // Coming back to a tab: has another device saved over this game since? Asked at most every few seconds.
+  async checkStale(n) {
+    if (!this.user || !n || this.blocked[n] || this.at[n] === undefined) return;
+    const now = Date.now(); if (now - (this.lastCheck || 0) < 3000) return; this.lastCheck = now;
+    const before = this.at[n]; let d; try { d = await this.call('GET', 'saves'); } catch (e) { return; }
+    if (this.inflight[n] || this.blocked[n] || this.at[n] !== before) return;      // a save of ours went up meanwhile: ask again next time
+    const r = d && d.saves && d.saves[n], at = r && r.save && typeof r.save._at === 'number' ? r.save._at : null;
+    if (r && at !== before) this.stale(n);
   },
   // The account server turns away a save whose drachmae went up faster than hunting pays: more than 1200 a second of play
   // since its last copy, plus 150,000 (src/index.js, SAVE_RATE and SAVE_SLACK). Selling a big pile of parts at the market
@@ -333,11 +369,24 @@ const Store = {
   async load(n) {
     const local = sanitize(this.readLocal(n));
     if (this.user) {
-      const r = this.remote && this.remote[n];
-      const c = r ? sanitize(r.save) : null;
-      if (c && (!local || (c.savedAt || 0) >= (local.savedAt || 0))) { this.writeLocal(n, c); return c; }
-      if (local && this.remote && (!c || (local.savedAt || 0) > (c.savedAt || 0))) { this.pending[n] = local; this.push(n); }   // offline progress goes up
-      return local;
+      delete this.conflicts[n];
+      if (!this.remote) { if (this.at[n] === undefined) this.at[n] = this.readAt(n); return local; }   // the account can't be reached: play on from this device
+      const r = this.remote[n], c = r ? sanitize(r.save) : null, cAt = r && r.save && typeof r.save._at === 'number' ? r.save._at : null;
+      if (!c) { if (local) { this.setAt(n, null); this.pending[n] = local; this.push(n); } return local; }   // nothing in the account yet: this device's save goes up
+      if (!local) { this.take(n, c, cAt); return c; }
+      const send = replace => { this.at[n] = cAt; if (replace) this.replace[n] = true; this.pending[n] = local; this.push(n); return local; };
+      // This device's copy grew out of the account's current one: anything newer here simply hasn't gone up yet.
+      if (this.readAt(n) === cAt && cAt !== null) return (local.savedAt || 0) > (c.savedAt || 0) ? send(false) : (this.take(n, c, cAt, local), c);
+      if (local.createdAt === c.createdAt) {
+        // The copies went separate ways (another device saved in between, or a stale tab did). Go by progress, which only grows.
+        const mine = aheadOf(local, c), theirs = aheadOf(c, local);
+        if (mine && theirs) { this.conflicts[n] = { local, cloud: c, at: cAt }; return local; }   // each has progress the other lacks: the player picks
+        if (mine) return send(true);                                    // this device is ahead (offline progress, or the one an old tab overwrote)
+        this.take(n, c, cAt, local); return c;
+      }
+      // a different game in the slot on each: the one saved last wins, as before, and the other is kept as the backup
+      if ((local.savedAt || 0) > (c.savedAt || 0)) { this.backup(n, c); return send(true); }
+      this.take(n, c, cAt, local); return c;
     }
     if (this.cloud) {
       try {
@@ -350,6 +399,15 @@ const Store = {
       } catch (e) { /* fall back to local */ }
     }
     return local;
+  },
+  // Save n was played on two devices and each has progress the other lacks: keep 'local' (this device's) or 'cloud' (the account's).
+  // The one not kept stays on this device as the backup, and the server keeps its own copy of what it replaces.
+  resolve(n, pick) {
+    const k = this.conflicts[n]; if (!k) return null; delete this.conflicts[n];
+    if (pick === 'cloud') { this.take(n, k.cloud, k.at, k.local); return k.cloud; }
+    this.backup(n, k.cloud); this.at[n] = k.at; this.replace[n] = true;
+    k.local.savedAt = Date.now(); this.writeLocal(n, k.local); this.pending[n] = JSON.parse(JSON.stringify(k.local)); this.push(n);
+    return k.local;
   },
   // urgent: send right away (end of a quest, leaving the game). Otherwise changes are bundled for a few seconds.
   save(n, data, urgent = false) {
@@ -374,14 +432,22 @@ const Store = {
     }
   },
   async del(n) {
-    this.delLocal(n); delete this.pending[n]; clearTimeout(this.timers[n]);
+    this.delLocal(n); this.setAt(n, undefined); delete this.at[n]; delete this.pending[n]; delete this.conflicts[n]; delete this.blocked[n]; clearTimeout(this.timers[n]);
     if (this.user) { try { await this.call('DELETE', 'saves/' + n); if (this.remote) delete this.remote[n]; } catch (e) {} }
     else if (this.cloud) { try { await this.ref(n).delete(); } catch (e) {} }
   },
 };
 // Anything not yet sent goes up when the tab closes or hides.
 addEventListener('pagehide', () => Store.flush(true));
-document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flush(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) Store.flush(true); else if (G.save && G.slot) Store.checkStale(G.slot); });
+addEventListener('pageshow', ev => { if (ev.persisted && G.save && G.slot) Store.checkStale(G.slot); });   // a tab brought back from the browser's back/forward cache
+// Has save a made progress that save b doesn't have? Rank, hunts cleared, the Endless record and play time only ever grow,
+// so a copy that is simply older is never "ahead" (two minutes of play time is let go: menus and walking around town).
+function aheadOf(a, b) {
+  const ac = a.cleared || {}, bc = b.cleared || {};
+  return (a.rank || 0) > (b.rank || 0) || (a.playtime || 0) > (b.playtime || 0) + 120 || ((a.endless && a.endless.best) || 0) > ((b.endless && b.endless.best) || 0)
+    || Object.keys(ac).some(id => (ac[id] || 0) > (bc[id] || 0));
+}
 addEventListener('online', () => Store.flush());                     // saves that couldn't be sent go up as soon as the connection is back
 
 const LOADOUT_MAX = 5, LOADOUT_NAME_MAX = 20;                 // saved gear sets, kept in the chest at home

@@ -4,6 +4,7 @@
 const isOwner = () => String(Store.user || '').toLowerCase() === 'theowner';
 const DAY_MS = 86400000;
 let ownerData = null, ownerVote = null, ownerSg = null, ownerMsg = '', ownerSort = 'saved', ownerFind = '', ownerBusy = false;
+let ownerHist = null;   // one player's kept save copies (Backups): { key, name, copies, saves } or { key, name, msg }
 const fmtHours = t => { const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60; return h ? `${h}h ${m}m` : `${m}m`; };
 function fmtAgo(ms) {
   if (!ms) return 'never';
@@ -44,9 +45,10 @@ function renderOwner() {
     <div class="opt"><h3>Where quiet players stopped</h3>${stops.length ? bars(stops, stops[0][1]) : '<p class="muted">Nobody has gone quiet for a week yet.</p>'}</div>
     <div class="opt"><h3>Update 1.1 vote (closed)</h3>${votes.length ? bars(votes, voteAll) : '<p class="muted">No votes to show.</p>'}</div></div>
     ${ownerSgHTML()}
+    ${ownerHistHTML()}
     <input class="ow-find" id="ownerFind" placeholder="Find a player or a hunt" value="${esc(ownerFind)}" autocomplete="off" spellcheck="false" aria-label="Find a player or a hunt">
     <div class="ow-scroll"><table class="ow-table"><thead><tr>${th('name', 'Player')}${th('rank', 'Rank')}<th>Next up</th>${th('hunts', 'Hunts')}${th('play', 'Played')}${th('saved', 'Last played')}${th('joined', 'Joined')}<th></th></tr></thead>
-    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td><td>${p.key === 'theowner' ? '' : `<button type="button" data-owdel="${esc(p.key)}" data-name="${esc(p.name)}" ${ownerBusy ? 'disabled' : ''}>Delete</button>`}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
+    <tbody>${list.map(p => `<tr><td>${esc(p.name)}</td><td>${p.saved ? esc(RANKS[p.rank] ? RANKS[p.rank].name : '') : ''}</td><td>${esc(p.where)}</td><td>${p.hunts}</td><td>${fmtHours(p.play)}</td><td>${fmtAgo(p.saved ? now - p.saved : 0)}</td><td>${fmtAgo(p.joined ? now - p.joined : 0)}</td><td>${p.key === 'theowner' ? '' : `<button type="button" data-owhist="${esc(p.key)}" data-name="${esc(p.name)}" ${ownerBusy ? 'disabled' : ''}>Backups</button> <button type="button" data-owdel="${esc(p.key)}" data-name="${esc(p.name)}" ${ownerBusy ? 'disabled' : ''}>Delete</button>`}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nobody matches that.</td></tr>'}</tbody></table></div>
     <p class="muted" style="font-size:.85rem">Last played means the last time a save reached the server. Showing up to 200 players, newest save first.</p>`;
 }
 async function ownerLoad() {
@@ -65,6 +67,15 @@ $('btnOwnerBack').onclick = closeOwner;
 $('btnOwnerRefresh').onclick = () => { Sound.play('click'); ownerLoad(); };
 $('ownerBody').addEventListener('click', ev => {
   const b = ev.target.closest('[data-owsort]'); if (b) { ownerSort = b.dataset.owsort; Sound.play('click'); renderOwner(); return; }
+  const h = ev.target.closest('[data-owhist]'); if (h && !h.disabled) { Sound.play('click'); ownerHistLoad(h.dataset.owhist, h.dataset.name); return; }
+  if (ev.target.closest('[data-owhistclose]')) { Sound.play('click'); ownerHist = null; renderOwner(); return; }
+  const rb = ev.target.closest('[data-owrestore]');
+  if (rb && !rb.disabled && ownerHist) {
+    Sound.play('click');
+    if (!confirm(`Put this copy back as ${ownerHist.name}’s save ${rb.dataset.slot}? The save there now is kept too, so you can undo this from the same list. If they have the game open, it asks them to reload.`)) return;
+    ownerHistLoad(ownerHist.key, ownerHist.name, Number(rb.dataset.owrestore));
+    return;
+  }
   const d = ev.target.closest('[data-owdel]');
   if (d && !d.disabled) {
     Sound.play('click');
@@ -81,6 +92,32 @@ $('ownerBody').addEventListener('click', ev => {
   Sound.play('click'); if (sure && !confirm(sure)) return;
   ownerSgAct(act, s.dataset.id || '');
 });
+// Backups: the older copies the server keeps of a player's saves (src/index.js, save history). The newest is at the top. A copy is
+// kept when a save would replace one with less progress (an old tab saving over newer play), when they pick another device's
+// copy, and every half hour of play otherwise. Put back makes that copy their save again.
+async function ownerHistLoad(key, name, restore) {
+  ownerBusy = true; ownerHist = { key, name, msg: restore === undefined ? 'Looking…' : 'Putting it back…' }; renderOwner();
+  try {
+    const d = await Store.call('POST', 'owner/history', restore === undefined ? { name: key } : { name: key, restore });
+    ownerHist = { key, name, copies: d.copies || [], saves: d.saves || [] };
+    if (restore !== undefined) toast(`Save ${d.slot} for ${name} is back to that copy.`, 5000);
+  } catch (e) { ownerHist = { key, name, msg: e.message || 'That didn’t go through.' }; }
+  ownerBusy = false; renderOwner();
+}
+function ownerHistHTML() {
+  const H = ownerHist; if (!H) return '';
+  const head = `<div class="opt ow-hist"><h3>Backups for ${esc(H.name)} <button class="btn ghost small" type="button" data-owhistclose>Close</button></h3>`;
+  if (!H.copies) return `${head}<p class="muted">${esc(H.msg || '')}</p></div>`;
+  const hunts = c => { try { return Object.keys(JSON.parse(c || '{}')).length; } catch (e) { return 0; } };
+  const rank = r => esc(RANKS[r || 0] ? RANKS[r || 0].name : '');
+  const now = Date.now(), at = t => t ? `${fmtAgo(now - t)} · ${new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '';
+  const cur = H.saves.map(r => `<tr><td>${r.slot}</td><td>Now</td><td>${rank(r.rank)}</td><td>${hunts(r.cleared)}</td><td>${fmtHours(r.play || 0)}</td><td>${fmtMoney(r.money || 0)}</td><td>${at(r.saved_at)}</td><td></td></tr>`).join('');
+  const old = H.copies.map(r => `<tr><td>${r.slot}</td><td>${esc(r.why)}</td><td>${rank(r.rank)}</td><td>${hunts(r.cleared)}</td><td>${fmtHours(r.play || 0)}</td><td>${fmtMoney(r.money || 0)}</td><td>${at(r.saved_at)}</td>
+    <td><button type="button" data-owrestore="${r.id}" data-slot="${r.slot}" ${ownerBusy ? 'disabled' : ''}>Put back</button></td></tr>`).join('');
+  return `${head}${H.copies.length ? '' : '<p class="muted">No older copies yet. The server starts keeping them with each player’s next save.</p>'}
+    <div class="ow-scroll"><table class="ow-table"><thead><tr><th>Save</th><th>Kept because</th><th>Rank</th><th>Hunts</th><th>Played</th><th>Drachmae</th><th>Saved</th><th></th></tr></thead><tbody>${cur}${old}</tbody></table></div>
+    <p class="muted" style="font-size:.85rem">“Now” rows are their saves as they stand. Hunts counts each different hunt cleared. Up to 20 copies are kept per save.</p></div>`;
+}
 // Everyone who plays, guests included: anonymous daily counts (93_stats.js). Each browser counts once a day for visits, playing and the road.
 function ownerActivityHTML(rows) {
   const n = (r, k) => r[k] || 0, week = rows.slice(0, 7), sum = k => week.reduce((a, r) => a + n(r, k), 0);
