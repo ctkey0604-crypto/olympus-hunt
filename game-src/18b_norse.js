@@ -14,7 +14,6 @@ const FENRIR_Q = 'gr_fenrir_hunt', NORTH_RANK = 2, NORTH_OFF = RANKS[NORTH_RANK]
 // save.north: 0 nothing yet · 1 the stranger is at Akros' gate · 2 she has told you about the North (the map is open) · 3 you have sailed
 const northOpen = (s = G.save) => !!s && (s.north | 0) >= 2;
 const nid = base => rid(base, NORTH_RANK);                       // Norse parts drop on God Rank hunts, so their ids carry gr_
-const isNorth = d => !!(d && d.north);
 
 /* ---- parts ---- */
 {

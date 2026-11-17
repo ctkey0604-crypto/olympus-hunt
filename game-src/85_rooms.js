@@ -145,6 +145,7 @@ const ROOMS = {
     props: [['counter', 11.5, 4.4, 'tavern'], ['fireplace', 4.8, 3.2], ['meadbarrel', 17.6, 3.6], ['meadbarrel', 19.2, 3.6], ['meadbarrel', 19.2, 5],
             ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
             ['logpile', 3.6, 10.2], ['meadbarrel', 20, 10.2]],
+    npcs: [{ id: 'halvard', name: 'Halvard the Brewer', sprite: 'halvard', x: 192, y: 67, opens: () => openPanel('tavern', 'The Mead Hall'), behind: true }],
     seats: [[85, 131, 0], [123, 131, Math.PI], [261, 131, 0], [299, 131, Math.PI]],
     rugs: [[128, 108, 128, 44, '#2b4f7a', '#9fd0ff']] },
   smithy: { name: 'Brokk’s Smithy', theme: 'smithroom', sub: 'Brokk forges the North’s gear', north: true, music: 'vindheim',
@@ -295,13 +296,15 @@ const PROP_ART = {
 // monster needs to be any stronger for it. art: what you're seen eating or drinking.
 // drops: the chance each part that falls brings a second one. Loot is shared, so one plate feeds the whole party, and it doesn't stack.
 const MEALS = {
-  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
-  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
-  bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
-  figs:    { name: 'Forager’s Figs',    short: 'Figs',       food: true,  art: 'figs',   price: 180, desc: '25% more drops on your next hunt.', drops: .25 },
-  wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
-  barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
+  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       n: ['Elk Stew', 'Stew'], food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
+  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    n: ['Boar Skewers', 'Skewers'], food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
+  bread:   { name: 'Olive Bread',       short: 'Olive bread', n: ['Rye Flatbread', 'Flatbread'], food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
+  figs:    { name: 'Forager’s Figs',    short: 'Figs',       n: ['Forager’s Bilberries', 'Bilberries'], food: true,  art: 'figs',   price: 180, desc: '25% more drops on your next hunt.', drops: .25 },
+  wine:    { name: 'Honeyed Wine',      short: 'Wine',       n: ['Honey Mead', 'Mead'], food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
+  barley:  { name: 'Mint Barley Water', short: 'Barley water', n: ['Juniper Ale', 'Ale'], food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
 };
+// What a meal is called: the Mead Hall serves the same six under the North's names (in Vindheim, and on the North's hunts).
+function mealName(id, short) { const M = MEALS[id], north = G.mode === 'quest' && q ? !!q.def.north : atVindheim(); return north ? M.n[short ? 1 : 0] : short ? M.short : M.name; }
 function mealCost(id) { return rankPrice(MEALS[id].price); }
 function orderMeal(id) {
   const s = G.save, M = MEALS[id]; if (!M || s.meal) return;                 // already eaten: nothing more until the next hunt
@@ -313,14 +316,14 @@ function renderTavern() {
   const s = G.save, cur = s.meal && MEALS[s.meal];
   const card = ([id, M]) => {
     const cost = mealCost(id), mine = s.meal === id;
-    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b></div></div>
+    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(mealName(id))}</b></div></div>
       <p class="desc">${esc(M.desc)}</p>
       <div class="stats"><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${cur || s.money < cost ? 'disabled' : ''}>${mine ? 'You ate this' : cur ? 'You’ve already eaten' : 'Order'}</button></div></article>`;
   };
   const list = Object.entries(MEALS);
   return `<p class="muted" style="margin:0 0 12px">One meal or drink per hunt. It lasts your next hunt, then you can order again.</p>
-    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(cur.name)}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
+    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(mealName(s.meal))}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
     <p class="sub">Food</p><div class="grid meal-grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
     <p class="sub" style="margin-top:14px">Drinks</p><div class="grid meal-grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
 }
@@ -347,10 +350,10 @@ function eatStep(e, p, dt, mine) {
   return true;
 }
 function tickEating(dt) {
-  const M = MEALS[V.eat.meal];
+  const id = V.eat.meal, M = MEALS[id];
   if (!eatStep(V.eat, V.player, dt, true)) return;
   V.eat = null; Sound.play('jingle');
-  banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
+  banner(`${M.food ? 'You ate' : 'You drank'} the ${mealName(id)}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
 }
 // The meal in someone's hand, going up to their mouth and back with each bite.
 function drawEating(S, e = V.eat, p = V.player) {

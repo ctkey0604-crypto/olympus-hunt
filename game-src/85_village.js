@@ -87,7 +87,7 @@ function npcLines(n) {
       return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
-    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
+    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${mealName(s.meal)} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
     case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.', 'Got parts you don’t need? I’ll buy those too.'];
     case 'arena': {
       if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The practice room is free any time, if you want to try out your gear.'];

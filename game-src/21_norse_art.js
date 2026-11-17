@@ -58,12 +58,13 @@
     GOD_LOOKS[name] = look; if (look.male) MALE_GODS.add(name);
     SPR[name] = buildFrames([patchRows(look.male ? patchRows(GOD_BASE, GOD_MALE) : GOD_BASE, look.rows), GOD_WALK], Object.assign({}, PAL, look.pal));
   }
-  // Vindheim: Sigrun, Brokk the dwarf and Åsa the trader
+  // Vindheim: Sigrun, Brokk the dwarf, Åsa the trader and Halvard, who keeps the Mead Hall
   NPC_BASES.dwarfman = [['...aaaa...', '..aaaaaa..', '..aSssks..', '..Ssssss..', '.aaaaaaaa.', '.saaaaaas.', 'scaaaaaacs', '.ccdddcc..', '..cCCCCc..', '..nn..nn..'], { from: 9, rows: ['...nn.nn..'] }];
   const NPCS_N = {
     sigrun: { base: 'woman',    pal: { a: '#e9c04f', c: '#3a5a8a', C: '#22304a', d: '#d5dbe5' } },
     brokk:  { base: 'dwarfman', pal: { a: '#c9792a', c: '#6b4528', C: '#4e321d', d: '#9aa0a6', n: '#3a2416' } },
     asa:    { base: 'woman',    pal: { a: '#a8401e', c: '#4e6e2b', C: '#2f4a1a', d: '#e9c04f' } },
+    halvard: { base: 'manBeard', pal: { a: '#cdb27a', c: '#8a3324', C: '#5a1f16', d: '#e9c04f' } },
   };
   for (const [name, look] of Object.entries(NPCS_N)) { NPC_LOOKS[name] = look; SPR[name] = buildFrames(NPC_BASES[look.base], Object.assign({}, PAL, look.pal)); }
 }

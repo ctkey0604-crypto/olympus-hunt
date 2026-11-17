@@ -486,7 +486,9 @@ textarea:focus{outline:2px solid var(--gold)}
 #mapCanvas:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
 .map-tip{text-align:center;margin:12px 0 0}
 .voyaging #vhud{visibility:hidden}
-.sell-btns{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.mat:has(.sell-btns){grid-template-columns:auto minmax(0,1fr)}
+.sell-btns{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.sell-btns .btn{flex:1 1 auto}
 .warn-soft{color:#e9c04f}
 .credits-roll .thanks-sub{margin-top:10px;font-family:var(--font-display);font-size:1.5rem;color:var(--bone-dim)}
 .rank.titans{color:#c9a0ff}
@@ -1926,7 +1928,6 @@ const FENRIR_Q = 'gr_fenrir_hunt', NORTH_RANK = 2, NORTH_OFF = RANKS[NORTH_RANK]
 // save.north: 0 nothing yet · 1 the stranger is at Akros' gate · 2 she has told you about the North (the map is open) · 3 you have sailed
 const northOpen = (s = G.save) => !!s && (s.north | 0) >= 2;
 const nid = base => rid(base, NORTH_RANK);                       // Norse parts drop on God Rank hunts, so their ids carry gr_
-const isNorth = d => !!(d && d.north);
 
 /* ---- parts ---- */
 {
@@ -2996,12 +2997,13 @@ function heroFrames(eq) {
     GOD_LOOKS[name] = look; if (look.male) MALE_GODS.add(name);
     SPR[name] = buildFrames([patchRows(look.male ? patchRows(GOD_BASE, GOD_MALE) : GOD_BASE, look.rows), GOD_WALK], Object.assign({}, PAL, look.pal));
   }
-  // Vindheim: Sigrun, Brokk the dwarf and Åsa the trader
+  // Vindheim: Sigrun, Brokk the dwarf, Åsa the trader and Halvard, who keeps the Mead Hall
   NPC_BASES.dwarfman = [['...aaaa...', '..aaaaaa..', '..aSssks..', '..Ssssss..', '.aaaaaaaa.', '.saaaaaas.', 'scaaaaaacs', '.ccdddcc..', '..cCCCCc..', '..nn..nn..'], { from: 9, rows: ['...nn.nn..'] }];
   const NPCS_N = {
     sigrun: { base: 'woman',    pal: { a: '#e9c04f', c: '#3a5a8a', C: '#22304a', d: '#d5dbe5' } },
     brokk:  { base: 'dwarfman', pal: { a: '#c9792a', c: '#6b4528', C: '#4e321d', d: '#9aa0a6', n: '#3a2416' } },
     asa:    { base: 'woman',    pal: { a: '#a8401e', c: '#4e6e2b', C: '#2f4a1a', d: '#e9c04f' } },
+    halvard: { base: 'manBeard', pal: { a: '#cdb27a', c: '#8a3324', C: '#5a1f16', d: '#e9c04f' } },
   };
   for (const [name, look] of Object.entries(NPCS_N)) { NPC_LOOKS[name] = look; SPR[name] = buildFrames(NPC_BASES[look.base], Object.assign({}, PAL, look.pal)); }
 }
@@ -3101,7 +3103,7 @@ function rankFrames(name, r) {
 
 /* ---- statues: stone until you beat that god or Titan, then gold, diamond (High Rank) or amethyst (God Rank) ---- */
 const TONES = { stone: STONE, gold: GOLDR, diamond: ['#1e3a56', '#4a7aa0', '#8fc4e8', '#cdeeff', '#ffffff'], amethyst: ['#24103a', '#4e2482', '#7e44c0', '#b48cff', '#efdcff'] };
-const STATUE_TONE = ['gold', 'diamond', 'amethyst'], STATUE_WORD = ['Golden', 'Diamond', 'Amethyst'];
+const STATUE_TONE = ['gold', 'diamond', 'amethyst'];
 // The North's gods and Fenrir have tones of their own: blue once you beat them, and ice blue (Nordic Rank's colour) for
 // every one of them once Fenrir has fallen and the North's gear wakes.
 Object.assign(TONES, { blue: ['#0c1a3a', '#1c3f86', '#2f6fd0', '#6fa8f0', '#d6e8ff'], ice: ['#123a52', '#3f9ccc', '#9fd0ff', '#e0f6ff', '#ffffff'] });
@@ -9953,6 +9955,7 @@ const ROOMS = {
     props: [['counter', 11.5, 4.4, 'tavern'], ['fireplace', 4.8, 3.2], ['meadbarrel', 17.6, 3.6], ['meadbarrel', 19.2, 3.6], ['meadbarrel', 19.2, 5],
             ['table', 6, 7.4], ['stool', 4.7, 7.6], ['stool', 7.3, 7.6], ['table', 17, 7.4], ['stool', 15.7, 7.6], ['stool', 18.3, 7.6],
             ['logpile', 3.6, 10.2], ['meadbarrel', 20, 10.2]],
+    npcs: [{ id: 'halvard', name: 'Halvard the Brewer', sprite: 'halvard', x: 192, y: 67, opens: () => openPanel('tavern', 'The Mead Hall'), behind: true }],
     seats: [[85, 131, 0], [123, 131, Math.PI], [261, 131, 0], [299, 131, Math.PI]],
     rugs: [[128, 108, 128, 44, '#2b4f7a', '#9fd0ff']] },
   smithy: { name: 'Brokk’s Smithy', theme: 'smithroom', sub: 'Brokk forges the North’s gear', north: true, music: 'vindheim',
@@ -10103,13 +10106,15 @@ const PROP_ART = {
 // monster needs to be any stronger for it. art: what you're seen eating or drinking.
 // drops: the chance each part that falls brings a second one. Loot is shared, so one plate feeds the whole party, and it doesn't stack.
 const MEALS = {
-  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
-  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
-  bread:   { name: 'Olive Bread',       short: 'Olive bread', food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
-  figs:    { name: 'Forager’s Figs',    short: 'Figs',       food: true,  art: 'figs',   price: 180, desc: '25% more drops on your next hunt.', drops: .25 },
-  wine:    { name: 'Honeyed Wine',      short: 'Wine',       food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
-  barley:  { name: 'Mint Barley Water', short: 'Barley water', food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
+  stew:    { name: 'Shepherd’s Stew',   short: 'Stew',       n: ['Elk Stew', 'Stew'], food: true,  art: 'bowl',   price: 120, desc: '+10% health on your next hunt.', hp: .10 },
+  skewers: { name: 'Lamb Skewers',      short: 'Skewers',    n: ['Boar Skewers', 'Skewers'], food: true,  art: 'skewer', price: 160, desc: '+6% damage on your next hunt.', dmg: .06 },
+  bread:   { name: 'Olive Bread',       short: 'Olive bread', n: ['Rye Flatbread', 'Flatbread'], food: true, art: 'bread',  price: 120, desc: '+10% defense on your next hunt.', def: .10 },
+  figs:    { name: 'Forager’s Figs',    short: 'Figs',       n: ['Forager’s Bilberries', 'Bilberries'], food: true,  art: 'figs',   price: 180, desc: '25% more drops on your next hunt.', drops: .25 },
+  wine:    { name: 'Honeyed Wine',      short: 'Wine',       n: ['Honey Mead', 'Mead'], food: false, art: 'cup',    price: 140, desc: 'Your dash recharges 15% faster on your next hunt.', dash: .15 },
+  barley:  { name: 'Mint Barley Water', short: 'Barley water', n: ['Juniper Ale', 'Ale'], food: false, art: 'mug',  price: 140, desc: 'Your weapon skill recharges 12% faster on your next hunt.', skill: .12 },
 };
+// What a meal is called: the Mead Hall serves the same six under the North's names (in Vindheim, and on the North's hunts).
+function mealName(id, short) { const M = MEALS[id], north = G.mode === 'quest' && q ? !!q.def.north : atVindheim(); return north ? M.n[short ? 1 : 0] : short ? M.short : M.name; }
 function mealCost(id) { return rankPrice(MEALS[id].price); }
 function orderMeal(id) {
   const s = G.save, M = MEALS[id]; if (!M || s.meal) return;                 // already eaten: nothing more until the next hunt
@@ -10121,14 +10126,14 @@ function renderTavern() {
   const s = G.save, cur = s.meal && MEALS[s.meal];
   const card = ([id, M]) => {
     const cost = mealCost(id), mine = s.meal === id;
-    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(M.name)}</b></div></div>
+    return `<article class="gear${mine ? ' meal-on' : ''}"><div class="gear-head"><div><b>${esc(mealName(id))}</b></div></div>
       <p class="desc">${esc(M.desc)}</p>
       <div class="stats"><span>Price <b class="gold">${fmtMoney(cost)} dr</b></span></div>
       <div class="actions"><button class="btn small" type="button" data-meal="${id}" ${cur || s.money < cost ? 'disabled' : ''}>${mine ? 'You ate this' : cur ? 'You’ve already eaten' : 'Order'}</button></div></article>`;
   };
   const list = Object.entries(MEALS);
   return `<p class="muted" style="margin:0 0 12px">One meal or drink per hunt. It lasts your next hunt, then you can order again.</p>
-    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(cur.name)}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
+    ${cur ? `<div class="unlock" style="margin:0 0 12px">You’ve already ${cur.food ? 'eaten' : 'had'} the ${esc(mealName(s.meal))}: ${esc(cur.desc)} Come back after your hunt.</div>` : ''}
     <p class="sub">Food</p><div class="grid meal-grid">${list.filter(([, M]) => M.food).map(card).join('')}</div>
     <p class="sub" style="margin-top:14px">Drinks</p><div class="grid meal-grid">${list.filter(([, M]) => !M.food).map(card).join('')}</div>`;
 }
@@ -10155,10 +10160,10 @@ function eatStep(e, p, dt, mine) {
   return true;
 }
 function tickEating(dt) {
-  const M = MEALS[V.eat.meal];
+  const id = V.eat.meal, M = MEALS[id];
   if (!eatStep(V.eat, V.player, dt, true)) return;
   V.eat = null; Sound.play('jingle');
-  banner(`${M.food ? 'You ate' : 'You drank'} the ${M.name}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
+  banner(`${M.food ? 'You ate' : 'You drank'} the ${mealName(id)}`, M.desc.replace(' on your next hunt.', ' on your next hunt'));
 }
 // The meal in someone's hand, going up to their mouth and back with each bite.
 function drawEating(S, e = V.eat, p = V.player) {
@@ -10262,7 +10267,7 @@ function npcLines(n) {
       return ['Work’s on the board. Pick a hunt and I’ll send you out.'];
     }
     case 'smith': return [Object.keys(s.inv).length ? 'Let’s see what you dragged home. Parts and drachmae, and I’ll make you something worth swinging.' : 'Bring me monster parts and drachmae and I’ll forge you something better than that bronze stick.'];
-    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${MEALS[s.meal].name} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
+    case 'keeper': return [s.meal && MEALS[s.meal] ? `That ${mealName(s.meal)} will see you through your next hunt. Come back hungry after it.` : 'Sit anywhere, or order here. A good meal keeps you on your feet out there.'];
     case 'merchant': return ['Potions for the road, brewed this morning. And parts from any hunt you’ve cleared, if you’d rather not go back for them.', 'Got parts you don’t need? I’ll buy those too.'];
     case 'arena': {
       if (!netOn()) return ['Welcome to the Coliseum. Nobody fights here alone.', 'You can’t fight another player until you’re in a room with them. Talk to the Oracle in the square to host a room or join one, then come back.', 'The practice room is free any time, if you want to try out your gear.'];
@@ -10571,7 +10576,7 @@ function northToldYou() {
 // 40 x 30 tiles, but the village itself stops at row 21: below it is the harbor, deep enough for the longship to lie in.
 const VIND_W = 40, VIND_H = 30, VIND_IN = { x0: 3, y0: 3, x1: 36, y1: 21 }, VIND_PX = { minX: 48, maxX: 592, minY: 48, maxY: 352 };
 const VIND_PROPS = [
-  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
+  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
   ['statue', 5.5, 7.2, 'heimdall'], ['statue', 8.5, 7.2, 'freyja'], ['statue', 11.5, 7.2, 'tyr'], ['statue', 28.5, 7.2, 'loki'], ['statue', 31.5, 7.2, 'thor'], ['statue', 34.5, 7.2, 'odin'],
   ['tstatue', 20, 15.8, 'fenrir'], ['eirstone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
   ['snowpine', 4, 4], ['snowpine', 36, 4], ['snowpine', 4, 13], ['snowpine', 36.2, 10.6], ['snowpine', 35.6, 20.2], ['snowpine', 4.4, 20.6], ['snowpine', 28.2, 20.6],
@@ -10689,8 +10694,18 @@ function northLines(n) {
       if (!done('heimdall_hunt')) return ['Welcome to Vindheim. It’s small, but it’s warm.', 'Brokk forges gear from what the North drops. Åsa trades, and she’ll buy whatever you don’t need.',
         'Start with the bridge. Heimdall has been turning everyone back.'];
       return ['Pick a hunt. Every god you put down is one less thing pulling at Fenrir’s chain.'];
-    case 'brokk': return [Object.keys(s.inv).some(k => ITEMS[k] && ITEMS[k].north) ? 'Northern parts. Now we’re talking. Bring enough of them and I’ll forge you something that doesn’t crack in the cold.'
-                                                                                 : 'You’re the Greek. Bring me what the North drops, and drachmae, and I’ll forge you something that doesn’t crack in the cold.'];
+    case 'brokk':
+      if (c[FENRIR_Q]) return ['The wolf’s teeth on my anvil. I never thought I’d see the day.', 'Everything I forged for you woke up when he fell. Go on, feel the weight of it.'];
+      if (isUnlocked(QUEST_BY_ID[FENRIR_Q])) return ['Six gods down. I’ve run out of things to say, so I’ll say it with steel.', 'Bring your best to Lyngvi. A chain my kin made is about to snap, and I’d rather it wasn’t on you.'];
+      if (done('heimdall_hunt')) return ['Still alive? Then the last thing I made you held. Good.', 'Every god up here drops something stronger than the last. Bring it back and we forge our way up.'];
+      return [Object.keys(s.inv).some(k => ITEMS[k] && ITEMS[k].north) ? 'Northern parts. Now we’re talking. Bring enough of them and I’ll forge you something that doesn’t crack in the cold.'
+                                                                      : 'You’re the Greek. Bring me what the North drops, and drachmae, and I’ll forge you something that doesn’t crack in the cold.',
+              'Your Typhon gear will get you past Heimdall. After that, you’ll want mine.'];
+    case 'halvard':
+      if (s.meal && MEALS[s.meal]) return [`That ${mealName(s.meal)} will keep the cold out on your next hunt. Come back hungry.`];
+      if (c[FENRIR_Q]) return ['The hunter who put down the wolf drinks in my hall. Sit wherever you like.', 'Order here or at a table. I’d say it’s on the house, but Åsa would never let me hear the end of it.'];
+      if (!done('heimdall_hunt')) return ['A new face, and a warm one. Welcome to the Mead Hall. I’m Halvard.', 'Nobody hunts the North on an empty stomach. Sit at a table, or order from me here.'];
+      return ['Back from the ice in one piece. Sit down, get warm.', 'Order here or at a table. One meal sees you through your next hunt.'];
     case 'asa': return ['Potions for the cold, parts from any hunt up here you’ve cleared, and I’ll buy whatever you’re tired of carrying.'];
   }
   return null;
@@ -12401,7 +12416,7 @@ function updateHud() {
   if (F.frenzy > 0) tags.push(['good', 'Frenzy']); if (F.heart > 0) tags.push(['good', 'Heartsteal']); if (F.killRush > 0) tags.push(['good', 'Revel']);
   if (F.echo > 0) tags.push(['good', 'Echo']); if (F.foresight > 0 && p.foresightN > 0) tags.push(['good', `Foresight ${p.foresightN}`]); if (q.timeStop > 0) tags.push(['good', 'Time stopped']);
   if (p.st.perks.ward && p.wardT <= 0) tags.push(['good', 'Warded']);
-  if (q.meal && MEALS[q.meal]) tags.push(['good', MEALS[q.meal].short]);     // the Tavern meal you set out with
+  if (q.meal && MEALS[q.meal]) tags.push(['good', mealName(q.meal, true)]);     // the Tavern meal you set out with
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
   updatePotionBar(p);
@@ -12429,7 +12444,7 @@ function updateVillageHud() {
   tickHint();
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
-    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
+    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' || t.kind === 'shrine' ? 'Visit' : t.kind === 'harbor' ? 'Take' : t.kind === 'dock' ? 'Board' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
     const key = touchMode ? '' : kbd(Input.bind.guard[0]) + ' ';
     const html = t.kind === 'order' ? `${key}Order a meal <span class="muted">· ${touchMode ? 'move' : 'walk off'} to get up</span>` : `${key}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }
@@ -12871,6 +12886,19 @@ $('forumBody').addEventListener('submit', ev => {
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1.3', date: 'November 2026', title: 'Halvard’s hall',
+    new: [
+      'Halvard the Brewer keeps the Mead Hall. Talk to him at the counter to order, or sit at a table as before.',
+      'The Mead Hall has a menu of its own: the same six meals under the North’s names, from Elk Stew to Honey Mead.',
+      'Brokk has more to say as your hunts in the North go on.',
+    ],
+    changed: [
+      'The forge and anvil out in the snow are gone from Vindheim: Brokk works inside his Smithy now.',
+      'Selling parts: the two Sell buttons sit under each part’s name, so long names fit on one line.',
+    ],
+    fixed: [
+      'Prompts in the North read properly: Board the longship, Visit Eir’s stone, Take the harbor road.',
+    ] },
   { v: '1.1.2', date: 'November 2026', title: 'Vindheim’s halls',
     new: [
       'Vindheim’s longhouse is now the Mead Hall: sit down and order a meal before a hunt. The small house is Brokk’s Smithy, and Brokk works inside now. Both have signs over the door.',

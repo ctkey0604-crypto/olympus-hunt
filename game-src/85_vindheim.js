@@ -43,7 +43,7 @@ function northToldYou() {
 // 40 x 30 tiles, but the village itself stops at row 21: below it is the harbor, deep enough for the longship to lie in.
 const VIND_W = 40, VIND_H = 30, VIND_IN = { x0: 3, y0: 3, x1: 36, y1: 21 }, VIND_PX = { minX: 48, maxX: 592, minY: 48, maxY: 352 };
 const VIND_PROPS = [
-  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['forgefire', 8.2, 12.2], ['anvil', 10.8, 13.4], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
+  ['longhouse', 20, 6.4, 'meadhall'], ['smallhouse', 7.5, 17, 'smithy'], ['norsestall', 31, 13.4], ['chestbox', 12.4, 19.8],
   ['statue', 5.5, 7.2, 'heimdall'], ['statue', 8.5, 7.2, 'freyja'], ['statue', 11.5, 7.2, 'tyr'], ['statue', 28.5, 7.2, 'loki'], ['statue', 31.5, 7.2, 'thor'], ['statue', 34.5, 7.2, 'odin'],
   ['tstatue', 20, 15.8, 'fenrir'], ['eirstone', 23.4, 10], ['brazier', 15.6, 10.2], ['brazier', 24.6, 11], ['brazier', 17, 16.2], ['brazier', 23, 16.2],
   ['snowpine', 4, 4], ['snowpine', 36, 4], ['snowpine', 4, 13], ['snowpine', 36.2, 10.6], ['snowpine', 35.6, 20.2], ['snowpine', 4.4, 20.6], ['snowpine', 28.2, 20.6],
@@ -161,8 +161,18 @@ function northLines(n) {
       if (!done('heimdall_hunt')) return ['Welcome to Vindheim. It’s small, but it’s warm.', 'Brokk forges gear from what the North drops. Åsa trades, and she’ll buy whatever you don’t need.',
         'Start with the bridge. Heimdall has been turning everyone back.'];
       return ['Pick a hunt. Every god you put down is one less thing pulling at Fenrir’s chain.'];
-    case 'brokk': return [Object.keys(s.inv).some(k => ITEMS[k] && ITEMS[k].north) ? 'Northern parts. Now we’re talking. Bring enough of them and I’ll forge you something that doesn’t crack in the cold.'
-                                                                                 : 'You’re the Greek. Bring me what the North drops, and drachmae, and I’ll forge you something that doesn’t crack in the cold.'];
+    case 'brokk':
+      if (c[FENRIR_Q]) return ['The wolf’s teeth on my anvil. I never thought I’d see the day.', 'Everything I forged for you woke up when he fell. Go on, feel the weight of it.'];
+      if (isUnlocked(QUEST_BY_ID[FENRIR_Q])) return ['Six gods down. I’ve run out of things to say, so I’ll say it with steel.', 'Bring your best to Lyngvi. A chain my kin made is about to snap, and I’d rather it wasn’t on you.'];
+      if (done('heimdall_hunt')) return ['Still alive? Then the last thing I made you held. Good.', 'Every god up here drops something stronger than the last. Bring it back and we forge our way up.'];
+      return [Object.keys(s.inv).some(k => ITEMS[k] && ITEMS[k].north) ? 'Northern parts. Now we’re talking. Bring enough of them and I’ll forge you something that doesn’t crack in the cold.'
+                                                                      : 'You’re the Greek. Bring me what the North drops, and drachmae, and I’ll forge you something that doesn’t crack in the cold.',
+              'Your Typhon gear will get you past Heimdall. After that, you’ll want mine.'];
+    case 'halvard':
+      if (s.meal && MEALS[s.meal]) return [`That ${mealName(s.meal)} will keep the cold out on your next hunt. Come back hungry.`];
+      if (c[FENRIR_Q]) return ['The hunter who put down the wolf drinks in my hall. Sit wherever you like.', 'Order here or at a table. I’d say it’s on the house, but Åsa would never let me hear the end of it.'];
+      if (!done('heimdall_hunt')) return ['A new face, and a warm one. Welcome to the Mead Hall. I’m Halvard.', 'Nobody hunts the North on an empty stomach. Sit at a table, or order from me here.'];
+      return ['Back from the ice in one piece. Sit down, get warm.', 'Order here or at a table. One meal sees you through your next hunt.'];
     case 'asa': return ['Potions for the cold, parts from any hunt up here you’ve cleared, and I’ll buy whatever you’re tired of carrying.'];
   }
   return null;

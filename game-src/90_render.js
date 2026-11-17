@@ -825,7 +825,7 @@ function updateHud() {
   if (F.frenzy > 0) tags.push(['good', 'Frenzy']); if (F.heart > 0) tags.push(['good', 'Heartsteal']); if (F.killRush > 0) tags.push(['good', 'Revel']);
   if (F.echo > 0) tags.push(['good', 'Echo']); if (F.foresight > 0 && p.foresightN > 0) tags.push(['good', `Foresight ${p.foresightN}`]); if (q.timeStop > 0) tags.push(['good', 'Time stopped']);
   if (p.st.perks.ward && p.wardT <= 0) tags.push(['good', 'Warded']);
-  if (q.meal && MEALS[q.meal]) tags.push(['good', MEALS[q.meal].short]);     // the Tavern meal you set out with
+  if (q.meal && MEALS[q.meal]) tags.push(['good', mealName(q.meal, true)]);     // the Tavern meal you set out with
   setHTML('statusRow', tags.map(([c, t]) => `<span class="st-tag ${c}">${t}</span>`).join(''));
   setText('hudLoot', String(Object.values(q.loot).reduce((a, b) => a + b, 0)));
   updatePotionBar(p);
@@ -853,7 +853,7 @@ function updateVillageHud() {
   tickHint();
   const t = V.target, pr = $('prompt');
   if (t && !G.dialog && !G.cutscene) {
-    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' ? 'Visit' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
+    const verb = t.kind === 'npc' ? 'Talk to' : t.kind === 'statue' ? 'Look at' : t.kind === 'board' ? 'Read' : t.kind === 'hearth' || t.kind === 'shrine' ? 'Visit' : t.kind === 'harbor' ? 'Take' : t.kind === 'dock' ? 'Board' : t.kind === 'stairs' ? (t.goes === 'hall' ? 'Go down' : 'Go up') : t.kind === 'tgate' || t.kind === 'chest' ? 'Open' : t.kind === 'seat' ? 'Sit at' : 'Enter';
     const key = touchMode ? '' : kbd(Input.bind.guard[0]) + ' ';
     const html = t.kind === 'order' ? `${key}Order a meal <span class="muted">· ${touchMode ? 'move' : 'walk off'} to get up</span>` : `${key}${verb} ${esc(t.kind === 'npc' ? t.name : t.name.replace(/^The /, 'the '))}`;
     if (hudCache.prompt !== html) { hudCache.prompt = html; pr.innerHTML = html; }

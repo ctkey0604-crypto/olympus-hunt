@@ -477,7 +477,9 @@ textarea:focus{outline:2px solid var(--gold)}
 #mapCanvas:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
 .map-tip{text-align:center;margin:12px 0 0}
 .voyaging #vhud{visibility:hidden}
-.sell-btns{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.mat:has(.sell-btns){grid-template-columns:auto minmax(0,1fr)}
+.sell-btns{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.sell-btns .btn{flex:1 1 auto}
 .warn-soft{color:#e9c04f}
 .credits-roll .thanks-sub{margin-top:10px;font-family:var(--font-display);font-size:1.5rem;color:var(--bone-dim)}
 .rank.titans{color:#c9a0ff}

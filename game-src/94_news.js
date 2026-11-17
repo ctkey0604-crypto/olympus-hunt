@@ -2,6 +2,19 @@
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
 const NEWS = [
+  { v: '1.1.3', date: 'November 2026', title: 'Halvard’s hall',
+    new: [
+      'Halvard the Brewer keeps the Mead Hall. Talk to him at the counter to order, or sit at a table as before.',
+      'The Mead Hall has a menu of its own: the same six meals under the North’s names, from Elk Stew to Honey Mead.',
+      'Brokk has more to say as your hunts in the North go on.',
+    ],
+    changed: [
+      'The forge and anvil out in the snow are gone from Vindheim: Brokk works inside his Smithy now.',
+      'Selling parts: the two Sell buttons sit under each part’s name, so long names fit on one line.',
+    ],
+    fixed: [
+      'Prompts in the North read properly: Board the longship, Visit Eir’s stone, Take the harbor road.',
+    ] },
   { v: '1.1.2', date: 'November 2026', title: 'Vindheim’s halls',
     new: [
       'Vindheim’s longhouse is now the Mead Hall: sit down and order a meal before a hunt. The small house is Brokk’s Smithy, and Brokk works inside now. Both have signs over the door.',

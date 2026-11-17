@@ -73,7 +73,7 @@ function rankFrames(name, r) {
 
 /* ---- statues: stone until you beat that god or Titan, then gold, diamond (High Rank) or amethyst (God Rank) ---- */
 const TONES = { stone: STONE, gold: GOLDR, diamond: ['#1e3a56', '#4a7aa0', '#8fc4e8', '#cdeeff', '#ffffff'], amethyst: ['#24103a', '#4e2482', '#7e44c0', '#b48cff', '#efdcff'] };
-const STATUE_TONE = ['gold', 'diamond', 'amethyst'], STATUE_WORD = ['Golden', 'Diamond', 'Amethyst'];
+const STATUE_TONE = ['gold', 'diamond', 'amethyst'];
 // The North's gods and Fenrir have tones of their own: blue once you beat them, and ice blue (Nordic Rank's colour) for
 // every one of them once Fenrir has fallen and the North's gear wakes.
 Object.assign(TONES, { blue: ['#0c1a3a', '#1c3f86', '#2f6fd0', '#6fa8f0', '#d6e8ff'], ice: ['#123a52', '#3f9ccc', '#9fd0ff', '#e0f6ff', '#ffffff'] });
