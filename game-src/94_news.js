@@ -14,6 +14,7 @@ const NEWS = [
     ],
     fixed: [
       'Prompts in the North read properly: Board the longship, Visit Eir’s stone, Take the harbor road.',
+      'A room that everyone has left drops off the Oracle’s list straight away.',
     ] },
   { v: '1.1.2', date: 'November 2026', title: 'Vindheim’s halls',
     new: [

@@ -594,7 +594,9 @@ export class Room extends DurableObject {
   async toLobby() {
     const M = this.meta; if (!M) return; const mem = [...this.members(), ...this.awayList()], host = mem.find(m => m.id === M.host);
     try {
-      await lobbyStub(this.env).update({ code: M.code, name: M.name || '', pub: M.pub, host: host ? host.name : '', n: mem.length, max: ROOM_MAX,
+      // live: how many are connected right now. A room whose players have all dropped keeps their places for a moment
+      // (HOLD_MS) so they can get back in by code, but it isn't offered to anyone new meanwhile.
+      await lobbyStub(this.env).update({ code: M.code, name: M.name || '', pub: M.pub, host: host ? host.name : '', n: mem.length, live: this.members().length, max: ROOM_MAX,
         hostKey: host ? host.key : '', rank: host ? host.rank : M.rank, phase: M.phase, quest: M.quest ? M.quest.name : null, created: M.created });
     } catch {}
   }
@@ -842,7 +844,7 @@ export class Lobby extends DurableObject {
     const rooms = (await this.ctx.storage.get('rooms')) || {}, now = Date.now(); let changed = false;
     for (const [k, v] of Object.entries(rooms)) if (now - v.seen > 75000) { delete rooms[k]; changed = true; }
     if (changed) await this.ctx.storage.put('rooms', rooms);
-    return Object.values(rooms).filter(r => r.pub && r.n > 0).sort((a, b) => b.created - a.created).slice(0, 60)
+    return Object.values(rooms).filter(r => r.pub && r.n > 0 && r.live !== 0).sort((a, b) => b.created - a.created).slice(0, 60)
       .map(r => ({ code: r.code, name: r.name || '', host: r.host, n: r.n, max: r.max, rank: r.rank, phase: r.phase, quest: r.quest }));
   }
 }
