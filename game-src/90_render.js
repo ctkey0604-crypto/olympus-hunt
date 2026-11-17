@@ -274,10 +274,12 @@ function drawPlayer(p, S) {
   const hx = sx + (flip ? -2 : 2), hy = sy - 8 - bob;
   const sh = p.st && p.st.shield, k = easeOut(p.shieldT || 0);
   // The shield swings from your back arm to the front when you guard, gets knocked back when it takes a hit, and lunges on a bash.
+  // (It used to vanish for the length of a dash; now it stays on your back arm and follows the dash pose, which sits 1px lower.)
   let shDraw = null;
-  if (sh && p.dodgeT <= 0) {
+  if (sh) {
     const kick = (p.blockKick > 0 ? -3 * p.blockKick / .15 : 0) + (p.bashT > 0 ? 5 * Math.sin((1 - p.bashT / .2) * Math.PI) : 0);
-    const bx = sx - dir * 4, by = sy - 9 - bob, fx = sx + Math.cos(p.face) * (7 + kick), fy = sy - 9 + Math.sin(p.face) * (4 + kick * .5);
+    const lift = p.dodgeT > 0 ? -1 : bob;
+    const bx = sx - dir * 4, by = sy - 9 - lift, fx = sx + Math.cos(p.face) * (7 + kick), fy = sy - 9 + Math.sin(p.face) * (4 + kick * .5);
     const cx = lerp(bx, fx, k), cy = lerp(by, fy, k) - Math.sin(k * Math.PI) * 2;
     shDraw = { cx, cy, rx: Math.round(lerp(3, 5, k)), ry: Math.round(lerp(4, 7, k)), front: k > .5 && Math.sin(p.face) > -.3, flash: p.guardFlash > 0, glow: p.fx && p.fx.riposte > 0 };
   }
