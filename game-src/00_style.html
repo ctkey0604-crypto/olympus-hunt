@@ -695,9 +695,9 @@ input[type=range]{accent-color:var(--clay)}
 .pause-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--bone-dim);margin-top:2px}
 .pause-keys span{white-space:nowrap}
 .pause-keys kbd{margin-left:2px}
-.sound-hint{margin:-6px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);animation:soundHint 2.4s ease-in-out infinite}
-@keyframes soundHint{50%{color:var(--gold)}}
-@media (prefers-reduced-motion:reduce){.sound-hint{animation:none}}
+#splash{position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;transition:opacity .45s ease}
+#splash.out{opacity:0}
+#splashArt{image-rendering:pixelated;image-rendering:crisp-edges}
 /* installing the game as an app: a button where the browser offers it, a how-to on iPhone and iPad */
 .app-row{display:flex;justify-content:center;margin:-4px 0 0}
 .app-hint{margin:-4px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);max-width:34em;justify-self:center}
