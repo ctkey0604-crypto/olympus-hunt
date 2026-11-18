@@ -1198,10 +1198,10 @@ drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
-Music.play('menu');
-// The menu theme from the moment the page loads. Browsers only allow sound before the first click, tap or key press on
-// sites people use a lot (Chrome remembers), so try right away; otherwise the very first input anywhere switches it on
-// (skipping the Inspirapixel splash counts).
+SPLASH.done.then(() => Music.play('menu'));         // the menu theme starts once the Inspirapixel splash is gone
+// Browsers only allow sound before the first click, tap or key press on sites people use a lot (Chrome remembers), so
+// try right away; otherwise the very first input anywhere switches it on (for most players, the splash's
+// "click anywhere to start").
 {
   const evs = ['pointerdown', 'keydown', 'touchstart'], on = () => !!(Sound.ctx && Sound.ctx.state === 'running');
   const wake = () => { Sound.init(); Sound.resume(); setTimeout(() => { if (on()) for (const t of evs) removeEventListener(t, wake, true); }, 150); };

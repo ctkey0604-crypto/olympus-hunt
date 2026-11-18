@@ -695,9 +695,13 @@ input[type=range]{accent-color:var(--clay)}
 .pause-keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem;color:var(--bone-dim);margin-top:2px}
 .pause-keys span{white-space:nowrap}
 .pause-keys kbd{margin-left:2px}
-#splash{position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;transition:opacity .45s ease}
+#splash{position:fixed;inset:0;z-index:9999;background:#0b0706;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(18px,5vh,44px);cursor:pointer;transition:opacity .45s ease}
 #splash.out{opacity:0}
 #splashArt{image-rendering:pixelated;image-rendering:crisp-edges}
+#splashTap{margin:0;min-height:1.5em;font-family:var(--font-ui);font-size:clamp(14px,2.3vh,19px);letter-spacing:.12em;color:var(--bone-dim);opacity:0;transition:opacity .7s ease}
+#splashTap.on{opacity:1;animation:splashTap 2s ease-in-out .8s infinite}
+@keyframes splashTap{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){#splashTap.on{animation:none}}
 /* installing the game as an app: a button where the browser offers it, a how-to on iPhone and iPad */
 .app-row{display:flex;justify-content:center;margin:-4px 0 0}
 .app-hint{margin:-4px 0 0;text-align:center;font-size:.85rem;color:var(--bone-mute);max-width:34em;justify-self:center}
