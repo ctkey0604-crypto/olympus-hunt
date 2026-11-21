@@ -1,0 +1,48 @@
+<div id="splash"><canvas id="splashArt" role="img" aria-label="Inspirapixel"></canvas><p id="splashTap" aria-live="polite"></p></div>
+<div id="app" hidden>
+  <header id="top">
+    <div class="tb-co">
+      <span id="coName" class="disp"></span>
+      <span id="lvChip" class="chip gold"></span>
+      <span id="boostChip" class="chip olive" title="Your factories run 50% faster until you reach Level 2">Startup boost +50%</span>
+    </div>
+    <div class="tb-cash">
+      <span id="coinIcon"></span>
+      <div><b id="cash" class="disp"></b><span id="ppm"></span></div>
+    </div>
+    <div class="tb-stats">
+      <div class="tb-stat"><span class="lbl">Net worth <b id="nw"></b></span><div class="bar" role="img" id="lvBarWrap"><i id="lvBar"></i></div><span class="sub" id="lvNext"></span></div>
+      <button class="tb-stat tb-btn" data-act="hq" type="button"><span class="lbl">Factories <b id="cap"></b></span><div class="bar"><i id="capBar"></i></div><span class="sub" id="capNote"></span></button>
+      <button class="tb-stat tb-btn" data-act="hq" type="button"><span class="lbl">Storage <b id="wh"></b></span><div class="bar"><i id="whBar"></i></div><span class="sub">items kept in your warehouse</span></button>
+    </div>
+    <div class="tb-actions">
+      <button class="btn ghost small icon-btn" data-act="sound" type="button" id="soundBtn" aria-label="Sound" title="Sound on/off"><span id="soundIcon"></span></button>
+      <button class="btn ghost small icon-btn" data-act="full" type="button" aria-label="Full screen" title="Full screen"><span id="fullIcon"></span></button>
+      <button class="btn ghost small" data-act="menu" type="button">Menu</button>
+    </div>
+  </header>
+  <main id="main">
+    <div id="mapwrap">
+      <div id="stage"><canvas id="map" width="480" height="270" aria-label="Your town. Tap a lot to build, or a building to manage it. Drag to look around." role="img"></canvas><div id="overlay"></div></div>
+      <button id="goalPill" class="goal-pill" type="button" data-act="goals"></button>
+      <div id="coach" class="coach" role="status" aria-live="polite" hidden></div>
+      <div class="dist" role="group" aria-label="Jump to an area">
+        <button type="button" data-act="jump" data-b="0">Market Row</button><button type="button" data-act="jump" data-b="1">Main St</button><button type="button" data-act="jump" data-b="2">Industrial</button><button type="button" data-act="jump" data-b="3">Gold Hill</button>
+      </div>
+    </div>
+    <aside id="side" aria-live="polite"></aside>
+  </main>
+  <footer id="bottom">
+    <div id="ticker"></div>
+    <nav id="nav"></nav>
+  </footer>
+</div>
+<div id="modal" class="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <header class="m-head"><h2 id="mTitle"></h2><button class="btn ghost small" data-act="close" type="button">Close <kbd>Esc</kbd></button></header>
+    <div id="mBody"></div>
+  </div>
+</div>
+<div id="rotate" role="alert"><div class="ph" aria-hidden="true"></div><b>Turn your phone sideways</b><p>Brick &amp; Coin plays in landscape. Rotate your phone to keep going.</p><button class="btn ghost small" type="button" data-act="full">Full screen</button></div>
+<div id="start" class="start"></div>
+<div id="toasts" aria-live="polite"></div>
