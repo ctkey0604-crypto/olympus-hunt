@@ -242,8 +242,12 @@ function act(el) {
   if (!snd) sfx('tap');
   if (a !== 'demolish' && a !== 'reset' && a !== 'psell') UI.confirm = '';
   switch (a) {
-    case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveLocal(); UI.modalSig = ''; return;
-    case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); renderSoundBtn(); saveLocal(); break;
+    case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
+    case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
+    case 'tpage': UI.confirm = ''; renderTitle(el.dataset.v); { const f = $('#tbox .tpanel input, #tbox .tbtn'); if (f && !matchMedia('(pointer: coarse)').matches) f.focus({ preventScroll: true }); } return;
+    case 'helppg': UI.helpPg += +el.dataset.v; if (!running) { renderTitle(); return; } break;
+    case 'mtab': UI.mtab = el.dataset.v; break;
+    case 'mainmenu': saveLocal(); closeModal(); selectLot(-1); running = false; showTitle(); return;
     case 'tutdone': S.tut = TUT_DONE; updateCoach(); saveLocal(); return;
     case 'tutreplay': S.tut = 0; UI.tutT = S.t; closeModal(); selectLot(-1); updateCoach(); return;
     case 'resetno': break;
@@ -293,12 +297,13 @@ function act(el) {
       catch (e) { toast('That save code didn’t work', 'bad'); }
       return;
     }
-    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} running = false; musicStop(); closeModal(); $('#app').hidden = true; showStart(null); return; } UI.confirm = 'reset'; break;
+    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
     case 'pick': UI.startPick = p; for (const b of document.querySelectorAll('.pick')) b.setAttribute('aria-pressed', b.dataset.p === p); return;
     case 'continue': { const o = loadLocal(); if (o) { adopt(o); begin(true); } return; }
   }
   if (err) { toast(err, 'bad'); sfx('error'); }
   else if (snd) sfx(UI.confirm ? 'tap' : snd);   // first tap of a two-tap action only clicks
+  if (!running) { if (!$('#start').hidden) renderTitle(); return; }   // on the starting menu: no company to redraw
   UI.sideSig = ''; UI.modalSig = '';
   renderSide(); renderModal(); updateTop();
 }
@@ -314,15 +319,16 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const el = e.target; if (!el.dataset) return;
   if (el.dataset.act === 'autobuy') { const l = S.lots[+el.dataset.i]; if (l) l.autoBuy = el.checked; UI.sideSig = ''; sfx('tap'); }
-  if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveLocal(); }
+  if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveSound(); saveLocal(); }
 });
 document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.set) { AUD.set[el.dataset.set] = clamp(+el.value / 10, 0, 1); audioLevels(); } });
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => {
-  if (!running || e.target.closest('input,textarea')) return;
+  if (!running) { if (e.key === 'Escape' && !$('#start').hidden && UI.tpage !== 'home') renderTitle('home'); return; }   // starting menu: Esc goes back
+  if (e.target.closest('input,textarea')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { if (UI.modal) closeModal(); else { selectLot(-1); } return; }
+  if (k === 'escape') { if (UI.modal) closeModal(); else if (UI.sel || UI.sheet) selectLot(-1); else { sfx('tap'); openModal('menu'); } return; }   // nothing open: Esc opens the menu
   const map = { p: 'prod', m: 'market', s: 'stocks', l: 'board' };
   if (map[k]) { sfx('tap'); if (UI.modal === map[k]) closeModal(); else { if (k === 'p') UI.webSel = UI.webSel || S.start; openModal(map[k]); } }
   if (k === 'h') { sfx('tap'); closeModal(); selectLot(HQ_LOT); }
@@ -339,16 +345,28 @@ document.addEventListener('visibilitychange', () => {
 });
 addEventListener('pagehide', () => { if (running) saveLocal(); });
 
-/* ---------- start ---------- */
-function showStart(existing) { $('#start').hidden = false; renderStart(existing); }
+/* ---------- start: the starting menu, then the game ---------- */
+let titleTimer = 0;
+function showTitle(page) {
+  const o = loadLocal(); TITLE_SAVE = o && o.company ? o : null;
+  $('#app').hidden = true; $('#start').hidden = false;
+  if (!WS.ready || Math.abs(worldNow() - WT) > 3) { WT = worldNow(); worldReset(); }
+  renderTitle(page || 'home');
+  clearInterval(titleTimer);
+  titleTimer = setInterval(() => { if (running) return; WT = worldNow(); worldTick(); renderTitleMarket(); }, 1000);   // the live market keeps ticking
+  AUD.want = AUD.cand = 1;   // the Main Street tune
+}
 function startNew() {
   const name = ($('#coInput').value || '').trim().replace(/\s+/g, ' ');
   if (name.length < 2) { $('#startErr').textContent = 'Give your company a name (2–24 letters).'; $('#coInput').focus(); return; }
+  if (TITLE_SAVE && UI.confirm !== 'tnew') { UI.confirm = 'tnew'; sfx('tap'); $('#tgo').textContent = `Tap again to replace ${TITLE_SAVE.company}`; $('#tgo').classList.replace('gold', 'danger'); return; }
+  UI.confirm = '';
   newGame(name, UI.startPick); S.settings = AUD.set; saveLocal(); sfx('goal'); begin(false);
 }
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
-  applyAudioSettings(S.settings); S.settings = AUD.set;   // sound settings live in the save
+  S.settings = AUD.set;   // sound settings belong to the device (SOUND_KEY); the save keeps a copy for older versions
+  clearInterval(titleTimer);
   $('#start').hidden = true; $('#app').hidden = false;
   UI.sel = null; UI.sheet = false; UI.tutT = S.t; CAM.set = false; renderNav(); resize(); afterLoad(); setSheet(false); updateCoach();
   musicStart();
@@ -365,9 +383,11 @@ function begin(loaded) {
 }
 function boot() {
   const existing = loadLocal();
-  if (existing && existing.company) applyAudioSettings(existing.settings);
-  showStart(existing && existing.company ? existing : null);
+  applyAudioSettings(loadSound() || (existing && existing.settings));   // this device's sound settings (an older save's, the first time)
+  showTitle();
+  SPLASH.done.then(() => { if (!running) musicStart(); });   // the menu music once the splash has gone (that press lets the browser play sound)
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (running) resize(); });
+  addEventListener('resize', () => { if (!running && !$('#start').hidden) paintTitleTown(); });
 }
 // test hook for automated playtests
 window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT };

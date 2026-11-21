@@ -4,7 +4,7 @@
    start screen, toasts and the news ticker.
    ========================================================================== */
 const $ = s => document.querySelector(s);
-const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood' };
+const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help' };
 
 /* ---------- formatting ---------- */
 function money(n, cents) {
@@ -420,36 +420,34 @@ const MODAL = {
     }).join('');
     return { sig: sig + '|' + Math.floor(S.t / 2), title: 'Leaderboard', html: `<p class="m-sub">The richest players in Millbrook. Net worth = cash + buildings + goods + stocks.</p><div class="lb">${rows}</div>` };
   },
-  menu() {
-    let saved = false; try { saved = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
-    const conf = UI.confirm === 'reset', A = AUD.set;
-    const onOff = k => `<div class="seg" role="group" aria-label="${k === 'musicOn' ? 'Music' : 'Sound effects'}">${[[true, 'On'], [false, 'Off']].map(([v, l]) =>
-      `<button type="button" data-act="aset" data-k="${k}" data-v="${v ? 1 : 0}" aria-pressed="${A[k] === v}">${l}</button>`).join('')}</div>`;
-    return { sig: `menu|${conf}|${A.musicOn}|${A.sfxOn}|${S.tut}`, title: 'Menu', html: `
-      <div class="help">
-        <section class="card"><h3>Sound</h3>
-          <div class="setrow"><span>Music</span>${onOff('musicOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.music * 10)}" data-set="music" aria-label="Music volume"></div>
-          <div class="setrow"><span>Sound effects</span>${onOff('sfxOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.sfx * 10)}" data-set="sfx" aria-label="Sound effects volume"></div>
-          <p class="muted" style="font-size:12px">Each part of town has its own tune. The speaker button at the top turns all sound on or off.</p></section>
-        <section class="card"><h3>Save</h3><p class="muted" style="font-size:13px">${saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
-          <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
-          <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
-          <button class="btn ghost" type="button" data-act="loadsave">Import save code</button></section>
-        <section class="card"><h3>How it works</h3>
-          <p><b>Build</b> on empty lots. Raw producers need nothing. Factories turn goods into better goods.</p>
-          <p><b>Factory limit:</b> your HQ can run so many building levels. Upgrade it to grow.</p>
-          <p><b>Upkeep:</b> every building costs a little each minute to run, but nothing while it's stopped waiting for materials.</p>
-          <p><b>Levels:</b> net worth opens new areas of town and deeper rings of products.</p>
-          <p><b>Market:</b> the more you sell of one thing, the lower its price. Spread out.</p>
-          <p><b>Invest:</b> stocks (the index fund is steady, PixCoin is wild) and real estate west and east of town that pays rent.</p>
-          <p><b>Upgrades:</b> every building level makes it faster and grows the building: annex, back wing, smokestack, then a gold tower.</p>
-          <p><b>One world:</b> the stock market, home prices, news, booms and slumps are the same for every player at the same moment.</p>
-          <p><b>Away:</b> closed, or left open untouched for 10 minutes, your factories run at 25% speed for up to 2 hours, at plain prices (booms and slumps don't count). Then they wait for you.</p>
-          ${tutActive() ? '' : '<button class="btn ghost" type="button" data-act="tutreplay">Replay the tutorial</button>'}</section>
-        <section class="card"><h3>Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
-          <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
-          ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</section>
-      </div><p class="muted" style="font-size:12px;margin-top:12px">Brick &amp; Coin ${VERSION} · an Inspirapixel game</p>` };
+  menu() {   // v0.06: sections down the side
+    const tab = UI.mtab, conf = UI.confirm === 'reset';
+    const tabs = [['help', 'How to Play'], ['settings', 'Settings'], ['save', 'Save & Transfer'], ['about', 'About']];
+    const nav = `<nav class="mnav" aria-label="Menu sections"><button class="btn gold" type="button" data-act="close">Resume</button>
+      ${tabs.map(([v, l]) => `<button type="button" class="mtab" data-act="mtab" data-v="${v}" aria-pressed="${tab === v}">${l}</button>`).join('')}
+      <hr><button type="button" class="mtab" data-act="mainmenu">Main Menu</button></nav>`;
+    let pane = '';
+    if (tab === 'help') pane = `<h3>How to Play</h3>${helpHTML()}${tutActive() ? '' : '<button class="btn ghost small" type="button" data-act="tutreplay" style="align-self:flex-start">Replay the tutorial</button>'}`;
+    else if (tab === 'settings') pane = `<h3>Settings</h3>${settingsHTML()}`;
+    else if (tab === 'save') {
+      let saved = false; try { saved = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
+      pane = `<h3>Save &amp; Transfer</h3>
+        <p class="muted" style="font-size:13px">${saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
+        <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
+        <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
+        <button class="btn ghost" type="button" data-act="loadsave" style="align-self:flex-start">Import save code</button>
+        <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
+          <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
+          ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</div></section>`;
+    } else {
+      const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
+      pane = `<h3>${esc(S.company)}</h3><div class="mstats">
+          ${stat('Level', `${S.level} · ${LEVELS[S.level].name}`)}${stat('Net worth', money(netWorth(), false))}${stat('Rank', '#' + playerRank())}
+          ${stat('Buildings', countBuildings())}${stat('Goals done', `${S.goal} of ${GOALS.length}`)}${stat('Time played', playTime(S.t))}</div>
+        <div class="tcred" style="max-width:none">${creditsHTML()}</div>`;
+    }
+    return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}`,
+      title: 'Menu', html: `<div class="mwrap">${nav}<section class="mpane">${pane}</section></div>` };
   },
 };
 
@@ -503,27 +501,145 @@ function renderSoundBtn() {
   $('#soundIcon').innerHTML = iconImg(on ? 'sound' : 'mute', 27);
 }
 
-/* ---------- start screen ---------- */
+/* ---------- shared by both menus: How to Play, settings, credits ---------- */
+const HELP = [
+  { art: () => bigArt(buildingPreview('wood', 2)), t: 'Build', p: [
+    'Tap an <b>empty lot</b> in town and pick a building.',
+    '<b>Raw producers</b> (wood, wheat, ore) need nothing: they make goods and sell them for you, so your cash goes up on its own.',
+    'Tap a building to <b>upgrade</b> it. Each level is faster, and the building grows.'] },
+  { art: () => bigArt(buildingPreview('planks', 3)), t: 'Make better goods', p: [
+    'Open <b>Production</b> (P) to unlock new products.',
+    '<b>Factories</b> turn goods into better goods: wood → planks → chairs → furniture → grand pianos.',
+    'A factory short of materials can <b>buy them</b> from the market, at 30% more.'] },
+  { art: () => bigArt(buildingPreview('hq', 4)), t: 'Grow', p: [
+    'Your <b>HQ</b> can run a limited number of building levels. Upgrade it to grow.',
+    'You can make <b>5 different products</b> at once, so pick a direction.',
+    'Buildings cost a little <b>upkeep</b> each minute, but nothing while they wait for materials.'] },
+  { art: () => icoArt('trophy'), t: 'Open the town', p: [
+    'Your <b>net worth</b> (cash, buildings, goods and investments) opens new parts of town:',
+    `<b>Market Row</b> at ${money(LEVELS[2].nw, false)}, <b>Industrial Park</b> at ${money(LEVELS[3].nw, false)}, <b>Gold Hill</b> at ${money(LEVELS[4].nw, false)}.`,
+    'Follow the <b>goals</b> for cash rewards.'] },
+  { art: () => icoArt('bars'), t: 'Markets', p: [
+    'Sell a lot of one thing and its <b>price drops</b>, so spread out. Booms and slumps in the news move prices too.',
+    '<b>Invest</b> (S) in shares, the index fund or PixCoin, and buy homes that pay <b>rent</b>.',
+    'The stock market and the news are <b>the same for every player</b>, live.'] },
+  { art: () => icoArt('coin'), t: 'While you’re away', p: [
+    'Closed, or left untouched for 10 minutes, your company keeps running at <b>25% speed</b> for up to 2 hours.',
+    'Your game saves itself in this browser. A <b>save code</b> (Menu → Save &amp; Transfer) moves your company to another device.'] },
+];
+function bigArt(src) { return `<img src="${src}" alt="">`; }
+function icoArt(name) { return `<img class="ico" src="${iconURL(name)}" alt="">`; }
+function helpHTML() {
+  const n = HELP.length, k = UI.helpPg = clamp(UI.helpPg, 0, n - 1), h = HELP[k];
+  return `<div class="hpage"><div class="hart">${h.art()}</div><div><h3>${h.t}</h3>${h.p.map(x => `<p>${x}</p>`).join('')}</div></div>
+    <div class="hnav"><button class="btn ghost small" type="button" data-act="helppg" data-v="-1" ${k === 0 ? 'disabled' : ''}>Back</button>
+      <span class="hdots" role="img" aria-label="Page ${k + 1} of ${n}">${HELP.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('')}</span>
+      <button class="btn small" type="button" data-act="helppg" data-v="1" ${k === n - 1 ? 'disabled' : ''}>Next</button></div>`;
+}
+function settingsHTML() {
+  const A = AUD.set, onOff = k => `<div class="seg" role="group" aria-label="${k === 'musicOn' ? 'Music' : 'Sound effects'}">${[[true, 'On'], [false, 'Off']].map(([v, l]) =>
+    `<button type="button" data-act="aset" data-k="${k}" data-v="${v ? 1 : 0}" aria-pressed="${A[k] === v}">${l}</button>`).join('')}</div>`;
+  return `<div class="sets">
+    <div class="setrow"><span>Music</span>${onOff('musicOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.music * 10)}" data-set="music" aria-label="Music volume"></div>
+    <div class="setrow"><span>Sound effects</span>${onOff('sfxOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.sfx * 10)}" data-set="sfx" aria-label="Sound effects volume"></div>
+    <div class="setrow"><span>Full screen</span><button class="btn ghost small" type="button" data-act="full">${document.fullscreenElement || document.webkitFullscreenElement ? 'Leave full screen' : 'Go full screen'}</button></div>
+    <p class="muted" style="font-size:12px">Each part of town has its own tune. Sound settings are kept on this device.</p></div>`;
+}
+function creditsHTML() {
+  return `<p><b>Brick &amp; Coin</b> ${VERSION}, an <b>Inspirapixel</b> game.</p>
+    <p>Every building, icon and tune is made in code and drawn live in your browser.</p>
+    <p>The stock market, the news and the rival tycoons are shared by every player in Millbrook.</p>
+    <p>Fonts: <b>Jersey 10</b> and <b>Pixelify Sans</b>, from Google Fonts (SIL Open Font License).</p>`;
+}
+function playTime(sec) { const m = Math.floor(sec / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
+
+/* ---------- the starting menu (v0.06): a town drifting by behind the logo, the menu, the live market ---------- */
 const START_INFO = {
   wood: { leads: 'Planks, Charcoal, Chairs, Paper, Books, Furniture, Pianos' },
   wheat: { leads: 'Flour, Bread, Pasta, Lunch Boxes, Canned Food, Gift Hampers' },
   ore: { leads: 'Iron, Nails, Steel, Tools, Motor Cars' },
 };
-function renderStart(existing) {
-  const pick = UI.startPick;
-  const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
-    <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
-  $('#start').innerHTML = `<div class="start-card">
-    <div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div>
-    ${existing ? `<section class="card" style="width:min(420px,100%);align-items:center"><b>${esc(existing.company)}</b><span class="muted" style="font-size:13px">Level ${existing.level} · ${money(existing.cash, false)} cash</span>
-      <button class="btn gold wide" type="button" data-act="continue">Continue</button></section><div class="muted" style="font-size:13px">or start a new company (this replaces your save)</div>` : ''}
-    <form class="start-form" id="startForm">
+let TITLE_SAVE = null, TITLE_TOWN = null;   // the company saved in this browser (shown on Continue), the backdrop picture
+const TPAGES = {
+  new() {
+    const pick = UI.startPick, ex = TITLE_SAVE;
+    const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
+      <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
+    return `<h2>New company</h2><form class="start-form" id="startForm">
       <label>Company name<input id="coInput" maxlength="24" autocomplete="off" placeholder="e.g. Oakline Co." value=""></label>
       <div class="muted" style="font-size:14px">Pick your starting material. It decides your first direction. You can branch out later.</div>
       <div class="picks">${cards}</div>
       <div class="start-err" id="startErr"></div>
-      <button class="btn ${existing ? 'ghost' : 'gold'}" type="submit" style="font-size:18px;padding:12px 28px">Open for business</button>
-    </form></div>`;
-  $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
+      ${ex ? `<div class="twarn">This replaces ${esc(ex.company)} in this browser. To keep it, open it and export its save code first (Menu → Save &amp; Transfer).</div>` : ''}
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
+        <button class="btn gold" type="submit" id="tgo" style="font-size:18px;padding:12px 28px">Open for business</button></div></form>`;
+  },
+  help() { return `<h2>How to play</h2>${helpHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Main menu</button></div>`; },
+  settings() { return `<h2>Settings</h2>${settingsHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
+  credits() { return `<h2>Credits</h2><div class="tcred">${creditsHTML()}</div><div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
+};
+function renderTitle(page) {
+  if (page) UI.tpage = page;
+  const st = $('#start'), pg = UI.tpage, ex = TITLE_SAVE;
+  if (!$('#tbox')) {   // built once, so changing pages doesn't restart the drifting town
+    st.innerHTML = `<div class="ttown" id="ttown"></div><div class="tshade"></div><div class="tbox" id="tbox"></div><footer class="tmarket" id="tmarket" aria-label="The live market"></footer>`;
+    paintTitleTown();
+  }
+  const head = `<header class="thead"><div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div></header>`;
+  const home = `<nav class="tmenu" aria-label="Main menu">
+    ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}</small></button>` : ''}
+    <button type="button" class="tbtn ${ex ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
+    <button type="button" class="tbtn" data-act="tpage" data-v="help">How to Play</button>
+    <button type="button" class="tbtn" data-act="tpage" data-v="settings">Settings</button>
+    <button type="button" class="tbtn" data-act="tpage" data-v="credits">Credits</button></nav>`;
+  const box = $('#tbox');
+  box.className = 'tbox' + (pg === 'home' ? '' : ' sub');
+  box.innerHTML = head + (pg === 'home' ? home : `<section class="tpanel">${TPAGES[pg]()}</section>`);
+  if (pg === 'new') $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
+  renderTitleMarket();
+}
+// the live market along the bottom: the same prices and news every player sees right now
+function renderTitleMarket() {
+  const el = $('#tmarket'); if (!el || !WS.ready) return;
+  const q = t => { const A = WS.assets[t], c = changeOf(A.h10, 359); return `<span class="tq">${iconImg(asset(t).icon, 18)}<b>${t}</b> ${money(A.p)} <span class="${c >= 0 ? 'olive' : 'red'}">${pctTxt(c)}</span></span>`; };
+  const n = worldNews(1)[0];
+  el.innerHTML = `<span class="chip gold">LIVE MARKET</span>${q('MB10')}${q('PXC')}${q('NOVA')}${n ? `<span class="tnews">${esc(n.text)}</span>` : ''}`;
+}
+// the backdrop: a busy Millbrook (every area open, buildings at every level), drawn once and scaled up in whole pixels
+function paintTitleTown() {
+  const el = $('#ttown'); if (!el) return;
+  if (!TITLE_TOWN) TITLE_TOWN = townPostcard();
+  const k = Math.max(1, Math.floor(innerHeight / 300));
+  el.style.backgroundImage = `url(${TITLE_TOWN})`; el.style.backgroundSize = `${WORLD_W * k}px ${WORLD_H * k}px`;
+}
+function townPostcard() {
+  const c = document.createElement('canvas'); c.width = WORLD_W; c.height = WORLD_H;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  drawBackground(MAX_LEVEL); x.drawImage(BG, 0, 0); BG_LEVEL = -1;   // the game draws its own town again when it starts
+  const plan = { 1: ['wood', 'wheat', 'ore', 'planks', 'flour', 'charcoal', 'wood', 'wheat', 'planks', 'ore'], 0: ['chair', 'paper', 'bread', 'pasta', 'iron', 'nails', 'chair', 'bread', 'iron'],
+    2: ['sofa', 'books', 'lunchbox', 'canned', 'steel', 'tools', 'steel', 'sofa', 'canned'], 3: ['piano', 'hamper', 'car', 'piano', 'car', 'hamper', 'car', 'piano', 'hamper', 'car'] };
+  const spots = [];
+  for (let b = 0; b < 4; b++) { let k = 0; for (let i = b * 12; i < b * 12 + 12; i++) { if (i === HQ_LOT) { spots.push({ i, b: 'hq', lv: 5 }); continue; } const t = plan[b][k++]; if (t) spots.push({ i, b: t, lv: 1 + (i * 7) % 5 }); } }
+  PLOTS.forEach((pl, k) => spots.push({ i: 100 + k, house: pl.t, reno: 1 + k % 3, own: k % 3 !== 1 }));
+  spots.sort((a, b) => spotXY(a.i).y - spotXY(b.i).y);
+  const P = Painter(x, TX, TY);
+  for (const s of spots) {
+    const { x: lx, y: ly } = spotXY(s.i);
+    if (s.house) {
+      x.drawImage(houseSprite(s.house, s.reno), TX + lx - 6, TY + ly - 14);
+      if (s.own) { P.r(lx + PLOT - 6, ly - 10, 1, 9, K); P.r(lx + PLOT - 5, ly - 10, 5, 4, K); P.r(lx + PLOT - 5, ly - 9, 4, 2, '#ebc152'); }
+      continue;
+    }
+    const tier = s.lv;
+    x.drawImage(buildingSprite(s.b, tier), TX + lx - SPR_OX, TY + ly - SPR_OY);
+    if (BUILD[s.b].anim) BUILD[s.b].anim(Painter(x, TX + lx, TY + ly), .35 + s.i * .37);
+    if (tier >= 2) decorAnim(Painter(x, TX + lx, TY + ly), s.b, tier, s.i * .37);
+    if (s.b !== 'hq') for (let k = 0; k < s.lv; k++) { P.r(lx + 1 + k * 4, ly + LOT - 4, 4, 4, K); P.r(lx + 2 + k * 4, ly + LOT - 3, 2, 2, '#ebc152'); }
+  }
+  for (let k = 0; k < 14; k++) {   // people out walking
+    const h = k % 3 !== 0, v = ROAD_V[k % 2];
+    drawWalker(P, { x: h ? -150 + k * 61 % 760 : v.x + 3 + k % 8, y: h ? ROAD_H.y + 3 + k % 7 : -60 + k * 47 % 520, shirt: SHIRTS[k % SHIRTS.length], hair: ['#3a2416', '#140d0b', '#8a5a34', '#ebc152'][k % 4] }, k * .3);
+  }
+  return c.toDataURL();
 }
 

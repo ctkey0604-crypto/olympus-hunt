@@ -3,8 +3,9 @@
 
      python3 brick-and-coin/build.py && node brick-and-coin/test/playtest.js [--minutes 60] [--shots DIR]
 
+   0. The Inspirapixel splash, then the starting menu: its pages, settings kept on the device, the live market.
    1. Desktop: new company, the whole tutorial by clicking, every menu, market, stocks, real estate,
-      save code export/import, every sprite at every level.
+      save code export/import, every sprite at every level, the game's Menu, back to the main menu and Continue.
    2. A simple bot plays --minutes of game time (default 60) while the economy is checked every
       game minute (no NaN cash, no negative stock, no broken prices). Prints when it reached each level,
       so you can compare pacing before and after a balance change. The bot is a rough player, not a
@@ -34,20 +35,22 @@ const problems = [];
 function check(ok, msg) { console.log((ok ? '  ok    ' : '  FAIL  ') + msg); if (!ok) problems.push(msg); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function open(browser, name, opts) {
+async function open(browser, name, opts, splash) {
   const ctx = await browser.newContext(opts);
   const page = await ctx.newPage();
   page.on('pageerror', e => { console.log(`  FAIL  [${name}] page error: ${e.message}`); problems.push(`[${name}] page error: ${e.message}`); });
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) console.log(`  console error [${name}]: ${m.text()}`); });
-  await page.goto(URL, { waitUntil: 'load' });
+  await page.goto(URL + (splash ? '' : '?nosplash'), { waitUntil: 'load' });   // the splash waits for a click: skip it, except where it's tested
   await page.waitForSelector('#start .title');
   return { ctx, page };
 }
 const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, name + '.png') });
-async function newCompany(page, name, pick = 'wood') {
+async function newCompany(page, name, pick = 'wood') {   // starting menu → New Company → name, material → Open for business
+  if (!await page.isVisible('#coInput')) await page.click('[data-act=tpage][data-v=new]');
   await page.fill('#coInput', name);
   await page.click(`.pick[data-p=${pick}]`);
-  await page.click('#startForm button[type=submit]');
+  await page.click('#tgo');
+  if (await page.evaluate(() => UI.confirm === 'tnew')) await page.click('#tgo');   // replacing a saved company asks twice
   await page.waitForSelector('#app:not([hidden])');
 }
 // screen point at the middle of a lot (i < 36) or property plot (100 + k), moving the camera there first
@@ -176,12 +179,43 @@ let URL;
     process.exit(problems.length ? 1 : 0);
   }
 
+  /* ---------------- 0. the splash and the starting menu ---------------- */
+  console.log('Splash and starting menu');
+  let { ctx, page } = await open(browser, 'title', { viewport: { width: 1280, height: 720 } }, true);
+  check(await page.isVisible('#splash') && await page.evaluate(() => $('#splashArt').width > 100), 'the Inspirapixel logo shows first');
+  await page.waitForSelector('#splashTap.on', { timeout: 5000 });
+  check(/anywhere to start/.test(await page.textContent('#splashTap')), `then "${await page.textContent('#splashTap')}"`);
+  await shot(page, '00-splash');
+  await page.mouse.click(640, 360);
+  await page.waitForSelector('#splash', { state: 'detached', timeout: 4000 }).catch(() => {});
+  check(!await page.$('#splash') && await page.isVisible('#tbox .tbtn'), 'a click takes it to the starting menu');
+  check(await page.evaluate(() => AUD.playing && !!AUD.ctx), 'and switches the sound on (the menu music starts)');
+  check(await page.isVisible('[data-act=continue]') === false, 'a fresh browser shows no Continue button');
+  await shot(page, '01-start');
+  const strip = await page.evaluate(() => ({ text: $('#tmarket').textContent, mb: money(WS.assets.MB10.p), px: money(WS.assets.PXC.p) }));
+  check(strip.text.includes(strip.mb) && strip.text.includes(strip.px), `the live market shows the shared prices (MB10 ${strip.mb}, PixCoin ${strip.px})`);
+  await page.click('[data-act=tpage][data-v=help]');
+  await page.click('[data-act=helppg][data-v="1"]');
+  check(await page.evaluate(() => UI.helpPg === 1 && /better goods/.test($('.hpage h3').textContent)), 'How to Play turns its pages');
+  await page.keyboard.press('Escape');
+  check(await page.isVisible('[data-act=tpage][data-v=settings]'), 'Esc goes back to the main menu');
+  await page.click('[data-act=tpage][data-v=settings]');
+  await page.click('[data-act=aset][data-k=musicOn][data-v="0"]');
+  await page.goto(URL + '?nosplash', { waitUntil: 'load' });   // reopen (the splash would play again: skip it)
+  await page.waitForSelector('#tbox .tbtn');
+  check(await page.evaluate(() => AUD.set.musicOn === false), 'Settings: music off is remembered on this device');
+  await page.click('[data-act=tpage][data-v=settings]');
+  await page.click('[data-act=aset][data-k=musicOn][data-v="1"]');
+  await page.click('[data-act=tpage][data-v=home]');
+  await page.click('[data-act=tpage][data-v=credits]');
+  check(/Inspirapixel/.test(await page.textContent('.tpanel')), 'Credits');
+  await ctx.close();
+
   /* ---------------- 1. desktop: tutorial, menus, every feature ---------------- */
   console.log('Desktop 1280x720');
-  let { ctx, page } = await open(browser, 'desktop', { viewport: { width: 1280, height: 720 } });
-  check(await page.isVisible('[data-act=continue]') === false, 'fresh browser shows no Continue button');
-  await shot(page, '01-start');
-  await page.click('#startForm button[type=submit]');
+  ({ ctx, page } = await open(browser, 'desktop', { viewport: { width: 1280, height: 720 } }));
+  await page.click('[data-act=tpage][data-v=new]');
+  await page.click('#tgo');
   check(/name/i.test(await page.textContent('#startErr')), 'an empty company name is refused');
   await newCompany(page, 'Playtest Lumber');
   check(await page.evaluate(() => S.company === 'Playtest Lumber' && S.cash === START_CASH && S.unlocked.wood), 'new company starts with its cash and Wood unlocked');
@@ -251,8 +285,11 @@ let URL;
   check(/HQ/.test(await page.textContent('#side h2')), 'HQ button opens the HQ');
 
   // save code out and back in
-  await page.click('[data-act=menu]');
+  await page.keyboard.press('Escape');   // the HQ panel is open: Esc closes it first
+  await page.keyboard.press('Escape');   // nothing open: Esc opens the Menu
+  check(await page.evaluate(() => UI.modal === 'menu' && !UI.sel), 'Esc closes what is open, then opens the Menu');
   await shot(page, '07-menu');
+  await page.click('[data-act=mtab][data-v=save]');
   await page.click('[data-act=copysave]');
   await page.evaluate(() => { UI.modalSig = ''; renderModal(); });   // anything that redraws the menu (a level-up, a sound toggle) must keep the code
   const code = await page.inputValue('#loadBox');
@@ -260,6 +297,23 @@ let URL;
   await page.evaluate(() => { S.cash = 1; });
   await page.click('[data-act=loadsave]');
   check(await page.evaluate(() => S.cash > 1 && S.company === 'Playtest Lumber'), 'Menu: importing the save code restores the company');
+  // Main Menu: back to the starting menu, which offers Continue with this company; Continue picks it up again
+  const bld0 = await page.evaluate(() => countBuildings());
+  await page.click('[data-act=menu]');
+  await page.click('[data-act=mainmenu]');
+  await page.waitForSelector('[data-act=continue]');
+  check(/Playtest Lumber/.test(await page.textContent('[data-act=continue]')), 'Main Menu goes to the starting menu, with Continue for this company');
+  await page.click('[data-act=continue]');
+  await page.waitForSelector('#app:not([hidden])');
+  check(await page.evaluate(b => S.company === 'Playtest Lumber' && countBuildings() === b && running, bld0), 'Continue picks the company up where it was');
+  // starting a new company over a saved one asks first
+  await page.evaluate(() => { saveLocal(); running = false; showTitle('new'); });
+  await page.fill('#coInput', 'Second Co');
+  await page.click('#tgo');
+  check(/replace Playtest Lumber/.test(await page.textContent('#tgo')) && await page.isVisible('#start'), 'a new company over a saved one asks before replacing it');
+  await page.click('[data-act=tpage][data-v=home]');
+  await page.click('[data-act=continue]');
+  await page.waitForSelector('#app:not([hidden])');
 
   // every sprite, icon and background draws
   const art = await page.evaluate(() => {
@@ -364,6 +418,7 @@ let URL;
   await shot(page, '16-old-save');
   const allDone = await page.evaluate(code => { const o = decodeSave(code); o.goal = 15; return btoa(unescape(encodeURIComponent(JSON.stringify(o)))); }, OLD);
   await page.click('[data-act=menu]');
+  await page.click('[data-act=mtab][data-v=save]');
   await page.fill('#loadBox', allDone);
   await page.click('[data-act=loadsave]');
   check(await page.evaluate(() => S.goal === 13 && S.v === 3), 'a v0.03 save with every goal done picks up the two new Gold Hill goals');
@@ -411,7 +466,7 @@ let URL;
   await skewed.addInitScript(() => { const real = Date.now; Date.now = () => real() + 2 * 3600e3; });
   const sp = await skewed.newPage();
   sp.on('pageerror', e => problems.push('[skewed] page error: ' + e.message));
-  await sp.goto(URL, { waitUntil: 'load' }); await sp.waitForSelector('#start .title');
+  await sp.goto(URL + '?nosplash', { waitUntil: 'load' }); await sp.waitForSelector('#start .title');
   await sp.evaluate(() => clockReady);
   const drift = await sp.evaluate(() => worldNow() - (performance.timeOrigin + performance.now()) / 1000 + WORLD.epoch);
   check(Math.abs(drift) < 3, `a device with its clock 2 hours fast still runs on world time (off by ${drift.toFixed(1)} s)`);
@@ -449,8 +504,11 @@ let URL;
   /* ---------------- 7. other screens ---------------- */
   console.log('Phone on its side 844x390 (touch)');
   ({ ctx, page } = await open(browser, 'phone', { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }));
-  const btn = await page.locator('#startForm button[type=submit]').boundingBox();
-  check(btn && btn.y + btn.height <= 390, 'start button fits on screen without scrolling');
+  check(await page.evaluate(() => [...document.querySelectorAll('#tbox .tbtn, #tmarket')].every(e => e.getBoundingClientRect().bottom <= innerHeight)), 'the starting menu fits on screen');
+  await shot(page, '09-phone-title');
+  await page.click('[data-act=tpage][data-v=new]');
+  const btn = await page.locator('#tgo').boundingBox();
+  check(btn && btn.y + btn.height <= 390, 'Open for business fits on screen without scrolling');
   await newCompany(page, 'Pocket Farms', 'wheat');
   // On phones the closed side panel sits off to the right, so Playwright's click/tap (which scrolls things into view first)
   // can slide the whole app sideways, something a real finger never does. Buttons here get a plain click event instead.
@@ -479,8 +537,9 @@ let URL;
 
   console.log('Short laptop window 880x456');
   ({ ctx, page } = await open(browser, 'short', { viewport: { width: 880, height: 456 } }));
-  const b2 = await page.locator('#startForm button[type=submit]').boundingBox();
-  check(b2 && b2.y + b2.height <= 456, 'start button fits on screen without scrolling');
+  await page.click('[data-act=tpage][data-v=new]');
+  const b2 = await page.locator('#tgo').boundingBox();
+  check(b2 && b2.y + b2.height <= 456, 'Open for business fits on screen without scrolling');
   await newCompany(page, 'Short Screen Co');
   await shot(page, '12-short-window');
   await ctx.close();

@@ -54,6 +54,10 @@ function applyAudioSettings(s) {
   if (s) for (const k in o) if (typeof s[k] === typeof o[k]) o[k] = typeof o[k] === 'number' ? clamp(s[k], 0, 1) : s[k];
   AUD.set = o; audioLevels();
 }
+// v0.06: sound settings are kept on this device (before, they lived in the save and travelled with it)
+const SOUND_KEY = 'inspirapixel_bizgame_sound';
+function saveSound() { try { localStorage.setItem(SOUND_KEY, JSON.stringify(AUD.set)); } catch (e) {} }
+function loadSound() { try { const s = localStorage.getItem(SOUND_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function soundOn() { return AUD.set.musicOn || AUD.set.sfxOn; }
 function toggleAllSound() {
   if (soundOn()) { AUD.prev = { m: AUD.set.musicOn, s: AUD.set.sfxOn }; AUD.set.musicOn = AUD.set.sfxOn = false; }

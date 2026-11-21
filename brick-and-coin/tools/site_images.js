@@ -7,15 +7,15 @@
    public/apple-touch-icon.png      180 px, for iPhone home screens
    public/icon-192.png, icon-512.png           app icons (manifest.webmanifest)
    public/icon-maskable-512.png     Android's shaped icons: the coin sits inside the safe middle
-   public/og.png                    1200x630 link preview: the title screen */
+   public/og.png                    1200x630 link preview: the starting menu, with the town behind it */
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const PUB = path.join(__dirname, '..', 'public');
 (async () => {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-  await page.goto('file://' + path.join(PUB, 'index.html'));
-  await page.waitForSelector('#start .title');
+  await page.goto('file://' + path.join(PUB, 'index.html') + '?nosplash');   // straight to the starting menu
+  await page.waitForSelector('#tbox .tbtn');
   // the coin, as an 18x18 grid of colours
   const grid = await page.evaluate(() => iconGrid('coin').map(row => row.map(ch => ch === '.' ? null : ch === 'k' ? K : PAL[ch])));
   let rects = '';

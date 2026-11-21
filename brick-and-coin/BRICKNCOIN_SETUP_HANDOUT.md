@@ -25,7 +25,7 @@ You're picking up a project mid-way. This file has everything you need: what the
 
 ## 1. The project in one minute
 
-**Brick & Coin** is a pixel-art business tycoon in the browser, made by Inspirapixel (the owner's studio, which also makes Olympus Hunt). Current version: **v0.05**.
+**Brick & Coin** is a pixel-art business tycoon in the browser, made by Inspirapixel (the owner's studio, which also makes Olympus Hunt). Current version: **v0.06**.
 - **The game:** you run a company in the town of Millbrook. Build producers (wood, wheat, ore), turn goods into better goods (planks, bread, steel, up to Grand Pianos, Gift Hampers and Motor Cars), and trade on a market. Invest in stocks, PixCoin (a crypto) and real estate, and climb a leaderboard. The town has four areas that open with net worth: Main Street, Market Row ($10k), Industrial Park ($100k) and Gold Hill ($1M).
 - **One file:** the whole game is a single web page (`index.html`, about 237 KB). Pixel art and music are made in code, and saves live in the player's browser.
 - **Shared world (since v0.05):** stock prices, PixCoin, home prices, rival tycoons, news headlines, booms, slumps and price swings are **the same for every player at the same moment**, with no server. Every copy of the game computes the world from the same clock and the same seed. The clock comes from the `date` header of the page itself, a free request.
@@ -87,7 +87,7 @@ The plan: a **second Cloudflare Worker** called `brickncoin`, built from the sam
    - **Build command:** leave **empty** (the page is already built and committed).
    - **Deploy command:** `npx wrangler deploy` (the default).
 3. Create and deploy, then wait for the build to finish (a minute or two).
-4. Open the Worker's `….workers.dev` address. You should see the **Brick & Coin** title screen with **"v0.05 · test version"** under the title.
+4. Open the Worker's `….workers.dev` address. You should see the **Inspirapixel** logo with "Click anywhere to start". Click, and the **Brick & Coin** starting menu appears, with **"v0.06 · test version"** under the title and a live market strip along the bottom.
 
 ### Step 5: Build watch paths for `brickncoin`
 Go to `brickncoin` *→ Settings → Build → Build watch paths →* **include** `brick-and-coin/*` and save. Now only Brick & Coin changes redeploy it.
@@ -100,7 +100,7 @@ Go to `brickncoin` *→ Settings → Build → Build watch paths →* **include*
 4. The secure certificate can take a few minutes to issue.
 
 ### Step 7: Check it
-1. **https://brickncoin.com** shows the title screen, v0.05. Start a company (any name), build on a lot, and see money come in.
+1. **https://brickncoin.com** shows the Inspirapixel logo, then the starting menu (v0.06). Choose New Company, start a company (any name), build on a lot, and see money come in.
 2. **https://www.brickncoin.com** works too.
 3. **https://brickncoin.com/og.png** shows the title-screen picture. Pasting brickncoin.com into a chat should show that preview (it may take a while to appear on some apps).
 4. **Optional:** in the browser's developer tools (Network tab), the page response has `cache-control: no-cache` and a `date` header.
@@ -176,16 +176,17 @@ The full guide is `brick-and-coin/BRICK_AND_COIN_HANDOFF.md`. The essentials:
 **Roadmap:**
 1. v0.04 Gold Hill, done.
 2. v0.05 shared world, balance and site package, done.
-3. **v0.06 online:**
+3. v0.06 Inspirapixel splash and proper menus, done.
+4. **v0.07 online:**
    - log in with the Olympus Hunt account and save companies on the server;
    - everyone's selling moves goods prices for everyone;
    - a players-only leaderboard;
    - the server hands out each day's world seed (right now someone reading the public code could work out future prices).
    - This needs new server code next to Olympus Hunt's, so get the owner's explicit OK before editing `src/index.js` or `wrangler.jsonc`.
-4. **v0.07:**
+5. **v0.08:**
    - IPO shares bought by other players;
    - selling whole companies.
-5. Then an order book and delivery contracts between players.
+6. Then an order book and delivery contracts between players.
 
 **Open questions for the owner:**
 - Keep Brick & Coin inside the `olympus-hunt` repository, or move it to its own repository (they'd create an empty one named `brickncoin` on GitHub)? Either works. If it moves, the root directory in step 4 becomes `/`.

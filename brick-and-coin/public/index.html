@@ -233,7 +233,7 @@ p{margin:0}
 .lb-row .nw{font:600 19px/1 var(--font-num);color:var(--gold);text-align:right}
 
 /* start screen */
-.start{position:fixed;inset:0;z-index:20;background:var(--glaze);display:grid;place-items:center;padding:16px;overflow:auto}
+.start{position:fixed;inset:0;z-index:20;background:#0b0706;overflow:hidden}
 .start-card{width:min(860px,100%);display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center}
 .brand{font:400 20px/1 var(--font-display);color:var(--bone-dim);letter-spacing:.2em}
 .title{margin:0;font:400 84px/.8 var(--font-display);color:var(--bone);text-shadow:0 4px 0 #3a2318;white-space:nowrap}
@@ -262,7 +262,7 @@ p{margin:0}
 .start-err:empty{display:none}
 /* short screens (small laptops, phones on their side): the whole start screen fits without scrolling */
 @media (max-height:620px){
-  .start{padding:10px 16px}
+
   .start-card{gap:8px}
   .brand{font-size:15px}
   .title{font-size:60px}
@@ -423,16 +423,111 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
   .pick img.prev{width:36px;height:47px;margin:-4px 0}
   .pick b{font-size:20px}
   .pick span{font-size:10px}
-  .start{align-items:start;padding:8px 14px}
+
   .coach{top:6px;left:6px;max-width:min(300px,calc(100% - 12px));font-size:12px;padding:7px 9px;gap:5px}
   .coach .c-step{font-size:11px}
   .tb-actions .icon-btn{padding:4px 5px}
   .tb-actions .icon-btn img{width:24px;height:24px}
 }
 
+
+/* ---------------- the starting menu (v0.06) ---------------- */
+.ttown{position:absolute;inset:0;background-repeat:no-repeat;background-position:0% 40%;image-rendering:pixelated;image-rendering:crisp-edges;animation:tpan 110s ease-in-out infinite alternate}
+@keyframes tpan{to{background-position:100% 40%}}
+@media (prefers-reduced-motion:reduce){.ttown{animation:none;background-position:50% 40%}}
+.tshade{position:absolute;inset:0;background:radial-gradient(ellipse 60% 70% at 50% 46%,rgba(11,7,6,.55),rgba(11,7,6,.9) 75%),linear-gradient(180deg,rgba(11,7,6,.6),transparent 30%,transparent 70%,rgba(11,7,6,.8))}
+.tbox{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:max(16px,env(safe-area-inset-top)) 16px 58px;overflow-y:auto;text-align:center}
+.thead{display:flex;flex-direction:column;align-items:center;gap:10px}
+.thead .brand{text-shadow:0 2px 0 #000,0 0 12px #000}
+.thead .ver{background:rgba(11,7,6,.82);padding:3px 9px;border-radius:var(--rad-sm);color:var(--bone-dim)}
+.tmenu{display:flex;flex-direction:column;gap:10px;width:min(360px,100%)}
+.tbtn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;border:0;cursor:pointer;padding:11px 16px 12px;border-radius:var(--rad);background:rgba(29,20,17,.94);color:var(--bone);font:400 30px/.9 var(--font-display);
+  box-shadow:inset 0 -3px 0 #120c0a,0 0 0 2px #000,0 0 0 4px var(--line);transition:transform .06s,box-shadow .12s,background .12s}
+.tbtn:hover,.tbtn:focus-visible{background:rgba(42,30,25,.97);box-shadow:inset 0 -3px 0 #120c0a,0 0 0 2px #000,0 0 0 4px var(--gold);outline:0}
+.tbtn:active{transform:translateY(1px)}
+.tbtn small{font:500 13px/1.2 var(--font-ui);color:var(--bone-dim);letter-spacing:0}
+.tbtn.main{background:var(--gold);color:#160e0b;box-shadow:inset 0 -3px 0 #b8913a,0 0 0 2px #000,0 0 0 4px #6b4e15}
+.tbtn.main small{color:#4a3510}
+.tbtn.main:hover,.tbtn.main:focus-visible{background:var(--gold-hi);box-shadow:inset 0 -3px 0 #b8913a,0 0 0 2px #000,0 0 0 4px var(--bone)}
+.tpanel{width:min(780px,100%);background:rgba(19,13,11,.95);border-radius:8px;box-shadow:0 0 0 2px #000,0 0 0 4px var(--line),0 10px 40px rgba(0,0,0,.5);padding:16px 20px 18px;display:flex;flex-direction:column;gap:14px;align-items:center}
+.tpanel h2{font:400 40px/.85 var(--font-display);color:var(--gold);margin:0}
+.tback{align-self:flex-start}
+.tpanel .tfoot{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;width:100%}
+.twarn{font-size:13px;color:var(--gold)}
+.tcred{display:flex;flex-direction:column;gap:8px;font-size:14px;color:var(--bone-dim);max-width:520px}
+.tcred b{color:var(--bone);font-weight:600}
+.tmarket{position:absolute;left:0;right:0;bottom:0;min-height:36px;display:flex;align-items:center;gap:14px;padding:6px max(14px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));background:rgba(11,7,6,.9);box-shadow:0 -2px 0 var(--line);font-size:13px;white-space:nowrap;overflow:hidden}
+.tmarket .tq{display:inline-flex;align-items:center;gap:6px}
+.tmarket .tq img{width:18px;height:18px}
+.tmarket .tnews{overflow:hidden;text-overflow:ellipsis;color:var(--bone-dim);min-width:0}
+/* How to Play: short illustrated pages (also in the game's Menu) */
+.hpage{display:grid;grid-template-columns:120px minmax(0,1fr);gap:18px;align-items:center;text-align:left;width:100%;min-height:150px}
+.hpage .hart{display:grid;place-items:center}
+.hpage .hart img{width:104px;height:136px;image-rendering:pixelated}
+.hpage .hart img.ico{width:72px;height:72px}
+.hpage h3{font:400 34px/.9 var(--font-display);color:var(--bone);margin:0 0 8px}
+.hpage p{font-size:15px;color:var(--bone-dim);margin:0 0 8px}
+.hpage p b{color:var(--bone);font-weight:600}
+.hnav{display:flex;align-items:center;justify-content:center;gap:12px;width:100%}
+.hdots{display:flex;gap:6px}
+.hdots i{width:9px;height:9px;background:var(--glaze-3);box-shadow:0 0 0 1px #000}
+.hdots i.on{background:var(--gold)}
+/* settings (the starting menu and the game's Menu) */
+.sets{display:flex;flex-direction:column;gap:14px;width:min(460px,100%);text-align:left}
+/* the game's Menu: sections down the side */
+.mwrap{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}
+.mnav{display:flex;flex-direction:column;gap:6px;position:sticky;top:44px}
+.mtab{border:0;background:transparent;color:var(--bone-dim);font:600 15px/1 var(--font-ui);text-align:left;padding:11px 12px;border-radius:var(--rad);cursor:pointer}
+.mtab:hover{color:var(--bone);background:var(--glaze-2)}
+.mtab[aria-pressed="true"]{background:var(--glaze-3);color:var(--gold);box-shadow:inset 3px 0 0 var(--gold)}
+.mnav hr{border:0;border-top:2px solid var(--line);margin:6px 0;width:100%}
+.mpane{display:flex;flex-direction:column;gap:12px;min-width:0}
+.mpane h3{font:400 30px/.9 var(--font-display);color:var(--gold);margin:0}
+.mstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+/* short screens: everything fits without scrolling */
+@media (max-height:620px){
+  .tbox{gap:12px;padding-bottom:48px}
+  .thead{gap:6px}
+  .tbtn{font-size:24px;padding:8px 14px 9px}
+  .tmenu{gap:8px}
+  .tpanel{padding:10px 14px 12px;gap:10px}
+  .tpanel h2{font-size:30px}
+  .hpage{min-height:0}
+  .hpage .hart img{width:78px;height:102px}
+}
+@media (orientation:landscape) and (max-height:540px){
+  .tbox{flex-direction:row;flex-wrap:wrap;gap:8px 24px;padding:8px max(14px,env(safe-area-inset-right)) 40px max(14px,env(safe-area-inset-left))}
+  .tbox.sub{flex-direction:column;flex-wrap:nowrap;justify-content:flex-start}
+  .tbox.sub .brand,.tbox.sub .ver{display:none}
+  .tbox.sub .title{font-size:30px}
+  .tmenu{width:min(300px,46vw);gap:6px}
+  .tbtn{font-size:20px;padding:6px 12px 7px}
+  .tbtn small{font-size:11px}
+  .tmarket{min-height:28px;font-size:11px;gap:10px}
+  .hpage{grid-template-columns:70px minmax(0,1fr);gap:12px}
+  .hpage .hart img{width:52px;height:68px}
+  .hpage .hart img.ico{width:48px;height:48px}
+  .hpage h3{font-size:24px;margin-bottom:4px}
+  .hpage p{font-size:12px;margin-bottom:4px}
+  .mwrap{grid-template-columns:1fr;gap:10px}
+  .mnav{position:static;flex-direction:row;flex-wrap:wrap;gap:4px}
+  .mnav hr{display:none}
+  .mtab{padding:8px 10px;font-size:13px}
+}
+@media (max-width:700px) and (orientation:portrait){.mwrap{grid-template-columns:1fr}.mnav{position:static;flex-direction:row;flex-wrap:wrap}}
+
+/* ---------------- Inspirapixel splash: the same as Olympus Hunt's ---------------- */
+#splash{position:fixed;inset:0;z-index:9999;background:#0b0706;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(18px,5vh,44px);cursor:pointer;transition:opacity .45s ease}
+#splash.out{opacity:0}
+#splashArt{image-rendering:pixelated;image-rendering:crisp-edges}
+#splashTap{margin:0;min-height:1.5em;font-family:var(--font-ui);font-size:clamp(14px,2.3vh,19px);letter-spacing:.12em;color:var(--bone-dim);opacity:0;transition:opacity .7s ease}
+#splashTap.on{opacity:1;animation:splashTap 2s ease-in-out .8s infinite}
+@keyframes splashTap{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){#splashTap.on{animation:none}}
 </style>
 </head>
 <body>
+<div id="splash"><canvas id="splashArt" role="img" aria-label="Inspirapixel"></canvas><p id="splashTap" aria-live="polite"></p></div>
 <div id="app" hidden>
   <header id="top">
     <div class="tb-co">
@@ -487,7 +582,7 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.05';
+const VERSION = 'v0.06';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -2514,6 +2609,10 @@ function applyAudioSettings(s) {
   if (s) for (const k in o) if (typeof s[k] === typeof o[k]) o[k] = typeof o[k] === 'number' ? clamp(s[k], 0, 1) : s[k];
   AUD.set = o; audioLevels();
 }
+// v0.06: sound settings are kept on this device (before, they lived in the save and travelled with it)
+const SOUND_KEY = 'inspirapixel_bizgame_sound';
+function saveSound() { try { localStorage.setItem(SOUND_KEY, JSON.stringify(AUD.set)); } catch (e) {} }
+function loadSound() { try { const s = localStorage.getItem(SOUND_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function soundOn() { return AUD.set.musicOn || AUD.set.sfxOn; }
 function toggleAllSound() {
   if (soundOn()) { AUD.prev = { m: AUD.set.musicOn, s: AUD.set.sfxOn }; AUD.set.musicOn = AUD.set.sfxOn = false; }
@@ -2687,7 +2786,7 @@ function setMusicArea(b) {
    start screen, toasts and the news ticker.
    ========================================================================== */
 const $ = s => document.querySelector(s);
-const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood' };
+const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help' };
 
 /* ---------- formatting ---------- */
 function money(n, cents) {
@@ -3103,36 +3202,34 @@ const MODAL = {
     }).join('');
     return { sig: sig + '|' + Math.floor(S.t / 2), title: 'Leaderboard', html: `<p class="m-sub">The richest players in Millbrook. Net worth = cash + buildings + goods + stocks.</p><div class="lb">${rows}</div>` };
   },
-  menu() {
-    let saved = false; try { saved = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
-    const conf = UI.confirm === 'reset', A = AUD.set;
-    const onOff = k => `<div class="seg" role="group" aria-label="${k === 'musicOn' ? 'Music' : 'Sound effects'}">${[[true, 'On'], [false, 'Off']].map(([v, l]) =>
-      `<button type="button" data-act="aset" data-k="${k}" data-v="${v ? 1 : 0}" aria-pressed="${A[k] === v}">${l}</button>`).join('')}</div>`;
-    return { sig: `menu|${conf}|${A.musicOn}|${A.sfxOn}|${S.tut}`, title: 'Menu', html: `
-      <div class="help">
-        <section class="card"><h3>Sound</h3>
-          <div class="setrow"><span>Music</span>${onOff('musicOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.music * 10)}" data-set="music" aria-label="Music volume"></div>
-          <div class="setrow"><span>Sound effects</span>${onOff('sfxOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.sfx * 10)}" data-set="sfx" aria-label="Sound effects volume"></div>
-          <p class="muted" style="font-size:12px">Each part of town has its own tune. The speaker button at the top turns all sound on or off.</p></section>
-        <section class="card"><h3>Save</h3><p class="muted" style="font-size:13px">${saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
-          <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
-          <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
-          <button class="btn ghost" type="button" data-act="loadsave">Import save code</button></section>
-        <section class="card"><h3>How it works</h3>
-          <p><b>Build</b> on empty lots. Raw producers need nothing. Factories turn goods into better goods.</p>
-          <p><b>Factory limit:</b> your HQ can run so many building levels. Upgrade it to grow.</p>
-          <p><b>Upkeep:</b> every building costs a little each minute to run, but nothing while it's stopped waiting for materials.</p>
-          <p><b>Levels:</b> net worth opens new areas of town and deeper rings of products.</p>
-          <p><b>Market:</b> the more you sell of one thing, the lower its price. Spread out.</p>
-          <p><b>Invest:</b> stocks (the index fund is steady, PixCoin is wild) and real estate west and east of town that pays rent.</p>
-          <p><b>Upgrades:</b> every building level makes it faster and grows the building: annex, back wing, smokestack, then a gold tower.</p>
-          <p><b>One world:</b> the stock market, home prices, news, booms and slumps are the same for every player at the same moment.</p>
-          <p><b>Away:</b> closed, or left open untouched for 10 minutes, your factories run at 25% speed for up to 2 hours, at plain prices (booms and slumps don't count). Then they wait for you.</p>
-          ${tutActive() ? '' : '<button class="btn ghost" type="button" data-act="tutreplay">Replay the tutorial</button>'}</section>
-        <section class="card"><h3>Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
-          <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
-          ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</section>
-      </div><p class="muted" style="font-size:12px;margin-top:12px">Brick &amp; Coin ${VERSION} · an Inspirapixel game</p>` };
+  menu() {   // v0.06: sections down the side
+    const tab = UI.mtab, conf = UI.confirm === 'reset';
+    const tabs = [['help', 'How to Play'], ['settings', 'Settings'], ['save', 'Save & Transfer'], ['about', 'About']];
+    const nav = `<nav class="mnav" aria-label="Menu sections"><button class="btn gold" type="button" data-act="close">Resume</button>
+      ${tabs.map(([v, l]) => `<button type="button" class="mtab" data-act="mtab" data-v="${v}" aria-pressed="${tab === v}">${l}</button>`).join('')}
+      <hr><button type="button" class="mtab" data-act="mainmenu">Main Menu</button></nav>`;
+    let pane = '';
+    if (tab === 'help') pane = `<h3>How to Play</h3>${helpHTML()}${tutActive() ? '' : '<button class="btn ghost small" type="button" data-act="tutreplay" style="align-self:flex-start">Replay the tutorial</button>'}`;
+    else if (tab === 'settings') pane = `<h3>Settings</h3>${settingsHTML()}`;
+    else if (tab === 'save') {
+      let saved = false; try { saved = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
+      pane = `<h3>Save &amp; Transfer</h3>
+        <p class="muted" style="font-size:13px">${saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
+        <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
+        <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
+        <button class="btn ghost" type="button" data-act="loadsave" style="align-self:flex-start">Import save code</button>
+        <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
+          <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
+          ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</div></section>`;
+    } else {
+      const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
+      pane = `<h3>${esc(S.company)}</h3><div class="mstats">
+          ${stat('Level', `${S.level} · ${LEVELS[S.level].name}`)}${stat('Net worth', money(netWorth(), false))}${stat('Rank', '#' + playerRank())}
+          ${stat('Buildings', countBuildings())}${stat('Goals done', `${S.goal} of ${GOALS.length}`)}${stat('Time played', playTime(S.t))}</div>
+        <div class="tcred" style="max-width:none">${creditsHTML()}</div>`;
+    }
+    return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}`,
+      title: 'Menu', html: `<div class="mwrap">${nav}<section class="mpane">${pane}</section></div>` };
   },
 };
 
@@ -3186,28 +3283,146 @@ function renderSoundBtn() {
   $('#soundIcon').innerHTML = iconImg(on ? 'sound' : 'mute', 27);
 }
 
-/* ---------- start screen ---------- */
+/* ---------- shared by both menus: How to Play, settings, credits ---------- */
+const HELP = [
+  { art: () => bigArt(buildingPreview('wood', 2)), t: 'Build', p: [
+    'Tap an <b>empty lot</b> in town and pick a building.',
+    '<b>Raw producers</b> (wood, wheat, ore) need nothing: they make goods and sell them for you, so your cash goes up on its own.',
+    'Tap a building to <b>upgrade</b> it. Each level is faster, and the building grows.'] },
+  { art: () => bigArt(buildingPreview('planks', 3)), t: 'Make better goods', p: [
+    'Open <b>Production</b> (P) to unlock new products.',
+    '<b>Factories</b> turn goods into better goods: wood → planks → chairs → furniture → grand pianos.',
+    'A factory short of materials can <b>buy them</b> from the market, at 30% more.'] },
+  { art: () => bigArt(buildingPreview('hq', 4)), t: 'Grow', p: [
+    'Your <b>HQ</b> can run a limited number of building levels. Upgrade it to grow.',
+    'You can make <b>5 different products</b> at once, so pick a direction.',
+    'Buildings cost a little <b>upkeep</b> each minute, but nothing while they wait for materials.'] },
+  { art: () => icoArt('trophy'), t: 'Open the town', p: [
+    'Your <b>net worth</b> (cash, buildings, goods and investments) opens new parts of town:',
+    `<b>Market Row</b> at ${money(LEVELS[2].nw, false)}, <b>Industrial Park</b> at ${money(LEVELS[3].nw, false)}, <b>Gold Hill</b> at ${money(LEVELS[4].nw, false)}.`,
+    'Follow the <b>goals</b> for cash rewards.'] },
+  { art: () => icoArt('bars'), t: 'Markets', p: [
+    'Sell a lot of one thing and its <b>price drops</b>, so spread out. Booms and slumps in the news move prices too.',
+    '<b>Invest</b> (S) in shares, the index fund or PixCoin, and buy homes that pay <b>rent</b>.',
+    'The stock market and the news are <b>the same for every player</b>, live.'] },
+  { art: () => icoArt('coin'), t: 'While you’re away', p: [
+    'Closed, or left untouched for 10 minutes, your company keeps running at <b>25% speed</b> for up to 2 hours.',
+    'Your game saves itself in this browser. A <b>save code</b> (Menu → Save &amp; Transfer) moves your company to another device.'] },
+];
+function bigArt(src) { return `<img src="${src}" alt="">`; }
+function icoArt(name) { return `<img class="ico" src="${iconURL(name)}" alt="">`; }
+function helpHTML() {
+  const n = HELP.length, k = UI.helpPg = clamp(UI.helpPg, 0, n - 1), h = HELP[k];
+  return `<div class="hpage"><div class="hart">${h.art()}</div><div><h3>${h.t}</h3>${h.p.map(x => `<p>${x}</p>`).join('')}</div></div>
+    <div class="hnav"><button class="btn ghost small" type="button" data-act="helppg" data-v="-1" ${k === 0 ? 'disabled' : ''}>Back</button>
+      <span class="hdots" role="img" aria-label="Page ${k + 1} of ${n}">${HELP.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('')}</span>
+      <button class="btn small" type="button" data-act="helppg" data-v="1" ${k === n - 1 ? 'disabled' : ''}>Next</button></div>`;
+}
+function settingsHTML() {
+  const A = AUD.set, onOff = k => `<div class="seg" role="group" aria-label="${k === 'musicOn' ? 'Music' : 'Sound effects'}">${[[true, 'On'], [false, 'Off']].map(([v, l]) =>
+    `<button type="button" data-act="aset" data-k="${k}" data-v="${v ? 1 : 0}" aria-pressed="${A[k] === v}">${l}</button>`).join('')}</div>`;
+  return `<div class="sets">
+    <div class="setrow"><span>Music</span>${onOff('musicOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.music * 10)}" data-set="music" aria-label="Music volume"></div>
+    <div class="setrow"><span>Sound effects</span>${onOff('sfxOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.sfx * 10)}" data-set="sfx" aria-label="Sound effects volume"></div>
+    <div class="setrow"><span>Full screen</span><button class="btn ghost small" type="button" data-act="full">${document.fullscreenElement || document.webkitFullscreenElement ? 'Leave full screen' : 'Go full screen'}</button></div>
+    <p class="muted" style="font-size:12px">Each part of town has its own tune. Sound settings are kept on this device.</p></div>`;
+}
+function creditsHTML() {
+  return `<p><b>Brick &amp; Coin</b> ${VERSION}, an <b>Inspirapixel</b> game.</p>
+    <p>Every building, icon and tune is made in code and drawn live in your browser.</p>
+    <p>The stock market, the news and the rival tycoons are shared by every player in Millbrook.</p>
+    <p>Fonts: <b>Jersey 10</b> and <b>Pixelify Sans</b>, from Google Fonts (SIL Open Font License).</p>`;
+}
+function playTime(sec) { const m = Math.floor(sec / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
+
+/* ---------- the starting menu (v0.06): a town drifting by behind the logo, the menu, the live market ---------- */
 const START_INFO = {
   wood: { leads: 'Planks, Charcoal, Chairs, Paper, Books, Furniture, Pianos' },
   wheat: { leads: 'Flour, Bread, Pasta, Lunch Boxes, Canned Food, Gift Hampers' },
   ore: { leads: 'Iron, Nails, Steel, Tools, Motor Cars' },
 };
-function renderStart(existing) {
-  const pick = UI.startPick;
-  const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
-    <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
-  $('#start').innerHTML = `<div class="start-card">
-    <div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div>
-    ${existing ? `<section class="card" style="width:min(420px,100%);align-items:center"><b>${esc(existing.company)}</b><span class="muted" style="font-size:13px">Level ${existing.level} · ${money(existing.cash, false)} cash</span>
-      <button class="btn gold wide" type="button" data-act="continue">Continue</button></section><div class="muted" style="font-size:13px">or start a new company (this replaces your save)</div>` : ''}
-    <form class="start-form" id="startForm">
+let TITLE_SAVE = null, TITLE_TOWN = null;   // the company saved in this browser (shown on Continue), the backdrop picture
+const TPAGES = {
+  new() {
+    const pick = UI.startPick, ex = TITLE_SAVE;
+    const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
+      <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
+    return `<h2>New company</h2><form class="start-form" id="startForm">
       <label>Company name<input id="coInput" maxlength="24" autocomplete="off" placeholder="e.g. Oakline Co." value=""></label>
       <div class="muted" style="font-size:14px">Pick your starting material. It decides your first direction. You can branch out later.</div>
       <div class="picks">${cards}</div>
       <div class="start-err" id="startErr"></div>
-      <button class="btn ${existing ? 'ghost' : 'gold'}" type="submit" style="font-size:18px;padding:12px 28px">Open for business</button>
-    </form></div>`;
-  $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
+      ${ex ? `<div class="twarn">This replaces ${esc(ex.company)} in this browser. To keep it, open it and export its save code first (Menu → Save &amp; Transfer).</div>` : ''}
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
+        <button class="btn gold" type="submit" id="tgo" style="font-size:18px;padding:12px 28px">Open for business</button></div></form>`;
+  },
+  help() { return `<h2>How to play</h2>${helpHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Main menu</button></div>`; },
+  settings() { return `<h2>Settings</h2>${settingsHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
+  credits() { return `<h2>Credits</h2><div class="tcred">${creditsHTML()}</div><div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
+};
+function renderTitle(page) {
+  if (page) UI.tpage = page;
+  const st = $('#start'), pg = UI.tpage, ex = TITLE_SAVE;
+  if (!$('#tbox')) {   // built once, so changing pages doesn't restart the drifting town
+    st.innerHTML = `<div class="ttown" id="ttown"></div><div class="tshade"></div><div class="tbox" id="tbox"></div><footer class="tmarket" id="tmarket" aria-label="The live market"></footer>`;
+    paintTitleTown();
+  }
+  const head = `<header class="thead"><div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div></header>`;
+  const home = `<nav class="tmenu" aria-label="Main menu">
+    ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}</small></button>` : ''}
+    <button type="button" class="tbtn ${ex ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
+    <button type="button" class="tbtn" data-act="tpage" data-v="help">How to Play</button>
+    <button type="button" class="tbtn" data-act="tpage" data-v="settings">Settings</button>
+    <button type="button" class="tbtn" data-act="tpage" data-v="credits">Credits</button></nav>`;
+  const box = $('#tbox');
+  box.className = 'tbox' + (pg === 'home' ? '' : ' sub');
+  box.innerHTML = head + (pg === 'home' ? home : `<section class="tpanel">${TPAGES[pg]()}</section>`);
+  if (pg === 'new') $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
+  renderTitleMarket();
+}
+// the live market along the bottom: the same prices and news every player sees right now
+function renderTitleMarket() {
+  const el = $('#tmarket'); if (!el || !WS.ready) return;
+  const q = t => { const A = WS.assets[t], c = changeOf(A.h10, 359); return `<span class="tq">${iconImg(asset(t).icon, 18)}<b>${t}</b> ${money(A.p)} <span class="${c >= 0 ? 'olive' : 'red'}">${pctTxt(c)}</span></span>`; };
+  const n = worldNews(1)[0];
+  el.innerHTML = `<span class="chip gold">LIVE MARKET</span>${q('MB10')}${q('PXC')}${q('NOVA')}${n ? `<span class="tnews">${esc(n.text)}</span>` : ''}`;
+}
+// the backdrop: a busy Millbrook (every area open, buildings at every level), drawn once and scaled up in whole pixels
+function paintTitleTown() {
+  const el = $('#ttown'); if (!el) return;
+  if (!TITLE_TOWN) TITLE_TOWN = townPostcard();
+  const k = Math.max(1, Math.floor(innerHeight / 300));
+  el.style.backgroundImage = `url(${TITLE_TOWN})`; el.style.backgroundSize = `${WORLD_W * k}px ${WORLD_H * k}px`;
+}
+function townPostcard() {
+  const c = document.createElement('canvas'); c.width = WORLD_W; c.height = WORLD_H;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  drawBackground(MAX_LEVEL); x.drawImage(BG, 0, 0); BG_LEVEL = -1;   // the game draws its own town again when it starts
+  const plan = { 1: ['wood', 'wheat', 'ore', 'planks', 'flour', 'charcoal', 'wood', 'wheat', 'planks', 'ore'], 0: ['chair', 'paper', 'bread', 'pasta', 'iron', 'nails', 'chair', 'bread', 'iron'],
+    2: ['sofa', 'books', 'lunchbox', 'canned', 'steel', 'tools', 'steel', 'sofa', 'canned'], 3: ['piano', 'hamper', 'car', 'piano', 'car', 'hamper', 'car', 'piano', 'hamper', 'car'] };
+  const spots = [];
+  for (let b = 0; b < 4; b++) { let k = 0; for (let i = b * 12; i < b * 12 + 12; i++) { if (i === HQ_LOT) { spots.push({ i, b: 'hq', lv: 5 }); continue; } const t = plan[b][k++]; if (t) spots.push({ i, b: t, lv: 1 + (i * 7) % 5 }); } }
+  PLOTS.forEach((pl, k) => spots.push({ i: 100 + k, house: pl.t, reno: 1 + k % 3, own: k % 3 !== 1 }));
+  spots.sort((a, b) => spotXY(a.i).y - spotXY(b.i).y);
+  const P = Painter(x, TX, TY);
+  for (const s of spots) {
+    const { x: lx, y: ly } = spotXY(s.i);
+    if (s.house) {
+      x.drawImage(houseSprite(s.house, s.reno), TX + lx - 6, TY + ly - 14);
+      if (s.own) { P.r(lx + PLOT - 6, ly - 10, 1, 9, K); P.r(lx + PLOT - 5, ly - 10, 5, 4, K); P.r(lx + PLOT - 5, ly - 9, 4, 2, '#ebc152'); }
+      continue;
+    }
+    const tier = s.lv;
+    x.drawImage(buildingSprite(s.b, tier), TX + lx - SPR_OX, TY + ly - SPR_OY);
+    if (BUILD[s.b].anim) BUILD[s.b].anim(Painter(x, TX + lx, TY + ly), .35 + s.i * .37);
+    if (tier >= 2) decorAnim(Painter(x, TX + lx, TY + ly), s.b, tier, s.i * .37);
+    if (s.b !== 'hq') for (let k = 0; k < s.lv; k++) { P.r(lx + 1 + k * 4, ly + LOT - 4, 4, 4, K); P.r(lx + 2 + k * 4, ly + LOT - 3, 2, 2, '#ebc152'); }
+  }
+  for (let k = 0; k < 14; k++) {   // people out walking
+    const h = k % 3 !== 0, v = ROAD_V[k % 2];
+    drawWalker(P, { x: h ? -150 + k * 61 % 760 : v.x + 3 + k % 8, y: h ? ROAD_H.y + 3 + k % 7 : -60 + k * 47 % 520, shirt: SHIRTS[k % SHIRTS.length], hair: ['#3a2416', '#140d0b', '#8a5a34', '#ebc152'][k % 4] }, k * .3);
+  }
+  return c.toDataURL();
 }
 
 'use strict';
@@ -3293,6 +3508,133 @@ function drawCoachArrow(P, cx, bottom, t) {
   COACH_ARROW.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') P.p(cx - 4 + i, y0 + j, row[i] === 'K' ? K : '#ffd463'); });
 }
 
+'use strict';
+/* ============================================================================
+   INSPIRAPIXEL SPLASH (v0.06): the same logo as Olympus Hunt's, before the main menu.
+   The wordmark is drawn from its own pixel glyphs; the two lowercase i's have no dots, and three loose gold pixels
+   rain down into each dot's place, with a chime. Then "Click anywhere to start" (computers) or "Press anywhere to
+   start" (phones) fades in under the logo, and the menu only shows once the player does. Browsers don't let a page
+   make any sound before that first press, so it's also what switches sound on: if the chime couldn't play during
+   the animation (it can't, on a first visit), it plays on the press instead, and the menu music starts after.
+   SPLASH.done resolves when the splash has gone. Ported from Olympus Hunt's game-src/94_splash.js: only the
+   sound calls are Brick & Coin's. Add ?nosplash to the address to skip it (automated tests, screenshots).
+   ========================================================================== */
+const SPLASH = (() => {
+  let resolveDone;
+  const done = new Promise(r => { resolveDone = r; });
+  const el = $('#splash'), cv = $('#splashArt'), tap = $('#splashTap');
+  if (!el || !cv || /[?&]nosplash\b/.test(location.search)) { if (el) el.remove(); resolveDone(); return { done }; }
+  // [top row, rows]: 9 rows in all, baseline under row 6, the p descends to row 8
+  const GLYPH = {
+    I: [0, ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '###']],
+    n: [2, ['#.##.', '##..#', '#...#', '#...#', '#...#']],
+    s: [2, ['.####', '#....', '.###.', '....#', '####.']],
+    p: [2, ['#.##.', '##..#', '#...#', '##..#', '#.##.', '#....', '#....']],
+    i: [2, ['#', '#', '#', '#', '#']],
+    r: [2, ['#.##', '##..', '#...', '#...', '#...']],
+    a: [2, ['.###.', '....#', '.####', '#...#', '.####']],
+    x: [2, ['#...#', '.#.#.', '..#..', '.#.#.', '#...#']],
+    e: [2, ['.###.', '#...#', '#####', '#....', '.###.']],
+    l: [0, ['#', '#', '#', '#', '#', '#', '#']],
+  };
+  const PAD = 4, ROWS = PAD + 9;                     // empty rows above the word for the dot pixels to fall through
+  const glyphs = [], dots = [];
+  let x = 0;
+  for (const ch of 'Inspirapixel') {
+    const [top, rows] = GLYPH[ch];
+    glyphs.push({ x, top, rows });
+    if (ch === 'i') dots.push(x);
+    x += rows[0].length + 1;
+  }
+  const W = x - 1;
+  let s = Math.max(2, Math.min(12, Math.floor(Math.min(innerWidth * 0.72 / W, innerHeight * 0.3 / ROWS))));
+  s -= s % 2;                                        // the dot pixels are half a letter pixel, so keep s even
+  const h = s / 2;
+  cv.width = W * s; cv.height = ROWS * s;
+  const c = cv.getContext('2d');
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  // Each i's dot: three loose gold pixels (half size), a different spread on each i. a gold, b deep gold, c pale gold.
+  const DOT = [['..c.', 'a...', '.a..'], ['.a..', '...c', '..b.']];
+  const GOLD = { a: '#ebc152', b: '#c98f2a', c: '#fbe3a0' };
+  const bits = [];
+  dots.forEach((dx, di) => DOT[di].forEach((row, ry) => [...row].forEach((ch, cx) => {
+    if (ch !== '.') bits.push({ di, col: GOLD[ch], x: dx * s + (cx - 1) * h, y: PAD * s + (ry - 1) * h, r: Math.random(), seed: Math.random() });
+  })));
+  const LANDED = 2000, CHIME_AT = 1400, PROMPT_AT = 2100;
+
+  function draw(t) {
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.fillStyle = '#f0e4cc';
+    glyphs.forEach((g, i) => {
+      c.globalAlpha = still ? 1 : clamp01((t - 250 - i * 55) / 160);
+      g.rows.forEach((r, y) => { for (let k = 0; k < r.length; k++) if (r[k] === '#') c.fillRect((g.x + k) * s, (PAD + g.top + y) * s, s, s); });
+    });
+    c.globalAlpha = 1;
+    for (const b of bits) {                          // pixel rain: each one drops in on its own, in a random order
+      const p = still ? 1 : clamp01((t - 950 - b.di * 250 - b.r * 450) / 320);
+      if (p <= 0) continue;
+      const y0 = -2 * h, twinkle = !still && t > LANDED && ((t / 110 + b.seed * 40) | 0) % 7 === 0;
+      c.fillStyle = twinkle ? '#fff8e0' : b.col;
+      c.fillRect(b.x, Math.round(y0 + (b.y - y0) * p * p), h, h);
+    }
+  }
+
+  // A bright 8-bit sparkle up the scale, with a soft bell under it (the same notes as Olympus Hunt's).
+  // tone() mirrors Olympus Hunt's Sound.tone: an oscillator that fades out, at its master volume (0.22).
+  const tone = (freq, dur, type, vol, delay) => {
+    const a = AUD.ctx, t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol * .22, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+    o.connect(g); g.connect(AUD.out); o.start(t); o.stop(t + dur + .02);
+  };
+  let chimed = false;
+  const chime = onPress => {                          // on the press the context is still waking up: the notes wait for it
+    if (chimed || !AUD.ctx || !AUD.set.sfxOn || AUD.set.sfx <= 0 || (!onPress && AUD.ctx.state !== 'running')) return false;
+    chimed = true;
+    [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, .1, 'square', .05, i * .065));
+    tone(1047, .9, 'triangle', .16, .26); tone(1568, .9, 'triangle', .1, .26);
+    tone(2637, .5, 'sine', .05, .33);
+    return true;
+  };
+
+  const coarse = matchMedia('(hover: none) and (pointer: coarse)').matches;
+  tap.textContent = coarse ? 'Press anywhere to start' : 'Click anywhere to start';
+  let t0 = 0, skipped = false, ready = false, leaving = false, raf = 0;
+  const leave = () => {
+    if (leaving) return; leaving = true;
+    audioUnlock();                                   // this press is what lets the browser play sound
+    const wait = chime(true) ? 650 : 0;              // first sound of the visit: let the chime ring with the logo up
+    setTimeout(() => {
+      el.classList.add('out');
+      setTimeout(() => {                             // keeps swallowing taps and keys until it's gone, so none hit the menu
+        cancelAnimationFrame(raf); el.remove();
+        for (const ev of EVS) removeEventListener(ev, onInput, true);
+        resolveDone();
+      }, 480);
+    }, wait);
+  };
+  const EVS = ['keydown', 'pointerdown', 'touchstart'];
+  const onInput = e => {
+    e.stopPropagation(); if (e.type === 'keydown') e.preventDefault();
+    if (leaving || e.repeat) return;
+    if (ready) leave(); else skipped = true;        // a press mid-animation jumps to the finished logo and its prompt
+  };
+  for (const ev of EVS) addEventListener(ev, onInput, true);
+
+  const frame = now => {
+    if (!t0) t0 = now;
+    let t = now - t0;
+    if (skipped && t < PROMPT_AT) { t0 -= PROMPT_AT - t; t = PROMPT_AT; }
+    if (t >= CHIME_AT) chime();
+    draw(t);
+    if (!ready && (still || t >= PROMPT_AT)) { ready = true; tap.classList.add('on'); }
+    raf = requestAnimationFrame(frame);             // keeps going so the gold pixels twinkle while it waits
+  };
+  draw(0);
+  raf = requestAnimationFrame(frame);
+  return { done };
+})();
 'use strict';
 /* ============================================================================
    MAIN — game loop, the camera, drawing the town, taps/drags and keys.
@@ -3537,8 +3879,12 @@ function act(el) {
   if (!snd) sfx('tap');
   if (a !== 'demolish' && a !== 'reset' && a !== 'psell') UI.confirm = '';
   switch (a) {
-    case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveLocal(); UI.modalSig = ''; return;
-    case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); renderSoundBtn(); saveLocal(); break;
+    case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
+    case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
+    case 'tpage': UI.confirm = ''; renderTitle(el.dataset.v); { const f = $('#tbox .tpanel input, #tbox .tbtn'); if (f && !matchMedia('(pointer: coarse)').matches) f.focus({ preventScroll: true }); } return;
+    case 'helppg': UI.helpPg += +el.dataset.v; if (!running) { renderTitle(); return; } break;
+    case 'mtab': UI.mtab = el.dataset.v; break;
+    case 'mainmenu': saveLocal(); closeModal(); selectLot(-1); running = false; showTitle(); return;
     case 'tutdone': S.tut = TUT_DONE; updateCoach(); saveLocal(); return;
     case 'tutreplay': S.tut = 0; UI.tutT = S.t; closeModal(); selectLot(-1); updateCoach(); return;
     case 'resetno': break;
@@ -3588,12 +3934,13 @@ function act(el) {
       catch (e) { toast('That save code didn’t work', 'bad'); }
       return;
     }
-    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} running = false; musicStop(); closeModal(); $('#app').hidden = true; showStart(null); return; } UI.confirm = 'reset'; break;
+    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
     case 'pick': UI.startPick = p; for (const b of document.querySelectorAll('.pick')) b.setAttribute('aria-pressed', b.dataset.p === p); return;
     case 'continue': { const o = loadLocal(); if (o) { adopt(o); begin(true); } return; }
   }
   if (err) { toast(err, 'bad'); sfx('error'); }
   else if (snd) sfx(UI.confirm ? 'tap' : snd);   // first tap of a two-tap action only clicks
+  if (!running) { if (!$('#start').hidden) renderTitle(); return; }   // on the starting menu: no company to redraw
   UI.sideSig = ''; UI.modalSig = '';
   renderSide(); renderModal(); updateTop();
 }
@@ -3609,15 +3956,16 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const el = e.target; if (!el.dataset) return;
   if (el.dataset.act === 'autobuy') { const l = S.lots[+el.dataset.i]; if (l) l.autoBuy = el.checked; UI.sideSig = ''; sfx('tap'); }
-  if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveLocal(); }
+  if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveSound(); saveLocal(); }
 });
 document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.set) { AUD.set[el.dataset.set] = clamp(+el.value / 10, 0, 1); audioLevels(); } });
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => {
-  if (!running || e.target.closest('input,textarea')) return;
+  if (!running) { if (e.key === 'Escape' && !$('#start').hidden && UI.tpage !== 'home') renderTitle('home'); return; }   // starting menu: Esc goes back
+  if (e.target.closest('input,textarea')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { if (UI.modal) closeModal(); else { selectLot(-1); } return; }
+  if (k === 'escape') { if (UI.modal) closeModal(); else if (UI.sel || UI.sheet) selectLot(-1); else { sfx('tap'); openModal('menu'); } return; }   // nothing open: Esc opens the menu
   const map = { p: 'prod', m: 'market', s: 'stocks', l: 'board' };
   if (map[k]) { sfx('tap'); if (UI.modal === map[k]) closeModal(); else { if (k === 'p') UI.webSel = UI.webSel || S.start; openModal(map[k]); } }
   if (k === 'h') { sfx('tap'); closeModal(); selectLot(HQ_LOT); }
@@ -3634,16 +3982,28 @@ document.addEventListener('visibilitychange', () => {
 });
 addEventListener('pagehide', () => { if (running) saveLocal(); });
 
-/* ---------- start ---------- */
-function showStart(existing) { $('#start').hidden = false; renderStart(existing); }
+/* ---------- start: the starting menu, then the game ---------- */
+let titleTimer = 0;
+function showTitle(page) {
+  const o = loadLocal(); TITLE_SAVE = o && o.company ? o : null;
+  $('#app').hidden = true; $('#start').hidden = false;
+  if (!WS.ready || Math.abs(worldNow() - WT) > 3) { WT = worldNow(); worldReset(); }
+  renderTitle(page || 'home');
+  clearInterval(titleTimer);
+  titleTimer = setInterval(() => { if (running) return; WT = worldNow(); worldTick(); renderTitleMarket(); }, 1000);   // the live market keeps ticking
+  AUD.want = AUD.cand = 1;   // the Main Street tune
+}
 function startNew() {
   const name = ($('#coInput').value || '').trim().replace(/\s+/g, ' ');
   if (name.length < 2) { $('#startErr').textContent = 'Give your company a name (2–24 letters).'; $('#coInput').focus(); return; }
+  if (TITLE_SAVE && UI.confirm !== 'tnew') { UI.confirm = 'tnew'; sfx('tap'); $('#tgo').textContent = `Tap again to replace ${TITLE_SAVE.company}`; $('#tgo').classList.replace('gold', 'danger'); return; }
+  UI.confirm = '';
   newGame(name, UI.startPick); S.settings = AUD.set; saveLocal(); sfx('goal'); begin(false);
 }
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
-  applyAudioSettings(S.settings); S.settings = AUD.set;   // sound settings live in the save
+  S.settings = AUD.set;   // sound settings belong to the device (SOUND_KEY); the save keeps a copy for older versions
+  clearInterval(titleTimer);
   $('#start').hidden = true; $('#app').hidden = false;
   UI.sel = null; UI.sheet = false; UI.tutT = S.t; CAM.set = false; renderNav(); resize(); afterLoad(); setSheet(false); updateCoach();
   musicStart();
@@ -3660,9 +4020,11 @@ function begin(loaded) {
 }
 function boot() {
   const existing = loadLocal();
-  if (existing && existing.company) applyAudioSettings(existing.settings);
-  showStart(existing && existing.company ? existing : null);
+  applyAudioSettings(loadSound() || (existing && existing.settings));   // this device's sound settings (an older save's, the first time)
+  showTitle();
+  SPLASH.done.then(() => { if (!running) musicStart(); });   // the menu music once the splash has gone (that press lets the browser play sound)
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (running) resize(); });
+  addEventListener('resize', () => { if (!running && !$('#start').hidden) paintTitleTown(); });
 }
 // test hook for automated playtests
 window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT };

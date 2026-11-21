@@ -1,6 +1,6 @@
 # Brick & Coin: how to keep building it
 
-An Inspirapixel business tycoon, currently **v0.05 (test version)**, made for **brickncoin.com**. You run a company in the pixel town of Millbrook: build producers on lots, turn raw goods into better goods, trade on a live market, invest in stocks, PixCoin and real estate, and climb a leaderboard of tycoons. The whole game is one self-contained web page. Art is drawn in code, music and sound are synthesized in code, and saves live in the browser.
+An Inspirapixel business tycoon, currently **v0.06 (test version)**, made for **brickncoin.com**. You run a company in the pixel town of Millbrook: build producers on lots, turn raw goods into better goods, trade on a live market, invest in stocks, PixCoin and real estate, and climb a leaderboard of tycoons. The whole game is one self-contained web page. Art is drawn in code, music and sound are synthesized in code, and saves live in the browser.
 
 Since v0.05 the **market is one shared world**:
 - Stock prices, PixCoin, the index fund, home prices, rival fortunes, every news headline, booms, slumps and weather are the same for every player at the same moment, live.
@@ -9,15 +9,16 @@ Since v0.05 the **market is one shared world**:
 **Roadmap:**
 1. v0.04 Gold Hill (done).
 2. v0.05 shared world, balance, site package (done).
-3. v0.06 online, needing server work and an OK first:
+3. v0.06 the Inspirapixel splash, a proper starting menu and in-game menu (done).
+4. v0.07 online, needing server work and an OK first:
    - log in with the Olympus Hunt account and save companies on the server;
    - everyone's selling moves goods prices for everyone;
    - a players-only leaderboard (simulated companies fill in when few people are on);
    - the server hands out each day's world seed (see "Known loose ends").
-4. v0.07 going public and selling companies:
+5. v0.08 going public and selling companies:
    - IPO shares bought by other players (up to 49% sold);
    - selling your **whole company**, to another player or back to the game to start fresh.
-5. Then the order book and delivery contracts between players.
+6. Then the order book and delivery contracts between players.
 
 ## Where things live
 
@@ -30,9 +31,10 @@ Since v0.05 the **market is one shared world**:
 | `src/30_sim.js` | The company: production, upkeep, goods prices (the world's swings plus your own selling pressure), real estate, net worth, levels, goals, offline earnings, save and load (`adopt()` brings old saves up to date). |
 | `src/35_world.js` | **The shared world**: the market, PixCoin, homes, rivals, news and goods price swings as a pure function of world time; the world clock and its sync. Market balance lives at the top (`TAU`, `JUMP`, volatilities). |
 | `src/40_audio.js` | Sound effects (`SFX`) and the four chiptunes (`SONGS`), one per area of town. |
-| `src/50_ui.js` | Top bar, side panel, the menus (Production web, Market, Invest, Leaderboard, Menu), profit estimates, stock chart, news ticker, start screen. |
+| `src/50_ui.js` | Top bar, side panel, the game's windows (Production web, Market, Invest, Leaderboard, Menu), profit estimates, stock chart, news ticker. The starting menu (`renderTitle`, `TPAGES`, the town backdrop `townPostcard`, the live market strip) and what both menus share: How to Play (`HELP`), settings, credits. |
 | `src/60_tutorial.js` | The five guided steps for a new company (`TUT`). |
-| `src/90_main.js` | Game loop (keeps the world on the world clock), the idle rule, camera, drawing the town, input, button actions (`act()`), start and boot. |
+| `src/85_splash.js` | The Inspirapixel logo before the starting menu, ported from Olympus Hunt (`game-src/94_splash.js`); only its sound calls differ. Add `?nosplash` to the address to skip it (tests, screenshots). |
+| `src/90_main.js` | Game loop (keeps the world on the world clock), the idle rule, camera, drawing the town, input, button actions (`act()`), the starting menu's flow (`showTitle`, `startNew`), start and boot. |
 | `build.py` | Joins `src/` into `public/index.html` (the website, also playable as a single file) and `dist/artifact.html` (for a Claude artifact). |
 | `public/` | Everything brickncoin.com serves: the game, `favicon.svg`, app icons, `og.png` (link preview), `manifest.webmanifest`, `_headers` (caching), `robots.txt`. |
 | `tools/site_images.js` | Remakes the favicon, app icons and link preview from the game's art. |
@@ -56,6 +58,13 @@ node brick-and-coin/test/market_check.js        # 4. only if the market or news 
 ```
 
 The playtest drives the real page in a headless browser:
+- **Splash and starting menu:**
+  - the Inspirapixel logo, then "Click anywhere to start", and the click switches sound on;
+  - the live market strip shows the shared prices;
+  - How to Play turns its pages, and Esc goes back;
+  - a sound setting is remembered on the device;
+  - Credits;
+  - the game's Menu opens on Esc, Main Menu → Continue picks the company up, and starting a new company over a saved one asks first.
 - **Tutorial and menus:** the whole tutorial by clicking, then every menu: market buy and sell, Keep/Sell/Auto, stocks, PixCoin, a home, and save codes (export, import, survives a redraw).
 - **Art:** every building at every level, every house, icon and town background.
 - **Bot:** plays 60 game minutes (`--minutes N`, `--verbose`), checking every game minute that cash, stock, prices and net worth stay sane.
@@ -93,7 +102,7 @@ The bot is a rough player, so use its numbers to compare versions, not as real p
 - **News comes in 30-second slots.** Each slot's hash decides whether there's an event, what it is, its headline, how long it lasts, and what it moves. There's also a 16-minute "nervous market" spell now and then.
 - **Charts** (1 hour, 4 hours) are recomputed from the world when the game starts. Nothing about the world is saved, which shrank save codes from about 88k to 20k characters.
 - **Changing it:** changing `WORLD.seed`, the epoch or the models gives everyone a new world as soon as they load the new version. A player on an old cached page would see the old world until they reload.
-- **What's still per player:** your own selling and buying pressure on goods prices (it fades with a 2-minute half-life). In v0.06 the server will gather everyone's pressure so it's shared.
+- **What's still per player:** your own selling and buying pressure on goods prices (it fades with a 2-minute half-life). In v0.07 the server will gather everyone's pressure so it's shared.
 
 ## Balance rules (v0.05)
 
@@ -180,13 +189,31 @@ If Brick & Coin moves to its own GitHub repository later, copy the `brick-and-co
 ## Known loose ends
 
 - **The future can be read from the code.** Because the world is a pure function of time and a seed that's in the page, someone reading the code could work out tomorrow's prices and news. In v0.06 the server should hand out each day's seed at the start of that day (one request per player per day), so the future isn't in the page.
-- **Your own selling only moves prices for you** until v0.06.
+- **Your own selling only moves prices for you** until v0.07.
 - **A stuck company:** one whose every building needs materials it doesn't make, and has no cash, waits until the player sells something or tears a building down. A hint would help.
 - `40_audio.js` mentions a `test/audio_levels.py` loudness check that wasn't part of the v0.03 file.
 - `LIVE.goalbar` in `50_ui.js` is an unused stub.
 - **Phones held sideways:** the closed side panel sits off-screen to the right, so code can scroll `#app` sideways. Real taps don't. The playtest uses plain click events there for that reason.
 
 ## Version history
+
+**v0.06: Splash and menus**
+- **The Inspirapixel splash:** the same as Olympus Hunt's plays first. The wordmark draws in, gold pixels rain into the i-dots, and "Click anywhere to start" fades in. Browsers can't play sound before a click, so that click switches sound on: the chime plays on it, then the menu music.
+- **A starting menu:** Millbrook drifts by behind the logo (every area open, buildings at every level), with these buttons:
+  - **Continue**, showing your company, level and cash;
+  - **New Company**, which asks before replacing a saved company;
+  - **How to Play**, **Settings** and **Credits**.
+  - A **live market** strip along the bottom shows the shared index, PixCoin and Nova prices and the latest headline.
+- **The game's Menu,** with sections down the side (tabs on phones):
+  - Resume;
+  - How to Play (six short illustrated pages, also on the starting menu);
+  - Settings (music, sound effects, full screen);
+  - Save & Transfer (with Start over);
+  - About (company stats, time played, credits);
+  - Main Menu.
+  - Esc closes whatever's open, then opens the Menu.
+- **Sound settings** are kept on the device instead of in the save.
+- **The link preview** (`og.png`) shows the new starting menu.
 
 **v0.05: One shared world**
 - **Same world for everyone:** the stock market, PixCoin, the index fund, home prices, rivals, all news, booms, slumps, weather and goods price swings are the same for every player at the same moment, with no server. The world runs on the server's clock.
