@@ -1341,7 +1341,7 @@ const WHATS_NEW = [
     'Buy <b>other players’ companies</b> (Invest → Players): a public company pays 30% of its profit as dividends, and shareholders get their part, even while you’re away.',
     'Later you can sell more shares (up to 49% outside) or buy shares back from Millbrook’s investors.',
     'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.',
-    'The white gateposts on the roads up to Gold Hill are gone.'] },
+    '<b>Gold Hill</b> looks like a hill now: lit slopes with terraces, two rocky banks on the side facing you, and the town’s roads climb onto it by stone steps instead of running straight through. The stray white posts are gone.'] },
   { v: 'v0.07', title: 'Online', items: [
     'Play <b>online</b>: log into your <b>Inspirapixel account</b> (one account for every Inspirapixel game, the same as your Olympus Hunt account: just a name and a password) and your company is saved on the server, so you can pick it up on any device. Playing without an account still works, saved in your browser.',
     'A <b>shared market</b>: when players sell a lot of the same good its price drops a little for everyone, and buying pushes it up. One player barely moves it; a crowd can move it up to 30%, and it recovers over about 15 minutes. The Market shows how much players are moving each price.',
@@ -1965,16 +1965,16 @@ function drawBackground(level) {
   P.ell(-110, 40, 44, 24, '#93703f'); P.ell(-110, 40, 42, 22, '#2f5f8f'); P.ell(-116, 34, 26, 11, '#3f6fa0');
   for (let i = 0; i < 14; i++) P.r(-150 + Math.floor(R() * 70), 26 + Math.floor(R() * 26), 4, 1, '#5b9bd5');
   for (let f = 0; f < 2; f++) { const fx = 540 + f * 64, fy = -96 + f * 30; P.r(fx - 1, fy - 1, 56, 50, '#5a3a22'); P.r(fx, fy, 54, 48, '#7a5a32'); for (let y = fy + 2; y < fy + 46; y += 3) { P.r(fx, y, 54, 1, f ? '#9bbb55' : '#e0c48a'); P.r(fx, y + 1, 54, 1, '#5a3a22'); } }
-  drawHill(P, R);
   dirt(X0, ROAD_H.y, WORLD_W, ROAD_H.h);
-  for (const v of ROAD_V) dirt(v.x, Y0, v.w, WORLD_H);
+  for (const v of ROAD_V) dirt(v.x, Y0, v.w, HILL.y - 12 - Y0);   // the roads end where the steps up Gold Hill begin
   for (let x = X0; x < X1; x++) { P.p(x, ROAD_H.y, '#93703f'); P.p(x, ROAD_H.y + ROAD_H.h - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y + ROAD_H.h, '#93703f'); }
-  for (const v of ROAD_V) for (let y = Y0; y < Y1; y++) { if (y >= ROAD_H.y && y < ROAD_H.y + ROAD_H.h) continue; P.p(v.x, y, '#93703f'); P.p(v.x + v.w - 1, y, '#93703f'); }
+  for (const v of ROAD_V) for (let y = Y0; y < HILL.y - 12; y++) { if (y >= ROAD_H.y && y < ROAD_H.y + ROAD_H.h) continue; P.p(v.x, y, '#93703f'); P.p(v.x + v.w - 1, y, '#93703f'); }
+  drawHill(P, R);
   for (let i = 0; i < LOTS; i++) { const { x, y, block } = lotXY(i); for (let yy = y; yy < y + LOT; yy++) for (let xx = x; xx < x + LOT; xx++) if (R() < .06) P.p(xx, yy, block === 3 ? '#6f7d34' : '#4f6a2c'); }
   // trees: everywhere outside the town blocks, never on roads, the pond or the fields
-  const keepOut = [[8, -2, 464, 272], [-160, 10, 100, 64], [530, -110, 140, 96], [-190, 90, 164, 112], [486, 90, 166, 112], [HILL.x - 4, HILL.y - 14, HILL.w + 8, HILL.h + 26]];
+  const keepOut = [[8, -2, 464, 272], [-160, 10, 100, 64], [530, -110, 140, 96], [-190, 90, 164, 112], [486, 90, 166, 112], [HILL.x - 4, HILL.y - 14, HILL.w + 8, HILL.h + 34]];
   const blocked = (x, y) => keepOut.some(([a, b, w, h]) => x > a - 8 && x < a + w + 8 && y > b - 8 && y < b + h + 10)
-    || Math.abs(y - (ROAD_H.y + 8)) < 18 || ROAD_V.some(v => x > v.x - 10 && x < v.x + v.w + 10);
+    || Math.abs(y - (ROAD_H.y + 8)) < 18 || (y < HILL.y && ROAD_V.some(v => x > v.x - 10 && x < v.x + v.w + 10));
   const trees = [];
   for (let n = 0; n < 1200 && trees.length < 290; n++) {
     const x = X0 + 6 + Math.floor(R() * (WORLD_W - 12)), y = Y0 + 4 + Math.floor(R() * (WORLD_H - 10));
@@ -1998,7 +1998,7 @@ function drawBackground(level) {
   // real-estate plots: a lawn and a little front path each
   for (const pl of PLOTS) {
     for (let yy = pl.y; yy < pl.y + PLOT; yy++) for (let xx = pl.x; xx < pl.x + PLOT; xx++) if (R() < .1) P.p(xx, yy, '#68883a');
-    if (pl.y > HILL.y) { P.r(pl.x + 16, pl.y + PLOT, 4, 6, '#c9b98a'); continue; }   // Gold Hill villas: a short gravel drive
+    if (pl.y > HILL.y) continue;   // Gold Hill villas: just their lawn (v0.08: no drive poking out below)
     const fy = pl.y < ROAD_H.y ? pl.y + PLOT : ROAD_H.y + ROAD_H.h, fh = pl.y < ROAD_H.y ? ROAD_H.y - fy : pl.y - fy;
     P.r(pl.x + 16, fy, 4, fh, '#b9ab92');
   }
@@ -2015,38 +2015,84 @@ function drawBackground(level) {
   }
   BG = c; BG_LEVEL = level;
 }
-// Gold Hill (v0.04): a plateau of golden grass with a rocky, gold-veined face along its front and a gravel lane on top
+// Gold Hill (v0.04, redrawn v0.08): a rounded hill rising south of town. Its top is lit like a dome (brighter in the middle,
+// darker as it slopes away), its slopes have terrace lines and fall into shadow to the south and east, and the side facing
+// you steps down in two rocky, gold-veined banks with a grass ledge between them. The town's two roads climb onto it by
+// stone steps and end at the lane along its top; nothing runs on past it.
 function drawHill(P, R) {
-  const H = HILL, HR = 10, FACE = 15;
-  const inTop = (x, y) => { const cx = clamp(x, H.x + HR, H.x + H.w - 1 - HR), cy = clamp(y, H.y + HR, H.y + H.h - 1 - HR); return (x - cx) ** 2 + (y - cy) ** 2 <= HR * HR; };
-  P.sh(H.x + 6, H.y + H.h + FACE - 3, H.w - 12, 6, .3);
-  // the front face: three rows of rough stones, lit from the top left, with veins of gold
-  const stoneCol = ['#8a7a68', '#7e6e5c', '#94846f', '#857563'];
-  for (let x = H.x; x < H.x + H.w; x++) {
-    let e = H.y + H.h; while (e > H.y && !inTop(x, e - 1)) e--;   // where the grass ends in this column
-    for (let fy = 0; fy < FACE; fy++) {
-      const y = e + fy; if (inTop(x, y)) continue;
-      const row = Math.floor(fy / 5), w = 6 + (row % 2), lx = (x - H.x + row * 3 + 40) % w, ly = fy % 5, id = Math.floor((x - H.x + row * 3 + 40) / w) * 3 + row;
-      let col = stoneCol[(id * 7 + row) % 4];
-      if (fy === 0) col = '#2a2018';                                  // shadow under the grass lip
-      else if (fy === FACE - 1) col = K;
-      else if (lx === 0 || ly === 0) col = '#4e4136';                 // cracks between stones
-      else if (ly === 1 || lx === 1) col = '#a8987c';                 // the lit top and left of each stone
-      else if (lx === w - 1 || ly === 4) col = '#6a5a4b';
-      else if (R() < .06) col = R() < .5 ? '#ebc152' : '#ffd463';     // gold
+  const H = HILL, HR = 16, SLOPE = 15, x0 = H.x, x1 = H.x + H.w - 1, y0 = H.y, y1 = H.y + H.h - 1;
+  // how far inside the hill's rounded outline a point is (negative outside), and which side it's nearest
+  const inset = (x, y) => {
+    const cx = clamp(x, x0 + HR, x1 - HR), cy = clamp(y, y0 + HR, y1 - HR);
+    if (cx !== x && cy !== y) return HR - Math.hypot(x - cx, y - cy);
+    return Math.min(x - x0, x1 - x, y - y0, y1 - y);
+  };
+  const side = (x, y) => { const d = [y - y0, x1 - x, y1 - y, x - x0]; return d.indexOf(Math.min(...d)); };   // 0 north, 1 east, 2 south, 3 west
+  // the banks facing you: an upper one under the top's edge, a grass ledge, a lower one, then a soft shadow on the grass
+  const BANK1 = 8, LEDGE = 4, BANK2 = 7, FACE = BANK1 + LEDGE + BANK2;
+  P.sh(x0 + 8, y1 + FACE - 2, H.w - 16, 7, .32);
+  const rock = ['#8a7a68', '#7e6e5c', '#94846f', '#857563'];
+  for (let x = x0; x < x1 + 1; x++) {
+    let e = y1 + 1; while (e > y0 && inset(x, e - 1) < 0) e--;    // where the top ends in this column
+    if (e <= y0 + HR) continue;
+    const wob = Math.floor(R() * 2);                                // a slightly ragged foot
+    for (let fy = 0; fy < FACE + wob; fy++) {
+      const y = e + fy; if (inset(x, y) >= 0) continue;
+      const edge = Math.min(x - x0, x1 - x);                        // the banks curl round at the ends
+      if (edge < 6 && fy > FACE - 6 + edge) continue;
+      let col;
+      if (fy >= BANK1 && fy < BANK1 + LEDGE) {                      // the ledge: a strip of grass, lit along its lip
+        col = fy === BANK1 ? '#3e4a1c' : fy === BANK1 + 1 ? '#93a347' : R() < .2 ? '#74833a' : '#7f8e3c';
+      } else {
+        const f = fy < BANK1 ? fy : fy - BANK1 - LEDGE, rows = fy < BANK1 ? BANK1 : BANK2;
+        const row = Math.floor(f / 4), w = 6 + (row % 2), lx = (x - x0 + row * 3 + (fy < BANK1 ? 40 : 17)) % w, ly = f % 4;
+        col = rock[(Math.floor((x - x0 + row * 3) / w) * 7 + row + (fy < BANK1 ? 0 : 2)) % 4];
+        if (f === 0) col = '#2a2018';                               // shadow under the grass lip
+        else if (f === rows - 1 && fy >= BANK1) col = K;
+        else if (lx === 0 || ly === 0) col = '#4e4136';
+        else if (ly === 1 || lx === 1) col = '#a8987c';
+        else if (lx === w - 1) col = '#6a5a4b';
+        else if (R() < .07) col = R() < .5 ? '#ebc152' : '#ffd463'; // gold
+      }
       P.p(x, y, col);
     }
   }
-  for (let y = H.y; y < H.y + H.h; y++) for (let x = H.x; x < H.x + H.w; x++) {
-    if (!inTop(x, y)) continue;
-    const v = R(); let col = '#7f8e3c';
-    if (!inTop(x - 1, y) || !inTop(x + 1, y) || !inTop(x, y - 1) || !inTop(x, y + 1)) col = '#3e4a1c';
-    else if (!inTop(x, y - 2)) col = '#a5b45a';
-    else if (v < .012) col = '#ffd463'; else if (v < .05) col = '#93a347'; else if (v < .12) col = '#74833a'; else if (v < .18) col = '#86963f';
+  // the top: lit like a dome, with two terrace lines round its slopes (lit to the north and west, shadowed south and east)
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2 + 8;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const d = inset(x, y); if (d < 0) continue;
+    const v = R(); let col;
+    if (d < 1) col = '#3e4a1c';
+    else if (d < SLOPE) {
+      const s = side(x, y), lit = s === 0 || s === 3;
+      const fd = Math.floor(d), shade = 1 - d / SLOPE;                                       // steeper (darker) nearer the foot
+      if (fd === 4 || fd === 9) col = lit ? '#a8b85c' : '#4a5724';                            // terrace lines
+      else if (fd === 5 || fd === 10) col = lit ? '#7c8c3a' : '#5c6a2c';                       // and the shadow just under each
+      else if (lit) col = d < 2 ? '#a5b45a' : v < .2 ? '#86963f' : '#8f9f45';
+      else col = shade > .55 ? (v < .2 ? '#4f5d26' : '#566429') : (v < .2 ? '#5f6d2e' : '#677631');
+    } else {
+      const r = Math.hypot((x - mx) / (H.w / 2), (y - my) / (H.h / 2));                       // 0 in the middle, about 1 at the slopes
+      const t = r + (v - .5) * .18;                                                             // dithered bands
+      col = t < .34 ? '#a2b254' : t < .56 ? '#93a347' : t < .76 ? '#86963f' : t < .9 ? '#7c8b3a' : '#727f36';
+      if (v < .012) col = '#ffd463'; else if (v > .96) col = '#74833a';
+    }
     P.p(x, y, col);
   }
-  for (let y = HILL_ROAD.y; y < HILL_ROAD.y + HILL_ROAD.h; y++) for (let x = H.x + 12; x < H.x + H.w - 12; x++) {
+  // the lane along the top
+  for (let y = HILL_ROAD.y; y < HILL_ROAD.y + HILL_ROAD.h; y++) for (let x = x0 + SLOPE + 2; x <= x1 - SLOPE - 2; x++) {
     const v = R(); P.p(x, y, y === HILL_ROAD.y || y === HILL_ROAD.y + HILL_ROAD.h - 1 ? '#a8987c' : v < .1 ? '#b8a878' : v < .14 ? '#e0c48a' : '#c9b98a');
+  }
+  // stone steps where each town road climbs onto the hill: treads, darker risers, low walls either side
+  for (const v of ROAD_V) {
+    const top = y0 - 12;
+    for (let y = top; y < HILL_ROAD.y; y++) {
+      const k = y - top, riser = k % 4 === 3, tread = k % 4 === 0;
+      for (let x = v.x; x < v.x + v.w; x++) {
+        const wall = x === v.x || x === v.x + v.w - 1, rr = R();
+        P.p(x, y, wall ? (k % 4 === 0 ? '#a8987c' : '#5a4a3b') : riser ? '#6a5a4b' : tread ? '#d8ccb4' : rr < .12 ? '#b8a878' : '#c9b98a');
+      }
+    }
+    P.r(v.x - 1, top, 1, HILL_ROAD.y - top, '#2a2018'); P.r(v.x + v.w, top, 1, HILL_ROAD.y - top, '#2a2018');   // a thin shadow along the walls
   }
 }
 
@@ -2057,7 +2103,7 @@ function spawnWalker(w) {
   w = w || {};
   const R = Math.random;
   if (R() < .6) { w.axis = 'h'; w.dir = R() < .5 ? 1 : -1; w.x = w.dir > 0 ? -TX - 6 : WORLD_W - TX + 2; w.y = ROAD_H.y + 3 + Math.floor(R() * 7); }
-  else { const v = ROAD_V[Math.floor(R() * 2)]; w.axis = 'v'; w.dir = R() < .5 ? 1 : -1; w.y = w.dir > 0 ? -TY - 10 : WORLD_H - TY; w.x = v.x + 3 + Math.floor(R() * 8); }
+  else { const v = ROAD_V[Math.floor(R() * 2)]; w.axis = 'v'; w.dir = R() < .5 ? 1 : -1; w.y = w.dir > 0 ? -TY - 10 : HILL_ROAD.y + 2; w.x = v.x + 3 + Math.floor(R() * 8); }
   w.speed = 8 + R() * 6; w.shirt = SHIRTS[Math.floor(R() * SHIRTS.length)]; w.hair = ['#3a2416', '#140d0b', '#8a5a34', '#ebc152'][Math.floor(R() * 4)];
   return w;
 }
@@ -2065,7 +2111,7 @@ function stepWalkers(dt) {
   while (WALKERS.length < 14) WALKERS.push(spawnWalker());
   for (const w of WALKERS) {
     if (w.axis === 'h') { w.x += w.dir * w.speed * dt; if (w.x < -TX - 8 || w.x > WORLD_W - TX + 4) spawnWalker(w); }
-    else { w.y += w.dir * w.speed * dt; if (w.y < -TY - 12 || w.y > WORLD_H - TY + 2) spawnWalker(w); }
+    else { w.y += w.dir * w.speed * dt; if (w.y < -TY - 12 || w.y > HILL_ROAD.y + 3) spawnWalker(w); }
   }
 }
 function drawWalker(P, w, t) {
