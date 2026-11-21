@@ -1340,7 +1340,8 @@ const WHATS_NEW = [
     'Investors value a company at what it’s worth plus up to an hour of its profit. Your share price then moves with your company, the market’s mood, and players buying and selling it.',
     'Buy <b>other players’ companies</b> (Invest → Players): a public company pays 30% of its profit as dividends, and shareholders get their part, even while you’re away.',
     'Later you can sell more shares (up to 49% outside) or buy shares back from Millbrook’s investors.',
-    'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.'] },
+    'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.',
+    'The white gateposts on the roads up to Gold Hill are gone.'] },
   { v: 'v0.07', title: 'Online', items: [
     'Play <b>online</b>: log into your <b>Inspirapixel account</b> (one account for every Inspirapixel game, the same as your Olympus Hunt account: just a name and a password) and your company is saved on the server, so you can pick it up on any device. Playing without an account still works, saved in your browser.',
     'A <b>shared market</b>: when players sell a lot of the same good its price drops a little for everyone, and buying pushes it up. One player barely moves it; a crowd can move it up to 30%, and it recovers over about 15 minutes. The Market shows how much players are moving each price.',
@@ -1970,8 +1971,6 @@ function drawBackground(level) {
   for (let x = X0; x < X1; x++) { P.p(x, ROAD_H.y, '#93703f'); P.p(x, ROAD_H.y + ROAD_H.h - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y + ROAD_H.h, '#93703f'); }
   for (const v of ROAD_V) for (let y = Y0; y < Y1; y++) { if (y >= ROAD_H.y && y < ROAD_H.y + ROAD_H.h) continue; P.p(v.x, y, '#93703f'); P.p(v.x + v.w - 1, y, '#93703f'); }
   for (let i = 0; i < LOTS; i++) { const { x, y, block } = lotXY(i); for (let yy = y; yy < y + LOT; yy++) for (let xx = x; xx < x + LOT; xx++) if (R() < .06) P.p(xx, yy, block === 3 ? '#6f7d34' : '#4f6a2c'); }
-  // stone gateposts where the roads climb onto Gold Hill
-  for (const v of ROAD_V) for (const px of [v.x - 5, v.x + v.w + 1]) { P.r(px, HILL.y - 9, 4, 13, K); P.r(px + 1, HILL.y - 8, 2, 11, '#d8ccb4'); P.r(px, HILL.y - 11, 4, 3, K); P.r(px + 1, HILL.y - 10, 2, 1, '#ebc152'); }
   // trees: everywhere outside the town blocks, never on roads, the pond or the fields
   const keepOut = [[8, -2, 464, 272], [-160, 10, 100, 64], [530, -110, 140, 96], [-190, 90, 164, 112], [486, 90, 166, 112], [HILL.x - 4, HILL.y - 14, HILL.w + 8, HILL.h + 26]];
   const blocked = (x, y) => keepOut.some(([a, b, w, h]) => x > a - 8 && x < a + w + 8 && y > b - 8 && y < b + h + 10)
