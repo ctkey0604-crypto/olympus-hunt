@@ -31,7 +31,7 @@ Since v0.05 the **market is one shared world**:
 | `src/30_sim.js` | The company: production, upkeep, goods prices (the world's swings plus your own selling pressure), real estate, net worth, levels, goals, offline earnings, save and load (`adopt()` brings old saves up to date). |
 | `src/35_world.js` | **The shared world**: the market, PixCoin, homes, rivals, news and goods price swings as a pure function of world time; the world clock and its sync. Market balance lives at the top (`TAU`, `JUMP`, volatilities). |
 | `src/40_audio.js` | Sound effects (`SFX`) and the four chiptunes (`SONGS`), one per area of town. |
-| `src/50_ui.js` | Top bar, side panel, the game's windows (Production web, Market, Invest, Leaderboard, Menu), profit estimates, stock chart, news ticker. The starting menu (`renderTitle`, `TPAGES`, the town backdrop `townPostcard`, the live market strip) and what both menus share: How to Play (`HELP`), settings, credits. |
+| `src/50_ui.js` | Top bar, side panel, the game's windows (Production web, Market, Invest, Leaderboard, Menu), profit estimates, stock chart, news ticker. The starting menu (`renderTitle`, `TPAGES`, the town backdrop `townPostcard`, the live market strip, What's New) and what both menus share: How to Play (`HELP`), settings, credits (in the game's About). |
 | `src/60_tutorial.js` | The five guided steps for a new company (`TUT`). |
 | `src/85_splash.js` | The Inspirapixel logo before the starting menu, ported from Olympus Hunt (`game-src/94_splash.js`); only its sound calls differ. Add `?nosplash` to the address to skip it (tests, screenshots). |
 | `src/90_main.js` | Game loop (keeps the world on the world clock), the idle rule, camera, drawing the town, input, button actions (`act()`), the starting menu's flow (`showTitle`, `startNew`), start and boot. |
@@ -53,7 +53,8 @@ python3 brick-and-coin/build.py                 # 2. build public/index.html
 node brick-and-coin/test/playtest.js            # 3. playtest (about 30 seconds), exits 1 on any failure
 node brick-and-coin/test/market_check.js        # 4. only if the market or news changed
 # 5. look at the screenshots in brick-and-coin/test/out/ for anything visual
-# 6. bump VERSION in src/10_data.js for a release (and run tools/site_images.js: the link preview shows it)
+# 6. for a release: bump VERSION in src/10_data.js, add its notes at the top of WHATS_NEW (same file),
+#    and run tools/site_images.js (the link preview shows the version)
 # 7. commit src/ and public/ together
 ```
 
@@ -63,7 +64,7 @@ The playtest drives the real page in a headless browser:
   - the live market strip shows the shared prices;
   - How to Play turns its pages, and Esc goes back;
   - a sound setting is remembered on the device;
-  - Credits;
+  - What's New shows a NEW badge until read;
   - the game's Menu opens on Esc, Main Menu → Continue picks the company up, and starting a new company over a saved one asks first.
 - **Tutorial and menus:** the whole tutorial by clicking, then every menu: market buy and sell, Keep/Sell/Auto, stocks, PixCoin, a home, and save codes (export, import, survives a redraw).
 - **Art:** every building at every level, every house, icon and town background.
@@ -202,7 +203,7 @@ If Brick & Coin moves to its own GitHub repository later, copy the `brick-and-co
 - **A starting menu:** Millbrook drifts by behind the logo (every area open, buildings at every level), with these buttons:
   - **Continue**, showing your company, level and cash;
   - **New Company**, which asks before replacing a saved company;
-  - **How to Play**, **Settings** and **Credits**.
+  - **How to Play**, **Settings** and **What's New** (the patch notes, with a NEW badge until you've read the latest).
   - A **live market** strip along the bottom shows the shared index, PixCoin and Nova prices and the latest headline.
 - **The game's Menu,** with sections down the side (tabs on phones):
   - Resume;

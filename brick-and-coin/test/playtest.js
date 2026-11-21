@@ -207,8 +207,12 @@ let URL;
   await page.click('[data-act=tpage][data-v=settings]');
   await page.click('[data-act=aset][data-k=musicOn][data-v="1"]');
   await page.click('[data-act=tpage][data-v=home]');
-  await page.click('[data-act=tpage][data-v=credits]');
-  check(/Inspirapixel/.test(await page.textContent('.tpanel')), 'Credits');
+  check(await page.isVisible('[data-act=tpage][data-v=news] .tnew'), "What's New shows a NEW badge on a first visit");
+  await page.click('[data-act=tpage][data-v=news]');
+  check(await page.evaluate(() => $('.wn h3').textContent.startsWith(VERSION)), "What's New opens on this version's notes");
+  await shot(page, '01b-whats-new');
+  await page.click('[data-act=tpage][data-v=home]');
+  check(!await page.isVisible('[data-act=tpage][data-v=news] .tnew'), 'and the badge goes once they are read');
   await ctx.close();
 
   /* ---------------- 1. desktop: tutorial, menus, every feature ---------------- */

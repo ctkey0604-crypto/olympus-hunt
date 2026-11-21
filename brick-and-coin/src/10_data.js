@@ -712,3 +712,30 @@ const EV_SECTOR = {
 const EV_STOCK_UP = ['{C} beats profit expectations', '{C} lands a huge contract', 'Investors pile into {C}'];
 const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', 'Factory fire hits {C}'];
 
+/* ---------------------------------------------------------------- what's new
+   The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
+   VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
+const WHATS_NEW = [
+  { v: 'v0.06', title: 'Menus', items: [
+    'The <b>Inspirapixel</b> logo plays when the game starts.',
+    'A new <b>starting menu</b>: Millbrook drifts by behind the logo, with Continue, New Company, How to Play, Settings and this page.',
+    'A <b>live market</b> strip on the starting menu shows the stock prices and latest news every player sees right now.',
+    'A new in-game <b>Menu</b> (press Esc): How to Play, Settings, Save &amp; Transfer, About and Main Menu, each on its own page.',
+    '<b>How to Play</b> is now six short illustrated pages.',
+    'Sound settings stay with your device.'] },
+  { v: 'v0.05', title: 'One shared world', items: [
+    'The <b>stock market</b>, PixCoin, home prices, rival tycoons, the news, booms and slumps are now <b>the same for every player</b>, live.',
+    'Time away is fairer: closed, or left untouched for 10 minutes, your company runs at <b>25% speed for up to 2 hours</b>.',
+    'A calmer market: shares wander around fair prices instead of climbing forever, and news shocks fade slowly.',
+    'Smaller saves, and save codes are about 4 times shorter.'] },
+  { v: 'v0.04', title: 'Gold Hill', items: [
+    '<b>Gold Hill</b> opens at $1,000,000 net worth: a golden hill south of town with 12 new lots and its own tune.',
+    'Three new products: the <b>Grand Piano</b>, the <b>Gift Hamper</b> and the <b>Motor Car</b>.',
+    'Two <b>Hilltop Villas</b> to buy on Gold Hill.',
+    'Profit numbers now count materials you buy at the price you pay.',
+    'Buildings waiting for materials no longer cost upkeep.',
+    'Nails and Tools sell for more.'] },
+  { v: 'v0.03', title: 'Where it started', items: [
+    'Millbrook: Main Street, Market Row and Industrial Park, 18 products, a live market, stocks, PixCoin, real estate, goals and a tutorial.'] },
+];
+

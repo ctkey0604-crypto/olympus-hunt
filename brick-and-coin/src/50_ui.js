@@ -501,7 +501,7 @@ function renderSoundBtn() {
   $('#soundIcon').innerHTML = iconImg(on ? 'sound' : 'mute', 27);
 }
 
-/* ---------- shared by both menus: How to Play, settings, credits ---------- */
+/* ---------- shared by both menus: How to Play, settings, credits (in the game's About) ---------- */
 const HELP = [
   { art: () => bigArt(buildingPreview('wood', 2)), t: 'Build', p: [
     'Tap an <b>empty lot</b> in town and pick a building.',
@@ -576,7 +576,12 @@ const TPAGES = {
   },
   help() { return `<h2>How to play</h2>${helpHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Main menu</button></div>`; },
   settings() { return `<h2>Settings</h2>${settingsHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
-  credits() { return `<h2>Credits</h2><div class="tcred">${creditsHTML()}</div><div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
+  news() {   // What's New: the patch notes, newest first (WHATS_NEW in 10_data.js); reading it clears the NEW badge
+    seenNews();
+    return `<h2>What's new</h2><div class="wn">${WHATS_NEW.map((r, i) => `<section><h3>${r.v} · ${r.title}${i === 0 ? ' <span class="chip gold">NEW</span>' : ''}</h3>
+      <ul>${r.items.map(x => `<li>${x}</li>`).join('')}</ul></section>`).join('')}</div>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`;
+  },
 };
 function renderTitle(page) {
   if (page) UI.tpage = page;
@@ -591,13 +596,17 @@ function renderTitle(page) {
     <button type="button" class="tbtn ${ex ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
     <button type="button" class="tbtn" data-act="tpage" data-v="help">How to Play</button>
     <button type="button" class="tbtn" data-act="tpage" data-v="settings">Settings</button>
-    <button type="button" class="tbtn" data-act="tpage" data-v="credits">Credits</button></nav>`;
+    <button type="button" class="tbtn" data-act="tpage" data-v="news">What's New${newsUnseen() ? '<span class="tnew chip gold">NEW</span>' : ''}</button></nav>`;
   const box = $('#tbox');
   box.className = 'tbox' + (pg === 'home' ? '' : ' sub');
   box.innerHTML = head + (pg === 'home' ? home : `<section class="tpanel">${TPAGES[pg]()}</section>`);
   if (pg === 'new') $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
   renderTitleMarket();
 }
+// the NEW badge on What's New: shown until this device has opened the latest notes
+const NEWS_KEY = 'inspirapixel_bizgame_seen';
+function newsUnseen() { try { return localStorage.getItem(NEWS_KEY) !== WHATS_NEW[0].v; } catch (e) { return false; } }
+function seenNews() { try { localStorage.setItem(NEWS_KEY, WHATS_NEW[0].v); } catch (e) {} }
 // the live market along the bottom: the same prices and news every player sees right now
 function renderTitleMarket() {
   const el = $('#tmarket'); if (!el || !WS.ready) return;
