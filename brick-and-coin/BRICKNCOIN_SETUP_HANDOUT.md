@@ -6,7 +6,7 @@ You're picking up a project mid-way. This file has everything you need: what the
 
 ## 0. Rules (read first)
 
-- **Who you're helping:** the owner of this project. They're not a developer. Keep messages short and plain, and batch browser actions, because they're cost-conscious.
+- **Who you're helping:** the owner of this project; they make the calls. Keep messages short and batch browser actions, because they're cost-conscious.
 - **Logins:** the owner logs in to GitHub, Cloudflare and their domain registrar themselves, in their own browser. Never ask them to paste a password, token or code into chat.
 - **Ask first, every time,** before you:
   - buy anything (a domain) or enter payment details;
