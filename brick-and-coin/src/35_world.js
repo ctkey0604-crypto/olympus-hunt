@@ -112,8 +112,13 @@ function slotEvent(j) {
   out.push(e);
   return out;
 }
-// every event between two world times, oldest first
-function eventsBetween(t0, t1) { const out = []; for (let j = Math.floor(t0 / EV_SLOT); j <= Math.floor(t1 / EV_SLOT); j++) for (const e of slotEvent(j)) if (e.t >= t0 && e.t <= t1) out.push(e); return out; }
+// every event between two world times, oldest first (v0.07: the simulated companies' news too)
+function eventsBetween(t0, t1) {
+  const out = []; for (let j = Math.floor(t0 / EV_SLOT); j <= Math.floor(t1 / EV_SLOT); j++) for (const e of slotEvent(j)) if (e.t >= t0 && e.t <= t1) out.push(e);
+  const sims = simEventsBetween(t0, t1);
+  if (sims.length) { for (const e of sims) out.push(e); out.sort((a, b) => a.t - b.t); }
+  return out;
+}
 const EV_KEEP = 3 * 86400 + 5 * 3600;   // how far back events still matter (4 fade times: 3 days for PixCoin) plus the 4-hour charts
 
 /* ---------- the world at one moment ---------- */
@@ -156,6 +161,67 @@ function rivalsAt(t, p) {
     return Math.max(1000, nw);
   });
 }
+/* ---------- simulated companies (v0.07) ----------
+   Besides the established tycoons above, Millbrook has a steady stream of made-up companies that live like real players:
+   one opens about every 6 hours, grows at a human pace (most play a little, a few a lot), moves into new areas of town as
+   it gets richer, levels off where its owner stops improving (most stay small, a few get rich, like real players), and
+   after a few days either sells up or (three in ten) goes bust. They're all worked out from the world clock, so every
+   player sees the same ones, and they're marked as simulated on the leaderboard. */
+const SIM_EVERY = 6 * 3600, SIM_LIFE = 14 * 86400;   // one opens about every 6 h (about 25 around at once); none lasts over 14 days
+const SIM_MEMO = new Map();
+function simOf(n) {
+  let s = SIM_MEMO.get(n); if (s) return s;
+  const u = k => hu(700 + k, n), pick = (a, k) => a[Math.floor(u(k) * a.length)];
+  const branch = ['wood', 'wheat', 'ore'][Math.floor(u(1) * 3)], busts = u(3) < .3, born = n * SIM_EVERY + Math.floor(u(0) * SIM_EVERY);
+  const first = pick(SIM_FIRST, 5), tag = pick(SIM_TAG, 6), style = u(7);
+  const name = style < .4 ? first + tag : style < .7 ? (first + tag).toLowerCase() + (10 + Math.floor(u(8) * 89)) : first + '_' + tag;
+  s = { n, born, branch, busts, name, co: pick(SIM_SUR, 9) + ' ' + pick(SIM_KIND[branch], 10),
+    k: .15 + .95 * u(2) * u(2),                                                     // hours played per hour: most a little, a few a lot
+    cap: 2e4 * Math.pow(250, Math.pow(u(11), 1.5)),                                 // where it levels off: $20k to $5M, most nearer the bottom
+    end: born + (busts ? 3600 * (5 + 100 * u(4)) : 86400 * (3 + 11 * u(4))) };       // bust within days, or sell up after 3-14 days
+  SIM_MEMO.set(n, s); if (SIM_MEMO.size > 600) SIM_MEMO.delete(SIM_MEMO.keys().next().value);
+  return s;
+}
+// net worth by hours played: about $10k after 30 min, $100k after 3 h, $1M after a long day (like the playtest bot), levelling
+// off at the company's own ceiling
+function simCurve(x, cap) { const nw = Math.pow(10, 3.3 + .714 * Math.log(1 + x / .3)); return nw * cap / (nw + cap); }
+function simHoursTo(nw, cap) { if (nw >= cap * .9) return Infinity; const raw = nw * cap / (cap - nw); return .3 * (Math.exp((Math.log10(raw) - 3.3) / .714) - 1); }
+function simNw(s, t) {
+  if (t < s.born || t >= s.end) return 0;
+  let nw = simCurve((t - s.born) / 3600 * s.k, s.cap) * Math.exp(fbm(900 + s.n % 61, t, .0005, OCT_F));
+  if (s.busts && s.end - t < 7200) nw *= Math.max(.05, (s.end - t) / 7200);   // a failing company slides for its last two hours
+  return Math.max(800, nw);
+}
+function simLevel(nw) { let L = 1; while (L < MAX_LEVEL && nw >= LEVELS[L + 1].nw) L++; return L; }
+function simsAlive(t) {
+  const out = [];
+  for (let n = Math.max(0, Math.floor((t - SIM_LIFE) / SIM_EVERY) - 1); n <= Math.floor(t / SIM_EVERY); n++) { const s = simOf(n); if (t >= s.born && t < s.end) out.push(s); }
+  return out;
+}
+// the simulated companies right now, with their net worth and level (kept for 5 s: the leaderboard reads it often)
+let SIM_NOW = { t: -1, list: [] };
+function simBoard(t) {
+  t = Math.floor(t / 5) * 5; if (SIM_NOW.t === t) return SIM_NOW.list;
+  const list = simsAlive(t).map(s => { const nw = simNw(s, t); return { name: s.name, co: s.co, nw, lv: simLevel(nw), sim: true }; });
+  SIM_NOW = { t, list }; return list;
+}
+// their news: opening, each new area of town, and selling up or going bust
+const SIM_AREA = { 2: 'grows into Market Row', 3: 'builds in the Industrial Park', 4: 'moves up to Gold Hill' };
+function simEventsBetween(t0, t1) {
+  const out = [], ev = (t, text, kind) => { if (t >= t0 && t <= t1) out.push({ t, j: -1, text, kind, jumps: [] }); };
+  for (let n = Math.max(0, Math.floor((t0 - SIM_LIFE) / SIM_EVERY) - 1); n <= Math.floor(t1 / SIM_EVERY); n++) {
+    const s = simOf(n); if (s.end < t0 || s.born > t1) continue;
+    ev(s.born, `New in town: ${s.co} opens on Main Street`, 'info');
+    for (let L = 2; L <= MAX_LEVEL; L++) {
+      const h = simHoursTo(LEVELS[L].nw * 1.02, s.cap); if (!Number.isFinite(h)) break;
+      const t = s.born + Math.round(h / s.k * 3600);
+      if (t < s.end - (s.busts ? 7200 : 0)) ev(t, `${s.co} ${SIM_AREA[L]}`, 'up');
+    }
+    ev(s.end, s.busts ? `${s.co} goes bust` : `${s.name} sells ${s.co} and retires`, s.busts ? 'down' : 'info');
+  }
+  return out;
+}
+
 // goods: shared price swings (about ±4%) and any news that is boosting or cutting prices or production speed
 function goodsAt(t, evs) {
   const noise = {}, mult = {}, speed = {};

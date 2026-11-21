@@ -7,7 +7,7 @@ let AWAY_RATE = 1;                // 1 while someone's playing; OFFLINE_RATE whe
 const LOG = { onNews: null, onToast: null, onPop: null, onLevel: null, onGoal: null };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-const SAVE_V = 3;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world). adopt() brings older saves up to date.
+const SAVE_V = 4;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world), 4 = v0.08 (public companies). adopt() brings older saves up to date.
 function newGame(company, start) {
   // v0.05: the market, news, rivals and home prices live in the shared world (35_world.js), not in the save
   S = {
@@ -15,6 +15,7 @@ function newGame(company, start) {
     lots: new Array(LOTS).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
     market: {}, news: [], goal: 0, stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
     hold: {}, divAcc: 0, savedAt: nowMs(), boostShown: false, props: PLOTS.map(() => ({ own: false, reno: 1, paid: 0 })),
+    pub: null, pubHold: {},   // v0.08: this company's listing (if public), and shares it holds in other players' companies
   };
   S.lots[HQ_LOT] = { b: 'hq', lv: 1 };
   for (const p of PIDS) S.market[p] = { sat: 0, bp: 0, hist: [] };
@@ -43,12 +44,13 @@ function lotUnlocked(i) { return ZONE_LEVEL[Math.floor(i / 12)] <= S.level; }
 function marketDepth(p) { const P = PRODUCTS[p]; return 60 * (60 / P.sec) * P.out * MARKET_SIZE[S.level]; }
 
 /* ---------------------------------------------------------------- goods market */
-// a good's price: its base, today's shared swing and news (the world), then this player's own selling and buying pressure
+// a good's price: its base, today's shared swing and news (the world), what the crowd of players is selling and buying
+// (v0.07, crowdMult() in 37_net.js), then this player's own selling and buying pressure
 function evMult(p) { return WS.mult[p] || 1; }
 function evSpeed(p) { return WS.speed[p] || 1; }
 function price(p) {
   const M = S.market[p], D = marketDepth(p);
-  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) / (1 + M.sat / D) * (1 + M.bp / D);
+  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) * crowdMult(p) / (1 + M.sat / D) * (1 + M.bp / D);
 }
 function buyPrice(p) { return price(p) * NPC_MARKUP; }
 // the last 5 minutes of prices for the sparklines, from the world (at today's own selling pressure)
@@ -64,6 +66,7 @@ function sellGoods(p, q, auto) {
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
   let left = q, rev = 0;
   while (left > 0) { const c = Math.min(left, chunk); rev += c * price(p); M.sat += c; left -= c; }
+  crowdNote(p, q, 0);
   S.cash += rev; S.stats.sales += rev; addProfit(rev);
   return rev;
 }
@@ -71,6 +74,7 @@ function buyGoods(p, q) {
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
   let left = q, cost = 0;
   while (left > 0) { const c = Math.min(left, chunk); cost += c * buyPrice(p); M.bp += c; left -= c; }
+  crowdNote(p, 0, q);
   return cost;
 }
 function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * (1 + q / D / 2); }
@@ -171,17 +175,20 @@ function manualBuy(p, q) {
 }
 
 /* ---------------------------------------------------------------- net worth, levels, rank */
-function netWorth() {
+// v0.08: the company's whole value, and the owner's net worth (their part of it, once outside shareholders own some)
+function netWorth() { return companyValue() * ownFrac(); }
+function companyValue() {
   let nw = S.cash;
   for (const l of S.lots) if (l && l.b !== 'hq') nw += l.spent * .6;
   nw += ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5;
   for (const p in S.inv) nw += S.inv[p] * price(p) * .9;
-  nw += portfolioValue() + propertyValue();
+  nw += portfolioValue() + propertyValue() + pubHoldValue();
   return nw;
 }
-function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of s.rivals) if (x.nw > nw) r++; return r; }
+// rank among the real players (v0.07: the leaderboard is players only)
+function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of netOthers()) if (x.nw > nw) r++; return r; }
 function checkLevel() {
-  const nw = netWorth();
+  const nw = companyValue();   // areas of town open with the whole company's value (v0.08)
   while (S.level < MAX_LEVEL && nw >= LEVELS[S.level + 1].nw) {
     S.level++;
     pushNews(`${S.company} reaches Level ${S.level}: ${LEVELS[S.level].name} is open!`, 'you');
@@ -223,7 +230,7 @@ function step(dt) {
   stepProduction(dt, AWAY_RATE);   // left idle, the company runs like it does while closed (v0.05)
   stepUpkeep(dt, AWAY_RATE);
   payRent(dt, AWAY_RATE);
-  S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); S.divAcc = 0; }
+  S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); pubPayDividends(S.divAcc / 60); S.divAcc = 0; }
   S._sec = (S._sec || 0) + dt;
   if (S._sec >= 1) {
     S._sec -= 1;
@@ -238,13 +245,13 @@ function step(dt) {
 function offlineCatchUp(sec) {
   sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
   const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
-  WS.mult = {}; WS.speed = {}; WS.noise = {};
+  WS.mult = {}; WS.speed = {}; WS.noise = {}; CROWD_OFF = true;   // plain prices: no news, and no crowd (v0.07)
   for (let i = 0; i < stepN; i++) {
     stepProduction(dt, OFFLINE_RATE); stepUpkeep(dt, OFFLINE_RATE); payRent(dt, OFFLINE_RATE);
     for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
     sellSurplus();
   }
-  [WS.mult, WS.speed, WS.noise] = keep;
+  [WS.mult, WS.speed, WS.noise] = keep; CROWD_OFF = false;
   return { sec, earned: S.cash - cash0 };
 }
 
@@ -273,6 +280,8 @@ function adopt(obj) {
     S.news = [];
   }
   if (S.divAcc == null) S.divAcc = 0;
+  if (S.pub === undefined) S.pub = null;            // v0.08
+  if (!S.pubHold) S.pubHold = {};
   S.v = SAVE_V;
   if (!WS.ready) WT = worldNow();
   attachWorld(); prefillGoodsHist();

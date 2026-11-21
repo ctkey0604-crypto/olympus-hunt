@@ -4,7 +4,7 @@
    start screen, toasts and the news ticker.
    ========================================================================== */
 const $ = s => document.querySelector(s);
-const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help' };
+const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help', lbTab: 'all' };
 
 /* ---------- formatting ---------- */
 function money(n, cents) {
@@ -55,7 +55,7 @@ const LIVE = {
   },
   rate(i) { const l = S.lots[i]; if (!l) return ''; return rateTxt(cyclesPerMin(l.b, l.lv, lotMult()) * PRODUCTS[l.b].out) + ' ' + PRODUCTS[l.b].name; },
   uses(i) { const l = S.lots[i]; if (!l) return ''; const P = PRODUCTS[l.b]; if (P.raw) return 'no materials'; const c = cyclesPerMin(l.b, l.lv, lotMult()); return Object.keys(P.rec).map(q => rateTxt(c * P.rec[q]) + ' ' + PRODUCTS[q].name).join(', '); },
-  lvbar(_, el) { const L = S.level; if (L >= MAX_LEVEL) { el.style.width = '100%'; return; } const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; el.style.width = clamp((netWorth() - a) / (b - a), 0, 1) * 100 + '%'; },
+  lvbar(_, el) { const L = S.level; if (L >= MAX_LEVEL) { el.style.width = '100%'; return; } const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; el.style.width = clamp((companyValue() - a) / (b - a), 0, 1) * 100 + '%'; },
   nw: () => money(netWorth(), false),
   capt: () => `${capUsed()} / ${capMax()}`, wht: () => `${qty(whUsed())} / ${whMax()}`,
   capbar(_, el) { el.style.width = Math.min(100, capUsed() / capMax() * 100) + '%'; el.classList.toggle('over', capUsed() > capMax()); },
@@ -65,6 +65,7 @@ const LIVE = {
   bupkeep(i) { const l = S.lots[i]; if (!l) return ''; return l.stall ? 'paused while it waits' : money(upkeepPerMin(l)) + '/min'; },
   spark(p, el) { el.setAttribute('d', sparkPath(S.market[p].hist, 90, 24)); },
   mchg(p) { const c = changeOf(S.market[p].hist, 59); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
+  crowd(p) { const m = crowdOthersMult(p) - 1; return Math.abs(m) < .01 ? { text: '', cls: '' } : { text: ' · players ' + pctTxt(m), cls: m < 0 ? 'red' : 'olive' }; },   // v0.07
   aprice: t => money(S.assets[t].p),
   achg(arg) { const [t, w] = arg.split('|'); const A = S.assets[t]; const c = w === '4h' ? changeOf(A.h60, 239) : w === '10m' ? changeOf(A.h10, 59) : changeOf(A.h10, 359); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
   hq: t => { const h = S.hold[t]; return h && h.q > 0 ? (h.q < 1 ? h.q.toFixed(4) : qty(h.q)) : '0'; },
@@ -112,9 +113,9 @@ function updateTop() {
   $('#boostChip').hidden = !boostOn();
   $('#cash').textContent = money(S.cash, false); $('#cash').style.color = S.cash < 0 ? 'var(--pink)' : '';   // red when in debt
   const v = profitPerMin(), pp = $('#ppm'); pp.textContent = (v >= 0 ? '+' : '') + money(v) + '/min profit'; pp.className = v >= 0 ? 'olive' : 'red';
-  const nw = netWorth(); $('#nw').textContent = money(nw, false);
+  const nw = netWorth(), cv = companyValue(); $('#nw').textContent = money(nw, false);
   const L = S.level, bar = $('#lvBar');
-  if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; bar.style.width = clamp((nw - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1} (${LEVELS[L + 1].name}) at ${money(b, false)}`; }
+  if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; bar.style.width = clamp((cv - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1} (${LEVELS[L + 1].name}) at ${S.pub ? 'company value ' : ''}${money(b, false)}`; }
   else { bar.style.width = '100%'; $('#lvNext').textContent = `Top level: all of Millbrook is open`; }
   $('#lvBarWrap').setAttribute('aria-label', 'Progress to next level');
   $('#cap').textContent = `${capUsed()} / ${capMax()}`;
@@ -338,7 +339,7 @@ const MODAL = {
     const sig = `mkt|${f}|${list.join()}|${JSON.stringify(S.flow)}`;
     const rows = list.map(p => {
       const P = PRODUCTS[p], own = S.unlocked[p];
-      return `<div class="mrow"><div class="good">${iconImg(p, 36)}<div><b>${P.name}</b><small>LV ${P.ring} · ${BRANCH[P.branch].name}</small></div></div>
+      return `<div class="mrow"><div class="good">${iconImg(p, 36)}<div><b>${P.name}</b><small>LV ${P.ring} · ${BRANCH[P.branch].name}<span data-live="crowd:${p}"></span></small></div></div>
         <b class="sellp gold" data-live="price:${p}"></b><span class="buyp muted" data-live="bprice:${p}"></span>
         <span class="chg" data-live="mchg:${p}" data-base="chg"></span>
         <span class="trend"><svg width="90" height="24" viewBox="0 0 90 24" aria-hidden="true"><path data-live="spark:${p}" fill="none" stroke="#ebc152" stroke-width="1.5"/></svg></span>
@@ -347,14 +348,17 @@ const MODAL = {
         <span class="acts"><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="10">Sell 10</button><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="all">Sell all</button><button class="btn small" type="button" data-act="buy" data-p="${p}" data-q="10">Buy 10</button></span></div>`;
     }).join('');
     return { sig, title: 'Market', html: `
-      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Sell a lot at once and the price drops for you. Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
+      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Sell a lot at once and the price drops, most for you and a little for everyone; when many players sell the same good, it drops for all (shown as “players”). Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="seg" role="group" aria-label="Which goods"><button type="button" data-act="mktf" data-v="mine" aria-pressed="${f === 'mine'}">Your goods</button><button type="button" data-act="mktf" data-v="all" aria-pressed="${f === 'all'}">All goods</button></div>
         <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b></span></div>
       <div class="mlist"><div class="mrow mhead"><span class="good">GOOD</span><span class="sellp">SELL</span><span class="buyp">BUY</span><span class="chg">5 MIN</span><span class="trend">TREND</span><span class="have">YOU HAVE</span><span class="flow">OUTPUT</span><span class="acts"></span></div>${rows}</div>` };
   },
   stocks() {
-    const tabs = `<div class="seg" role="group" aria-label="Invest in" style="margin-bottom:12px"><button type="button" data-act="itab" data-v="stocks" aria-pressed="${UI.investTab !== 're'}">Stocks</button><button type="button" data-act="itab" data-v="re" aria-pressed="${UI.investTab === 're'}">Real estate</button></div>`;
+    const it = UI.investTab, tabs = `<div class="seg" role="group" aria-label="Invest in" style="margin-bottom:12px">${[['stocks', 'Stocks'], ['re', 'Real estate'], ['players', 'Players'], ['mine', 'Your company']]
+      .map(([v, l]) => `<button type="button" data-act="itab" data-v="${v}" aria-pressed="${it === v}">${l}</button>`).join('')}</div>`;
+    if (it === 'players') return pubPlayersView(tabs);   // v0.08 (38_pub.js)
+    if (it === 'mine') return pubMineView(tabs);
     if (UI.investTab === 're') {
       const tf = UI.stockTF, own = S.props.map(p => p.own ? p.reno : 0).join('');
       const rows = PLOTS.map((pl, k) => {
@@ -407,22 +411,28 @@ const MODAL = {
             <div class="trade"><span class="muted" style="font-size:13px">Sell</span>${[[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, l]) => `<button class="btn ghost small" type="button" data-act="stsell" data-v="${v}">${l}</button>`).join('')}</div></section>
           <p class="muted" style="font-size:13px">${a.about || `A company run by ${a.owner}. Its price follows the whole market, the ${a.sector === 'tech' ? 'tech' : a.sector} business and its own news.`}</p></div></div>` };
   },
-  board() {
-    const me = netWorth(), all = S.rivals.map((r, i) => ({ name: r.name, co: RIVAL_CO[r.name], nw: r.nw, link: RIVALS[i].link })).concat([{ name: 'You', co: S.company, nw: me, you: true }]);
+  board() {   // v0.07: real players only. Simulated companies live in the town's news, never here.
+    const me = netWorth(), you = { name: NET.name || 'You', co: S.company, nw: me, lv: S.level, you: true, player: !!NET.token };
+    const all = netOthers().concat([you]);
     all.sort((a, b) => b.nw - a.nw);
-    const sig = 'board|' + all.map(x => x.name).join();
+    const at = all.findIndex(x => x.you), show = all.map((x, k) => ({ x, k })).filter(({ k }) => k < 10 || Math.abs(k - at) <= 2);
     const lvl = nw => { let L = 1; while (L < MAX_LEVEL && nw >= LEVELS[L + 1].nw) L++; return L; };
-    const rows = all.map((x, k) => {
-      const ic = x.you ? 'house' : x.link ? asset(x.link).icon : 'crate';
-      return `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg(ic, 36)}
-        <div style="min-width:0"><b>${esc(x.you ? S.company : x.name)}</b><br><span class="muted" style="font-size:12px">${x.you ? 'You' : esc(x.co)} · LV ${lvl(x.nw)}</span></div>
-        <span class="nw">${money(x.nw, false)}</span><span class="muted" style="font-size:12px;text-align:right">${x.you ? 'you' : x.link ? x.link : ''}</span></div>`;
+    let last = -1;
+    const rows = show.map(({ x, k }) => {
+      const gap = k > last + 1 ? '<div class="lb-gap">···</div>' : ''; last = k;
+      const tag = x.you ? '<span class="chip gold">YOU</span>' : `<span class="chip olive">${x.online ? '<i class="dot" title="online now"></i>' : ''}PLAYER</span>`;
+      return gap + `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg('house', 36)}
+        <div style="min-width:0"><b>${esc(x.you ? S.company : x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.you ? (NET.token ? NET.name : 'You') : x.co || '')} · LV ${x.lv || lvl(x.nw)}</span></div>
+        <span class="nw">${money(x.nw, false)}</span><span class="lb-tag">${tag}</span></div>`;
     }).join('');
-    return { sig: sig + '|' + Math.floor(S.t / 2), title: 'Leaderboard', html: `<p class="m-sub">The richest players in Millbrook. Net worth = cash + buildings + goods + stocks.</p><div class="lb">${rows}</div>` };
+    const sub = !NET_API ? 'Real players only. This copy of the game was opened as a file: open it at brickncoin.com to see the other players.'
+      : `Real players only, by net worth (your part of your company, plus everything else you own).${NET.players ? ` ${NET.players} player${NET.players === 1 ? '' : 's'} · ${NET.online} online now.` : ''}${NET.token ? '' : ' <b>Log into your Inspirapixel account (Menu → Online) so other players see you here.</b>'}`;
+    return { sig: `board|${show.map(({ x, k }) => k + x.name).join()}|${NET.token ? 1 : 0}|${NET.players}|${Math.floor(S.t / 2)}`, title: 'Leaderboard', html: `<p class="m-sub">${sub}</p><div class="lb">${rows}</div>` };
   },
   menu() {   // v0.06: sections down the side
     const tab = UI.mtab, conf = UI.confirm === 'reset';
-    const tabs = [['help', 'How to Play'], ['settings', 'Settings'], ['save', 'Save & Transfer'], ['about', 'About']];
+    const tabs = [['help', 'How to Play'], ['settings', 'Settings'], ['save', 'Save & Transfer'], ['online', 'Online'], ['about', 'About']];
+    const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
     const nav = `<nav class="mnav" aria-label="Menu sections"><button class="btn gold" type="button" data-act="close">Resume</button>
       ${tabs.map(([v, l]) => `<button type="button" class="mtab" data-act="mtab" data-v="${v}" aria-pressed="${tab === v}">${l}</button>`).join('')}
       <hr><button type="button" class="mtab" data-act="mainmenu">Main Menu</button></nav>`;
@@ -432,20 +442,28 @@ const MODAL = {
     else if (tab === 'save') {
       let saved = false; try { saved = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
       pane = `<h3>Save &amp; Transfer</h3>
-        <p class="muted" style="font-size:13px">${saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
+        <p class="muted" style="font-size:13px">${NET.token ? `You’re online as <b>${esc(NET.name)}</b>: ${esc(S.company)} is saved on the server every few minutes and when you leave, and in this browser.` : saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
         <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
         <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
         <button class="btn ghost" type="button" data-act="loadsave" style="align-self:flex-start">Import save code</button>
         <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
           <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
           ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</div></section>`;
+    } else if (tab === 'online') {   // v0.07
+      const ago = NET.lastSave ? Math.max(0, Math.round((Date.now() - NET.lastSave) / 60000)) : -1;
+      pane = NET.token ? `<h3>Online</h3><p class="muted" style="font-size:13px">Logged into your Inspirapixel account as <b>${esc(NET.name)}</b>. ${esc(S.company)} is saved on the server every few minutes and when you leave, so you can carry on from any device. Your selling and buying count in the shared market, and you’re on the players’ leaderboard.</p>
+          <div class="mstats">${stat('Players online', NET.online)}${stat('Players', NET.players || '—')}${stat('Saved online', ago < 0 ? 'not yet' : ago === 0 ? 'just now' : ago + ' min ago')}</div>
+          <div class="trade"><button class="btn" type="button" data-act="netsave">Save online now</button><button class="btn ghost" type="button" data-act="logout">Log out</button></div>`
+        : NET_API ? `<h3>Play online</h3><p class="muted" style="font-size:13px">Log into your <b>Inspirapixel account</b>, or create one: one account for every Inspirapixel game (it’s the same as your Olympus Hunt account), just a name and a password. Then ${esc(S.company)} is saved on the server (play it on any device), you join the players’ leaderboard, and your selling and buying count in the shared market.</p>
+          <button class="btn gold" type="button" data-act="acctpage" style="align-self:flex-start">Log in or create your Inspirapixel account</button>
+          <p class="muted" style="font-size:13px">No account? Keep playing: ${esc(S.company)} stays saved in this browser.</p>`
+        : `<h3>Play online</h3><p class="muted" style="font-size:13px">This copy of the game was opened as a file, so it plays offline. Open it at brickncoin.com to play online.</p>`;
     } else {
-      const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
       pane = `<h3>${esc(S.company)}</h3><div class="mstats">
           ${stat('Level', `${S.level} · ${LEVELS[S.level].name}`)}${stat('Net worth', money(netWorth(), false))}${stat('Rank', '#' + playerRank())}
           ${stat('Buildings', countBuildings())}${stat('Goals done', `${S.goal} of ${GOALS.length}`)}${stat('Time played', playTime(S.t))}</div>`;
     }
-    return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}`,
+    return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}|${NET.token}|${tab === 'online' ? NET.online + '|' + Math.floor(NET.lastSave / 60000) : ''}`,
       title: 'Menu', html: `<div class="mwrap">${nav}<section class="mpane">${pane}</section></div>` };
   },
 };
@@ -555,7 +573,7 @@ const START_INFO = {
 let TITLE_SAVE = null, TITLE_TOWN = null;   // the company saved in this browser (shown on Continue), the backdrop picture
 const TPAGES = {
   new() {
-    const pick = UI.startPick, ex = TITLE_SAVE;
+    const pick = UI.startPick, ex = TITLE_SAVE === 'both' ? NET.cloud : TITLE_SAVE;
     const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
       <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
     return `<h2>New company</h2><form class="start-form" id="startForm">
@@ -563,9 +581,28 @@ const TPAGES = {
       <div class="muted" style="font-size:14px">Pick your starting material. It decides your first direction. You can branch out later.</div>
       <div class="picks">${cards}</div>
       <div class="start-err" id="startErr"></div>
-      ${ex ? `<div class="twarn">This replaces ${esc(ex.company)} in this browser. To keep it, open it and export its save code first (Menu → Save &amp; Transfer).</div>` : ''}
+      ${ex ? `<div class="twarn">This replaces ${esc(ex.company)} ${NET.token ? 'online and in this browser' : 'in this browser'}. To keep it, open it and export its save code first (Menu → Save &amp; Transfer).</div>` : ''}
       <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
         <button class="btn gold" type="submit" id="tgo" style="font-size:18px;padding:12px 28px">Open for business</button></div></form>`;
+  },
+  account() {   // v0.07: log into or create an Inspirapixel account (the same accounts as Olympus Hunt: a name and a password)
+    if (NET.token) return `<h2>Your Inspirapixel account</h2><p>Logged in as <b>${esc(NET.name)}</b>. Your company is saved on the server, so you can carry on from any device, and you’re on the players’ leaderboard.</p>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button><button class="btn" type="button" data-act="logout">Log out</button></div>`;
+    return `<h2>Log into your Inspirapixel account</h2><form class="start-form" id="acctForm">
+      <p class="muted" style="font-size:14px">One Inspirapixel account works in every Inspirapixel game: if you play Olympus Hunt, it’s the same name and password. New here? Fill these in and press <b>Create account</b>. Online, your company is saved on the server, you join the players’ leaderboard, and your selling moves the shared market.</p>
+      <label>Name<input id="acName" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+      <label>Password<input id="acPw" type="password" maxlength="100" autocomplete="current-password"></label>
+      <div class="start-err" id="acErr"></div>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
+        <button class="btn ghost" type="button" data-act="register" id="acNew">Create account</button>
+        <button class="btn gold" type="submit" id="acGo" style="font-size:18px;padding:12px 28px">Log in</button></div>
+      <p class="muted" style="font-size:13px">Names are 3 to 20 letters, numbers or underscores. There’s no email yet, so a forgotten password can’t be reset. No account? You can still play: your company is saved in this browser.</p></form>`;
+  },
+  pick() {   // v0.07: the account's online company and this browser's are different companies
+    const L = loadLocal(), C = NET.cloud, card = (o, v, where) => o ? `<button type="button" class="tbtn" data-act="usesave" data-v="${v}">${where}<small>${esc(o.company)} · Lv ${o.level} · ${money(o.cash, false)}</small></button>` : '';
+    return `<h2>Which company?</h2><p class="muted" style="font-size:14px">Your account has a company saved online, and this browser has a different one. Pick the one to play: the other is replaced the next time the game saves. To keep it, open it first and export its save code (Menu → Save &amp; Transfer).</p>
+      <nav class="tmenu" aria-label="Companies">${card(C, 'cloud', 'Online')}${card(L, 'local', 'This browser')}</nav>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`;
   },
   help() { return `<h2>How to play</h2>${helpHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Main menu</button></div>`; },
   settings() { return `<h2>Settings</h2>${settingsHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
@@ -578,22 +615,26 @@ const TPAGES = {
 };
 function renderTitle(page) {
   if (page) UI.tpage = page;
-  const st = $('#start'), pg = UI.tpage, ex = TITLE_SAVE;
+  const st = $('#start'), pg = UI.tpage, both = TITLE_SAVE === 'both', ex = both ? null : TITLE_SAVE;
   if (!$('#tbox')) {   // built once, so changing pages doesn't restart the drifting town
     st.innerHTML = `<div class="ttown" id="ttown"></div><div class="tshade"></div><div class="tbox" id="tbox"></div><footer class="tmarket" id="tmarket" aria-label="The live market"></footer>`;
     paintTitleTown();
   }
   const head = `<header class="thead"><div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div></header>`;
   const home = `<nav class="tmenu" aria-label="Main menu">
-    ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}</small></button>` : ''}
-    <button type="button" class="tbtn ${ex ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
+    ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}${NET.token ? ' · online' : ''}</small></button>` : ''}
+    ${both ? '<button type="button" class="tbtn main" data-act="tpage" data-v="pick">Continue<small>Choose a company</small></button>' : ''}
+    <button type="button" class="tbtn ${ex || both ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
     <button type="button" class="tbtn" data-act="tpage" data-v="help">How to Play</button>
     <button type="button" class="tbtn" data-act="tpage" data-v="settings">Settings</button>
-    <button type="button" class="tbtn" data-act="tpage" data-v="news">What's New${newsUnseen() ? '<span class="tnew chip gold">NEW</span>' : ''}</button></nav>`;
+    <button type="button" class="tbtn" data-act="tpage" data-v="news">What's New${newsUnseen() ? '<span class="tnew chip gold">NEW</span>' : ''}</button>
+    ${!NET_API ? '' : NET.token ? `<div class="tacct">Inspirapixel account: <b>${esc(NET.name)}</b> · <button type="button" class="linkbtn" data-act="tpage" data-v="account">Account</button></div>`
+      : '<button type="button" class="tbtn" data-act="tpage" data-v="account">Play Online<small>Log into your Inspirapixel account</small></button>'}</nav>`;
   const box = $('#tbox');
   box.className = 'tbox' + (pg === 'home' ? '' : ' sub');
   box.innerHTML = head + (pg === 'home' ? home : `<section class="tpanel">${TPAGES[pg]()}</section>`);
   if (pg === 'new') $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
+  if (pg === 'account' && $('#acctForm')) $('#acctForm').addEventListener('submit', e => { e.preventDefault(); doLogin(false); });
   renderTitleMarket();
 }
 // the NEW badge on What's New: shown until this device has opened the latest notes

@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.06';
+const VERSION = 'v0.08';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -589,6 +589,22 @@ const STARTUP_BOOST = 1.5;            // production speed until you reach Level 
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
 const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% over the sell price
+/* v0.07: the shared market. What every player sells and buys adds up (on the server) and moves a good's price for
+   everyone, on top of your own selling (which still hits your own price hardest). Real markets move with the square root
+   of how much is dumped: one player barely moves a price, a crowd moves it a lot, and it's capped. See crowdMult(). */
+const CROWD_HALF = 300;               // seconds: a burst of selling fades with a 5-minute half-life (the server uses the same)
+const CROWD_R0 = 300;                 // everyone together selling the output of 300 building levels non-stop: about −29%
+const CROWD_MIN = 0.7, CROWD_MAX = 1.35;   // the most a crowd can move a price: −30% selling, +35% buying
+/* v0.08: going public (see 38_pub.js; the server has the same numbers). A company at Level 3 can sell up to 49% of itself in
+   new shares: the cash goes into the company, and its owner keeps the rest. Investors value a company at what it's worth plus
+   up to an hour of profit (at most twice its worth); an IPO is priced 10% under that, and the bank keeps 5%. A public company
+   pays 30% of its profit as dividends, split by who owns it, so its outside shareholders get their part. */
+const PUB_LEVEL = 3;
+const PUB_SHARES = 100000, PUB_MAX = 0.49, PUB_PREMIUM = 60;
+const PUB_HALF = 1800, PUB_DEPTH = 0.05, PUB_MOVE = [0.6, 1.6];   // players' trading moves a share price (fades over 30 min), within ×0.6..×1.6
+const IPO_DISCOUNT = 0.9, IPO_FEE = 0.05, ISSUE_FEE = 0.05, BUYBACK_FEE = 0.005;
+const PUB_DIV = 0.3;
+const PUB_STEPS = [0.1, 0.25, 0.4, 0.49];   // how much of the company an IPO can sell
 
 /* ---------------------------------------------------------------- town layout (native px) */
 const MAP_W = 480, MAP_H = 270, LOT = 40;
@@ -679,6 +695,14 @@ const RIVAL_CO = { SteelQueen:'Titan Steel Works', TycoonTom:'Forgeline Tools', 
   ChairMan:'Sitwell Furniture', GrainGary:'Golden Grain Co.', RoboRita:'Nova Robotics', MoonMike:'PixCoin trader',
   PlankPete:'Pete’s Planks', OreOscar:'Oscar Mining', NewbieNed:'Ned’s Bread', CopperKid:'Kid Copper Co.' };
 
+/* simulated companies (v0.07, see simOf() in 35_world.js): made-up tycoons that open, grow and close like real players */
+const SIM_FIRST = ['Ada', 'Bea', 'Cal', 'Dot', 'Eli', 'Fay', 'Gus', 'Hal', 'Ivy', 'Jo', 'Kit', 'Lou', 'Max', 'Nell', 'Otto', 'Pip', 'Quin', 'Rae',
+  'Sal', 'Tess', 'Uma', 'Vic', 'Wes', 'Zoe', 'Bram', 'Cleo', 'Finn', 'Mae', 'Ned', 'Rosa'];
+const SIM_TAG = ['Builds', 'Trades', 'Makes', 'Deals', 'Biz', 'Coin', 'Gold', 'Boss', 'Works', 'Tycoon', 'Rich', 'Inc'];
+const SIM_SUR = ['Ashford', 'Bramble', 'Copperfield', 'Dunmore', 'Elmwood', 'Fairley', 'Granger', 'Hollis', 'Ironside', 'Juniper', 'Kettle', 'Larkin',
+  'Merriweather', 'Northgate', 'Oakley', 'Pennywhistle', 'Quarry', 'Redfern', 'Stonebridge', 'Thistle', 'Underhill', 'Vane', 'Whitlock', 'Yardley'];
+const SIM_KIND = { wood: ['Timber', 'Mills', 'Woodworks', 'Lumber Co.'], wheat: ['Bakery', 'Grain Co.', 'Foods', 'Farms'], ore: ['Mining', 'Ironworks', 'Metals', 'Forge'] };
+
 /* ---------------------------------------------------------------- goals */
 const GOALS = [
   { text:'Build your first producer. Click an empty lot in the middle of town.', reward:150, done:s => countBuildings(s) >= 1 },
@@ -716,6 +740,17 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.08', title: 'Going public', items: [
+    'Take your company <b>public</b> (Invest → Your company) once it reaches Level 3: sell 10% to 49% of it in new shares and the cash goes straight into the company to grow with. You keep the rest.',
+    'Investors value a company at what it’s worth plus up to an hour of its profit. Your share price then moves with your company, the market’s mood, and players buying and selling it.',
+    'Buy <b>other players’ companies</b> (Invest → Players): a public company pays 30% of its profit as dividends, and shareholders get their part, even while you’re away.',
+    'Later you can sell more shares (up to 49% outside) or buy shares back from Millbrook’s investors.',
+    'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.'] },
+  { v: 'v0.07', title: 'Online', items: [
+    'Play <b>online</b>: log into your <b>Inspirapixel account</b> (one account for every Inspirapixel game, the same as your Olympus Hunt account: just a name and a password) and your company is saved on the server, so you can pick it up on any device. Playing without an account still works, saved in your browser.',
+    'A <b>shared market</b>: when players sell a lot of the same good its price drops a little for everyone, and buying pushes it up. One player barely moves it; a crowd can move it up to 30%, and it recovers over about 15 minutes. The Market shows how much players are moving each price.',
+    'The <b>leaderboard</b> is real players only, with a green dot for who’s online now.',
+    '<b>Simulated companies</b> come and go in the news like real ones: new ones open, grow, move into new areas of town, and some go bust. They never appear on the leaderboard.'] },
   { v: 'v0.06', title: 'Menus', items: [
     'The <b>Inspirapixel</b> logo plays when the game starts.',
     'A new <b>starting menu</b>: Millbrook drifts by behind the logo, with Continue, New Company, How to Play, Settings and this page.',

@@ -176,7 +176,7 @@ function frame(now) {
   stepWalkers(dt); stepParticles(dt); stepCamera(dt);
   for (const i in popAcc) { popAcc[i].t -= dt; if (popAcc[i].t <= 0) { if (popAcc[i].v >= 1) { floatText(+i, '+' + money(popAcc[i].v, false)); sfx('cash'); } delete popAcc[i]; } }
   render(now / 1000);
-  uiAcc += dt; if (uiAcc >= .25) { uiAcc = 0; updateTop(); renderSide(); renderModal(); updateCoach(); renderGoalPill(); }
+  uiAcc += dt; if (uiAcc >= .25) { uiAcc = 0; updateTop(); renderSide(); renderModal(); updateCoach(); renderGoalPill(); netTick(); }
   saveAcc += dt; if (saveAcc >= 15) { saveAcc = 0; saveLocal(); }
   requestAnimationFrame(frame);
 }
@@ -240,14 +240,26 @@ const ACT_SND = { build: 'build', upgrade: 'upgrade', hqup: 'upgrade', whup: 'up
 function act(el) {
   const a = el.dataset.act, p = el.dataset.p, snd = ACT_SND[a]; let err = '';
   if (!snd) sfx('tap');
-  if (a !== 'demolish' && a !== 'reset' && a !== 'psell') UI.confirm = '';
+  if (a !== 'demolish' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat') UI.confirm = '';
   switch (a) {
     case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
     case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
     case 'tpage': UI.confirm = ''; renderTitle(el.dataset.v); { const f = $('#tbox .tpanel input, #tbox .tbtn'); if (f && !matchMedia('(pointer: coarse)').matches) f.focus({ preventScroll: true }); } return;
     case 'helppg': UI.helpPg += +el.dataset.v; if (!running) { renderTitle(); return; } break;
     case 'mtab': UI.mtab = el.dataset.v; break;
-    case 'mainmenu': saveLocal(); closeModal(); selectLot(-1); running = false; showTitle(); return;
+    case 'mainmenu': saveLocal(); netSaveNow(); closeModal(); selectLot(-1); running = false; showTitle(); return;
+    case 'acctpage': saveLocal(); netSaveNow(); closeModal(); selectLot(-1); running = false; showTitle('account'); return;   // v0.07: log in from the game's Menu
+    case 'register': doLogin(true); return;
+    case 'logout': netSaveNow(); netLogout().then(() => { if (running) { UI.modalSig = ''; renderModal(); toast('Logged out. Your company stays saved in this browser.', 'good'); } else showTitle('home'); }); return;
+    case 'netsave': netSaveNow(); toast('Saved online', 'good'); return;
+    case 'lbtab': UI.lbTab = el.dataset.v; break;
+    case 'pubsel': UI.pubSel = el.dataset.t; if (isPhone()) $('#modal .sheet').scrollTop = 0; break;   // v0.08: going public, players' shares
+    case 'ipof': UI.ipoF = +el.dataset.v; UI.confirm = ''; break;
+    case 'ipo': if (UI.confirm !== 'ipo') { UI.confirm = 'ipo'; break; } UI.confirm = ''; pubAct(pubGoPublic(UI.ipoF), 'ipo'); return;
+    case 'pubfloat': { const k = 'float' + el.dataset.v; if (UI.confirm !== k) { UI.confirm = k; break; } UI.confirm = ''; pubAct(pubFloat(+el.dataset.v), 'float'); return; }
+    case 'pubbuy': pubAct(pubTrade(UI.pubSel, 'buy', +el.dataset.v), 'buy'); return;
+    case 'pubsell': pubAct(pubTrade(UI.pubSel, 'sell', +el.dataset.v), 'sell'); return;
+    case 'usesave': { const o = el.dataset.v === 'cloud' ? NET.cloud : loadLocal(); if (o) { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // saved (here and online) once time away is paid
     case 'tutdone': S.tut = TUT_DONE; updateCoach(); saveLocal(); return;
     case 'tutreplay': S.tut = 0; UI.tutT = S.t; closeModal(); selectLot(-1); updateCoach(); return;
     case 'resetno': break;
@@ -297,9 +309,9 @@ function act(el) {
       catch (e) { toast('That save code didn’t work', 'bad'); }
       return;
     }
-    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
+    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} netClearSave(); running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
     case 'pick': UI.startPick = p; for (const b of document.querySelectorAll('.pick')) b.setAttribute('aria-pressed', b.dataset.p === p); return;
-    case 'continue': { const o = loadLocal(); if (o) { adopt(o); begin(true); } return; }
+    case 'continue': { const o = TITLE_SAVE; if (o && o !== 'both') { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // no save before begin(): saving stamps the time, and time away is worked out from it
   }
   if (err) { toast(err, 'bad'); sfx('error'); }
   else if (snd) sfx(UI.confirm ? 'tap' : snd);   // first tap of a two-tap action only clicks
@@ -340,15 +352,17 @@ let wasMode = isFlat() ? 'flat' : isPhone() ? 'phone' : 'desk';
 addEventListener('resize', () => { if (!running) return; const md = isFlat() ? 'flat' : isPhone() ? 'phone' : 'desk'; if (md !== wasMode) { wasMode = md; setSheet(false); CAM.set = false; UI.sideSig = ''; renderSide(true); renderNav(); } resize(); });
 document.addEventListener('visibilitychange', () => {
   if (!running) return;
-  if (document.hidden) { hiddenAt = nowMs(); saveLocal(); }
+  if (document.hidden) { hiddenAt = nowMs(); saveLocal(); netSaveNow(true); }
   else if (hiddenAt) { const r = offlineCatchUp((nowMs() - hiddenAt) / 1000); hiddenAt = 0; lastFrame = 0; if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000); }
 });
-addEventListener('pagehide', () => { if (running) saveLocal(); });
+addEventListener('pagehide', () => { if (running) { saveLocal(); netSaveNow(true); } });
 
 /* ---------- start: the starting menu, then the game ---------- */
 let titleTimer = 0;
+// what Continue opens: this browser's company, or (logged in) the server's copy, or a choice between them (v0.07)
+function refreshTitleSave() { const o = loadLocal(); TITLE_SAVE = pickSave(o && o.company ? o : null, NET.token && NET.cloud && NET.cloud.company ? NET.cloud : null); }
 function showTitle(page) {
-  const o = loadLocal(); TITLE_SAVE = o && o.company ? o : null;
+  refreshTitleSave();
   $('#app').hidden = true; $('#start').hidden = false;
   if (!WS.ready || Math.abs(worldNow() - WT) > 3) { WT = worldNow(); worldReset(); }
   renderTitle(page || 'home');
@@ -359,9 +373,22 @@ function showTitle(page) {
 function startNew() {
   const name = ($('#coInput').value || '').trim().replace(/\s+/g, ' ');
   if (name.length < 2) { $('#startErr').textContent = 'Give your company a name (2–24 letters).'; $('#coInput').focus(); return; }
-  if (TITLE_SAVE && UI.confirm !== 'tnew') { UI.confirm = 'tnew'; sfx('tap'); $('#tgo').textContent = `Tap again to replace ${TITLE_SAVE.company}`; $('#tgo').classList.replace('gold', 'danger'); return; }
+  const ex = TITLE_SAVE === 'both' ? NET.cloud : TITLE_SAVE;
+  if (ex && UI.confirm !== 'tnew') { UI.confirm = 'tnew'; sfx('tap'); $('#tgo').textContent = `Tap again to replace ${ex.company}`; $('#tgo').classList.replace('gold', 'danger'); return; }
   UI.confirm = '';
-  newGame(name, UI.startPick); S.settings = AUD.set; saveLocal(); sfx('goal'); begin(false);
+  newGame(name, UI.startPick); S.settings = AUD.set; saveLocal(); netSaveNow(); sfx('goal'); begin(false);
+}
+// v0.07: log in or create an account from the starting menu's Play Online page
+async function doLogin(create) {
+  const name = ($('#acName') ? $('#acName').value : '').trim(), pw = $('#acPw') ? $('#acPw').value : '', err = $('#acErr'), btns = [$('#acGo'), $('#acNew')];
+  if (!err) return;
+  if (!name || !pw) { err.textContent = 'Enter a name and a password.'; sfx('error'); return; }
+  err.textContent = create ? 'Creating your account…' : 'Logging in…'; btns.forEach(b => { if (b) b.disabled = true; });
+  try {
+    await netLogin(name, pw, create);
+    try { await netFetchSave(); } catch (e) {}
+    sfx('goal'); refreshTitleSave(); renderTitle(TITLE_SAVE === 'both' ? 'pick' : 'home');
+  } catch (e) { err.textContent = e.message; btns.forEach(b => { if (b) b.disabled = false; }); sfx('error'); }
 }
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
@@ -379,9 +406,12 @@ function begin(loaded) {
       if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000);
     });
   }
+  NET.lastSync = 0; NET.lastSave = 0;   // tell the server (or ask it) straight away
   if (!running) { running = true; lastFrame = 0; requestAnimationFrame(frame); }
 }
 function boot() {
+  netLoad();   // v0.07: logged in on this device? Then ask the server for the company saved there.
+  if (NET.token) netFetchSave().then(() => { refreshTitleSave(); if (!running && UI.tpage === 'home' && !$('#start').hidden) renderTitle('home'); }, () => {});
   const existing = loadLocal();
   applyAudioSettings(loadSound() || (existing && existing.settings));   // this device's sound settings (an older save's, the first time)
   showTitle();
@@ -390,6 +420,7 @@ function boot() {
   addEventListener('resize', () => { if (!running && !$('#start').hidden) paintTitleTown(); });
 }
 // test hook for automated playtests
-window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT };
+window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT,
+  NET, netTake, crowdMult, crowdOthersMult, simBoard, simsAlive, sellGoods, companyValue, pubPrice, pubListing, ownFrac };
 boot();
 
