@@ -13628,16 +13628,18 @@ let acctMode = null, acctMsg = '', acctBusy = false;
 function accountHTML() {
   if (!Store.api) return '';
   const msg = acctMsg ? `<p class="acct-msg">${esc(acctMsg)}</p>` : '';
-  if (Store.user) return `<div class="acct-row"><span>Signed in as <b>${esc(Store.user)}</b></span><button class="btn ghost small" type="button" data-acct="out">Sign out</button></div>${msg}`;
-  if (!acctMode) return `<div class="acct-row"><span>Sign in to keep your saves on any device.</span><button class="btn small" type="button" data-acct="in">Sign in</button><button class="btn ghost small" type="button" data-acct="new">Create account</button></div>${msg}`;
+  // One Inspirapixel account for every Inspirapixel game: Brick & Coin logs in with these same accounts.
+  if (Store.user) return `<div class="acct-row"><span>Logged into your Inspirapixel account as <b>${esc(Store.user)}</b></span><button class="btn ghost small" type="button" data-acct="out">Log out</button></div>${msg}`;
+  if (!acctMode) return `<div class="acct-row"><span>Your Inspirapixel account keeps your saves on any device, in every Inspirapixel game.</span><button class="btn small" type="button" data-acct="in">Log in</button><button class="btn ghost small" type="button" data-acct="new">Create account</button></div>${msg}`;
   const create = acctMode === 'new';
-  return `<form class="acct-form" data-acctform="${acctMode}" novalidate>
+  return `<p class="acct-note"><b>${create ? 'Create your Inspirapixel account' : 'Log into your Inspirapixel account'}</b></p>
+    <form class="acct-form" data-acctform="${acctMode}" novalidate>
       <label>Name<input name="name" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20"></label>
       <label>Password<input name="password" type="password" autocomplete="${create ? 'new-password' : 'current-password'}" maxlength="100"></label>
-      <button class="btn small" type="submit" ${acctBusy ? 'disabled' : ''}>${acctBusy ? 'One moment…' : create ? 'Create account' : 'Sign in'}</button>
+      <button class="btn small" type="submit" ${acctBusy ? 'disabled' : ''}>${acctBusy ? 'One moment…' : create ? 'Create account' : 'Log in'}</button>
       <button class="btn ghost small" type="button" data-acct="cancel">Cancel</button>
     </form>
-    ${create ? '<p class="acct-note">Names are 3 to 20 letters, numbers or underscores. There\u2019s no email, so a forgotten password can\u2019t be reset.</p>' : ''}${msg}`;
+    ${create ? '<p class="acct-note">One account for every Inspirapixel game, Brick &amp; Coin too. Names are 3 to 20 letters, numbers or underscores. There\u2019s no email yet, so a forgotten password can\u2019t be reset.</p>' : ''}${msg}`;
 }
 function renderAccount() {
   const box = $('acctBox'); box.hidden = !Store.api; box.innerHTML = accountHTML();
@@ -13669,7 +13671,7 @@ document.addEventListener('submit', async ev => {
     if (G.save) persist(true);
     const r = await Store.signIn(name, password, create);
     acctMode = null;
-    acctMsg = (create ? 'Account made. ' : 'Signed in. ') + (r.moved.length ? `Save ${r.moved.join(' and ')} from this browser moved into your account. ` : '') +
+    acctMsg = (create ? 'Inspirapixel account made. ' : 'Logged in. ') + (r.moved.length ? `Save ${r.moved.join(' and ')} from this browser moved into your account. ` : '') +
       (r.kept.length ? `Your account already had something in save ${r.kept.join(' and ')}, so this browser\u2019s copy stays here for when you\u2019re signed out.` : '');
     acctBusy = false; afterAccountChange();
   } catch (e) {
