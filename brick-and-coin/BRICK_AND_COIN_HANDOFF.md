@@ -31,7 +31,7 @@ Since v0.05 the **market is one shared world**:
 | `src/30_sim.js` | The company: production, upkeep, goods prices (the world's swings plus your own selling pressure), real estate, net worth, levels, goals, offline earnings, save and load (`adopt()` brings old saves up to date). |
 | `src/35_world.js` | **The shared world**: the market, PixCoin, homes, rivals, news and goods price swings as a pure function of world time; the world clock and its sync. Market balance lives at the top (`TAU`, `JUMP`, volatilities). |
 | `src/40_audio.js` | Sound effects (`SFX`) and the four chiptunes (`SONGS`), one per area of town. |
-| `src/50_ui.js` | Top bar, side panel, the game's windows (Production web, Market, Invest, Leaderboard, Menu), profit estimates, stock chart, news ticker. The starting menu (`renderTitle`, `TPAGES`, the town backdrop `townPostcard`, the live market strip, What's New) and what both menus share: How to Play (`HELP`), settings, credits (in the game's About). |
+| `src/50_ui.js` | Top bar, side panel, the game's windows (Production web, Market, Invest, Leaderboard, Menu), profit estimates, stock chart, news ticker. The starting menu (`renderTitle`, `TPAGES`, the town backdrop `townPostcard`, the live market strip, What's New) and what both menus share: How to Play (`HELP`) and settings. |
 | `src/60_tutorial.js` | The five guided steps for a new company (`TUT`). |
 | `src/85_splash.js` | The Inspirapixel logo before the starting menu, ported from Olympus Hunt (`game-src/94_splash.js`); only its sound calls differ. Add `?nosplash` to the address to skip it (tests, screenshots). |
 | `src/90_main.js` | Game loop (keeps the world on the world clock), the idle rule, camera, drawing the town, input, button actions (`act()`), the starting menu's flow (`showTitle`, `startNew`), start and boot. |
@@ -210,11 +210,13 @@ If Brick & Coin moves to its own GitHub repository later, copy the `brick-and-co
   - How to Play (six short illustrated pages, also on the starting menu);
   - Settings (music, sound effects, full screen);
   - Save & Transfer (with Start over);
-  - About (company stats, time played, credits);
+  - About (company stats and time played);
   - Main Menu.
   - Esc closes whatever's open, then opens the Menu.
 - **Sound settings** are kept on the device instead of in the save.
 - **The link preview** (`og.png`) shows the new starting menu.
+- **No credits** anywhere in the game.
+- **Fixed:** buttons you can't afford no longer flash their colour before turning grey when a panel or window opens. Their state is applied before the browser first draws them.
 
 **v0.05: One shared world**
 - **Same world for everyone:** the stock market, PixCoin, the index fund, home prices, rivals, all news, booms, slumps, weather and goods price swings are the same for every player at the same moment, with no server. The world runs on the server's clock.

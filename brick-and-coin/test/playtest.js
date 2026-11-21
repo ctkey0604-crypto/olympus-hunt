@@ -319,6 +319,23 @@ let URL;
   await page.click('[data-act=continue]');
   await page.waitForSelector('#app:not([hidden])');
 
+  // buttons you can't afford are grey from the first frame a panel or window is drawn, without flashing their colour first
+  const flash = await page.evaluate(() => new Promise(done => {
+    const cash = S.cash; S.cash = 50; closeModal();
+    const lot = S.lots.findIndex((l, i) => !l && lotUnlocked(i)), grey = getComputedStyle(document.documentElement).getPropertyValue('--glaze-3').trim();
+    const hex = c => '#' + c.match(/\d+/g).slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('');
+    selectLot(lot);
+    requestAnimationFrame(() => {
+      const side = hex(getComputedStyle(document.querySelector('#side [data-act=build]')).backgroundColor);
+      UI.investTab = 'stocks'; openModal('stocks');
+      requestAnimationFrame(() => {
+        const win = hex(getComputedStyle(document.querySelector('#mBody [data-act=stbuy][data-v="10000"]')).backgroundColor);
+        closeModal(); selectLot(-1); S.cash = cash; done({ side, win, grey });
+      });
+    });
+  }));
+  check(flash.side === flash.grey && flash.win === flash.grey, `buttons you can't afford are grey from the first frame, no flash (panel ${flash.side}, window ${flash.win})`);
+
   // every sprite, icon and background draws
   const art = await page.evaluate(() => {
     const bad = [];

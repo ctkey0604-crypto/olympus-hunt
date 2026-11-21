@@ -722,7 +722,8 @@ const WHATS_NEW = [
     'A <b>live market</b> strip on the starting menu shows the stock prices and latest news every player sees right now.',
     'A new in-game <b>Menu</b> (press Esc): How to Play, Settings, Save &amp; Transfer, About and Main Menu, each on its own page.',
     '<b>How to Play</b> is now six short illustrated pages.',
-    'Sound settings stay with your device.'] },
+    'Sound settings stay with your device.',
+    'Buttons you can’t afford no longer flash before they turn grey.'] },
   { v: 'v0.05', title: 'One shared world', items: [
     'The <b>stock market</b>, PixCoin, home prices, rival tycoons, the news, booms and slumps are now <b>the same for every player</b>, live.',
     'Time away is fairer: closed, or left untouched for 10 minutes, your company runs at <b>25% speed for up to 2 hours</b>.',

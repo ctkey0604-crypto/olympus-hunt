@@ -264,7 +264,7 @@ function propView(k) {
 }
 function renderSide(force) {
   const v = sideView();
-  if (force || v.sig !== UI.sideSig) { const el = $('#side'), top = el.scrollTop; el.innerHTML = '<div class="sheet-bar"><span class="grab"></span><button class="btn ghost small" type="button" data-act="sheetclose">Close</button></div>' + v.html; el.scrollTop = v.sig.split('|')[1] === (UI.sideSig.split('|')[1]) ? top : 0; UI.sideSig = v.sig; }
+  if (force || v.sig !== UI.sideSig) { const el = $('#side'), top = el.scrollTop; el.innerHTML = '<div class="sheet-bar"><span class="grab"></span><button class="btn ghost small" type="button" data-act="sheetclose">Close</button></div>' + v.html; updateLive(el); el.scrollTop = v.sig.split('|')[1] === (UI.sideSig.split('|')[1]) ? top : 0; UI.sideSig = v.sig; }
   updateLive($('#side'));
 }
 
@@ -276,7 +276,7 @@ function renderModal(force) {
   const v = MODAL[UI.modal]();
   if (force || v.sig !== UI.modalSig) {
     const sh = $('#modal .sheet'), top = sh.scrollTop, box = $('#loadBox'), typed = box ? box.value : '';   // v0.04: a pasted save code survives the redraw
-    $('#mTitle').textContent = v.title; $('#mBody').innerHTML = v.html; sh.scrollTop = top; UI.modalSig = v.sig;
+    $('#mTitle').textContent = v.title; $('#mBody').innerHTML = v.html; updateLive($('#mBody')); sh.scrollTop = top; UI.modalSig = v.sig;   // grey before first drawn: no flash
     if (typed && $('#loadBox')) $('#loadBox').value = typed;
     if (v.after) v.after();
   }
@@ -443,8 +443,7 @@ const MODAL = {
       const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
       pane = `<h3>${esc(S.company)}</h3><div class="mstats">
           ${stat('Level', `${S.level} · ${LEVELS[S.level].name}`)}${stat('Net worth', money(netWorth(), false))}${stat('Rank', '#' + playerRank())}
-          ${stat('Buildings', countBuildings())}${stat('Goals done', `${S.goal} of ${GOALS.length}`)}${stat('Time played', playTime(S.t))}</div>
-        <div class="tcred" style="max-width:none">${creditsHTML()}</div>`;
+          ${stat('Buildings', countBuildings())}${stat('Goals done', `${S.goal} of ${GOALS.length}`)}${stat('Time played', playTime(S.t))}</div>`;
     }
     return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}`,
       title: 'Menu', html: `<div class="mwrap">${nav}<section class="mpane">${pane}</section></div>` };
@@ -501,7 +500,7 @@ function renderSoundBtn() {
   $('#soundIcon').innerHTML = iconImg(on ? 'sound' : 'mute', 27);
 }
 
-/* ---------- shared by both menus: How to Play, settings, credits (in the game's About) ---------- */
+/* ---------- shared by both menus: How to Play and settings ---------- */
 const HELP = [
   { art: () => bigArt(buildingPreview('wood', 2)), t: 'Build', p: [
     'Tap an <b>empty lot</b> in town and pick a building.',
@@ -544,12 +543,6 @@ function settingsHTML() {
     <div class="setrow"><span>Sound effects</span>${onOff('sfxOn')}<input type="range" min="0" max="10" step="1" value="${Math.round(A.sfx * 10)}" data-set="sfx" aria-label="Sound effects volume"></div>
     <div class="setrow"><span>Full screen</span><button class="btn ghost small" type="button" data-act="full">${document.fullscreenElement || document.webkitFullscreenElement ? 'Leave full screen' : 'Go full screen'}</button></div>
     <p class="muted" style="font-size:12px">Each part of town has its own tune. Sound settings are kept on this device.</p></div>`;
-}
-function creditsHTML() {
-  return `<p><b>Brick &amp; Coin</b> ${VERSION}, an <b>Inspirapixel</b> game.</p>
-    <p>Every building, icon and tune is made in code and drawn live in your browser.</p>
-    <p>The stock market, the news and the rival tycoons are shared by every player in Millbrook.</p>
-    <p>Fonts: <b>Jersey 10</b> and <b>Pixelify Sans</b>, from Google Fonts (SIL Open Font License).</p>`;
 }
 function playTime(sec) { const m = Math.floor(sec / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
 
