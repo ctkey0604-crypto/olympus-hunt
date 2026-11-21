@@ -1,10 +1,15 @@
 {
-  // Brick & Coin at brickncoin.com: a static site (the whole game is public/index.html). There's no server code,
-  // so visits don't use any of the Workers free plan's daily requests (static files are free and unlimited).
-  // v0.06 (accounts, shared market pressure) will add "main" and the database here; that's a separate step.
+  // Brick & Coin at brickncoin.com. The game itself is the static page public/index.html: Cloudflare serves it (and the
+  // icons) without running any code, so visits use none of the Workers free plan's daily requests. Only the game's own
+  // calls to /api/* run server/index.js (v0.07: accounts, saves, the shared market, the players' leaderboard).
+  // The custom domains brickncoin.com and www.brickncoin.com are set in the Cloudflare dashboard.
   "name": "brickncoin",
+  "main": "server/index.js",
   "compatibility_date": "2025-10-01",
-  "assets": { "directory": "./public" }
-  // Once brickncoin.com is in this Cloudflare account, the domain can be set here instead of in the dashboard:
-  // ,"routes": [{ "pattern": "brickncoin.com", "custom_domain": true }, { "pattern": "www.brickncoin.com", "custom_domain": true }]
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  // Logging in asks Olympus Hunt's own server (its Worker, through this binding), so players use their Olympus Hunt account
+  // and Olympus Hunt's code and database stay untouched.
+  "services": [ { "binding": "OH", "service": "olympus-hunt" } ],
+  // Brick & Coin's own database: players, sessions, saves and the market totals (the server makes its tables itself).
+  "d1_databases": [ { "binding": "DB", "database_name": "brickncoin", "database_id": "bd546660-58af-44cb-a9d1-6e32e6fa2c28" } ]
 }
