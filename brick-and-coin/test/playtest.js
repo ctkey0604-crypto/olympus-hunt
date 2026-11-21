@@ -432,7 +432,7 @@ let URL;
   await page.waitForSelector('#app:not([hidden])');
   const is = await page.evaluate(() => ({ company: S.company, level: S.level, lots: S.lots.length, bld: countBuildings(), goal: S.goal, v: S.v, goalText: GOALS[S.goal].text }));
   check(is.company === was.company && is.level === was.level && is.bld === was.bld, `Continue brings back the v0.03 company whole (${is.company}, Level ${is.level}, ${is.bld} buildings)`);
-  check(was.lots === 36 && is.lots === 48 && is.v === 3, 'it gets the 12 Gold Hill lots');
+  check(was.lots === 36 && is.lots === 48 && is.v === 4, 'it gets the 12 Gold Hill lots');
   check(was.goal === 14 && /1,000,000/.test(is.goalText), 'a save that was past "top 5" moves on to the Gold Hill goals first');
   const oldBad = await page.evaluate(inv => { const I = eval('(' + inv + ')'); for (let k = 0; k < 1500; k++) step(.2); return I(); }, INVARIANTS.toString());
   check(!oldBad.length, 'and plays on for 5 game minutes' + (oldBad.length ? ': ' + oldBad.join(', ') : ''));
@@ -442,7 +442,7 @@ let URL;
   await page.click('[data-act=mtab][data-v=save]');
   await page.fill('#loadBox', allDone);
   await page.click('[data-act=loadsave]');
-  check(await page.evaluate(() => S.goal === 13 && S.v === 3), 'a v0.03 save with every goal done picks up the two new Gold Hill goals');
+  check(await page.evaluate(() => S.goal === 13 && S.v === 4), 'a v0.03 save with every goal done picks up the two new Gold Hill goals');
   await ctx.close();
 
   console.log('A v0.04 save');
@@ -453,8 +453,26 @@ let URL;
   await page.click('[data-act=continue]');
   await page.waitForSelector('#app:not([hidden])');
   const is4 = await page.evaluate(() => ({ company: S.company, bld: countBuildings(), v: S.v, size: encodeSave().length, keys: Object.keys(JSON.parse(serialize())) }));
-  check(is4.company === was4.company && is4.bld === was4.bld && is4.v === 3, `Continue brings back the v0.04 company whole (${is4.company}, ${is4.bld} buildings)`);
+  check(is4.company === was4.company && is4.bld === was4.bld && is4.v === 4, `Continue brings back the v0.04 company whole (${is4.company}, ${is4.bld} buildings)`);
   check(!is4.keys.some(k => ['assets', 'house', 'rivals', 'events'].includes(k)), `saves keep only the company now (save code ${Math.round(was4.size / 1000)}k -> ${Math.round(is4.size / 1000)}k characters)`);
+  await ctx.close();
+
+  console.log('A v0.06 save');   // made with the live v0.06 build (save format 3), before public companies (format 4)
+  ({ ctx, page } = await open(browser, 'oldsave6', { viewport: { width: 1280, height: 720 } }));
+  const OLD6 = fs.readFileSync(path.join(__dirname, 'fixtures', 'v0.06-save.txt'), 'utf8').trim();
+  const was6 = await page.evaluate(code => { const o = decodeSave(code); localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return { company: o.company, v: o.v, level: o.level, bld: o.lots.filter(l => l && l.b !== 'hq').length, nova: o.hold.NOVA.q }; }, OLD6);
+  await page.reload({ waitUntil: 'load' });
+  await page.click('[data-act=continue]');
+  await page.waitForSelector('#app:not([hidden])');
+  const is6 = await page.evaluate(() => ({ company: S.company, v: S.v, level: S.level, bld: countBuildings(), nova: S.hold.NOVA.q, pub: S.pub, ph: JSON.stringify(S.pubHold), nw: netWorth(), cv: companyValue() }));
+  check(was6.v === 3 && is6.company === was6.company && is6.level === was6.level && is6.bld === was6.bld && is6.nova === was6.nova, `Continue brings back the v0.06 company whole (${is6.company}, Level ${is6.level}, ${is6.bld} buildings, its NOVA shares)`);
+  check(is6.v === 4 && is6.pub === null && is6.ph === '{}' && Math.abs(is6.nw - is6.cv) < .01, 'it becomes a private company that owns all of itself (net worth = company value)');
+  const bad6 = await page.evaluate(inv => { const I = eval('(' + inv + ')'); for (let k = 0; k < 1500; k++) step(.2); return I(); }, INVARIANTS.toString());
+  check(!bad6.length, 'and plays on for 5 game minutes' + (bad6.length ? ': ' + bad6.join(', ') : ''));
+  await page.click('[data-act=stocks]'); await page.click('[data-act=itab][data-v=mine]');
+  check(/Log in|brickncoin\.com/.test(await page.textContent('.sheet')), 'Invest → Your company: offline, it says going public needs the server');
+  await page.click('[data-act=itab][data-v=players]');
+  check(/No player companies yet/.test(await page.textContent('.sheet')), 'Invest → Players: offline, no listings');
   await ctx.close();
 
   /* ---------------- 6. one shared world ---------------- */
