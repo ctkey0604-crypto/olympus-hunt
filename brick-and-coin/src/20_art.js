@@ -598,8 +598,6 @@ function drawBackground(level) {
   for (let x = X0; x < X1; x++) { P.p(x, ROAD_H.y, '#93703f'); P.p(x, ROAD_H.y + ROAD_H.h - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y + ROAD_H.h, '#93703f'); }
   for (const v of ROAD_V) for (let y = Y0; y < Y1; y++) { if (y >= ROAD_H.y && y < ROAD_H.y + ROAD_H.h) continue; P.p(v.x, y, '#93703f'); P.p(v.x + v.w - 1, y, '#93703f'); }
   for (let i = 0; i < LOTS; i++) { const { x, y, block } = lotXY(i); for (let yy = y; yy < y + LOT; yy++) for (let xx = x; xx < x + LOT; xx++) if (R() < .06) P.p(xx, yy, block === 3 ? '#6f7d34' : '#4f6a2c'); }
-  // stone gateposts where the roads climb onto Gold Hill
-  for (const v of ROAD_V) for (const px of [v.x - 5, v.x + v.w + 1]) { P.r(px, HILL.y - 9, 4, 13, K); P.r(px + 1, HILL.y - 8, 2, 11, '#d8ccb4'); P.r(px, HILL.y - 11, 4, 3, K); P.r(px + 1, HILL.y - 10, 2, 1, '#ebc152'); }
   // trees: everywhere outside the town blocks, never on roads, the pond or the fields
   const keepOut = [[8, -2, 464, 272], [-160, 10, 100, 64], [530, -110, 140, 96], [-190, 90, 164, 112], [486, 90, 166, 112], [HILL.x - 4, HILL.y - 14, HILL.w + 8, HILL.h + 26]];
   const blocked = (x, y) => keepOut.some(([a, b, w, h]) => x > a - 8 && x < a + w + 8 && y > b - 8 && y < b + h + 10)
