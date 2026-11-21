@@ -10,15 +10,21 @@
       so you can compare pacing before and after a balance change. The bot is a rough player, not a
       perfect one: use it to compare versions, not as the real time-to-level.
    3. Save, close for an hour, reopen: Continue works and offline earnings are paid.
-   4. Phone on its side (844x390, touch), phone upright (rotate screen), short laptop window.
-   Screenshots go to brick-and-coin/test/out/ (or --shots DIR). Exits 1 if anything failed. */
+   4. Gold Hill: a $1M company reaches Level 4, unlocks and builds a Grand Piano, buys a villa, hears the hill's tune.
+   5. A real v0.03 save (test/fixtures/v0.03-save.txt) loads through Continue and keeps playing.
+   6. Phone on its side (844x390, touch), phone upright (rotate screen), short laptop window.
+   Screenshots go to brick-and-coin/test/out/ (or --shots DIR). Exits 1 if anything failed.
+
+   Comparing balance between versions: --bot-only runs just the bot (step 2) on a fresh company, and --page FILE
+   points it at another build. Build an older version from git into a folder and run both:
+     node brick-and-coin/test/playtest.js --bot-only --minutes 600 --page /tmp/old/brick-and-coin.html */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const MINUTES = +arg('--minutes', 60);
 const SHOTS = path.resolve(arg('--shots', path.join(__dirname, 'out')));
-const PAGE = path.join(__dirname, '..', 'dist', 'brick-and-coin.html');
+const PAGE = path.resolve(arg('--page', path.join(__dirname, '..', 'dist', 'brick-and-coin.html')));   // --page: test another build, e.g. an older version
 if (!fs.existsSync(PAGE)) { console.error('No build found. Run: python3 brick-and-coin/build.py'); process.exit(1); }
 fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -71,45 +77,99 @@ const INVARIANTS = () => {
   return bad;
 };
 
-// in-page: a rough player. It follows the goals like a new player would, and otherwise builds or upgrades
-// whatever earns the most per dollar. One decision every 2 game seconds.
+// in-page: a rough player. It follows the goals like a new player would, otherwise builds or upgrades whatever earns the
+// most per dollar, and once the HQ is full swaps its weakest building for a far better one. One decision every 2 game seconds.
 const BOT = () => {
-  const free = () => { for (let i = 0; i < 36; i++) if (!S.lots[i] && lotUnlocked(i)) return i; return -1; };
+  const cash = S.cash - Math.max(1000, netWorth() * .03);   // keeps a little cash back so "buy missing inputs" never starves
+  const free = () => { for (let i = 0; i < S.lots.length; i++) if (!S.lots[i] && lotUnlocked(i)) return i; return -1; };
   const act = activeProducts(), roomFor = p => act.has(p) || act.size < MAX_ACTIVE_PRODUCTS;
   const canGet = p => S.unlocked[p] || /^$|^Not enough cash$/.test(canUnlock(p));
   // profit per minute of one Lv1 building, paying the market's buy price for inputs we don't make ourselves
   const gain = p => { const P = PRODUCTS[p]; let v = P.out * price(p); for (const q in P.rec) v -= P.rec[q] * (act.has(q) ? price(q) : buyPrice(q)); return v * 60 / P.sec * lotMult() - UPKEEP[tierOf(p)]; };
-  const ratio = p => gain(p) / buildCost(p), best = list => list.sort((a, b) => ratio(b) - ratio(a))[0];
+  const ratio = p => gain(p) / buildCost(p), best = (list, f = ratio) => list.sort((a, b) => f(b) - f(a))[0];
+  const cost = p => buildCost(p) + (S.unlocked[p] ? 0 : researchCost(p));
   const get = p => {   // unlock it (saving up if needed), then build it
-    if (!S.unlocked[p]) return S.cash >= researchCost(p) + buildCost(p) ? unlock(p) || 'unlock ' + p : '';
-    return free() >= 0 && S.cash >= buildCost(p) ? build(free(), p) || 'build ' + p : '';
+    if (!S.unlocked[p]) return cash >= researchCost(p) + buildCost(p) ? unlock(p) || 'unlock ' + p : '';
+    return free() >= 0 && cash >= buildCost(p) ? build(free(), p) || 'build ' + p : '';
   };
-  for (const l of S.lots) if (l && l.b !== 'hq' && l.stall && l.stall !== 'storage full') l.autoBuy = true;   // never sit idle waiting for inputs
-  // goals that ask for something new: a stock, a home, a new product, a factory, a Level 2 or 3 product
-  const G = S.goal, ring = { 3: 0, 4: 1, 8: 2, 12: 3 }[G];
-  if (G === 7 && S.cash >= 1000) return buyAsset('MB10', 500) || 'stock';
-  if (G === 9) { const k = S.props.findIndex((_, k) => canBuyProp(k) === ''); if (k >= 0 && S.cash >= propBuyPrice(k) + 1000) return buyProp(k) || 'home'; }
-  if (capUsed() >= capMax()) return S.hqLv < HQ_COST.length && S.cash >= hqUpgradeCost() ? upgradeHQ() || 'hq' : '';   // more slots before anything else
+  // buy missing inputs only while that still pays (buying pushes the input's price up, so a big line can price itself out)
+  const buyPays = p => { const P = PRODUCTS[p]; let v = P.out * price(p); for (const q in P.rec) v -= P.rec[q] * buyPrice(q); return v > 0; };
+  for (const l of S.lots) if (l && l.b !== 'hq' && !PRODUCTS[l.b].raw) l.autoBuy = buyPays(l.b);
+  // goals that ask for something new: a stock, a home, a new product, a factory, a Level 2, 3 or 4 product
+  const G = S.goal, ring = { 3: 0, 4: 1, 8: 2, 12: 3, 14: 4 }[G];
+  if (G === 7 && cash >= 1000) return buyAsset('MB10', 500) || 'stock';
+  if (G === 9) { const k = S.props.findIndex((_, k) => canBuyProp(k) === ''); if (k >= 0 && cash >= propBuyPrice(k) + 1000) return buyProp(k) || 'home'; }
+  if (capUsed() >= capMax()) {   // out of slots: a bigger HQ, or swap the weakest building for a far better product if it pays back within 30 min
+    if (S.hqLv < HQ_COST.length && cash >= hqUpgradeCost()) return upgradeHQ() || 'hq';
+    const feeds = p => consumersOf(p).some(c => act.has(c));   // never pull down a building that supplies another
+    let wi = -1; S.lots.forEach((l, i) => { if (l && l.b !== 'hq' && !feeds(l.b) && (wi < 0 || gain(l.b) < gain(S.lots[wi].b))) wi = i; });
+    if (wi < 0) return '';
+    const w = S.lots[wi], last = S.lots.filter(l => l && l.b === w.b).length === 1;
+    const ownInputs = p => Object.keys(PRODUCTS[p].rec).every(q => act.has(q) && q !== w.b);   // swap in only what it can supply itself
+    const top = best(PIDS.filter(p => p !== w.b && canGet(p) && ownInputs(p) && (roomFor(p) || last)), gain), lift = top ? gain(top) - gain(w.b) * w.lv : 0;
+    if (top && gain(top) > 3 * gain(w.b) && lift > 0 && cash >= cost(top) && cost(top) / lift < 30) {
+      if (!S.unlocked[top]) return unlock(top) || 'unlock ' + top;
+      demolish(wi); return build(wi, top) || `swap ${w.b} for ${top}`;
+    }
+    return '';
+  }
   if (ring === 0) { const p = best(PIDS.filter(p => !S.unlocked[p] && canGet(p))); if (p) return get(p); }
-  if (ring) { const p = best(PIDS.filter(p => PRODUCTS[p].ring === ring && !PRODUCTS[p].raw && roomFor(p) && canGet(p))); if (p) return get(p); }
+  if (ring) {
+    const want = PIDS.filter(p => PRODUCTS[p].ring === ring && !PRODUCTS[p].raw && canGet(p)), p = best(want.filter(roomFor));
+    if (p) return get(p);
+    const q = best(want), w = best([...act], p => -gain(p));   // product limit full: clear out the weakest product to make room
+    if (q && w && cash >= cost(q)) { S.lots.forEach((l, i) => { if (l && l.b === w) demolish(i); }); return 'clear ' + w; }
+    if (q) return '';
+  }
   // a much better product within reach: save up for it
   const have = PIDS.filter(p => S.unlocked[p]), next = best(PIDS.filter(p => !S.unlocked[p] && canGet(p) && roomFor(p)));
   if (next && ratio(next) > 1.3 * Math.max(...have.map(ratio))) return get(next);
   // build the best product we can afford, or upgrade the best building (each level adds one more building's worth)
-  const lot = free(), opts = have.filter(p => roomFor(p) && S.cash >= buildCost(p)).sort((a, b) => ratio(b) - ratio(a));
+  const lot = free(), opts = have.filter(p => roomFor(p) && cash >= buildCost(p)).sort((a, b) => ratio(b) - ratio(a));
   let up = -1, ub = 0;
   S.lots.forEach((l, i) => { if (l && l.b !== 'hq' && l.lv < MAX_BLD_LV) { const g = gain(l.b) / upgradeCost(l); if (g > ub) { ub = g; up = i; } } });
   if (lot >= 0 && opts.length && (up < 0 || ratio(opts[0]) >= ub || S.cash < upgradeCost(S.lots[up]))) return build(lot, opts[0]) || 'build ' + opts[0];
-  if (up >= 0 && S.cash >= upgradeCost(S.lots[up])) return upgrade(up) || 'upgrade';
-  if (whUsed() > whMax() * .8 && S.whLv < WH_COST.length && S.cash >= whUpgradeCost() * 3) return upgradeWH() || 'warehouse';
+  if (up >= 0 && cash >= upgradeCost(S.lots[up])) return upgrade(up) || 'upgrade';
+  if (whUsed() > whMax() * .8 && S.whLv < WH_COST.length && cash >= whUpgradeCost() * 3) return upgradeWH() || 'warehouse';
   return '';
 };
+
+// the bot plays MINUTES game minutes on the company that's loaded, checking the economy every game minute
+async function playBot(page) {
+  const levelAt = {}, broken = []; let million = 0;
+  for (let m = 1; m <= MINUTES; m++) {
+    const r = await page.evaluate(({ bot, inv }) => {
+      const B = eval('(' + bot + ')'), I = eval('(' + inv + ')'), did = [];
+      for (let k = 0; k < 300; k++) { step(.2); if (k % 10 === 0) { const a = B(); if (a) did.push(a); } }
+      const mix = {}; for (const l of S.lots) if (l && l.b !== 'hq') mix[l.b] = (mix[l.b] || 0) + l.lv;
+      return { bad: I(), lv: S.level, cash: S.cash, nw: netWorth(), bld: countBuildings(), cap: `${capUsed()}/${capMax()}`, ppm: profitPerMin(), rank: playerRank(), goal: S.goal, did,
+        mix: Object.entries(mix).map(([p, n]) => `${p} ${n}`).join(', '), stalled: S.lots.filter(l => l && l.stall).map(l => `${l.b} (${l.stall})`).join(', ') };
+    }, { bot: BOT.toString(), inv: INVARIANTS.toString() });
+    if (r.bad.length) broken.push(`minute ${m}: ${r.bad.join(', ')}`);
+    if (!levelAt[r.lv]) levelAt[r.lv] = m;
+    if (!million && r.nw >= 1e6) million = m;
+    if (m % 10 === 0 || m === MINUTES) console.log(`    min ${String(m).padStart(3)}  Lv ${r.lv}  cash $${Math.round(r.cash).toLocaleString()}  net worth $${Math.round(r.nw).toLocaleString()}  ${r.bld} buildings (${r.cap} slots)  $${Math.round(r.ppm).toLocaleString()}/min  rank #${r.rank}  goal ${r.goal}`);
+    if (m % 10 === 0 && process.argv.includes('--verbose')) console.log(`             levels per product: ${r.mix}${r.stalled ? '  stalled: ' + r.stalled : ''}`);
+  }
+  check(!broken.length, 'economy stays sane every game minute' + (broken.length ? ': ' + broken.slice(0, 5).join(' | ') : ''));
+  const got = Object.entries(levelAt).filter(([L]) => L > 1).map(([L, m]) => `Level ${L} at about minute ${m}`);
+  console.log('    ' + (got.length ? 'reached ' + got.join(', ') : 'stayed at Level 1') + (million ? `; net worth passed $1M at about minute ${million}` : ''));
+}
 
 let URL;
 (async () => {
   const server = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); fs.createReadStream(PAGE).pipe(r); }).listen(0);
   URL = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch();
+  if (process.argv.includes('--bot-only')) {
+    console.log(`Bot only: ${MINUTES} game minutes on ${PAGE}`);
+    const { page } = await open(browser, 'bot', { viewport: { width: 1280, height: 720 } });
+    await page.evaluate(() => { newGame('Bot Co', 'wood'); S.tut = TUT_DONE; running = false; });
+    await playBot(page);
+    await browser.close(); server.close();
+    console.log(problems.length ? `\n${problems.length} problem(s):\n - ` + problems.join('\n - ') : '\nAll good.');
+    process.exit(problems.length ? 1 : 0);
+  }
 
   /* ---------------- 1. desktop: tutorial, menus, every feature ---------------- */
   console.log('Desktop 1280x720');
@@ -155,8 +215,9 @@ let URL;
   await page.keyboard.press('m');
   await page.click('[data-act=sell][data-p=wood][data-q=all]');
   check(await page.evaluate(() => !(S.inv.wood > 0)), 'Market: Sell all empties storage');
+  const w0 = await page.evaluate(() => S.inv.wood || 0);
   await page.click('[data-act=buy][data-p=wood]');
-  check(await page.evaluate(() => S.inv.wood === 10), 'Market: Buy 10 adds 10');
+  check(await page.evaluate(w0 => (S.inv.wood || 0) >= w0 + 10, w0), 'Market: Buy 10 adds 10');
   await page.click('[data-act=mktf][data-v=all]');
   await shot(page, '04-market');
   await page.keyboard.press('Escape');
@@ -188,8 +249,9 @@ let URL;
   await page.click('[data-act=menu]');
   await shot(page, '07-menu');
   await page.click('[data-act=copysave]');
+  await page.evaluate(() => { UI.modalSig = ''; renderModal(); });   // anything that redraws the menu (a level-up, a sound toggle) must keep the code
   const code = await page.inputValue('#loadBox');
-  check(code.length > 100, 'Menu: export fills in a save code');
+  check(code.length > 100, 'Menu: export fills in a save code, and it stays when the menu redraws');
   await page.evaluate(() => { S.cash = 1; });
   await page.click('[data-act=loadsave]');
   check(await page.evaluate(() => S.cash > 1 && S.company === 'Playtest Lumber'), 'Menu: importing the save code restores the company');
@@ -212,22 +274,7 @@ let URL;
   /* ---------------- 2. a bot plays for a while ---------------- */
   console.log(`Bot plays ${MINUTES} game minutes`);
   await page.evaluate(() => { closeModal(); selectLot(-1); newGame('Bot Co', 'wood'); S.tut = TUT_DONE; S.settings = AUD.set; afterLoad(); });
-  const levelAt = {}, broken = [];
-  for (let m = 1; m <= MINUTES; m++) {
-    const r = await page.evaluate(({ bot, inv }) => {
-      const B = eval('(' + bot + ')'), I = eval('(' + inv + ')'), did = [];
-      for (let k = 0; k < 300; k++) { step(.2); if (k % 10 === 0) { const a = B(); if (a) did.push(a); } }
-      const mix = {}; for (const l of S.lots) if (l && l.b !== 'hq') mix[l.b] = (mix[l.b] || 0) + l.lv;
-      return { bad: I(), lv: S.level, cash: S.cash, nw: netWorth(), bld: countBuildings(), cap: `${capUsed()}/${capMax()}`, ppm: profitPerMin(), rank: playerRank(), goal: S.goal, did,
-        mix: Object.entries(mix).map(([p, n]) => `${p} ${n}`).join(', '), stalled: S.lots.filter(l => l && l.stall).map(l => `${l.b} (${l.stall})`).join(', ') };
-    }, { bot: BOT.toString(), inv: INVARIANTS.toString() });
-    if (r.bad.length) broken.push(`minute ${m}: ${r.bad.join(', ')}`);
-    if (!levelAt[r.lv]) levelAt[r.lv] = m;
-    if (m % 10 === 0 || m === MINUTES) console.log(`    min ${String(m).padStart(3)}  Lv ${r.lv}  cash $${Math.round(r.cash).toLocaleString()}  net worth $${Math.round(r.nw).toLocaleString()}  ${r.bld} buildings (${r.cap} slots)  $${Math.round(r.ppm).toLocaleString()}/min  rank #${r.rank}  goal ${r.goal}`);
-    if (m % 10 === 0 && process.argv.includes('--verbose')) console.log(`             levels per product: ${r.mix}${r.stalled ? '  stalled: ' + r.stalled : ''}`);
-  }
-  check(!broken.length, 'economy stays sane every game minute' + (broken.length ? ': ' + broken.slice(0, 5).join(' | ') : ''));
-  console.log('    reached ' + Object.entries(levelAt).filter(([L]) => L > 1).map(([L, m]) => `Level ${L} at about minute ${m}`).join(', ') || '    stayed at Level 1');
+  await playBot(page);
   await page.evaluate(() => camHome());
   await sleep(400);
   await shot(page, '08-town-after-bot');
@@ -247,7 +294,69 @@ let URL;
   check(await page.evaluate(b => countBuildings() === b.bld && S.company === 'Bot Co', before), 'Continue brings back the same company');
   await ctx.close();
 
-  /* ---------------- 4. other screens ---------------- */
+  /* ---------------- 4. Gold Hill ---------------- */
+  console.log('Gold Hill (Level 4)');
+  ({ ctx, page } = await open(browser, 'goldhill', { viewport: { width: 1280, height: 720 } }));
+  await newCompany(page, 'Hilltop Holdings', 'ore');
+  await page.click('[data-act=tutdone]');
+  const GH = 36;   // the first Gold Hill lot
+  await tapLot(page, GH);
+  check(/Gold Hill/.test(await page.textContent('#side')) && /Level 4/.test(await page.textContent('#side')), 'before Level 4, a Gold Hill lot says when it opens');
+  await page.evaluate(() => { selectLot(-1); S.cash = 1.2e6; S.level = 3; for (const q of ['planks', 'chair', 'charcoal', 'iron', 'sofa', 'steel']) S.unlocked[q] = true; });
+  await play(page, 2);
+  check(await page.evaluate(() => S.level === 4), 'a $1M company reaches Level 4');
+  const banner = await page.waitForSelector('.toast.big', { timeout: 3000 }).then(e => e.textContent()).catch(() => '');
+  check(/Gold Hill/.test(banner), `the Level 4 banner names Gold Hill (${banner || 'no banner'})`);
+  await sleep(1500);
+  check(await page.evaluate(() => CAM.y + CAM.vh / 2 - TY > HILL.y), 'the camera goes to Gold Hill');
+  await shot(page, '13-gold-hill-opens');
+  await page.keyboard.press('p');
+  await page.click('[data-act=webnode][data-p=piano]');
+  await page.click('[data-act=unlock][data-p=piano]');
+  check(await page.evaluate(() => !!S.unlocked.piano), 'Production: unlocking the Grand Piano');
+  await shot(page, '14-production-gold-hill');
+  await page.keyboard.press('Escape');
+  await tapLot(page, GH);
+  await page.click('#side [data-act=build][data-p=piano]');
+  check(await page.evaluate(i => S.lots[i] && S.lots[i].b === 'piano', GH), 'building a Piano Workshop on Gold Hill');
+  await page.check('#side [data-act=autobuy]');
+  const c0 = await page.evaluate(() => S.cash);
+  await play(page, 120);
+  check(await page.evaluate(() => S.market.piano.sat > 0), 'it buys its Furniture Sets and Steel and sells pianos');
+  check(await page.evaluate(c => S.cash > c, c0), 'and makes money doing it');
+  await page.evaluate(() => { S.cash += 4e6; });
+  await tapLot(page, await page.evaluate(() => 100 + PLOTS.findIndex(p => p.t === 'villa')));
+  await page.click('#side [data-act=pbuy]');
+  check(await page.evaluate(() => S.props[PLOTS.findIndex(p => p.t === 'villa')].own), 'buying a Hilltop Villa');
+  await page.evaluate(() => { selectLot(-1); const [x, y] = zoneCenter(3); centerOn(TX + x, TY + y); });
+  await sleep(2000);
+  check(await page.evaluate(() => AUD.want === 3), 'Gold Hill plays its own tune');
+  await shot(page, '15-gold-hill-built');
+  await ctx.close();
+
+  /* ---------------- 5. an old v0.03 save ---------------- */
+  console.log('A v0.03 save');
+  ({ ctx, page } = await open(browser, 'oldsave', { viewport: { width: 1280, height: 720 } }));
+  const OLD = fs.readFileSync(path.join(__dirname, 'fixtures', 'v0.03-save.txt'), 'utf8').trim();
+  const was = await page.evaluate(code => { const o = decodeSave(code); localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return { company: o.company, level: o.level, lots: o.lots.length, bld: o.lots.filter(l => l && l.b !== 'hq').length, goal: o.goal, cash: o.cash }; }, OLD);
+  await page.reload({ waitUntil: 'load' });
+  await page.click('[data-act=continue]');
+  await page.waitForSelector('#app:not([hidden])');
+  const is = await page.evaluate(() => ({ company: S.company, level: S.level, lots: S.lots.length, bld: countBuildings(), goal: S.goal, v: S.v, goalText: GOALS[S.goal].text }));
+  check(is.company === was.company && is.level === was.level && is.bld === was.bld, `Continue brings back the v0.03 company whole (${is.company}, Level ${is.level}, ${is.bld} buildings)`);
+  check(was.lots === 36 && is.lots === 48 && is.v === 2, 'it gets the 12 Gold Hill lots');
+  check(was.goal === 14 && /1,000,000/.test(is.goalText), 'a save that was past "top 5" moves on to the Gold Hill goals first');
+  const oldBad = await page.evaluate(inv => { const I = eval('(' + inv + ')'); for (let k = 0; k < 1500; k++) step(.2); return I(); }, INVARIANTS.toString());
+  check(!oldBad.length, 'and plays on for 5 game minutes' + (oldBad.length ? ': ' + oldBad.join(', ') : ''));
+  await shot(page, '16-old-save');
+  const allDone = await page.evaluate(code => { const o = decodeSave(code); o.goal = 15; return btoa(unescape(encodeURIComponent(JSON.stringify(o)))); }, OLD);
+  await page.click('[data-act=menu]');
+  await page.fill('#loadBox', allDone);
+  await page.click('[data-act=loadsave]');
+  check(await page.evaluate(() => S.goal === 13 && S.v === 2), 'a v0.03 save with every goal done picks up the two new Gold Hill goals');
+  await ctx.close();
+
+  /* ---------------- 6. other screens ---------------- */
   console.log('Phone on its side 844x390 (touch)');
   ({ ctx, page } = await open(browser, 'phone', { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }));
   const btn = await page.locator('#startForm button[type=submit]').boundingBox();
@@ -264,6 +373,11 @@ let URL;
   await press('#side [data-act=sheetclose]');
   await press('#nav [data-act=stocks]');
   check(await page.evaluate(() => $('#app').scrollLeft === 0 && $('#bottom').getBoundingClientRect().left >= 0), 'the app stays put (nav column on screen)');
+  await page.evaluate(() => { UI.sel = null; setSheet(false); closeModal(); });
+  await tapLot(page, 36, true);
+  check(/Gold Hill/.test(await page.textContent('#side')), 'dragging down to Gold Hill and tapping a lot works on a phone');
+  await sleep(300);
+  await shot(page, '17-phone-gold-hill');
   check(await page.textContent('#mTitle') === 'Invest', 'nav button opens Invest');
   await shot(page, '11-phone-invest');
   await ctx.close();

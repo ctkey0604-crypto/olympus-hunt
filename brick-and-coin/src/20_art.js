@@ -372,7 +372,62 @@ const BUILD = {
       if ((t % 2.2) < .15) { P.p(11, 30, '#ffd463'); P.p(13, 29, '#ff8a2b'); P.p(9, 29, '#ffd463'); }
     },
   },
+  /* ---- Gold Hill (v0.04): grander buildings, every one with a gold trim ---- */
+  piano: {
+    body(P) {
+      P.box(2, 4, 36, 30, 12, ROOF.darkslate, WALL.cream, { style:'stone', win:[29], lit:true, doorW:6, doorX:22 });
+      P.r(2, 15, 36, 1, '#ebc152');
+      // the show window, with a grand piano inside
+      P.r(5, 18, 15, 13, K); P.r(6, 19, 13, 11, '#ffd463'); P.r(6, 19, 13, 1, '#fff6d8');
+      P.r(7, 23, 10, 3, K); P.r(8, 21, 7, 2, K); P.r(14, 20, 1, 3, K); P.r(8, 26, 1, 3, K); P.r(15, 26, 1, 3, K);
+      for (let x = 8; x < 16; x += 2) P.p(x, 24, '#f0e4cc');
+      P.r(14, 35, 12, 3, K); P.r(15, 36, 10, 1, '#ebc152');
+    },
+    anim(P, t) {   // music notes drift up from the roof
+      for (let i = 0; i < 3; i++) {
+        const ph = (t * .6 + i / 3) % 1, x = Math.round(26 + i * 4 + Math.sin(t * 2 + i) * 1.5), y = Math.round(6 - ph * 16);
+        P.r(x, y, 1, 4, K); P.r(x - 2, y + 3, 2, 2, K); if (i % 2) P.r(x + 1, y, 2, 1, K);
+      }
+    },
+  },
+  hamper: {
+    body(P) {
+      P.box(3, 6, 34, 27, 12, ROOF.green, WALL.cream, { style:'stone', win:[4, 26], lit:true, doorW:6 });
+      for (let x = 3; x < 37; x++) { const c = Math.floor((x - 3) / 3) % 2 ? '#f0e4cc' : '#9bbb55'; P.r(x, 18, 1, 3, c); if ((x - 3) % 3 === 1) P.p(x, 21, c); }
+      P.r(3, 17, 34, 1, K); P.r(3, 16, 34, 1, '#ebc152');
+      const basket = (x, y) => {
+        P.r(x + 1, y, 5, 1, K); P.p(x + 1, y + 1, K); P.p(x + 5, y + 1, K);
+        P.r(x, y + 2, 7, 5, K); P.r(x + 1, y + 3, 5, 3, '#c09a63'); P.p(x + 2, y + 4, '#8a5a34'); P.p(x + 4, y + 4, '#8a5a34'); P.p(x + 3, y + 3, '#d9493b');
+      };
+      basket(2, 33); basket(31, 33);
+    },
+    anim(P, t) {   // the big gold bow on the sign catches the light
+      const on = (t % 2.4) < .3;
+      P.r(16, 2, 8, 5, K); P.r(17, 3, 6, 3, '#ebc152'); P.p(19, 4, '#b8913a'); P.p(20, 4, '#b8913a'); P.p(17, 3, on ? '#fff6d8' : '#ffd463');
+    },
+  },
+  car: {
+    body(P) {
+      P.box(1, 2, 38, 31, 8, ROOF.metal, WALL.white, { style:'plain', flat:true, doorW:0 });
+      P.r(1, 9, 38, 1, '#ebc152');
+      P.r(3, 13, 34, 17, K); P.r(4, 14, 32, 15, '#9fd0ff');
+      for (let x = 10; x < 36; x += 7) P.r(x, 14, 1, 15, '#5b9bd5');
+      P.r(4, 14, 32, 1, '#cdeeff');
+      miniCar(P, 8, 22, '#5b9bd5', '#2f5f8f');   // one in the showroom
+      miniCar(P, 23, 34, '#d9493b', '#7f2618');  // one parked out front
+    },
+    anim(P, t) {   // a new car rolls out of the works now and then
+      const ph = (t * .25) % 1; if (ph > .6) return;
+      const x = Math.round(-10 + ph / .6 * 22); if (x < 0) return;
+      miniCar(P, x, 34, '#ebc152', '#b8913a');
+    },
+  },
 };
+function miniCar(P, x, y, c, d) {
+  P.r(x + 2, y, 7, 3, K); P.r(x + 3, y + 1, 5, 1, '#cdeeff');
+  P.r(x, y + 2, 12, 4, K); P.r(x + 1, y + 3, 10, 2, c); P.r(x + 1, y + 4, 10, 1, d); P.p(x + 10, y + 3, '#fff6d8');
+  P.r(x + 2, y + 5, 3, 2, K); P.r(x + 8, y + 5, 3, 2, K);
+}
 
 /* ---------- level looks: every building gets fancier as it levels up ----------
    Lv 2 street lamps · Lv 3 banner flags on the roof · Lv 4 gold roof trim · Lv 5 a gold crown (and sparkles).
@@ -381,7 +436,8 @@ const ANCHOR = { hq:[2,6,38,1,'clay','stone'], wood:[2,10,26,1,'green','wood'], 
   planks:[2,8,30,1,'slate','wood'], flour:[13,9,27,0,'brown','stone'], charcoal:[4,15,24,0,'darkslate','brick'], chair:[4,6,36,1,'blue','plaster'],
   paper:[1,2,27,1,'brown','plaster'], bread:[4,6,36,1,'shingle','cream'], pasta:[6,6,36,1,'clay','ochre'], iron:[2,10,29,1,'darkslate','darkbrick'],
   nails:[2,8,34,1,'teal','metal'], sofa:[0,4,40,1,'barn','brick'], books:[6,-6,34,1,'purple','brick'], lunchbox:[1,8,39,1,'flat','white'],
-  canned:[25,10,40,1,'red','metal'], steel:[0,10,40,1,'metal','grey'], tools:[2,6,32,1,'darkslate','rock'] };
+  canned:[25,10,40,1,'red','metal'], steel:[0,10,40,1,'metal','grey'], tools:[2,6,32,1,'darkslate','rock'],
+  piano:[2,4,38,1,'darkslate','cream'], hamper:[3,6,37,1,'green','cream'], car:[1,2,39,1,'metal','white'] };
 const GOLD_ROOF = ['#ebc152', '#ffd463', '#b8913a'];
 // the building itself grows: structures behind the main building, drawn before it
 function evolveBack(P, type, lv) {
@@ -482,6 +538,13 @@ const HOUSE = {
     P.r(10, 15, 16, 2, '#d8ccb4');
     for (const x of [1, 31]) { P.ell(x + 2.5, 33, 3, 2.5, '#2e461b'); P.ell(x + 2, 32.5, 1.8, 1.4, '#4f672b'); }
   },
+  villa(P, r) {   // v0.04, on Gold Hill: white walls, a gold roof and a pool
+    P.r(0, 27, PLOT, 9, '#68883a');
+    P.r(22, 28, 13, 7, K); P.r(23, 29, 11, 5, '#5b9bd5'); P.r(23, 29, 11, 1, '#cdeeff'); P.p(26, 31, '#cdeeff'); P.p(30, 32, '#cdeeff');
+    P.box(1, 0, 22, 28, 9, GOLD_ROOF, WALL.white, { style:'stone', win:[3, 15], win2:[3, 15], winY:2, win2Y:10, lit:r >= 2, doorW:5 });
+    P.box(21, 6, 14, 22, 8, GOLD_ROOF, WALL.white, { style:'stone', win:[5], lit:r >= 2, doorW:0, noShadow:true });
+    for (const x of [6, 14]) { P.r(x, 22, 2, 6, '#f0e4cc'); P.p(x + 1, 22, '#b8c0c8'); }
+  },
 };
 function houseDecor(P, type, r) {
   if (r >= 2) { for (let x = 0; x < PLOT; x += 3) { P.r(x, 33, 1, 3, '#f0e4cc'); } P.r(0, 34, PLOT, 1, '#f0e4cc'); for (const x of [4, 9, 27, 31]) { P.p(x, 32, '#d9493b'); P.p(x + 1, 32, '#ebc152'); } }
@@ -529,17 +592,20 @@ function drawBackground(level) {
   P.ell(-110, 40, 44, 24, '#93703f'); P.ell(-110, 40, 42, 22, '#2f5f8f'); P.ell(-116, 34, 26, 11, '#3f6fa0');
   for (let i = 0; i < 14; i++) P.r(-150 + Math.floor(R() * 70), 26 + Math.floor(R() * 26), 4, 1, '#5b9bd5');
   for (let f = 0; f < 2; f++) { const fx = 540 + f * 64, fy = -96 + f * 30; P.r(fx - 1, fy - 1, 56, 50, '#5a3a22'); P.r(fx, fy, 54, 48, '#7a5a32'); for (let y = fy + 2; y < fy + 46; y += 3) { P.r(fx, y, 54, 1, f ? '#9bbb55' : '#e0c48a'); P.r(fx, y + 1, 54, 1, '#5a3a22'); } }
+  drawHill(P, R);
   dirt(X0, ROAD_H.y, WORLD_W, ROAD_H.h);
   for (const v of ROAD_V) dirt(v.x, Y0, v.w, WORLD_H);
   for (let x = X0; x < X1; x++) { P.p(x, ROAD_H.y, '#93703f'); P.p(x, ROAD_H.y + ROAD_H.h - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y - 1, '#93703f'); if (R() < .25) P.p(x, ROAD_H.y + ROAD_H.h, '#93703f'); }
   for (const v of ROAD_V) for (let y = Y0; y < Y1; y++) { if (y >= ROAD_H.y && y < ROAD_H.y + ROAD_H.h) continue; P.p(v.x, y, '#93703f'); P.p(v.x + v.w - 1, y, '#93703f'); }
-  for (let i = 0; i < 36; i++) { const { x, y } = lotXY(i); for (let yy = y; yy < y + LOT; yy++) for (let xx = x; xx < x + LOT; xx++) if (R() < .06) P.p(xx, yy, '#4f6a2c'); }
+  for (let i = 0; i < LOTS; i++) { const { x, y, block } = lotXY(i); for (let yy = y; yy < y + LOT; yy++) for (let xx = x; xx < x + LOT; xx++) if (R() < .06) P.p(xx, yy, block === 3 ? '#6f7d34' : '#4f6a2c'); }
+  // stone gateposts where the roads climb onto Gold Hill
+  for (const v of ROAD_V) for (const px of [v.x - 5, v.x + v.w + 1]) { P.r(px, HILL.y - 9, 4, 13, K); P.r(px + 1, HILL.y - 8, 2, 11, '#d8ccb4'); P.r(px, HILL.y - 11, 4, 3, K); P.r(px + 1, HILL.y - 10, 2, 1, '#ebc152'); }
   // trees: everywhere outside the town blocks, never on roads, the pond or the fields
-  const keepOut = [[8, -2, 464, 272], [-160, 10, 100, 64], [530, -110, 140, 96], [-190, 90, 164, 112], [486, 90, 166, 112]];
+  const keepOut = [[8, -2, 464, 272], [-160, 10, 100, 64], [530, -110, 140, 96], [-190, 90, 164, 112], [486, 90, 166, 112], [HILL.x - 4, HILL.y - 14, HILL.w + 8, HILL.h + 26]];
   const blocked = (x, y) => keepOut.some(([a, b, w, h]) => x > a - 8 && x < a + w + 8 && y > b - 8 && y < b + h + 10)
     || Math.abs(y - (ROAD_H.y + 8)) < 18 || ROAD_V.some(v => x > v.x - 10 && x < v.x + v.w + 10);
   const trees = [];
-  for (let n = 0; n < 900 && trees.length < 230; n++) {
+  for (let n = 0; n < 1200 && trees.length < 290; n++) {
     const x = X0 + 6 + Math.floor(R() * (WORLD_W - 12)), y = Y0 + 4 + Math.floor(R() * (WORLD_H - 10));
     if (blocked(x, y) || trees.some(t => Math.abs(t[0] - x) < 13 && Math.abs(t[1] - y) < 11)) continue;
     trees.push([x, y, R() < .4 ? 8 : 7, R() < .3]);
@@ -561,14 +627,14 @@ function drawBackground(level) {
   // real-estate plots: a lawn and a little front path each
   for (const pl of PLOTS) {
     for (let yy = pl.y; yy < pl.y + PLOT; yy++) for (let xx = pl.x; xx < pl.x + PLOT; xx++) if (R() < .1) P.p(xx, yy, '#68883a');
+    if (pl.y > HILL.y) { P.r(pl.x + 16, pl.y + PLOT, 4, 6, '#c9b98a'); continue; }   // Gold Hill villas: a short gravel drive
     const fy = pl.y < ROAD_H.y ? pl.y + PLOT : ROAD_H.y + ROAD_H.h, fh = pl.y < ROAD_H.y ? ROAD_H.y - fy : pl.y - fy;
     P.r(pl.x + 16, fy, 4, fh, '#b9ab92');
   }
   // fences around areas you haven't unlocked
-  for (let b = 0; b < 3; b++) {
+  for (let b = 0; b < ZONE_LEVEL.length; b++) {
     if (ZONE_LEVEL[b] <= level) continue;
-    for (const [y0, y1] of [[ROW_Y[0] - 3, ROW_Y[1] + LOT + 2], [ROW_Y[2] - 3, ROW_Y[3] + LOT + 2]]) {
-      const x0 = BLOCK_X[b] - 3, x1 = BLOCK_X[b] + 3 * 44 - 4 + 2;
+    for (const [x0, y0, x1, y1] of zoneBoxes(b)) {
       ctx.fillStyle = 'rgba(10,6,4,.32)'; ctx.fillRect(TX + x0, TY + y0, x1 - x0, y1 - y0);
       for (let x = x0; x <= x1; x++) { P.p(x, y0, '#5a3a22'); P.p(x, y1, '#5a3a22'); }
       for (let y = y0; y <= y1; y++) { P.p(x0, y, '#5a3a22'); P.p(x1, y, '#5a3a22'); }
@@ -577,6 +643,40 @@ function drawBackground(level) {
     }
   }
   BG = c; BG_LEVEL = level;
+}
+// Gold Hill (v0.04): a plateau of golden grass with a rocky, gold-veined face along its front and a gravel lane on top
+function drawHill(P, R) {
+  const H = HILL, HR = 10, FACE = 15;
+  const inTop = (x, y) => { const cx = clamp(x, H.x + HR, H.x + H.w - 1 - HR), cy = clamp(y, H.y + HR, H.y + H.h - 1 - HR); return (x - cx) ** 2 + (y - cy) ** 2 <= HR * HR; };
+  P.sh(H.x + 6, H.y + H.h + FACE - 3, H.w - 12, 6, .3);
+  // the front face: three rows of rough stones, lit from the top left, with veins of gold
+  const stoneCol = ['#8a7a68', '#7e6e5c', '#94846f', '#857563'];
+  for (let x = H.x; x < H.x + H.w; x++) {
+    let e = H.y + H.h; while (e > H.y && !inTop(x, e - 1)) e--;   // where the grass ends in this column
+    for (let fy = 0; fy < FACE; fy++) {
+      const y = e + fy; if (inTop(x, y)) continue;
+      const row = Math.floor(fy / 5), w = 6 + (row % 2), lx = (x - H.x + row * 3 + 40) % w, ly = fy % 5, id = Math.floor((x - H.x + row * 3 + 40) / w) * 3 + row;
+      let col = stoneCol[(id * 7 + row) % 4];
+      if (fy === 0) col = '#2a2018';                                  // shadow under the grass lip
+      else if (fy === FACE - 1) col = K;
+      else if (lx === 0 || ly === 0) col = '#4e4136';                 // cracks between stones
+      else if (ly === 1 || lx === 1) col = '#a8987c';                 // the lit top and left of each stone
+      else if (lx === w - 1 || ly === 4) col = '#6a5a4b';
+      else if (R() < .06) col = R() < .5 ? '#ebc152' : '#ffd463';     // gold
+      P.p(x, y, col);
+    }
+  }
+  for (let y = H.y; y < H.y + H.h; y++) for (let x = H.x; x < H.x + H.w; x++) {
+    if (!inTop(x, y)) continue;
+    const v = R(); let col = '#7f8e3c';
+    if (!inTop(x - 1, y) || !inTop(x + 1, y) || !inTop(x, y - 1) || !inTop(x, y + 1)) col = '#3e4a1c';
+    else if (!inTop(x, y - 2)) col = '#a5b45a';
+    else if (v < .012) col = '#ffd463'; else if (v < .05) col = '#93a347'; else if (v < .12) col = '#74833a'; else if (v < .18) col = '#86963f';
+    P.p(x, y, col);
+  }
+  for (let y = HILL_ROAD.y; y < HILL_ROAD.y + HILL_ROAD.h; y++) for (let x = H.x + 12; x < H.x + H.w - 12; x++) {
+    const v = R(); P.p(x, y, y === HILL_ROAD.y || y === HILL_ROAD.y + HILL_ROAD.h - 1 ? '#a8987c' : v < .1 ? '#b8a878' : v < .14 ? '#e0c48a' : '#c9b98a');
+  }
 }
 
 /* ---------- walkers and particles ---------- */

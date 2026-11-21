@@ -8,10 +8,11 @@ const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v)
 const fat = () => gauss() * (Math.random() < .04 ? 2.6 : 1) / 1.109;   // fat tails: now and then a much bigger move (scaled back to unit variance)
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
+const SAVE_V = 2;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill). adopt() brings older saves up to date.
 function newGame(company, start) {
   S = {
-    v: 1, company, start, cash: START_CASH, t: 0, level: 1, hqLv: 0, whLv: 0, tut: 0, settings: null,
-    lots: new Array(36).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
+    v: SAVE_V, company, start, cash: START_CASH, t: 0, level: 1, hqLv: 0, whLv: 0, tut: 0, settings: null,
+    lots: new Array(LOTS).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
     market: {}, events: [], nextEvent: 45, news: [], goal: 0,
     stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
     assets: {}, hold: {}, regime: 'bull', mVar: 0, cryptoMode: 'calm', cryptoT: 0, stockAcc: 0, divAcc: 0, histAcc10: 0, histAcc60: 0,
@@ -87,7 +88,7 @@ function keepBuffer(p) {
 /* ---------------------------------------------------------------- production */
 function stepProduction(dt, offlineRate = 1) {
   const eff = efficiency() * (boostOn() ? STARTUP_BOOST : 1) * offlineRate;
-  for (let i = 0; i < 36; i++) {
+  for (let i = 0; i < S.lots.length; i++) {
     const l = S.lots[i]; if (!l || l.b === 'hq') continue;
     const P = PRODUCTS[l.b];
     if (!l.running) {
@@ -117,8 +118,10 @@ function stepProduction(dt, offlineRate = 1) {
     }
   }
 }
+// v0.04: a building that's stopped (waiting for materials, or storage full) pays no upkeep. Before, a company whose
+// factories had run out of materials and cash sank into debt forever, offline too.
 function stepUpkeep(dt, rate = 1) {
-  let u = 0; for (const l of S.lots) if (l && l.b !== 'hq') u += upkeepPerMin(l);
+  let u = 0; for (const l of S.lots) if (l && l.b !== 'hq' && !l.stall) u += upkeepPerMin(l);
   const c = u / 60 * dt * rate; S.cash -= c; addProfit(-c);
 }
 function sellSurplus() {
@@ -379,6 +382,13 @@ function adopt(obj) {
   while (S.rivals.length < RIVALS.length) S.rivals.push({ name: RIVALS[S.rivals.length].name, nw: RIVALS[S.rivals.length].nw });
   if (typeof S.tut !== 'number') S.tut = countBuildings(S) > 0 ? TUT_DONE : 0;   // v0.03: players from older saves skip the tutorial
   if (S.settings === undefined) S.settings = null;                                // v0.03: sound settings (filled in by the page)
+  while (S.lots.length < LOTS) S.lots.push(null);                                 // v0.04: 12 Gold Hill lots
+  if (!(S.v >= 2)) {
+    // v0.04 put two Gold Hill goals (13, 14) before "top 5" and "richest". Saves that were past goal 12 go to the
+    // Gold Hill goals first; any that had already won "top 5" or "richest" can earn those rewards once more later.
+    S.goal = Math.min(S.goal, 13);
+    S.v = 2;
+  }
 }
 function encodeSave() { return btoa(unescape(encodeURIComponent(serialize()))); }
 function decodeSave(str) { const o = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (!o || !o.lots || !o.company) throw new Error('bad'); return o; }
@@ -407,7 +417,7 @@ function canBuyProp(k) {
   if (S.cash < propBuyPrice(k)) return 'Not enough cash';
   return '';
 }
-function buyProp(k) { const e = canBuyProp(k); if (e) return e; const c = propBuyPrice(k); S.cash -= c; Object.assign(S.props[k], { own: true, paid: c }); pushNews(`${S.company} buys the ${PROPS[PLOTS[k].t].name.toLowerCase()} on the ${PLOT_SIDE(k).toLowerCase()}.`, 'you'); return ''; }
+function buyProp(k) { const e = canBuyProp(k); if (e) return e; const c = propBuyPrice(k); S.cash -= c; Object.assign(S.props[k], { own: true, paid: c }); pushNews(`${S.company} buys the ${PROPS[PLOTS[k].t].name.toLowerCase()} ${PLOT_WHERE(k)}.`, 'you'); return ''; }
 function sellProp(k) { const p = S.props[k]; if (!p.own) return 'You don’t own it'; S.cash += propSellPrice(k); Object.assign(p, { own: false, reno: 1, paid: 0 }); return ''; }
 function renovate(k) { const p = S.props[k]; if (!p.own) return 'Buy it first'; if (p.reno >= PROP_MAX_RENO) return 'Fully renovated'; const c = renoCost(k); if (S.cash < c) return 'Not enough cash'; S.cash -= c; p.paid += c; p.reno++; return ''; }
 

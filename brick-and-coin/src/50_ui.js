@@ -23,9 +23,12 @@ function rateTxt(x) { return (x >= 10 ? Math.round(x) : Math.round(x * 10) / 10)
 
 /* ---------- per-minute numbers ---------- */
 function cyclesPerMin(p, lv, mult) { return 60 / PRODUCTS[p].sec * lv * mult; }
+// Inputs you make yourself count at the market's sell price (what they'd fetch). Inputs you don't make count at the
+// buy price, since the building has to buy them (v0.04: before, a factory buying everything could show a profit while losing money).
+function inputPrice(q, act = activeProducts()) { return act.has(q) ? price(q) : buyPrice(q); }
 function estProfit(p, lv = 1, mult = 1) {
-  const P = PRODUCTS[p], c = cyclesPerMin(p, lv, mult);
-  let v = c * P.out * price(p); for (const q in P.rec) v -= c * P.rec[q] * price(q);
+  const P = PRODUCTS[p], c = cyclesPerMin(p, lv, mult), act = activeProducts();
+  let v = c * P.out * price(p); for (const q in P.rec) v -= c * P.rec[q] * inputPrice(q, act);
   return v - UPKEEP[tierOf(p)] * lv;
 }
 function lotMult() { return efficiency() * (boostOn() ? STARTUP_BOOST : 1); }
@@ -45,7 +48,7 @@ const LIVE = {
   prog(i, el) { const l = S.lots[i]; el.style.width = (l && l.running ? Math.min(100, l.prog * 100) : 0) + '%'; },
   status(i) {
     const l = S.lots[i]; if (!l) return '';
-    if (l.stall) return { text: l.stall === 'storage full' ? 'Stopped: storage full. Sell some, or set output to Auto.' : 'Waiting: ' + l.stall, cls: 'status bad' };
+    if (l.stall) return { text: (l.stall === 'storage full' ? 'Stopped: storage full. Sell some, or set output to Auto.' : 'Waiting: ' + l.stall + '.') + ' No upkeep while it waits.', cls: 'status bad' };
     const e = efficiency();
     if (e < 1) return { text: `Running slow: over your factory limit (${Math.round(e * 100)}% speed)`, cls: 'status warn' };
     return { text: 'Running' + (boostOn() ? ' · startup boost +50%' : ''), cls: 'status ok' };
@@ -58,7 +61,8 @@ const LIVE = {
   capbar(_, el) { el.style.width = Math.min(100, capUsed() / capMax() * 100) + '%'; el.classList.toggle('over', capUsed() > capMax()); },
   whbar(_, el) { el.style.width = Math.min(100, whUsed() / whMax() * 100) + '%'; el.classList.toggle('over', whUsed() >= whMax()); },
   ppm() { const v = profitPerMin(); return { text: (v >= 0 ? '+' : '') + money(v) + '/min', cls: v >= 0 ? 'olive' : 'red' }; },
-  upkeep() { let u = 0; for (const l of S.lots) if (l && l.b !== 'hq') u += upkeepPerMin(l); return money(u) + '/min'; },
+  upkeep() { let u = 0; for (const l of S.lots) if (l && l.b !== 'hq' && !l.stall) u += upkeepPerMin(l); return money(u) + '/min'; },
+  bupkeep(i) { const l = S.lots[i]; if (!l) return ''; return l.stall ? 'paused while it waits' : money(upkeepPerMin(l)) + '/min'; },
   spark(p, el) { el.setAttribute('d', sparkPath(S.market[p].hist, 90, 24)); },
   mchg(p) { const c = changeOf(S.market[p].hist, 59); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
   aprice: t => money(S.assets[t].p),
@@ -106,12 +110,12 @@ function updateTop() {
   $('#coName').textContent = S.company;
   $('#lvChip').textContent = `LV ${S.level} · ${LEVELS[S.level].name.toUpperCase()}`;
   $('#boostChip').hidden = !boostOn();
-  $('#cash').textContent = money(S.cash, false);
+  $('#cash').textContent = money(S.cash, false); $('#cash').style.color = S.cash < 0 ? 'var(--pink)' : '';   // red when in debt
   const v = profitPerMin(), pp = $('#ppm'); pp.textContent = (v >= 0 ? '+' : '') + money(v) + '/min profit'; pp.className = v >= 0 ? 'olive' : 'red';
   const nw = netWorth(); $('#nw').textContent = money(nw, false);
   const L = S.level, bar = $('#lvBar');
   if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; bar.style.width = clamp((nw - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1} (${LEVELS[L + 1].name}) at ${money(b, false)}`; }
-  else { bar.style.width = clamp(nw / LEVELS[4].nw, 0, 1) * 100 + '%'; $('#lvNext').textContent = 'Level 4 comes in a later version'; }
+  else { bar.style.width = '100%'; $('#lvNext').textContent = `Top level: all of Millbrook is open`; }
   $('#lvBarWrap').setAttribute('aria-label', 'Progress to next level');
   $('#cap').textContent = `${capUsed()} / ${capMax()}`;
   const cb = $('#capBar'); cb.style.width = Math.min(100, capUsed() / capMax() * 100) + '%'; cb.classList.toggle('over', capUsed() > capMax());
@@ -221,7 +225,7 @@ function bldView(i, l) {
     <section class="card"><div class="kv">
       <span>Makes</span><b data-live="rate:${i}"></b>
       <span>Uses</span><b data-live="uses:${i}"></b>
-      <span>Upkeep</span><b>${money(upkeepPerMin(l))}/min</b>
+      <span>Upkeep</span><b data-live="bupkeep:${i}"></b>
       <span>Profit</span><b data-live="est:${l.b}|${l.lv}|own" data-base=""></b>
       <span>${P.name} sells for</span><b data-live="price:${l.b}"></b>
       <span>In storage</span><b data-live="inv:${l.b}"></b></div>
@@ -240,7 +244,7 @@ function propView(k) {
   const reno = pr.own && pr.reno < PROP_MAX_RENO;
   return { sig, html: `
     <div class="side-head"><img class="px" src="${housePreview(pl.t, pr.own ? pr.reno : 1)}" width="96" height="116" alt="" style="margin:-16px -6px -8px -10px;flex:none"><div><h2>${P.name}</h2>
-      <span class="muted">${PLOT_SIDE(k)} of town · ${pr.own ? `<b class="gold">You own it</b> · renovation ${pr.reno}/${PROP_MAX_RENO}` : locked ? `Opens at Level ${P.lvl}` : 'For sale'}</span></div></div>
+      <span class="muted">${PLOT_WHERE(k)[0].toUpperCase() + PLOT_WHERE(k).slice(1)} · ${pr.own ? `<b class="gold">You own it</b> · renovation ${pr.reno}/${PROP_MAX_RENO}` : locked ? `Opens at Level ${P.lvl}` : 'For sale'}</span></div></div>
     <section class="card"><div class="kv">
       <span>Value</span><b data-live="pv:${k}"></b>
       <span>Rent</span><b class="olive" data-live="prent:${k}"></b>
@@ -270,14 +274,21 @@ function closeModal() { UI.modal = null; $('#modal').hidden = true; }
 function renderModal(force) {
   if (!UI.modal) return;
   const v = MODAL[UI.modal]();
-  if (force || v.sig !== UI.modalSig) { const sh = $('#modal .sheet'), top = sh.scrollTop; $('#mTitle').textContent = v.title; $('#mBody').innerHTML = v.html; sh.scrollTop = top; UI.modalSig = v.sig; if (v.after) v.after(); }
+  if (force || v.sig !== UI.modalSig) {
+    const sh = $('#modal .sheet'), top = sh.scrollTop, box = $('#loadBox'), typed = box ? box.value : '';   // v0.04: a pasted save code survives the redraw
+    $('#mTitle').textContent = v.title; $('#mBody').innerHTML = v.html; sh.scrollTop = top; UI.modalSig = v.sig;
+    if (typed && $('#loadBox')) $('#loadBox').value = typed;
+    if (v.after) v.after();
+  }
   updateLive($('#mBody'));
   if (UI.modal === 'stocks') drawStockChart();
 }
 const WEBPOS = { wood: [-110, 72], wheat: [10, 72], ore: [130, 72], planks: [-135, 128], charcoal: [185, 128], flour: [10, 128],
   chair: [-120, 188], paper: [-75, 188], bread: [-5, 188], pasta: [35, 188], iron: [165, 188], nails: [125, 188],
-  sofa: [-130, 248], books: [-95, 248], lunchbox: [-40, 248], canned: [70, 248], steel: [150, 248], tools: [190, 248] };
-function webXY(p) { const [a, r] = WEBPOS[p], t = a * Math.PI / 180; return [280 + Math.cos(t) * r, 280 + Math.sin(t) * r]; }
+  sofa: [-130, 248], books: [-95, 248], lunchbox: [-40, 248], canned: [70, 248], steel: [150, 248], tools: [190, 248],
+  piano: [-115, 305], hamper: [15, 305], car: [170, 305] };
+const WEB = 680, WC = WEB / 2;   // the web's size and middle (v0.04: grew from 560 for the Gold Hill ring)
+function webXY(p) { const [a, r] = WEBPOS[p], t = a * Math.PI / 180; return [WC + Math.cos(t) * r, WC + Math.sin(t) * r]; }
 const MODAL = {
   prod() {
     const act = activeProducts(), sel = UI.webSel || S.start;
@@ -287,14 +298,14 @@ const MODAL = {
       const [x1, y1] = webXY(q), [x2, y2] = webXY(p), on = S.unlocked[p] && S.unlocked[q];
       lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${on ? BRANCH[PRODUCTS[q].branch].color : '#3e2c24'}" stroke-width="${on ? 3 : 2}" ${on ? '' : 'stroke-dasharray="4 4"'}/>`;
     }
-    const rings = [[100], [158], [218]].map(([r]) => `<circle cx="280" cy="280" r="${r}" fill="none" stroke="#2a1e19" stroke-width="2" stroke-dasharray="2 6"/>`).join('');
+    const rings = [[100], [158], [218], [277]].map(([r]) => `<circle cx="${WC}" cy="${WC}" r="${r}" fill="none" stroke="#2a1e19" stroke-width="2" stroke-dasharray="2 6"/>`).join('');
     const nodes = PIDS.map(p => {
       const [x, y] = webXY(p), P = PRODUCTS[p], own = S.unlocked[p], err = canUnlock(p), avail = !own && (err === '' || err === 'Not enough cash');
       const cls = own ? (act.has(p) ? 'active' : 'own') : avail ? 'avail' : 'locked';
       const tag = own ? '' : avail ? money(researchCost(p), false) : (P.ring > S.level ? 'LV ' + P.ring : '');
       return `<button type="button" class="node ${cls} ${sel === p ? 'sel' : ''}" style="left:${x}px;top:${y}px" data-act="webnode" data-p="${p}" aria-label="${P.name}${own ? ', unlocked' : ''}">${iconImg(p, 36)}${tag ? `<span class="tag">${tag}</span>` : ''}</button>`;
     }).join('');
-    const ringLbl = [[100, 'LV 1 · MAIN STREET'], [188, 'LV 2 · MARKET ROW'], [248, 'LV 3 · INDUSTRIAL PARK']].map(([r, t]) => `<span class="ringlbl" style="left:280px;top:${280 + r}px">${t}</span>`).join('');
+    const ringLbl = [[100, 'LV 1 · MAIN STREET'], [188, 'LV 2 · MARKET ROW'], [248, 'LV 3 · INDUSTRIAL PARK'], [305, 'LV 4 · GOLD HILL']].map(([r, t]) => `<span class="ringlbl" style="left:${WC}px;top:${WC + r}px">${t}</span>`).join('');
     // detail pane
     const P = PRODUCTS[sel], own = S.unlocked[sel], err = canUnlock(sel), cost = researchCost(sel);
     const usedBy = consumersOf(sel).map(q => `${iconImg(q, 18)} ${PRODUCTS[q].name}`).join(', ') || 'Sold to customers only';
@@ -315,12 +326,12 @@ const MODAL = {
     return { sig, title: 'Production', html: `
       <p class="m-sub">Start in the middle, grow outward. Every level opens the next ring, and the outer rings need goods from other branches.</p>
       <div class="web-wrap"><div class="web-scroll"><div class="web" id="web">
-        <svg width="560" height="560" viewBox="0 0 560 560" aria-hidden="true">${rings}${lines}</svg>
+        <svg width="${WEB}" height="${WEB}" viewBox="0 0 ${WEB} ${WEB}" aria-hidden="true">${rings}${lines}</svg>
         ${ringLbl}
-        <div style="position:absolute;left:280px;top:280px;transform:translate(-50%,-50%);text-align:center;font-size:12px;color:var(--bone-dim)">${iconImg('house', 36)}<br>${esc(S.company)}</div>
+        <div style="position:absolute;left:${WC}px;top:${WC}px;transform:translate(-50%,-50%);text-align:center;font-size:12px;color:var(--bone-dim)">${iconImg('house', 36)}<br>${esc(S.company)}</div>
         ${nodes}</div></div>
         <div class="web-detail">${detail}</div></div>`,
-      after() { const w = $('#web'), wrap = w.closest('.web-wrap'); let k = Math.min(1, (wrap.clientWidth) / 560); if (innerWidth <= 900) k = Math.max(.74, k); w.style.transform = k < 1 ? `scale(${k})` : ''; w.style.marginBottom = k < 1 ? `${-560 * (1 - k)}px` : ''; w.style.marginRight = k < 1 ? `${-560 * (1 - k)}px` : ''; const sc = w.parentElement, sel = w.querySelector('.node.sel'); if (sc.scrollWidth > sc.clientWidth && sel) sc.scrollLeft = Math.max(0, parseFloat(sel.style.left) * k - sc.clientWidth / 2); } };
+      after() { const w = $('#web'), wrap = w.closest('.web-wrap'); let k = Math.min(1, (wrap.clientWidth) / WEB); if (innerWidth <= 900) k = Math.max(.74, k); w.style.transform = k < 1 ? `scale(${k})` : ''; w.style.marginBottom = k < 1 ? `${-WEB * (1 - k)}px` : ''; w.style.marginRight = k < 1 ? `${-WEB * (1 - k)}px` : ''; const sc = w.parentElement, sel = w.querySelector('.node.sel'); if (sc.scrollWidth > sc.clientWidth && sel) sc.scrollLeft = Math.max(0, parseFloat(sel.style.left) * k - sc.clientWidth / 2); } };
   },
   market() {
     const f = UI.mktFilter, list = PIDS.filter(p => f === 'all' || S.unlocked[p] || (S.inv[p] || 0) > 0);
@@ -400,7 +411,7 @@ const MODAL = {
     const me = netWorth(), all = S.rivals.map((r, i) => ({ name: r.name, co: RIVAL_CO[r.name], nw: r.nw, link: RIVALS[i].link })).concat([{ name: 'You', co: S.company, nw: me, you: true }]);
     all.sort((a, b) => b.nw - a.nw);
     const sig = 'board|' + all.map(x => x.name).join();
-    const lvl = nw => nw >= 1e5 ? 3 : nw >= 1e4 ? 2 : 1;
+    const lvl = nw => { let L = 1; while (L < MAX_LEVEL && nw >= LEVELS[L + 1].nw) L++; return L; };
     const rows = all.map((x, k) => {
       const ic = x.you ? 'house' : x.link ? asset(x.link).icon : 'crate';
       return `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg(ic, 36)}
@@ -427,6 +438,7 @@ const MODAL = {
         <section class="card"><h3>How it works</h3>
           <p><b>Build</b> on empty lots. Raw producers need nothing. Factories turn goods into better goods.</p>
           <p><b>Factory limit:</b> your HQ can run so many building levels. Upgrade it to grow.</p>
+          <p><b>Upkeep:</b> every building costs a little each minute to run, but nothing while it's stopped waiting for materials.</p>
           <p><b>Levels:</b> net worth opens new areas of town and deeper rings of products.</p>
           <p><b>Market:</b> the more you sell of one thing, the lower its price. Spread out.</p>
           <p><b>Invest:</b> stocks (the index fund is steady, PixCoin is wild) and real estate west and east of town that pays rent.</p>
@@ -490,9 +502,9 @@ function renderSoundBtn() {
 
 /* ---------- start screen ---------- */
 const START_INFO = {
-  wood: { leads: 'Planks, Charcoal, Chairs, Paper, Books, Furniture' },
-  wheat: { leads: 'Flour, Bread, Pasta, Lunch Boxes, Canned Food' },
-  ore: { leads: 'Iron, Nails, Steel, Tools' },
+  wood: { leads: 'Planks, Charcoal, Chairs, Paper, Books, Furniture, Pianos' },
+  wheat: { leads: 'Flour, Bread, Pasta, Lunch Boxes, Canned Food, Gift Hampers' },
+  ore: { leads: 'Iron, Nails, Steel, Tools, Motor Cars' },
 };
 function renderStart(existing) {
   const pick = UI.startPick;

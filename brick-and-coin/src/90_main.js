@@ -64,7 +64,7 @@ function render(t) {
   ctx.setTransform(1, 0, 0, 1, offX(), offY());
   ctx.drawImage(BG, -TX, -TY);
   const P = Painter(ctx);
-  const order = []; for (let i = 0; i < 36; i++) order.push(i); for (let k = 0; k < PLOTS.length; k++) order.push(100 + k);
+  const order = []; for (let i = 0; i < LOTS; i++) order.push(i); for (let k = 0; k < PLOTS.length; k++) order.push(100 + k);
   order.sort((a, b) => spotXY(a).y - spotXY(b).y);
   let walkersDrawn = false;
   for (const i of order) {
@@ -109,18 +109,18 @@ function render(t) {
   const ov = $('#overlay'), tr = `translate(${offX() * CAM.s}px,${offY() * CAM.s}px)`;
   if (ov.style.transform !== tr) ov.style.transform = tr;
   // which area is in the middle of the view (for the jump buttons)
-  const mid = CAM.x + CAM.vw / 2 - TX, b = mid < 165 ? 0 : mid < 318 ? 1 : 2;
+  const mid = CAM.x + CAM.vw / 2 - TX, midY = CAM.y + CAM.vh / 2 - TY, b = midY > HILL.y + 20 ? 3 : mid < 165 ? 0 : mid < 318 ? 1 : 2;
   for (const btn of document.querySelectorAll('.dist button')) btn.classList.toggle('on', +btn.dataset.b === b);
   setMusicArea(ZONE_LEVEL[b] <= S.level ? b : 1);   // locked areas keep the Main Street tune
 }
 function renderZoneLabels() {
   if (!S) return;
   let html = '';
-  for (let b = 0; b < 3; b++) {
+  for (let b = 0; b < ZONE_LEVEL.length; b++) {
     if (ZONE_LEVEL[b] <= S.level) continue;
-    const L = ZONE_LEVEL[b], cx = (BLOCK_X[b] + 64) * CAM.s;
-    for (const cy of [(ROW_Y[0] + ROW_Y[1] + LOT) / 2 * CAM.s, (ROW_Y[2] + ROW_Y[3] + LOT) / 2 * CAM.s])
-      html += `<div class="zlabel" style="left:${cx}px;top:${cy}px">${ZONE_NAME[b].toUpperCase()}<small>Opens at Level ${L} · ${money(LEVELS[L].nw, false)}</small></div>`;
+    const L = ZONE_LEVEL[b];
+    for (const [x, y] of zoneLabelSpots(b))
+      html += `<div class="zlabel" style="left:${x * CAM.s}px;top:${y * CAM.s}px">${ZONE_NAME[b].toUpperCase()}<small>Opens at Level ${L} · ${money(LEVELS[L].nw, false)}</small></div>`;
   }
   $('#overlay').querySelectorAll('.zlabel').forEach(e => e.remove());
   $('#overlay').insertAdjacentHTML('beforeend', html);
@@ -170,13 +170,16 @@ LOG.onPop = (i, p, rev) => {
 LOG.onNews = () => { if (running) renderTicker(); };
 LOG.onToast = (text, kind) => toast(text, kind);
 LOG.onGoal = () => sfx('goal');
-LOG.onLevel = L => { toast(`Level ${L}! ${LEVELS[L].name} is open`, 'big', 4200); sfx('level'); drawBackground(L); renderZoneLabels(); UI.sideSig = ''; UI.modalSig = ''; };
+LOG.onLevel = L => {
+  toast(`Level ${L}! ${LEVELS[L].name} is open`, 'big', 4200); sfx('level'); drawBackground(L); renderZoneLabels(); UI.sideSig = ''; UI.modalSig = '';
+  if (L === 4 && running) { const [x, y] = zoneCenter(3); centerOn(TX + x, TY + y, true); }   // Gold Hill is out of sight to the south: go and look
+};
 
 /* ---------- input: tap to select, drag to look around ---------- */
 let drag = null;
 function lotAt(ev) {
   const r = canvas.getBoundingClientRect(), x = (ev.clientX - r.left) / CAM.s - offX(), y = (ev.clientY - r.top) / CAM.s - offY();
-  for (let i = 0; i < 36; i++) { const p = lotXY(i); if (x >= p.x - 2 && x < p.x + LOT + 2 && y >= p.y - 2 && y < p.y + LOT + 2) return i; }
+  for (let i = 0; i < LOTS; i++) { const p = lotXY(i); if (x >= p.x - 2 && x < p.x + LOT + 2 && y >= p.y - 2 && y < p.y + LOT + 2) return i; }
   for (let k = 0; k < PLOTS.length; k++) { const p = PLOTS[k]; if (x >= p.x - 2 && x < p.x + PLOT + 2 && y >= p.y - 6 && y < p.y + PLOT + 2) return 100 + k; }
   return -1;
 }
@@ -237,7 +240,7 @@ function act(el) {
     case 'hq': closeModal(); selectLot(HQ_LOT); return;
     case 'goals': UI.sel = null; renderSide(true); setSheet(true); return;
     case 'sheetclose': UI.sel = null; setSheet(false); renderSide(true); return;
-    case 'jump': { const b = +el.dataset.b; centerOn(TX + BLOCK_X[b] + 64, TY + 146, true); return; }
+    case 'jump': { const [x, y] = zoneCenter(+el.dataset.b); centerOn(TX + x, TY + y, true); return; }
     case 'deselect': UI.sel = null; if (isPhone()) setSheet(false); break;
     case 'build': err = build(UI.sel.i, p); if (!err) { toast(`${PRODUCTS[p].bld} built`, 'good'); } break;
     case 'upgrade': err = upgrade(UI.sel.i); break;

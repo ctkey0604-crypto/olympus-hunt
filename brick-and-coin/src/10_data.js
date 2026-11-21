@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.03';
+const VERSION = 'v0.04';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -424,6 +424,52 @@ robot:`
 ...lssssssssl...
 ...SSSSSSSSSS...`,
 };
+// v0.04 Gold Hill goods
+Object.assign(ICONS, {
+piano:`
+................
+..BBBBBBBBBBBB..
+..BhhhhhhhhhhB..
+..BhyyyyyyyyhB..
+..BhhhhhhhhhhB..
+..BhhhhhhhhhhB..
+..BBBBBBBBBBBB..
+.hhhhhhhhhhhhhh.
+.hwxwxwwxwxwxwh.
+.hwxwxwwxwxwxwh.
+.hwwwwwwwwwwwwh.
+.hhhhhhhhhhhhhh.
+..hb........bh..
+..hb........bh..
+..hh........hh..`,
+hamper:`
+................
+.....bbbbbb.....
+....bb....bb....
+...bb.rRuu.bb...
+...b..rRuu..b...
+..tttttttttttt..
+..tTtTtyytTtTt..
+..TtTtTyyTtTtT..
+..tTtTyYYytTtT..
+..TtTtTyyTtTtT..
+..tTtTtTtTtTtT..
+..TtTtTtTtTtTt..
+...TTTTTTTTTT...`,
+car:`
+................
+................
+................
+....rrrrrrr.....
+...rccrrcccr....
+..rrccrrcccrr...
+.rrrrrrrrrrrrrr.
+.yrrrrrrrrrrrrW.
+.RRRRRRRRRRRRRR.
+..xsx......xsx..
+..sSs......sSs..
+..xsx......xsx..`,
+});
 const PROC_ICONS = {
   coin(x, y) {
     const d = Math.hypot(x - 7.5, y - 7.5);
@@ -456,7 +502,7 @@ const PROC_ICONS = {
 };
 
 /* ---------------------------------------------------------------- products */
-// ring: 1 Main Street, 2 Market Row, 3 Industrial Park. branch decides colour + where it sits on the web.
+// ring: 1 Main Street, 2 Market Row, 3 Industrial Park, 4 Gold Hill. branch decides colour + where it sits on the web.
 // rec: inputs per cycle; out: units per cycle; sec: cycle time at building level 1.
 const PRODUCTS = {
   wood:     { name:'Wood',      branch:'wood',  ring:1, base:5,   raw:true, rec:{},                       out:1, sec:8,  bld:'Lumber Camp' },
@@ -470,13 +516,17 @@ const PRODUCTS = {
   bread:    { name:'Bread',     branch:'food',  ring:2, base:24,  rec:{ flour:2 },                        out:3, sec:12, bld:'Bakery' },
   pasta:    { name:'Pasta',     branch:'food',  ring:2, base:34,  rec:{ flour:2 },                        out:2, sec:10, bld:'Pasta Kitchen' },
   iron:     { name:'Iron',      branch:'metal', ring:2, base:72,  rec:{ ore:2, charcoal:1 },              out:1, sec:12, bld:'Smelter' },
-  nails:    { name:'Nails',     branch:'metal', ring:2, base:17,  rec:{ iron:1 },                         out:5, sec:10, bld:'Nail Works' },
+  nails:    { name:'Nails',     branch:'metal', ring:2, base:21,  rec:{ iron:1 },                         out:5, sec:10, bld:'Nail Works' },   // v0.04: was 17, lost money on bought iron
   sofa:     { name:'Furniture Set', branch:'wood', ring:3, base:1090, rec:{ chair:4, iron:2 },             out:1, sec:20, bld:'Furniture Factory' },
   books:    { name:'Books',     branch:'wood',  ring:3, base:178, rec:{ paper:4 },                        out:1, sec:10, bld:'Printing Press' },
   lunchbox: { name:'Lunch Box', branch:'food',  ring:3, base:178, rec:{ bread:3, paper:1 },               out:1, sec:8,  bld:'Lunch Box Plant' },
   canned:   { name:'Canned Food', branch:'food', ring:3, base:159, rec:{ pasta:3, iron:1 },                out:2, sec:10, bld:'Cannery' },
   steel:    { name:'Steel',     branch:'metal', ring:3, base:325, rec:{ iron:2, charcoal:1 },             out:1, sec:12, bld:'Steel Mill' },
-  tools:    { name:'Tools',     branch:'metal', ring:3, base:460, rec:{ steel:1, planks:2 },              out:1, sec:10, bld:'Toolworks' },
+  tools:    { name:'Tools',     branch:'metal', ring:3, base:540, rec:{ steel:1, planks:2 },              out:1, sec:10, bld:'Toolworks' },    // v0.04: was 460, earned less than Steel
+  // Gold Hill (v0.04): each needs Level 3 goods from more than one branch
+  piano:    { name:'Grand Piano', branch:'wood', ring:4, base:2950, rec:{ sofa:1, steel:2 },               out:1, sec:20, bld:'Piano Workshop' },
+  hamper:   { name:'Gift Hamper', branch:'food', ring:4, base:1380, rec:{ canned:2, lunchbox:1, books:1 }, out:1, sec:12, bld:'Hamper House' },
+  car:      { name:'Motor Car',  branch:'metal', ring:4, base:2700, rec:{ steel:3, tools:1, chair:2 },     out:1, sec:15, bld:'Motor Works' },
 };
 const PIDS = Object.keys(PRODUCTS);
 for (const id of PIDS) PRODUCTS[id].id = id;
@@ -489,9 +539,9 @@ const BRANCH = {
 
 // cost to build (level 1), upkeep per building level per minute, research cost
 function tierOf(p) { const P = PRODUCTS[p]; return P.raw ? 0 : P.ring; }
-const BUILD_COST = [250, 600, 3000, 15000];
-const UPKEEP     = [3, 5, 12, 35];
-const RESEARCH   = [400, 800, 4000, 20000];
+const BUILD_COST = [250, 600, 3000, 15000, 60000];
+const UPKEEP     = [3, 5, 12, 35, 90];
+const RESEARCH   = [400, 800, 4000, 20000, 100000];
 const UPGRADE_MULT = [1.0, 1.5, 2.2, 3.2];      // cost of Lv1→2, 2→3, 3→4, 4→5 (× build cost)
 const MAX_BLD_LV = 5;
 const MAX_ACTIVE_PRODUCTS = 5;
@@ -515,6 +565,9 @@ const BLURB = {
   canned:'Silos and a canning line seal pasta into iron cans.',
   steel:'Twin chimneys. Iron and charcoal become steel.',
   tools:'Anvil out front, steel and planks become tools.',
+  piano:'Fine wood from the furniture factory, steel strings, and a tuner who never stops playing.',
+  hamper:'Wicker baskets packed with canned treats, a lunch box and a cookbook, tied with a gold ribbon.',
+  car:'A showroom on the hill. Steel bodies, tools and leather seats roll out as shiny motor cars.',
 };
 
 /* ---------------------------------------------------------------- levels, HQ, warehouse */
@@ -523,10 +576,10 @@ const LEVELS = [
   { n:1, name:'Main Street',     nw:0 },
   { n:2, name:'Market Row',      nw:10000 },
   { n:3, name:'Industrial Park', nw:100000 },
-  { n:4, name:'Global', nw:1000000, soon:true },
+  { n:4, name:'Gold Hill',       nw:1000000 },
 ];
-const MAX_LEVEL = 3;                  // v0.01 stops at Industrial Park
-const MARKET_SIZE = [0, 1, 1.6, 2.5]; // NPC demand grows with your level
+const MAX_LEVEL = 4;                     // v0.04 adds Gold Hill
+const MARKET_SIZE = [0, 1, 1.6, 2.5, 4]; // NPC demand grows with your level
 const HQ_CAP  = [6, 12, 20, 30, 45, 65, 95, 140];
 const HQ_COST = [1000, 4000, 12000, 35000, 100000, 300000, 900000];
 const WH_CAP  = [200, 400, 800, 1500, 3000, 6000, 12000];
@@ -538,13 +591,29 @@ const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% ov
 
 /* ---------------------------------------------------------------- town layout (native px) */
 const MAP_W = 480, MAP_H = 270, LOT = 40;
-const TX = 200, TY = 120, WORLD_W = MAP_W + 2 * TX, WORLD_H = MAP_H + 2 * TY;   // countryside around the town so the map can fill any screen
+const HILL_EXTRA = 122;   // v0.04: the world reaches further south to fit Gold Hill
+const TX = 200, TY = 120, WORLD_W = MAP_W + 2 * TX, WORLD_H = MAP_H + 2 * TY + HILL_EXTRA;   // countryside around the town so the map can fill any screen
 const BLOCK_X = [20, 176, 332];
 const ROW_Y = [26, 92, 160, 226];   // 26 px between rows so upgraded buildings can grow upward
-const ZONE_LEVEL = [2, 1, 3];         // left block = Market Row, middle = Main Street, right = Industrial Park
-const ZONE_NAME = ['Market Row', 'Main Street', 'Industrial Park'];
+const ZONE_LEVEL = [2, 1, 3, 4];      // left block = Market Row, middle = Main Street, right = Industrial Park, south = Gold Hill
+const ZONE_NAME = ['Market Row', 'Main Street', 'Industrial Park', 'Gold Hill'];
+const LOTS = 48;                      // 12 per zone, in the order above
 const HQ_LOT = 12 + 3 + 1;            // middle block, row 1, col 1
-function lotXY(i) { const b = Math.floor(i / 12), k = i % 12, row = Math.floor(k / 3), col = k % 3; return { x: BLOCK_X[b] + col * 44, y: ROW_Y[row], block: b }; }
+// Gold Hill: a plateau south of town, two rows of three pairs of lots that sit between the roads
+const GH_X = [64, 108, 198, 242, 332, 376], GH_Y = [322, 388];
+const HILL = { x: -12, y: 276, w: 504, h: 164 }, HILL_ROAD = { y: 286, h: 12 };
+function lotXY(i) {
+  const b = Math.floor(i / 12), k = i % 12;
+  if (b === 3) return { x: GH_X[k % 6], y: GH_Y[Math.floor(k / 6)], block: b };
+  const row = Math.floor(k / 3), col = k % 3; return { x: BLOCK_X[b] + col * 44, y: ROW_Y[row], block: b };
+}
+// fenced boxes around a zone's lots, the spots for its "opens at" labels, and its middle (town px)
+function zoneBoxes(b) {
+  if (b === 3) return [0, 2, 4].map(c => [GH_X[c] - 3, GH_Y[0] - 3, GH_X[c + 1] + LOT + 2, GH_Y[1] + LOT + 2]);
+  return [[ROW_Y[0], ROW_Y[1]], [ROW_Y[2], ROW_Y[3]]].map(([a, z]) => [BLOCK_X[b] - 3, a - 3, BLOCK_X[b] + 3 * 44 - 4 + 2, z + LOT + 2]);
+}
+function zoneLabelSpots(b) { return b === 3 ? [[240, (GH_Y[0] + GH_Y[1] + LOT) / 2]] : [[BLOCK_X[b] + 64, (ROW_Y[0] + ROW_Y[1] + LOT) / 2], [BLOCK_X[b] + 64, (ROW_Y[2] + ROW_Y[3] + LOT) / 2]]; }
+function zoneCenter(b) { return b === 3 ? [240, 372] : [BLOCK_X[b] + 64, 146]; }
 const ROAD_H = { y: 138, h: 16 };
 const ROAD_V = [{ x: 154, w: 16 }, { x: 310, w: 16 }];
 
@@ -558,6 +627,7 @@ const PROPS = {
   apartment: { name:'Apartments',    price:70000,  yld:0.0008,  lvl:2, about:'Three floors of renters and a laundry room that never works.' },
   office:    { name:'Corner Office', price:240000, yld:0.0009,  lvl:3, about:'Glass-front offices rented to small companies.' },
   mansion:   { name:'Mansion',       price:900000, yld:0.001,   lvl:3, about:'The fanciest address in Millbrook. Columns, gardens, a fountain.' },
+  villa:     { name:'Hilltop Villa', price:3000000, yld:0.0011, lvl:4, about:'A white villa on Gold Hill with a pool and a view over all of Millbrook.' },
 };
 const PROP_BUY_FEE = 0.03, PROP_SELL_FEE = 0.05, PROP_MAX_RENO = 3;
 const RENO_COST = 0.25, RENO_VALUE = 0.2, RENO_RENT = 0.5;   // each renovation: costs 25% of the base price, +20% value, +50% rent
@@ -567,8 +637,10 @@ const PLOTS = [
   { x:-184, y:158, t:'cottage' }, { x:-144, y:158, t:'townhouse' }, { x:-104, y:158, t:'apartment' }, { x:-64, y:158, t:'apartment' },
   { x:492, y:98, t:'apartment' }, { x:532, y:98, t:'office' }, { x:572, y:98, t:'office' }, { x:612, y:98, t:'mansion' },
   { x:492, y:158, t:'townhouse' }, { x:532, y:158, t:'apartment' }, { x:572, y:158, t:'office' }, { x:612, y:158, t:'mansion' },
+  { x:4, y:356, t:'villa' }, { x:440, y:356, t:'villa' },   // v0.04: on Gold Hill (add new plots at the end: saves match them by position)
 ];
-const PLOT_SIDE = k => PLOTS[k].x < 0 ? 'West side' : 'East side';
+const PLOT_SIDE = k => PLOTS[k].y > HILL.y ? 'Gold Hill' : PLOTS[k].x < 0 ? 'West side' : 'East side';
+const PLOT_WHERE = k => PLOTS[k].y > HILL.y ? 'on Gold Hill' : PLOTS[k].x < 0 ? 'on the west side of town' : 'on the east side of town';
 
 /* ---------------------------------------------------------------- stock market */
 // vol = company-specific volatility per hour; jump = chance per second of a sudden move; yld = dividend per minute (fraction of price)
@@ -621,6 +693,9 @@ const GOALS = [
   { text:'Upgrade any building to level 3.', reward:2000, done:s => s.lots.some(l => l && l.b !== 'hq' && l.lv >= 3) },
   { text:'Reach $100,000 net worth to open Industrial Park.', reward:5000, done:s => s.level >= 3 },
   { text:'Build a Level 3 product.', reward:10000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 3) },
+  // v0.04: the two Gold Hill goals go before the ranking goals, whose rivals keep growing (adopt() moves older saves along)
+  { text:'Reach $1,000,000 net worth to open Gold Hill, south of town.', reward:25000, done:s => s.level >= 4 },
+  { text:'Build a Gold Hill product (Level 4).', reward:100000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 4) },
   { text:'Climb into the top 5 richest players.', reward:20000, done:s => playerRank(s) <= 5 },
   { text:'Become the richest player in Millbrook.', reward:50000, done:s => playerRank(s) === 1 },
 ];
@@ -629,9 +704,9 @@ const GOALS = [
 const EV_UP = ['{P} craze sweeps Millbrook', 'Big city order for {P}', 'Shortage of {P}: buyers pay more', '{P} sells out at the market'];
 const EV_DOWN = ['Cheap {P} imports flood the market', 'Too much {P} around: prices slide', '{P} falls out of fashion'];
 const EV_SECTOR = {
-  wood:  ['Building boom: wood goods in demand', ['wood', 'planks', 'chair', 'sofa', 'paper', 'books']],
-  food:  ['Food festival: everything edible sells higher', ['wheat', 'flour', 'bread', 'pasta', 'lunchbox', 'canned']],
-  metal: ['Railroad expansion: metal prices climb', ['ore', 'iron', 'nails', 'steel', 'tools', 'charcoal']],
+  wood:  ['Building boom: wood goods in demand', ['wood', 'planks', 'chair', 'sofa', 'paper', 'books', 'piano']],
+  food:  ['Food festival: everything edible sells higher', ['wheat', 'flour', 'bread', 'pasta', 'lunchbox', 'canned', 'hamper']],
+  metal: ['Railroad expansion: metal prices climb', ['ore', 'iron', 'nails', 'steel', 'tools', 'charcoal', 'car']],
 };
 const EV_STOCK_UP = ['{C} beats profit expectations', '{C} lands a huge contract', 'Investors pile into {C}'];
 const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', 'Factory fire hits {C}'];

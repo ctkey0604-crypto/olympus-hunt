@@ -7,10 +7,10 @@
    ========================================================================== */
 let TUTLOT = -1;   // the lot the map arrow points at (-1: none)
 function tutActive() { return !!S && S.tut < TUT.length; }
-function firstBld() { for (let i = 0; i < 36; i++) { const l = S.lots[i]; if (l && l.b !== 'hq') return i; } return -1; }
+function firstBld() { for (let i = 0; i < S.lots.length; i++) { const l = S.lots[i]; if (l && l.b !== 'hq') return i; } return -1; }
 function tutLot() {
   for (const i of [HQ_LOT + 1, HQ_LOT - 1, HQ_LOT + 3, HQ_LOT - 3]) if (!S.lots[i] && lotUnlocked(i)) return i;
-  for (let i = 0; i < 36; i++) if (!S.lots[i] && lotUnlocked(i)) return i;
+  for (let i = 0; i < S.lots.length; i++) if (!S.lots[i] && lotUnlocked(i)) return i;
   return -1;
 }
 const selEmpty = () => !!UI.sel && UI.sel.i < 100 && !S.lots[UI.sel.i] && lotUnlocked(UI.sel.i);

@@ -165,6 +165,12 @@ const SONGS = [
           E5 - . E5 G5 - E5 -  A5 - - - G5 - E5 -  F5 - E5 - D5 - C5 -  B4 - - - G#4 - . .`,
     bass: 'R.R.R.R.R.R.5.8.', arp: '0120012001200120',
     drums: { k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...x.' } },
+  { name: 'Gold Hill', bpm: 96, swing: .12, leadDuty: .25, leadLp: 3200, arpDuty: .125, bassLen: 2.5,   // v0.04: a stately march in D
+    bars: ['D', 'Bm', 'G', 'A', 'D', 'F#m', 'G', 'A7'],
+    mel: `A4 . D5 . F#5 . A5 .  B5 - A5 - F#5 - D5 .  G5 . F#5 . E5 . D5 .  E5 - - - C#5 - . .
+          A4 . D5 . F#5 . A5 .  C#6 - B5 - A5 - F#5 .  G5 . B5 . A5 . G5 F#5  E5 - - - D5 - . .`,
+    bass: 'R...5...R.5.8...', arp: '0.1.2.1.0.1.2.1.',
+    drums: { k: 'x.......x.x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.' } },
 ];
 function parseChord(s) {
   const m = /^([A-G])(#|b)?(m7|maj7|m|7|dim)?$/.exec(s), q = m[3] || '';
