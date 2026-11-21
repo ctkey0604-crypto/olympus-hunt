@@ -746,7 +746,7 @@ const WHATS_NEW = [
     'Buy <b>other players’ companies</b> (Invest → Players): a public company pays 30% of its profit as dividends, and shareholders get their part, even while you’re away.',
     'Later you can sell more shares (up to 49% outside) or buy shares back from Millbrook’s investors.',
     'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.',
-    'The white gateposts on the roads up to Gold Hill are gone.'] },
+    '<b>Gold Hill</b> looks like a hill now: lit slopes with terraces, two rocky banks on the side facing you, and the town’s roads climb onto it by stone steps instead of running straight through. The stray white posts are gone.'] },
   { v: 'v0.07', title: 'Online', items: [
     'Play <b>online</b>: log into your <b>Inspirapixel account</b> (one account for every Inspirapixel game, the same as your Olympus Hunt account: just a name and a password) and your company is saved on the server, so you can pick it up on any device. Playing without an account still works, saved in your browser.',
     'A <b>shared market</b>: when players sell a lot of the same good its price drops a little for everyone, and buying pushes it up. One player barely moves it; a crowd can move it up to 30%, and it recovers over about 15 minutes. The Market shows how much players are moving each price.',
