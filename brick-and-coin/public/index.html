@@ -231,6 +231,14 @@ p{margin:0}
 .lb-row .rk{font:600 22px/1 var(--font-num);color:var(--bone-dim)}
 .lb-row.you .rk,.lb-row.top .rk{color:var(--gold)}
 .lb-row .nw{font:600 19px/1 var(--font-num);color:var(--gold);text-align:right}
+/* v0.07: who's a real player and who's simulated; the gap before your own place; the account line on the starting menu */
+.lb-row .lb-tag{text-align:right}
+.chip.dim{background:transparent;color:var(--bone-mute);box-shadow:inset 0 0 0 1px var(--line)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3ddc6a;box-shadow:0 0 0 2px #160e0b;margin-right:2px}
+.lb-gap{text-align:center;color:var(--bone-mute);letter-spacing:.3em;line-height:1;padding:2px 0}
+.tacct{font:500 14px/1.3 var(--font-ui);color:var(--bone-dim);text-align:center;padding:4px 0}
+.tacct b{color:var(--olive)}
+.linkbtn{border:0;background:none;padding:0;font:inherit;color:var(--gold);text-decoration:underline;cursor:pointer}
 
 /* start screen */
 .start{position:fixed;inset:0;z-index:20;background:#0b0706;overflow:hidden}
@@ -591,7 +599,7 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.06';
+const VERSION = 'v0.08';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -1176,6 +1184,22 @@ const STARTUP_BOOST = 1.5;            // production speed until you reach Level 
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
 const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% over the sell price
+/* v0.07: the shared market. What every player sells and buys adds up (on the server) and moves a good's price for
+   everyone, on top of your own selling (which still hits your own price hardest). Real markets move with the square root
+   of how much is dumped: one player barely moves a price, a crowd moves it a lot, and it's capped. See crowdMult(). */
+const CROWD_HALF = 300;               // seconds: a burst of selling fades with a 5-minute half-life (the server uses the same)
+const CROWD_R0 = 300;                 // everyone together selling the output of 300 building levels non-stop: about −29%
+const CROWD_MIN = 0.7, CROWD_MAX = 1.35;   // the most a crowd can move a price: −30% selling, +35% buying
+/* v0.08: going public (see 38_pub.js; the server has the same numbers). A company at Level 3 can sell up to 49% of itself in
+   new shares: the cash goes into the company, and its owner keeps the rest. Investors value a company at what it's worth plus
+   up to an hour of profit (at most twice its worth); an IPO is priced 10% under that, and the bank keeps 5%. A public company
+   pays 30% of its profit as dividends, split by who owns it, so its outside shareholders get their part. */
+const PUB_LEVEL = 3;
+const PUB_SHARES = 100000, PUB_MAX = 0.49, PUB_PREMIUM = 60;
+const PUB_HALF = 1800, PUB_DEPTH = 0.05, PUB_MOVE = [0.6, 1.6];   // players' trading moves a share price (fades over 30 min), within ×0.6..×1.6
+const IPO_DISCOUNT = 0.9, IPO_FEE = 0.05, ISSUE_FEE = 0.05, BUYBACK_FEE = 0.005;
+const PUB_DIV = 0.3;
+const PUB_STEPS = [0.1, 0.25, 0.4, 0.49];   // how much of the company an IPO can sell
 
 /* ---------------------------------------------------------------- town layout (native px) */
 const MAP_W = 480, MAP_H = 270, LOT = 40;
@@ -1266,6 +1290,14 @@ const RIVAL_CO = { SteelQueen:'Titan Steel Works', TycoonTom:'Forgeline Tools', 
   ChairMan:'Sitwell Furniture', GrainGary:'Golden Grain Co.', RoboRita:'Nova Robotics', MoonMike:'PixCoin trader',
   PlankPete:'Pete’s Planks', OreOscar:'Oscar Mining', NewbieNed:'Ned’s Bread', CopperKid:'Kid Copper Co.' };
 
+/* simulated companies (v0.07, see simOf() in 35_world.js): made-up tycoons that open, grow and close like real players */
+const SIM_FIRST = ['Ada', 'Bea', 'Cal', 'Dot', 'Eli', 'Fay', 'Gus', 'Hal', 'Ivy', 'Jo', 'Kit', 'Lou', 'Max', 'Nell', 'Otto', 'Pip', 'Quin', 'Rae',
+  'Sal', 'Tess', 'Uma', 'Vic', 'Wes', 'Zoe', 'Bram', 'Cleo', 'Finn', 'Mae', 'Ned', 'Rosa'];
+const SIM_TAG = ['Builds', 'Trades', 'Makes', 'Deals', 'Biz', 'Coin', 'Gold', 'Boss', 'Works', 'Tycoon', 'Rich', 'Inc'];
+const SIM_SUR = ['Ashford', 'Bramble', 'Copperfield', 'Dunmore', 'Elmwood', 'Fairley', 'Granger', 'Hollis', 'Ironside', 'Juniper', 'Kettle', 'Larkin',
+  'Merriweather', 'Northgate', 'Oakley', 'Pennywhistle', 'Quarry', 'Redfern', 'Stonebridge', 'Thistle', 'Underhill', 'Vane', 'Whitlock', 'Yardley'];
+const SIM_KIND = { wood: ['Timber', 'Mills', 'Woodworks', 'Lumber Co.'], wheat: ['Bakery', 'Grain Co.', 'Foods', 'Farms'], ore: ['Mining', 'Ironworks', 'Metals', 'Forge'] };
+
 /* ---------------------------------------------------------------- goals */
 const GOALS = [
   { text:'Build your first producer. Click an empty lot in the middle of town.', reward:150, done:s => countBuildings(s) >= 1 },
@@ -1303,6 +1335,17 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.08', title: 'Going public', items: [
+    'Take your company <b>public</b> (Invest → Your company) once it reaches Level 3: sell 10% to 49% of it in new shares and the cash goes straight into the company to grow with. You keep the rest.',
+    'Investors value a company at what it’s worth plus up to an hour of its profit. Your share price then moves with your company, the market’s mood, and players buying and selling it.',
+    'Buy <b>other players’ companies</b> (Invest → Players): a public company pays 30% of its profit as dividends, and shareholders get their part, even while you’re away.',
+    'Later you can sell more shares (up to 49% outside) or buy shares back from Millbrook’s investors.',
+    'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.'] },
+  { v: 'v0.07', title: 'Online', items: [
+    'Play <b>online</b>: log into your <b>Inspirapixel account</b> (one account for every Inspirapixel game, the same as your Olympus Hunt account: just a name and a password) and your company is saved on the server, so you can pick it up on any device. Playing without an account still works, saved in your browser.',
+    'A <b>shared market</b>: when players sell a lot of the same good its price drops a little for everyone, and buying pushes it up. One player barely moves it; a crowd can move it up to 30%, and it recovers over about 15 minutes. The Market shows how much players are moving each price.',
+    'The <b>leaderboard</b> is real players only, with a green dot for who’s online now.',
+    '<b>Simulated companies</b> come and go in the news like real ones: new ones open, grow, move into new areas of town, and some go bust. They never appear on the leaderboard.'] },
   { v: 'v0.06', title: 'Menus', items: [
     'The <b>Inspirapixel</b> logo plays when the game starts.',
     'A new <b>starting menu</b>: Millbrook drifts by behind the logo, with Continue, New Company, How to Play, Settings and this page.',
@@ -2056,7 +2099,7 @@ let AWAY_RATE = 1;                // 1 while someone's playing; OFFLINE_RATE whe
 const LOG = { onNews: null, onToast: null, onPop: null, onLevel: null, onGoal: null };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-const SAVE_V = 3;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world). adopt() brings older saves up to date.
+const SAVE_V = 4;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world), 4 = v0.08 (public companies). adopt() brings older saves up to date.
 function newGame(company, start) {
   // v0.05: the market, news, rivals and home prices live in the shared world (35_world.js), not in the save
   S = {
@@ -2064,6 +2107,7 @@ function newGame(company, start) {
     lots: new Array(LOTS).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
     market: {}, news: [], goal: 0, stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
     hold: {}, divAcc: 0, savedAt: nowMs(), boostShown: false, props: PLOTS.map(() => ({ own: false, reno: 1, paid: 0 })),
+    pub: null, pubHold: {},   // v0.08: this company's listing (if public), and shares it holds in other players' companies
   };
   S.lots[HQ_LOT] = { b: 'hq', lv: 1 };
   for (const p of PIDS) S.market[p] = { sat: 0, bp: 0, hist: [] };
@@ -2092,12 +2136,13 @@ function lotUnlocked(i) { return ZONE_LEVEL[Math.floor(i / 12)] <= S.level; }
 function marketDepth(p) { const P = PRODUCTS[p]; return 60 * (60 / P.sec) * P.out * MARKET_SIZE[S.level]; }
 
 /* ---------------------------------------------------------------- goods market */
-// a good's price: its base, today's shared swing and news (the world), then this player's own selling and buying pressure
+// a good's price: its base, today's shared swing and news (the world), what the crowd of players is selling and buying
+// (v0.07, crowdMult() in 37_net.js), then this player's own selling and buying pressure
 function evMult(p) { return WS.mult[p] || 1; }
 function evSpeed(p) { return WS.speed[p] || 1; }
 function price(p) {
   const M = S.market[p], D = marketDepth(p);
-  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) / (1 + M.sat / D) * (1 + M.bp / D);
+  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) * crowdMult(p) / (1 + M.sat / D) * (1 + M.bp / D);
 }
 function buyPrice(p) { return price(p) * NPC_MARKUP; }
 // the last 5 minutes of prices for the sparklines, from the world (at today's own selling pressure)
@@ -2113,6 +2158,7 @@ function sellGoods(p, q, auto) {
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
   let left = q, rev = 0;
   while (left > 0) { const c = Math.min(left, chunk); rev += c * price(p); M.sat += c; left -= c; }
+  crowdNote(p, q, 0);
   S.cash += rev; S.stats.sales += rev; addProfit(rev);
   return rev;
 }
@@ -2120,6 +2166,7 @@ function buyGoods(p, q) {
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
   let left = q, cost = 0;
   while (left > 0) { const c = Math.min(left, chunk); cost += c * buyPrice(p); M.bp += c; left -= c; }
+  crowdNote(p, 0, q);
   return cost;
 }
 function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * (1 + q / D / 2); }
@@ -2220,17 +2267,20 @@ function manualBuy(p, q) {
 }
 
 /* ---------------------------------------------------------------- net worth, levels, rank */
-function netWorth() {
+// v0.08: the company's whole value, and the owner's net worth (their part of it, once outside shareholders own some)
+function netWorth() { return companyValue() * ownFrac(); }
+function companyValue() {
   let nw = S.cash;
   for (const l of S.lots) if (l && l.b !== 'hq') nw += l.spent * .6;
   nw += ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5;
   for (const p in S.inv) nw += S.inv[p] * price(p) * .9;
-  nw += portfolioValue() + propertyValue();
+  nw += portfolioValue() + propertyValue() + pubHoldValue();
   return nw;
 }
-function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of s.rivals) if (x.nw > nw) r++; return r; }
+// rank among the real players (v0.07: the leaderboard is players only)
+function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of netOthers()) if (x.nw > nw) r++; return r; }
 function checkLevel() {
-  const nw = netWorth();
+  const nw = companyValue();   // areas of town open with the whole company's value (v0.08)
   while (S.level < MAX_LEVEL && nw >= LEVELS[S.level + 1].nw) {
     S.level++;
     pushNews(`${S.company} reaches Level ${S.level}: ${LEVELS[S.level].name} is open!`, 'you');
@@ -2272,7 +2322,7 @@ function step(dt) {
   stepProduction(dt, AWAY_RATE);   // left idle, the company runs like it does while closed (v0.05)
   stepUpkeep(dt, AWAY_RATE);
   payRent(dt, AWAY_RATE);
-  S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); S.divAcc = 0; }
+  S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); pubPayDividends(S.divAcc / 60); S.divAcc = 0; }
   S._sec = (S._sec || 0) + dt;
   if (S._sec >= 1) {
     S._sec -= 1;
@@ -2287,13 +2337,13 @@ function step(dt) {
 function offlineCatchUp(sec) {
   sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
   const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
-  WS.mult = {}; WS.speed = {}; WS.noise = {};
+  WS.mult = {}; WS.speed = {}; WS.noise = {}; CROWD_OFF = true;   // plain prices: no news, and no crowd (v0.07)
   for (let i = 0; i < stepN; i++) {
     stepProduction(dt, OFFLINE_RATE); stepUpkeep(dt, OFFLINE_RATE); payRent(dt, OFFLINE_RATE);
     for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
     sellSurplus();
   }
-  [WS.mult, WS.speed, WS.noise] = keep;
+  [WS.mult, WS.speed, WS.noise] = keep; CROWD_OFF = false;
   return { sec, earned: S.cash - cash0 };
 }
 
@@ -2322,6 +2372,8 @@ function adopt(obj) {
     S.news = [];
   }
   if (S.divAcc == null) S.divAcc = 0;
+  if (S.pub === undefined) S.pub = null;            // v0.08
+  if (!S.pubHold) S.pubHold = {};
   S.v = SAVE_V;
   if (!WS.ready) WT = worldNow();
   attachWorld(); prefillGoodsHist();
@@ -2464,8 +2516,13 @@ function slotEvent(j) {
   out.push(e);
   return out;
 }
-// every event between two world times, oldest first
-function eventsBetween(t0, t1) { const out = []; for (let j = Math.floor(t0 / EV_SLOT); j <= Math.floor(t1 / EV_SLOT); j++) for (const e of slotEvent(j)) if (e.t >= t0 && e.t <= t1) out.push(e); return out; }
+// every event between two world times, oldest first (v0.07: the simulated companies' news too)
+function eventsBetween(t0, t1) {
+  const out = []; for (let j = Math.floor(t0 / EV_SLOT); j <= Math.floor(t1 / EV_SLOT); j++) for (const e of slotEvent(j)) if (e.t >= t0 && e.t <= t1) out.push(e);
+  const sims = simEventsBetween(t0, t1);
+  if (sims.length) { for (const e of sims) out.push(e); out.sort((a, b) => a.t - b.t); }
+  return out;
+}
 const EV_KEEP = 3 * 86400 + 5 * 3600;   // how far back events still matter (4 fade times: 3 days for PixCoin) plus the 4-hour charts
 
 /* ---------- the world at one moment ---------- */
@@ -2508,6 +2565,67 @@ function rivalsAt(t, p) {
     return Math.max(1000, nw);
   });
 }
+/* ---------- simulated companies (v0.07) ----------
+   Besides the established tycoons above, Millbrook has a steady stream of made-up companies that live like real players:
+   one opens about every 6 hours, grows at a human pace (most play a little, a few a lot), moves into new areas of town as
+   it gets richer, levels off where its owner stops improving (most stay small, a few get rich, like real players), and
+   after a few days either sells up or (three in ten) goes bust. They're all worked out from the world clock, so every
+   player sees the same ones, and they're marked as simulated on the leaderboard. */
+const SIM_EVERY = 6 * 3600, SIM_LIFE = 14 * 86400;   // one opens about every 6 h (about 25 around at once); none lasts over 14 days
+const SIM_MEMO = new Map();
+function simOf(n) {
+  let s = SIM_MEMO.get(n); if (s) return s;
+  const u = k => hu(700 + k, n), pick = (a, k) => a[Math.floor(u(k) * a.length)];
+  const branch = ['wood', 'wheat', 'ore'][Math.floor(u(1) * 3)], busts = u(3) < .3, born = n * SIM_EVERY + Math.floor(u(0) * SIM_EVERY);
+  const first = pick(SIM_FIRST, 5), tag = pick(SIM_TAG, 6), style = u(7);
+  const name = style < .4 ? first + tag : style < .7 ? (first + tag).toLowerCase() + (10 + Math.floor(u(8) * 89)) : first + '_' + tag;
+  s = { n, born, branch, busts, name, co: pick(SIM_SUR, 9) + ' ' + pick(SIM_KIND[branch], 10),
+    k: .15 + .95 * u(2) * u(2),                                                     // hours played per hour: most a little, a few a lot
+    cap: 2e4 * Math.pow(250, Math.pow(u(11), 1.5)),                                 // where it levels off: $20k to $5M, most nearer the bottom
+    end: born + (busts ? 3600 * (5 + 100 * u(4)) : 86400 * (3 + 11 * u(4))) };       // bust within days, or sell up after 3-14 days
+  SIM_MEMO.set(n, s); if (SIM_MEMO.size > 600) SIM_MEMO.delete(SIM_MEMO.keys().next().value);
+  return s;
+}
+// net worth by hours played: about $10k after 30 min, $100k after 3 h, $1M after a long day (like the playtest bot), levelling
+// off at the company's own ceiling
+function simCurve(x, cap) { const nw = Math.pow(10, 3.3 + .714 * Math.log(1 + x / .3)); return nw * cap / (nw + cap); }
+function simHoursTo(nw, cap) { if (nw >= cap * .9) return Infinity; const raw = nw * cap / (cap - nw); return .3 * (Math.exp((Math.log10(raw) - 3.3) / .714) - 1); }
+function simNw(s, t) {
+  if (t < s.born || t >= s.end) return 0;
+  let nw = simCurve((t - s.born) / 3600 * s.k, s.cap) * Math.exp(fbm(900 + s.n % 61, t, .0005, OCT_F));
+  if (s.busts && s.end - t < 7200) nw *= Math.max(.05, (s.end - t) / 7200);   // a failing company slides for its last two hours
+  return Math.max(800, nw);
+}
+function simLevel(nw) { let L = 1; while (L < MAX_LEVEL && nw >= LEVELS[L + 1].nw) L++; return L; }
+function simsAlive(t) {
+  const out = [];
+  for (let n = Math.max(0, Math.floor((t - SIM_LIFE) / SIM_EVERY) - 1); n <= Math.floor(t / SIM_EVERY); n++) { const s = simOf(n); if (t >= s.born && t < s.end) out.push(s); }
+  return out;
+}
+// the simulated companies right now, with their net worth and level (kept for 5 s: the leaderboard reads it often)
+let SIM_NOW = { t: -1, list: [] };
+function simBoard(t) {
+  t = Math.floor(t / 5) * 5; if (SIM_NOW.t === t) return SIM_NOW.list;
+  const list = simsAlive(t).map(s => { const nw = simNw(s, t); return { name: s.name, co: s.co, nw, lv: simLevel(nw), sim: true }; });
+  SIM_NOW = { t, list }; return list;
+}
+// their news: opening, each new area of town, and selling up or going bust
+const SIM_AREA = { 2: 'grows into Market Row', 3: 'builds in the Industrial Park', 4: 'moves up to Gold Hill' };
+function simEventsBetween(t0, t1) {
+  const out = [], ev = (t, text, kind) => { if (t >= t0 && t <= t1) out.push({ t, j: -1, text, kind, jumps: [] }); };
+  for (let n = Math.max(0, Math.floor((t0 - SIM_LIFE) / SIM_EVERY) - 1); n <= Math.floor(t1 / SIM_EVERY); n++) {
+    const s = simOf(n); if (s.end < t0 || s.born > t1) continue;
+    ev(s.born, `New in town: ${s.co} opens on Main Street`, 'info');
+    for (let L = 2; L <= MAX_LEVEL; L++) {
+      const h = simHoursTo(LEVELS[L].nw * 1.02, s.cap); if (!Number.isFinite(h)) break;
+      const t = s.born + Math.round(h / s.k * 3600);
+      if (t < s.end - (s.busts ? 7200 : 0)) ev(t, `${s.co} ${SIM_AREA[L]}`, 'up');
+    }
+    ev(s.end, s.busts ? `${s.co} goes bust` : `${s.name} sells ${s.co} and retires`, s.busts ? 'down' : 'info');
+  }
+  return out;
+}
+
 // goods: shared price swings (about ±4%) and any news that is boosting or cutting prices or production speed
 function goodsAt(t, evs) {
   const noise = {}, mult = {}, speed = {};
@@ -2590,6 +2708,138 @@ const clockReady = (async () => {
     clockSynced = true;
   } catch (e) {}
 })();
+'use strict';
+/* ============================================================================
+   NET (v0.07): your account, your company saved on the server, and the shared
+   market. The game still plays fine with no account or no connection: then the
+   company is saved in this browser only, as before.
+   - Logging in uses an Inspirapixel account (the same accounts as Olympus Hunt): a name and a password.
+   - Once a minute a logged-in game tells the server (server/index.js) how much of
+     each good it sold and bought, and hears back what everyone else is doing and
+     the players' leaderboard. Every 3 minutes, and when you leave, it sends the save.
+     A game with no account just listens, every 2 minutes.
+   - crowdMult() turns what the crowd of players is doing into a price move.
+   ========================================================================== */
+const NET_KEY = 'inspirapixel_bizgame_account';
+const NET_API = /^https?:$/.test(location.protocol) ? '/api' : '';   // a page opened as a file plays offline
+const SYNC_EVERY = 60, SAVE_EVERY = 180, GUEST_EVERY = 120;            // seconds
+const NET = { name: null, token: null, crowd: {}, crowdWT: 0, online: 0, players: 0, board: [], flow: {},
+  lastSync: 0, lastSave: 0, busy: false, down: 0, cloud: undefined, said: {},
+  listings: [], div: 0 };   // v0.08: the public companies, and dividends this company has paid since the last sync
+let CROWD_OFF = false;   // true while working out time away (plain prices)
+
+/* ---------- the crowd: everyone's selling and buying ----------
+   Flows are counted in "building-level minutes" (what one level of a building makes in a minute), so a crowd selling
+   Nails and a crowd selling Motor Cars weigh the same. Each burst fades with a CROWD_HALF half-life. With D the market's
+   depth (CROWD_R0 building levels selling non-stop), the price moves by sqrt((1 + bought/D) / (1 + sold/D)): the square
+   root, like a real market, so doubling the selling doesn't double the drop. One busy player selling 50 levels' worth
+   moves a price about 7%; a crowd of 300 levels' worth, about 29%; never more than CROWD_MIN..CROWD_MAX. */
+const CROWD_D = CROWD_R0 * CROWD_HALF / 60 / Math.LN2;
+const CROWD_OWN = {};    // this player's own part: { p: [sold, bought, world time] }, faded as it's read
+function unitsPerMin(p) { const P = PRODUCTS[p]; return 60 / P.sec * P.out; }
+function crowdOwnNow(p) {
+  let o = CROWD_OWN[p]; if (!o) o = CROWD_OWN[p] = [0, 0, WT];
+  if (WT > o[2]) { const k = Math.pow(.5, (WT - o[2]) / CROWD_HALF); o[0] *= k; o[1] *= k; o[2] = WT; }
+  return o;
+}
+function crowdOthers(p) { const c = NET.crowd[p]; if (!c) return [0, 0]; const k = Math.pow(.5, Math.max(0, WT - NET.crowdWT) / CROWD_HALF); return [c[0] * k, c[1] * k]; }
+function crowdMove(s, b) { return clamp(Math.sqrt((1 + b / CROWD_D) / (1 + s / CROWD_D)), CROWD_MIN, CROWD_MAX); }
+function crowdMult(p) { if (CROWD_OFF) return 1; const o = crowdOthers(p), m = crowdOwnNow(p); return crowdMove(o[0] + m[0], o[1] + m[1]); }
+function crowdOthersMult(p) { const o = crowdOthers(p); return crowdMove(o[0], o[1]); }   // the other players alone (for the Market)
+// every sale and purchase (from sellGoods / buyGoods) counts towards the crowd, and goes in the next report to the server
+function crowdNote(p, sold, bought) {
+  if (CROWD_OFF) return;
+  const u = unitsPerMin(p), s = sold / u, b = bought / u, o = crowdOwnNow(p);
+  o[0] += s; o[1] += b;
+  if (NET.token) { const f = NET.flow[p] || (NET.flow[p] = [0, 0]); f[0] += s; f[1] += b; }
+}
+
+/* ---------- talking to the server ---------- */
+async function netCall(path, body) {
+  if (!NET_API) throw new Error('Playing offline: open the game at brickncoin.com to play online.');
+  const h = { 'Content-Type': 'application/json' }; if (NET.token) h.Authorization = 'Bearer ' + NET.token;
+  let r;
+  try { r = await fetch(NET_API + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }); }
+  catch (e) { throw new Error('Can’t reach the server. Check your connection and try again.'); }
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  if (r.status === 401 && NET.token && path !== '/login' && path !== '/register') netForget();
+  if (!r.ok) { const e = new Error(d.error || (r.status === 404 ? 'Online play isn’t available here.' : 'The server had a problem. Try again in a minute.')); e.status = r.status; throw e; }
+  return d;
+}
+function netLoad() { try { const o = JSON.parse(localStorage.getItem(NET_KEY) || 'null'); if (o && o.token) { NET.name = o.name; NET.token = o.token; } } catch (e) {} }
+function netStore() { try { if (NET.token) localStorage.setItem(NET_KEY, JSON.stringify({ name: NET.name, token: NET.token })); else localStorage.removeItem(NET_KEY); } catch (e) {} }
+function netForget() { NET.name = NET.token = null; NET.cloud = undefined; NET.flow = {}; netStore(); }
+async function netLogin(name, password, create) {
+  const d = await netCall(create ? '/register' : '/login', { name, password });
+  NET.name = d.name; NET.token = d.token; NET.cloud = undefined; NET.flow = {}; NET.lastSync = 0; netStore();
+  return d;
+}
+async function netLogout() { const t = NET.token; if (t) { try { await netCall('/logout', {}); } catch (e) {} } netForget(); }
+// the company saved on the server (NET.cloud: the save, null if there's none, undefined until we've asked)
+async function netFetchSave() {
+  if (!NET.token) { NET.cloud = undefined; return; }
+  const d = await netCall('/save');
+  try { NET.cloud = d.save ? JSON.parse(d.save) : null; } catch (e) { NET.cloud = null; }
+}
+function netBody() { return { company: S.company, nw: Math.round(netWorth()), level: S.level, book: Math.round(companyValue()), profit: Math.round(profitPerMin() * 100) / 100 }; }
+// send the save now (leaving, the main menu, a new company). keepalive lets it finish after the page closes.
+function netSaveNow(leaving) {
+  if (!NET.token || !S || !NET_API) return;
+  const body = JSON.stringify({ ...netBody(), save: serialize() });
+  NET.cloud = JSON.parse(serialize());
+  try {
+    fetch(NET_API + '/save', { method: 'POST', keepalive: !!leaving && body.length < 60000, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + NET.token }, body })
+      .then(r => { if (r.ok) NET.lastSave = Date.now(); else if (r.status === 401) netForget(); }, () => {});
+  } catch (e) {}
+}
+// Start over: the server forgets the company too
+function netClearSave() { if (NET.token) netCall('/save', { clear: true }).catch(() => {}); NET.cloud = null; }
+async function netSync(withSave) {
+  if (!NET.token || NET.busy || !S) return;
+  NET.busy = true; const t0 = Date.now();
+  const flow = NET.flow, div = NET.div; NET.flow = {}; NET.div = 0;
+  const body = { ...netBody(), flow, div };
+  if (withSave) body.save = serialize();
+  try { const d = await netCall('/sync', body); netTake({ ...d, _t0: t0 }); NET.down = 0; if (withSave) { NET.lastSave = Date.now(); NET.cloud = JSON.parse(body.save); } }
+  catch (e) {
+    if (NET.token) { for (const p in flow) { const f = NET.flow[p] || (NET.flow[p] = [0, 0]); f[0] += flow[p][0]; f[1] += flow[p][1]; } NET.div += div; }   // goes in the next report
+    NET.down++;
+  }
+  NET.busy = false;
+}
+// what the server says: the crowd (without this player's own part), who's online, the players' leaderboard
+function netTake(d) {
+  NET.crowd = d.crowd || {}; NET.crowdWT = (d.t || d.now || nowMs()) / 1000 - WORLD.epoch;
+  NET.online = d.online || 0; NET.players = d.players || 0; NET.board = Array.isArray(d.board) ? d.board : [];
+  NET.listings = Array.isArray(d.listings) ? d.listings.map(pubParse) : [];
+  if (!S) return;
+  pubTake(d);   // v0.08: this company's listing, its holdings, dividends and buyouts (38_pub.js)
+  for (const p in NET.crowd) {   // a big crowd move makes the news (once every 10 minutes per good)
+    const m = crowdOthersMult(p), said = NET.said[p] || 0;
+    if (Math.abs(m - 1) < .08 || WT - said < 600) continue;
+    NET.said[p] = WT;
+    pushNews(m < 1 ? `Players are selling a lot of ${PRODUCTS[p].name}: its price is down ${Math.round((1 - m) * 100)}%` : `Players are buying up ${PRODUCTS[p].name}: its price is up ${Math.round((m - 1) * 100)}%`, m < 1 ? 'down' : 'up');
+  }
+}
+// once a second while the game runs: report (logged in) or listen (no account), backing off while the server can't be reached
+function netTick() {
+  if (!NET_API || !S) return;
+  const now = Date.now(), back = Math.min(8, 1 + NET.down);
+  if (NET.token) { if (now - NET.lastSync >= SYNC_EVERY * 1000 * back) { NET.lastSync = now; netSync(now - NET.lastSave >= SAVE_EVERY * 1000); } }
+  else if (now - NET.lastSync >= GUEST_EVERY * 1000 * back) { NET.lastSync = now; netCall('/market').then(netTake, () => { NET.down++; }); }
+}
+// the other real players on the leaderboard (not this one), as leaderboard rows
+function netOthers() {
+  const me = (NET.name || '').toLowerCase();
+  return NET.board.filter(r => String(r[0]).toLowerCase() !== me).map(r => ({ name: r[0], co: r[1], nw: r[2], lv: r[3], online: !!r[4], player: true }));
+}
+// Continue: the server's copy when logged in, unless this device has a newer copy of the same company.
+// 'both' when they're two different companies (the player chooses).
+function pickSave(local, cloud) {
+  if (!cloud) return local; if (!local) return cloud;
+  if (local.company === cloud.company && local.start === cloud.start) return (local.savedAt || 0) > (cloud.savedAt || 0) + 5000 ? local : cloud;
+  return 'both';
+}
 'use strict';
 /* ============================================================================
    AUDIO — every sound effect and all the music are synthesized here with
@@ -2823,7 +3073,7 @@ function setMusicArea(b) {
    start screen, toasts and the news ticker.
    ========================================================================== */
 const $ = s => document.querySelector(s);
-const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help' };
+const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help', lbTab: 'all' };
 
 /* ---------- formatting ---------- */
 function money(n, cents) {
@@ -2874,7 +3124,7 @@ const LIVE = {
   },
   rate(i) { const l = S.lots[i]; if (!l) return ''; return rateTxt(cyclesPerMin(l.b, l.lv, lotMult()) * PRODUCTS[l.b].out) + ' ' + PRODUCTS[l.b].name; },
   uses(i) { const l = S.lots[i]; if (!l) return ''; const P = PRODUCTS[l.b]; if (P.raw) return 'no materials'; const c = cyclesPerMin(l.b, l.lv, lotMult()); return Object.keys(P.rec).map(q => rateTxt(c * P.rec[q]) + ' ' + PRODUCTS[q].name).join(', '); },
-  lvbar(_, el) { const L = S.level; if (L >= MAX_LEVEL) { el.style.width = '100%'; return; } const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; el.style.width = clamp((netWorth() - a) / (b - a), 0, 1) * 100 + '%'; },
+  lvbar(_, el) { const L = S.level; if (L >= MAX_LEVEL) { el.style.width = '100%'; return; } const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; el.style.width = clamp((companyValue() - a) / (b - a), 0, 1) * 100 + '%'; },
   nw: () => money(netWorth(), false),
   capt: () => `${capUsed()} / ${capMax()}`, wht: () => `${qty(whUsed())} / ${whMax()}`,
   capbar(_, el) { el.style.width = Math.min(100, capUsed() / capMax() * 100) + '%'; el.classList.toggle('over', capUsed() > capMax()); },
@@ -2884,6 +3134,7 @@ const LIVE = {
   bupkeep(i) { const l = S.lots[i]; if (!l) return ''; return l.stall ? 'paused while it waits' : money(upkeepPerMin(l)) + '/min'; },
   spark(p, el) { el.setAttribute('d', sparkPath(S.market[p].hist, 90, 24)); },
   mchg(p) { const c = changeOf(S.market[p].hist, 59); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
+  crowd(p) { const m = crowdOthersMult(p) - 1; return Math.abs(m) < .01 ? { text: '', cls: '' } : { text: ' · players ' + pctTxt(m), cls: m < 0 ? 'red' : 'olive' }; },   // v0.07
   aprice: t => money(S.assets[t].p),
   achg(arg) { const [t, w] = arg.split('|'); const A = S.assets[t]; const c = w === '4h' ? changeOf(A.h60, 239) : w === '10m' ? changeOf(A.h10, 59) : changeOf(A.h10, 359); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
   hq: t => { const h = S.hold[t]; return h && h.q > 0 ? (h.q < 1 ? h.q.toFixed(4) : qty(h.q)) : '0'; },
@@ -2931,9 +3182,9 @@ function updateTop() {
   $('#boostChip').hidden = !boostOn();
   $('#cash').textContent = money(S.cash, false); $('#cash').style.color = S.cash < 0 ? 'var(--pink)' : '';   // red when in debt
   const v = profitPerMin(), pp = $('#ppm'); pp.textContent = (v >= 0 ? '+' : '') + money(v) + '/min profit'; pp.className = v >= 0 ? 'olive' : 'red';
-  const nw = netWorth(); $('#nw').textContent = money(nw, false);
+  const nw = netWorth(), cv = companyValue(); $('#nw').textContent = money(nw, false);
   const L = S.level, bar = $('#lvBar');
-  if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; bar.style.width = clamp((nw - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1} (${LEVELS[L + 1].name}) at ${money(b, false)}`; }
+  if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; bar.style.width = clamp((cv - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1} (${LEVELS[L + 1].name}) at ${S.pub ? 'company value ' : ''}${money(b, false)}`; }
   else { bar.style.width = '100%'; $('#lvNext').textContent = `Top level: all of Millbrook is open`; }
   $('#lvBarWrap').setAttribute('aria-label', 'Progress to next level');
   $('#cap').textContent = `${capUsed()} / ${capMax()}`;
@@ -3157,7 +3408,7 @@ const MODAL = {
     const sig = `mkt|${f}|${list.join()}|${JSON.stringify(S.flow)}`;
     const rows = list.map(p => {
       const P = PRODUCTS[p], own = S.unlocked[p];
-      return `<div class="mrow"><div class="good">${iconImg(p, 36)}<div><b>${P.name}</b><small>LV ${P.ring} · ${BRANCH[P.branch].name}</small></div></div>
+      return `<div class="mrow"><div class="good">${iconImg(p, 36)}<div><b>${P.name}</b><small>LV ${P.ring} · ${BRANCH[P.branch].name}<span data-live="crowd:${p}"></span></small></div></div>
         <b class="sellp gold" data-live="price:${p}"></b><span class="buyp muted" data-live="bprice:${p}"></span>
         <span class="chg" data-live="mchg:${p}" data-base="chg"></span>
         <span class="trend"><svg width="90" height="24" viewBox="0 0 90 24" aria-hidden="true"><path data-live="spark:${p}" fill="none" stroke="#ebc152" stroke-width="1.5"/></svg></span>
@@ -3166,14 +3417,17 @@ const MODAL = {
         <span class="acts"><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="10">Sell 10</button><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="all">Sell all</button><button class="btn small" type="button" data-act="buy" data-p="${p}" data-q="10">Buy 10</button></span></div>`;
     }).join('');
     return { sig, title: 'Market', html: `
-      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Sell a lot at once and the price drops for you. Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
+      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Sell a lot at once and the price drops, most for you and a little for everyone; when many players sell the same good, it drops for all (shown as “players”). Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="seg" role="group" aria-label="Which goods"><button type="button" data-act="mktf" data-v="mine" aria-pressed="${f === 'mine'}">Your goods</button><button type="button" data-act="mktf" data-v="all" aria-pressed="${f === 'all'}">All goods</button></div>
         <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b></span></div>
       <div class="mlist"><div class="mrow mhead"><span class="good">GOOD</span><span class="sellp">SELL</span><span class="buyp">BUY</span><span class="chg">5 MIN</span><span class="trend">TREND</span><span class="have">YOU HAVE</span><span class="flow">OUTPUT</span><span class="acts"></span></div>${rows}</div>` };
   },
   stocks() {
-    const tabs = `<div class="seg" role="group" aria-label="Invest in" style="margin-bottom:12px"><button type="button" data-act="itab" data-v="stocks" aria-pressed="${UI.investTab !== 're'}">Stocks</button><button type="button" data-act="itab" data-v="re" aria-pressed="${UI.investTab === 're'}">Real estate</button></div>`;
+    const it = UI.investTab, tabs = `<div class="seg" role="group" aria-label="Invest in" style="margin-bottom:12px">${[['stocks', 'Stocks'], ['re', 'Real estate'], ['players', 'Players'], ['mine', 'Your company']]
+      .map(([v, l]) => `<button type="button" data-act="itab" data-v="${v}" aria-pressed="${it === v}">${l}</button>`).join('')}</div>`;
+    if (it === 'players') return pubPlayersView(tabs);   // v0.08 (38_pub.js)
+    if (it === 'mine') return pubMineView(tabs);
     if (UI.investTab === 're') {
       const tf = UI.stockTF, own = S.props.map(p => p.own ? p.reno : 0).join('');
       const rows = PLOTS.map((pl, k) => {
@@ -3226,22 +3480,28 @@ const MODAL = {
             <div class="trade"><span class="muted" style="font-size:13px">Sell</span>${[[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, l]) => `<button class="btn ghost small" type="button" data-act="stsell" data-v="${v}">${l}</button>`).join('')}</div></section>
           <p class="muted" style="font-size:13px">${a.about || `A company run by ${a.owner}. Its price follows the whole market, the ${a.sector === 'tech' ? 'tech' : a.sector} business and its own news.`}</p></div></div>` };
   },
-  board() {
-    const me = netWorth(), all = S.rivals.map((r, i) => ({ name: r.name, co: RIVAL_CO[r.name], nw: r.nw, link: RIVALS[i].link })).concat([{ name: 'You', co: S.company, nw: me, you: true }]);
+  board() {   // v0.07: real players only. Simulated companies live in the town's news, never here.
+    const me = netWorth(), you = { name: NET.name || 'You', co: S.company, nw: me, lv: S.level, you: true, player: !!NET.token };
+    const all = netOthers().concat([you]);
     all.sort((a, b) => b.nw - a.nw);
-    const sig = 'board|' + all.map(x => x.name).join();
+    const at = all.findIndex(x => x.you), show = all.map((x, k) => ({ x, k })).filter(({ k }) => k < 10 || Math.abs(k - at) <= 2);
     const lvl = nw => { let L = 1; while (L < MAX_LEVEL && nw >= LEVELS[L + 1].nw) L++; return L; };
-    const rows = all.map((x, k) => {
-      const ic = x.you ? 'house' : x.link ? asset(x.link).icon : 'crate';
-      return `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg(ic, 36)}
-        <div style="min-width:0"><b>${esc(x.you ? S.company : x.name)}</b><br><span class="muted" style="font-size:12px">${x.you ? 'You' : esc(x.co)} · LV ${lvl(x.nw)}</span></div>
-        <span class="nw">${money(x.nw, false)}</span><span class="muted" style="font-size:12px;text-align:right">${x.you ? 'you' : x.link ? x.link : ''}</span></div>`;
+    let last = -1;
+    const rows = show.map(({ x, k }) => {
+      const gap = k > last + 1 ? '<div class="lb-gap">···</div>' : ''; last = k;
+      const tag = x.you ? '<span class="chip gold">YOU</span>' : `<span class="chip olive">${x.online ? '<i class="dot" title="online now"></i>' : ''}PLAYER</span>`;
+      return gap + `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg('house', 36)}
+        <div style="min-width:0"><b>${esc(x.you ? S.company : x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.you ? (NET.token ? NET.name : 'You') : x.co || '')} · LV ${x.lv || lvl(x.nw)}</span></div>
+        <span class="nw">${money(x.nw, false)}</span><span class="lb-tag">${tag}</span></div>`;
     }).join('');
-    return { sig: sig + '|' + Math.floor(S.t / 2), title: 'Leaderboard', html: `<p class="m-sub">The richest players in Millbrook. Net worth = cash + buildings + goods + stocks.</p><div class="lb">${rows}</div>` };
+    const sub = !NET_API ? 'Real players only. This copy of the game was opened as a file: open it at brickncoin.com to see the other players.'
+      : `Real players only, by net worth (your part of your company, plus everything else you own).${NET.players ? ` ${NET.players} player${NET.players === 1 ? '' : 's'} · ${NET.online} online now.` : ''}${NET.token ? '' : ' <b>Log into your Inspirapixel account (Menu → Online) so other players see you here.</b>'}`;
+    return { sig: `board|${show.map(({ x, k }) => k + x.name).join()}|${NET.token ? 1 : 0}|${NET.players}|${Math.floor(S.t / 2)}`, title: 'Leaderboard', html: `<p class="m-sub">${sub}</p><div class="lb">${rows}</div>` };
   },
   menu() {   // v0.06: sections down the side
     const tab = UI.mtab, conf = UI.confirm === 'reset';
-    const tabs = [['help', 'How to Play'], ['settings', 'Settings'], ['save', 'Save & Transfer'], ['about', 'About']];
+    const tabs = [['help', 'How to Play'], ['settings', 'Settings'], ['save', 'Save & Transfer'], ['online', 'Online'], ['about', 'About']];
+    const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
     const nav = `<nav class="mnav" aria-label="Menu sections"><button class="btn gold" type="button" data-act="close">Resume</button>
       ${tabs.map(([v, l]) => `<button type="button" class="mtab" data-act="mtab" data-v="${v}" aria-pressed="${tab === v}">${l}</button>`).join('')}
       <hr><button type="button" class="mtab" data-act="mainmenu">Main Menu</button></nav>`;
@@ -3251,20 +3511,28 @@ const MODAL = {
     else if (tab === 'save') {
       let saved = false; try { saved = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
       pane = `<h3>Save &amp; Transfer</h3>
-        <p class="muted" style="font-size:13px">${saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
+        <p class="muted" style="font-size:13px">${NET.token ? `You’re online as <b>${esc(NET.name)}</b>: ${esc(S.company)} is saved on the server every few minutes and when you leave, and in this browser.` : saved ? 'Your game saves itself in this browser every few seconds.' : 'This browser isn’t saving. Export your save code to keep your progress.'} A save code moves your company to any device or browser.</p>
         <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
         <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
         <button class="btn ghost" type="button" data-act="loadsave" style="align-self:flex-start">Import save code</button>
         <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
           <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
           ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</div></section>`;
+    } else if (tab === 'online') {   // v0.07
+      const ago = NET.lastSave ? Math.max(0, Math.round((Date.now() - NET.lastSave) / 60000)) : -1;
+      pane = NET.token ? `<h3>Online</h3><p class="muted" style="font-size:13px">Logged into your Inspirapixel account as <b>${esc(NET.name)}</b>. ${esc(S.company)} is saved on the server every few minutes and when you leave, so you can carry on from any device. Your selling and buying count in the shared market, and you’re on the players’ leaderboard.</p>
+          <div class="mstats">${stat('Players online', NET.online)}${stat('Players', NET.players || '—')}${stat('Saved online', ago < 0 ? 'not yet' : ago === 0 ? 'just now' : ago + ' min ago')}</div>
+          <div class="trade"><button class="btn" type="button" data-act="netsave">Save online now</button><button class="btn ghost" type="button" data-act="logout">Log out</button></div>`
+        : NET_API ? `<h3>Play online</h3><p class="muted" style="font-size:13px">Log into your <b>Inspirapixel account</b>, or create one: one account for every Inspirapixel game (it’s the same as your Olympus Hunt account), just a name and a password. Then ${esc(S.company)} is saved on the server (play it on any device), you join the players’ leaderboard, and your selling and buying count in the shared market.</p>
+          <button class="btn gold" type="button" data-act="acctpage" style="align-self:flex-start">Log in or create your Inspirapixel account</button>
+          <p class="muted" style="font-size:13px">No account? Keep playing: ${esc(S.company)} stays saved in this browser.</p>`
+        : `<h3>Play online</h3><p class="muted" style="font-size:13px">This copy of the game was opened as a file, so it plays offline. Open it at brickncoin.com to play online.</p>`;
     } else {
-      const stat = (k, v) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`;
       pane = `<h3>${esc(S.company)}</h3><div class="mstats">
           ${stat('Level', `${S.level} · ${LEVELS[S.level].name}`)}${stat('Net worth', money(netWorth(), false))}${stat('Rank', '#' + playerRank())}
           ${stat('Buildings', countBuildings())}${stat('Goals done', `${S.goal} of ${GOALS.length}`)}${stat('Time played', playTime(S.t))}</div>`;
     }
-    return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}`,
+    return { sig: `menu|${tab}|${UI.helpPg}|${conf}|${AUD.set.musicOn}|${AUD.set.sfxOn}|${S.tut}|${!!document.fullscreenElement}|${tab === 'about' ? Math.floor(S.t / 60) : ''}|${NET.token}|${tab === 'online' ? NET.online + '|' + Math.floor(NET.lastSave / 60000) : ''}`,
       title: 'Menu', html: `<div class="mwrap">${nav}<section class="mpane">${pane}</section></div>` };
   },
 };
@@ -3374,7 +3642,7 @@ const START_INFO = {
 let TITLE_SAVE = null, TITLE_TOWN = null;   // the company saved in this browser (shown on Continue), the backdrop picture
 const TPAGES = {
   new() {
-    const pick = UI.startPick, ex = TITLE_SAVE;
+    const pick = UI.startPick, ex = TITLE_SAVE === 'both' ? NET.cloud : TITLE_SAVE;
     const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
       <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
     return `<h2>New company</h2><form class="start-form" id="startForm">
@@ -3382,9 +3650,28 @@ const TPAGES = {
       <div class="muted" style="font-size:14px">Pick your starting material. It decides your first direction. You can branch out later.</div>
       <div class="picks">${cards}</div>
       <div class="start-err" id="startErr"></div>
-      ${ex ? `<div class="twarn">This replaces ${esc(ex.company)} in this browser. To keep it, open it and export its save code first (Menu → Save &amp; Transfer).</div>` : ''}
+      ${ex ? `<div class="twarn">This replaces ${esc(ex.company)} ${NET.token ? 'online and in this browser' : 'in this browser'}. To keep it, open it and export its save code first (Menu → Save &amp; Transfer).</div>` : ''}
       <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
         <button class="btn gold" type="submit" id="tgo" style="font-size:18px;padding:12px 28px">Open for business</button></div></form>`;
+  },
+  account() {   // v0.07: log into or create an Inspirapixel account (the same accounts as Olympus Hunt: a name and a password)
+    if (NET.token) return `<h2>Your Inspirapixel account</h2><p>Logged in as <b>${esc(NET.name)}</b>. Your company is saved on the server, so you can carry on from any device, and you’re on the players’ leaderboard.</p>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button><button class="btn" type="button" data-act="logout">Log out</button></div>`;
+    return `<h2>Log into your Inspirapixel account</h2><form class="start-form" id="acctForm">
+      <p class="muted" style="font-size:14px">One Inspirapixel account works in every Inspirapixel game: if you play Olympus Hunt, it’s the same name and password. New here? Fill these in and press <b>Create account</b>. Online, your company is saved on the server, you join the players’ leaderboard, and your selling moves the shared market.</p>
+      <label>Name<input id="acName" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+      <label>Password<input id="acPw" type="password" maxlength="100" autocomplete="current-password"></label>
+      <div class="start-err" id="acErr"></div>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
+        <button class="btn ghost" type="button" data-act="register" id="acNew">Create account</button>
+        <button class="btn gold" type="submit" id="acGo" style="font-size:18px;padding:12px 28px">Log in</button></div>
+      <p class="muted" style="font-size:13px">Names are 3 to 20 letters, numbers or underscores. There’s no email yet, so a forgotten password can’t be reset. No account? You can still play: your company is saved in this browser.</p></form>`;
+  },
+  pick() {   // v0.07: the account's online company and this browser's are different companies
+    const L = loadLocal(), C = NET.cloud, card = (o, v, where) => o ? `<button type="button" class="tbtn" data-act="usesave" data-v="${v}">${where}<small>${esc(o.company)} · Lv ${o.level} · ${money(o.cash, false)}</small></button>` : '';
+    return `<h2>Which company?</h2><p class="muted" style="font-size:14px">Your account has a company saved online, and this browser has a different one. Pick the one to play: the other is replaced the next time the game saves. To keep it, open it first and export its save code (Menu → Save &amp; Transfer).</p>
+      <nav class="tmenu" aria-label="Companies">${card(C, 'cloud', 'Online')}${card(L, 'local', 'This browser')}</nav>
+      <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`;
   },
   help() { return `<h2>How to play</h2>${helpHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Main menu</button></div>`; },
   settings() { return `<h2>Settings</h2>${settingsHTML()}<div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button></div>`; },
@@ -3397,22 +3684,26 @@ const TPAGES = {
 };
 function renderTitle(page) {
   if (page) UI.tpage = page;
-  const st = $('#start'), pg = UI.tpage, ex = TITLE_SAVE;
+  const st = $('#start'), pg = UI.tpage, both = TITLE_SAVE === 'both', ex = both ? null : TITLE_SAVE;
   if (!$('#tbox')) {   // built once, so changing pages doesn't restart the drifting town
     st.innerHTML = `<div class="ttown" id="ttown"></div><div class="tshade"></div><div class="tbox" id="tbox"></div><footer class="tmarket" id="tmarket" aria-label="The live market"></footer>`;
     paintTitleTown();
   }
   const head = `<header class="thead"><div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div></header>`;
   const home = `<nav class="tmenu" aria-label="Main menu">
-    ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}</small></button>` : ''}
-    <button type="button" class="tbtn ${ex ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
+    ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}${NET.token ? ' · online' : ''}</small></button>` : ''}
+    ${both ? '<button type="button" class="tbtn main" data-act="tpage" data-v="pick">Continue<small>Choose a company</small></button>' : ''}
+    <button type="button" class="tbtn ${ex || both ? '' : 'main'}" data-act="tpage" data-v="new">New Company</button>
     <button type="button" class="tbtn" data-act="tpage" data-v="help">How to Play</button>
     <button type="button" class="tbtn" data-act="tpage" data-v="settings">Settings</button>
-    <button type="button" class="tbtn" data-act="tpage" data-v="news">What's New${newsUnseen() ? '<span class="tnew chip gold">NEW</span>' : ''}</button></nav>`;
+    <button type="button" class="tbtn" data-act="tpage" data-v="news">What's New${newsUnseen() ? '<span class="tnew chip gold">NEW</span>' : ''}</button>
+    ${!NET_API ? '' : NET.token ? `<div class="tacct">Inspirapixel account: <b>${esc(NET.name)}</b> · <button type="button" class="linkbtn" data-act="tpage" data-v="account">Account</button></div>`
+      : '<button type="button" class="tbtn" data-act="tpage" data-v="account">Play Online<small>Log into your Inspirapixel account</small></button>'}</nav>`;
   const box = $('#tbox');
   box.className = 'tbox' + (pg === 'home' ? '' : ' sub');
   box.innerHTML = head + (pg === 'home' ? home : `<section class="tpanel">${TPAGES[pg]()}</section>`);
   if (pg === 'new') $('#startForm').addEventListener('submit', e => { e.preventDefault(); startNew(); });
+  if (pg === 'account' && $('#acctForm')) $('#acctForm').addEventListener('submit', e => { e.preventDefault(); doLogin(false); });
   renderTitleMarket();
 }
 // the NEW badge on What's New: shown until this device has opened the latest notes
@@ -3464,6 +3755,203 @@ function townPostcard() {
   return c.toDataURL();
 }
 
+'use strict';
+/* ============================================================================
+   PUBLIC COMPANIES (v0.08): going public, and owning part of other players'
+   companies. The server (server/index.js) keeps the share register; cash stays
+   in each game, like everything else about a company.
+   - A share's price: the company's value plus up to an hour of its profit (at most
+     twice its value), over all its shares (pubFair); moved by players buying and
+     selling it (pubImpact: the square-root law, fading over half an hour), by the
+     market's mood (pubMood: the Millbrook 10 over 4 hours) and by the company's own
+     wander (pubWander). The last two come from the shared world, so every player
+     sees the same price.
+   - Going public issues new shares: the cash goes into the company, and the owner's
+     part of it shrinks to match. The owner's net worth is their part of the company
+     (netWorth = companyValue × ownFrac); areas of town open with the whole company.
+   - A public company pays 30% of its profit as dividends, split by who owns it. The
+     outside shareholders' part leaves the company; players' part reaches them
+     through the server (pubTake), even while they're away.
+   ========================================================================== */
+// a listing from the server: [ticker, company, owner, shares, owner's shares, value, profit/min, buying $, selling $, at, dividends paid, listed, players' shares, holders, owner online]
+function pubParse(r) { return { ticker: r[0], co: r[1], owner: r[2], total: +r[3], own: +r[4], book: +r[5], profit: +r[6], fb: +r[7], fs: +r[8], ft: +r[9], paid: +r[10], listed: +r[11], held: +r[12], holders: +r[13], online: !!r[14] }; }
+function pubListing(t) { return NET.listings.find(L => L.ticker === t) || null; }
+function ownFrac() { return S && S.pub && S.pub.total > 0 ? clamp(S.pub.own / S.pub.total, 0, 1) : 1; }
+function tickerSeed(t) { let h = 7; for (let i = 0; i < t.length; i++) h = (Math.imul(h, 31) + t.charCodeAt(i)) >>> 0; return h; }
+function pubFair(L) { const b = Math.max(0, L.book); return Math.max(.01, (b + Math.min(2 * b, PUB_PREMIUM * Math.max(0, L.profit))) / L.total); }
+function pubPressure(L) { const k = Math.pow(.5, Math.max(0, nowMs() - L.ft) / 1000 / PUB_HALF); return [L.fb * k, L.fs * k]; }
+function pubImpact(L) { const [fb, fs] = pubPressure(L), D = PUB_DEPTH * pubFair(L) * L.total; return clamp(Math.sqrt((1 + fb / D) / (1 + fs / D)), PUB_MOVE[0], PUB_MOVE[1]); }
+function pubMood() { const A = WS.assets.MB10, a = A.h60 && A.h60.length ? A.h60[0] : 0; return a ? clamp(Math.pow(A.p / a, 1.2), .85, 1.18) : 1; }
+function pubWander(L) { return Math.exp(fbm(950 + tickerSeed(L.ticker) % 97, WT, .02 / 60, OCT_ID)); }
+function pubPrice(L) { return pubFair(L) * pubImpact(L) * pubMood() * pubWander(L); }
+// this company's own listing, with its value and profit right now (the server's copy is up to a minute old)
+function pubMineL() {
+  if (!S || !S.pub) return null;
+  const L = pubListing(S.pub.ticker) || { ticker: S.pub.ticker, fb: 0, fs: 0, ft: 0, held: 0, holders: 0, paid: 0 };
+  return { ...L, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: profitPerMin() };
+}
+// shares this company holds in other players' companies, at today's prices (the last known one if a company drops off the list)
+function pubHoldValue() {
+  if (!S || !S.pubHold) return 0;
+  let v = 0; for (const t in S.pubHold) { const h = S.pubHold[t], L = pubListing(t); if (L) h.p = pubPrice(L); v += h.q * (h.p || 0); }
+  return v;
+}
+// dividends: 30% of profit, the outside shareholders' part leaves the company (every 10 s, from step())
+function pubPayDividends(dtMin) {
+  if (!S.pub) return;
+  const out = 1 - ownFrac(), p = profitPerMin(); if (out <= 0 || p <= 0) return;
+  const d = PUB_DIV * p * dtMin * out; S.cash -= d; S.pub.paid = (S.pub.paid || 0) + d; if (NET.token) NET.div += d;
+}
+// what the server says about this company's listing and holdings, dividends received and buyouts (from netTake)
+function pubTake(d) {
+  if (!('mine' in d) || (d._t0 || 0) < (NET.pubAt || 0)) return;   // not a sync, or one that started before a trade
+  S.pub = d.mine ? { ...d.mine, paid: Math.max(S.pub && S.pub.ticker === d.mine.ticker ? S.pub.paid || 0 : 0, d.mine.paid || 0) } : null;
+  if (Array.isArray(d.holdings)) {
+    const old = S.pubHold || {}; S.pubHold = {};
+    for (const [t, q, cost] of d.holdings) { const L = pubListing(t); S.pubHold[t] = { q, cost, p: L ? pubPrice(L) : old[t] ? old[t].p : 0 }; }
+  }
+  if (d.credit > 0) { S.cash += d.credit; addProfit(d.credit); S.pubDivIn = (S.pubDivIn || 0) + d.credit; }
+  for (const [t, co, cash] of d.paidOut || []) pushNews(`${co} (${t}) has closed: your shares were bought out for ${money(cash, false)}`, 'info');
+}
+
+/* ---------- actions (each returns a promise of a message, or throws one) ---------- */
+function ipoQuote(f) {
+  const cv = companyValue(), fair = cv + Math.min(2 * cv, PUB_PREMIUM * Math.max(0, profitPerMin())), raised = fair * f / (1 - f) * IPO_DISCOUNT * (1 - IPO_FEE);
+  return { fair, raised, nwAfter: (cv + raised) * (1 - f) };
+}
+function floatQuote(target) {
+  const L = pubMineL(); if (!L) return null;
+  const price = pubFair(L) * pubImpact(L), out = L.total - L.own;
+  if (target > out / L.total) { const n = (target * L.total - out) / (1 - target); return { n, cash: n * price * (1 - ISSUE_FEE) }; }
+  const n = Math.max(0, Math.min(out - (L.held || 0), (out - target * L.total) / (1 - target)));
+  return { n, cash: -n * price * (1 + BUYBACK_FEE) };
+}
+async function pubGoPublic(f) {
+  if (S.pub) throw new Error(`${S.company} is already public`);
+  if (S.level < PUB_LEVEL) throw new Error(`Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) first`);
+  if (!NET.token) throw new Error('Log in first (Menu → Online): going public needs the server');
+  if (!PUB_STEPS.includes(f)) throw new Error('Pick how much to sell');
+  if (!NET.lastSave) await netSync(true);   // the server needs the company before it can list it
+  const d = await netCall('/ipo', { f, company: S.company, book: Math.round(companyValue()), profit: profitPerMin() });
+  NET.pubAt = Date.now();
+  S.cash += d.raised; S.pub = { ...d.mine, paid: 0 };
+  pushNews(`${S.company} goes public as ${d.ticker}: ${Math.round(f * 100)}% sold to investors for ${money(d.raised, false)}`, 'up');
+  saveLocal(); netSaveNow();
+  return `${S.company} is public as ${d.ticker}! +${money(d.raised, false)}`;
+}
+async function pubFloat(target) {
+  const q = floatQuote(target); if (!q) throw new Error(`${S.company} isn’t public`);
+  if (q.cash < 0 && S.cash < -q.cash) throw new Error(`Not enough cash: buying back costs about ${money(-q.cash, false)}`);
+  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: profitPerMin() });
+  NET.pubAt = Date.now();
+  S.cash += d.cash; const paid = S.pub.paid || 0; S.pub = d.mine ? { ...d.mine, paid } : null;
+  saveLocal(); netSaveNow();
+  return d.cash >= 0 ? `Sold new shares: +${money(d.cash, false)}` : d.mine ? `Bought shares back for ${money(-d.cash, false)}` : `${S.company} is private again`;
+}
+async function pubTrade(t, side, v) {
+  const L = pubListing(t); if (!L) throw new Error('Pick a company first');
+  if (!NET.token) throw new Error('Log in first (Menu → Online) to trade players’ shares');
+  const price = pubPrice(L), fee = FEE.stock;
+  let shares;
+  if (side === 'buy') {
+    const dollars = Math.min(v, S.cash); if (dollars < 1) throw new Error('Not enough cash');
+    shares = Math.min(dollars / (price * (1 + fee)), L.total - L.own - L.held);
+    if (shares < 1e-3) throw new Error('No shares for sale right now: players hold them all');
+  } else {
+    const h = S.pubHold[t]; if (!h || h.q <= 0) throw new Error('You own none');
+    shares = h.q * v;
+  }
+  const d = await netCall('/shares', { ticker: t, side, shares, price });
+  NET.pubAt = Date.now();
+  const amt = shares * d.price;
+  if (side === 'buy') S.cash -= amt * (1 + fee); else S.cash += amt * (1 - fee);
+  if (d.credit > 0) { S.cash += d.credit; S.pubDivIn = (S.pubDivIn || 0) + d.credit; }
+  const had = !!S.pubHold[t];
+  if (d.holding) S.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: d.price }; else delete S.pubHold[t];
+  L.holders += (S.pubHold[t] ? 1 : 0) - (had ? 1 : 0);
+  const k = Math.pow(.5, Math.max(0, nowMs() - L.ft) / 1000 / PUB_HALF);   // show the move at once, before the next sync
+  L.fb *= k; L.fs *= k; L.ft = nowMs(); if (side === 'buy') { L.fb += amt; L.held += shares; } else { L.fs += amt; L.held -= shares; }
+  saveLocal();
+  return side === 'buy' ? `Bought ${qty(shares)} ${t} shares` : `Sold ${qty(shares)} ${t} shares: +${money(amt * (1 - fee), false)}`;
+}
+async function pubAct(promise, kind) {
+  try { const msg = await promise; if (msg) toast(msg, kind === 'ipo' ? 'big' : 'good', kind === 'ipo' ? 4200 : 2600); sfx(kind === 'sell' ? 'sell' : kind === 'buy' ? 'buy' : 'goal'); }
+  catch (e) { toast(e.message, 'bad'); sfx('error'); }
+  UI.modalSig = ''; UI.sideSig = ''; if (running) { renderModal(); renderSide(); updateTop(); }
+}
+
+/* ---------- Invest → Players and Invest → Your company ---------- */
+Object.assign(LIVE, {
+  pubp(t) { const L = pubListing(t); return L ? money(pubPrice(L)) : '—'; },
+  pubimp(t) { const L = pubListing(t); if (!L) return { text: '', cls: '' }; const m = pubImpact(L) - 1; return Math.abs(m) < .005 ? { text: 'steady', cls: 'muted' } : { text: 'players ' + pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
+  pubcap(t) { const L = pubListing(t); return L ? money(pubPrice(L) * L.total, false) : '—'; },
+  pubfree(t) { const L = pubListing(t); return L ? qty(Math.max(0, L.total - L.own - L.held)) + ' shares' : '—'; },
+  pubhq: t => { const h = S.pubHold[t]; return h ? qty(h.q) : '0'; },
+  pubhv: t => { const h = S.pubHold[t], L = pubListing(t); return money(h && L ? h.q * pubPrice(L) : 0); },
+  pubhpl(t) { const h = S.pubHold[t], L = pubListing(t); if (!h || !L || h.q <= 0) return { text: '—', cls: 'muted' }; const v = h.q * pubPrice(L) - h.cost; return { text: (v >= 0 ? '+' : '') + money(v) + ' (' + pctTxt(v / h.cost) + ')', cls: v >= 0 ? 'olive' : 'red' }; },
+  mypx() { const L = pubMineL(); return L ? money(pubPrice(L)) : '—'; },
+  mycap() { const L = pubMineL(); return L ? money(pubPrice(L) * L.total, false) : '—'; },
+  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false),
+  ipoval: () => money(ipoQuote(UI.ipoF).fair, false),
+  iporaise: () => '+' + money(ipoQuote(UI.ipoF).raised, false),
+  iponw: () => money(ipoQuote(UI.ipoF).nwAfter, false),
+  floatq(v) { const q = floatQuote(+v); return q ? (q.cash >= 0 ? '+' : '−') + money(Math.abs(q.cash), false) : '—'; },
+});
+function pubStat(k, v, live) { return `<div class="stat"><span>${k}</span><b${live ? ` data-live="${live}"` : ''}>${v || ''}</b></div>`; }
+function pubPlayersView(tabs) {
+  const list = NET.listings.filter(L => !(S.pub && L.ticker === S.pub.ticker));
+  if (!list.find(L => L.ticker === UI.pubSel)) UI.pubSel = list.length ? list[0].ticker : null;
+  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(S.pubHold).join()}`;
+  const intro = `<p class="m-sub">Real players’ companies that have gone public. A share’s price follows its company’s value and profit, the market’s mood, and players buying and selling it. Each company pays 30% of its profit as dividends, and you get your part while you hold its shares, even while you’re away.${NET_API ? '' : ' Open the game at brickncoin.com to see them.'}</p>`;
+  if (!L) return { sig, title: 'Invest', html: tabs + intro + `<section class="card"><h3>No player companies yet</h3><p class="muted" style="font-size:13px">When a player takes their company public, it shows up here. Reach Level ${PUB_LEVEL} and yours could be the first: see Your company.</p></section>` };
+  const rows = list.map(x => `<button type="button" class="st-row ${x.ticker === UI.pubSel ? 'sel' : ''}" data-act="pubsel" data-t="${x.ticker}">${iconImg('house', 36)}
+      <span class="nm"><b>${esc(x.co)}</b><small>${x.online ? '<i class="dot" title="online now"></i>' : ''}by ${esc(x.owner)} · ${x.ticker}</small></span>
+      <span class="px2"><b data-live="pubp:${x.ticker}"></b><small data-live="pubimp:${x.ticker}" data-base=""></small></span></button>`).join('');
+  const t = L.ticker, buy = [100, 1000, 10000].map(v => `<button class="btn small" type="button" data-act="pubbuy" data-v="${v}" data-cost="${v}">${money(v, false)}</button>`).join('');
+  const sell = [[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, l]) => `<button class="btn ghost small" type="button" data-act="pubsell" data-v="${v}">${l}</button>`).join('');
+  return { sig, title: 'Invest', html: tabs + intro + `<div class="st-wrap"><div class="st-list">${rows}</div><div class="st-detail">
+      <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(L.co)}</h2><span class="muted">by <b>${esc(L.owner)}</b> · ${t} · public since ${new Date(L.listed).toLocaleDateString()}</span></div>
+        <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="pubp:${t}"></b><br><span data-live="pubimp:${t}" data-base=""></span></div></div>
+      <div class="stat-grid">${pubStat('Market value', '', 'pubcap:' + t)}${pubStat('Owner keeps', Math.round(L.own / L.total * 100) + '%')}${pubStat('Profit', money(L.profit) + '/min')}
+        ${pubStat('Dividends paid', money(L.paid, false))}${pubStat('Players hold', `${qty(L.held)} · ${L.holders} player${L.holders === 1 ? '' : 's'}`)}${pubStat('For sale', '', 'pubfree:' + t)}
+        ${pubStat('You own', '', 'pubhq:' + t)}${pubStat('Worth', '', 'pubhv:' + t)}${pubStat('Profit / loss', '', 'pubhpl:' + t)}</div>
+      <section class="card"><h3>Trade <span class="muted">cash <b data-live="cash"></b> · ${FEE.stock * 100}% fee</span></h3>
+        ${NET.token ? `<div class="trade"><span class="muted" style="font-size:13px">Buy</span>${buy}</div><div class="trade"><span class="muted" style="font-size:13px">Sell</span>${sell}</div>`
+          : '<p class="muted" style="font-size:13px">Log in (Menu → Online) to buy and sell players’ shares.</p>'}</section>
+      <p class="muted" style="font-size:12px">Dividends you’ve had from players’ companies: ${money(S.pubDivIn || 0, false)}.</p></div></div>` };
+}
+function pubMineView(tabs) {
+  const conf = UI.confirm;
+  if (!S.pub) {
+    const f = PUB_STEPS.includes(UI.ipoF) ? UI.ipoF : (UI.ipoF = .25), ok = S.level >= PUB_LEVEL;
+    const why = !ok ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}: a company worth ${money(LEVELS[PUB_LEVEL].nw, false)}) to go public.`
+      : !NET_API ? 'Open the game at brickncoin.com to go public.' : !NET.token ? 'Log in (Menu → Online) to go public: the server keeps the share register.' : '';
+    const steps = PUB_STEPS.map(x => `<button type="button" data-act="ipof" data-v="${x}" aria-pressed="${f === x}">${Math.round(x * 100)}%</button>`).join('');
+    return { sig: `mine|ipo|${f}|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `
+      <p class="m-sub">Going public sells part of ${esc(S.company)} to investors in new shares. The cash goes straight into the company to grow with, and you keep the rest of it. Players can then buy your shares, and the company pays 30% of its profit as dividends, split by who owns it.</p>
+      <section class="card"><h3>Go public</h3>
+        <div class="stat-grid">${pubStat('Company value', '', 'mycv')}${pubStat('Profit', '', 'ppm')}${pubStat('Investors value it at', '', 'ipoval')}</div>
+        <div class="trade"><span class="muted" style="font-size:13px">Sell</span><div class="seg" role="group" aria-label="How much to sell">${steps}</div></div>
+        <div class="kv"><span>You raise (10% IPO discount, 5% bank fee)</span><b class="olive" data-live="iporaise"></b>
+          <span>You keep</span><b>${Math.round((1 - f) * 100)}% of ${esc(S.company)}</b>
+          <span>Your net worth right after</span><b data-live="iponw"></b>
+          <span>Dividends to outside shareholders</span><b>${Math.round(PUB_DIV * f * 100)}% of your profit</b></div>
+        ${why ? `<p class="why">${why}</p>` : `<button class="btn ${conf === 'ipo' ? 'danger' : 'gold'}" type="button" data-act="ipo" style="align-self:flex-start">${conf === 'ipo' ? `Tap again to sell ${Math.round(f * 100)}% of ${esc(S.company)}` : `Go public: sell ${Math.round(f * 100)}%`}</button>`}
+        <p class="muted" style="font-size:12px">Your net worth on the leaderboard becomes your part of the company. Areas of town still open with the whole company’s value. You can sell more later (up to ${PUB_MAX * 100}% outside), or buy shares back.</p></section>` };
+  }
+  const L = pubMineL(), out = 1 - ownFrac(), t = S.pub.ticker;
+  const up = Math.min(PUB_MAX, Math.round((out + .1) * 100) / 100), down = Math.max(0, Math.round((out - .1) * 100) / 100);
+  const canUp = out < PUB_MAX - .005, canDown = (L.total - L.own) - (L.held || 0) > 1e-3;
+  const fbtn = (v, label) => `<button class="btn ${conf === 'float' + v ? 'danger' : 'ghost'} small" type="button" data-act="pubfloat" data-v="${v}">${conf === 'float' + v ? 'Tap again: ' : ''}${label} <b data-live="floatq:${v}"></b></button>`;
+  return { sig: `mine|pub|${t}|${S.pub.total}|${S.pub.own}|${conf}|${L.held}`, title: 'Invest', html: tabs + `
+    <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(S.company)}</h2><span class="muted">public as <b>${t}</b> since ${new Date(S.pub.listed).toLocaleDateString()}</span></div>
+      <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="mypx"></b><br><span class="muted" style="font-size:12px">a share</span></div></div>
+    <div class="stat-grid">${pubStat('Market value', '', 'mycap')}${pubStat('Company value', '', 'mycv')}${pubStat('You own', Math.round(ownFrac() * 1000) / 10 + '%')}
+      ${pubStat('Your net worth', '', 'mynw')}${pubStat('Players hold', `${qty(L.held || 0)} shares · ${L.holders || 0}`)}${pubStat('Dividends paid', money(S.pub.paid || 0, false))}</div>
+    <section class="card"><h3>Shares</h3><p class="muted" style="font-size:13px">Outside shareholders own ${Math.round(out * 1000) / 10}% (players and Millbrook’s investors). You pay them ${Math.round(PUB_DIV * out * 100)}% of your profit as dividends.
+      Selling new shares raises cash at today’s price (5% fee); buying back from investors costs today’s price (players keep theirs).</p>
+      <div class="trade">${canUp ? fbtn(up, `Sell more (to ${Math.round(up * 100)}% outside)`) : ''}${canDown ? fbtn(down, down === 0 ? 'Buy all back (go private)' : `Buy back (to ${Math.round(down * 100)}% outside)`) : ''}</div></section>` };
+}
 'use strict';
 /* ============================================================================
    TUTORIAL — a few guided steps for a brand-new company: build, watch it sell,
@@ -3852,7 +4340,7 @@ function frame(now) {
   stepWalkers(dt); stepParticles(dt); stepCamera(dt);
   for (const i in popAcc) { popAcc[i].t -= dt; if (popAcc[i].t <= 0) { if (popAcc[i].v >= 1) { floatText(+i, '+' + money(popAcc[i].v, false)); sfx('cash'); } delete popAcc[i]; } }
   render(now / 1000);
-  uiAcc += dt; if (uiAcc >= .25) { uiAcc = 0; updateTop(); renderSide(); renderModal(); updateCoach(); renderGoalPill(); }
+  uiAcc += dt; if (uiAcc >= .25) { uiAcc = 0; updateTop(); renderSide(); renderModal(); updateCoach(); renderGoalPill(); netTick(); }
   saveAcc += dt; if (saveAcc >= 15) { saveAcc = 0; saveLocal(); }
   requestAnimationFrame(frame);
 }
@@ -3916,14 +4404,26 @@ const ACT_SND = { build: 'build', upgrade: 'upgrade', hqup: 'upgrade', whup: 'up
 function act(el) {
   const a = el.dataset.act, p = el.dataset.p, snd = ACT_SND[a]; let err = '';
   if (!snd) sfx('tap');
-  if (a !== 'demolish' && a !== 'reset' && a !== 'psell') UI.confirm = '';
+  if (a !== 'demolish' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat') UI.confirm = '';
   switch (a) {
     case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
     case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
     case 'tpage': UI.confirm = ''; renderTitle(el.dataset.v); { const f = $('#tbox .tpanel input, #tbox .tbtn'); if (f && !matchMedia('(pointer: coarse)').matches) f.focus({ preventScroll: true }); } return;
     case 'helppg': UI.helpPg += +el.dataset.v; if (!running) { renderTitle(); return; } break;
     case 'mtab': UI.mtab = el.dataset.v; break;
-    case 'mainmenu': saveLocal(); closeModal(); selectLot(-1); running = false; showTitle(); return;
+    case 'mainmenu': saveLocal(); netSaveNow(); closeModal(); selectLot(-1); running = false; showTitle(); return;
+    case 'acctpage': saveLocal(); netSaveNow(); closeModal(); selectLot(-1); running = false; showTitle('account'); return;   // v0.07: log in from the game's Menu
+    case 'register': doLogin(true); return;
+    case 'logout': netSaveNow(); netLogout().then(() => { if (running) { UI.modalSig = ''; renderModal(); toast('Logged out. Your company stays saved in this browser.', 'good'); } else showTitle('home'); }); return;
+    case 'netsave': netSaveNow(); toast('Saved online', 'good'); return;
+    case 'lbtab': UI.lbTab = el.dataset.v; break;
+    case 'pubsel': UI.pubSel = el.dataset.t; if (isPhone()) $('#modal .sheet').scrollTop = 0; break;   // v0.08: going public, players' shares
+    case 'ipof': UI.ipoF = +el.dataset.v; UI.confirm = ''; break;
+    case 'ipo': if (UI.confirm !== 'ipo') { UI.confirm = 'ipo'; break; } UI.confirm = ''; pubAct(pubGoPublic(UI.ipoF), 'ipo'); return;
+    case 'pubfloat': { const k = 'float' + el.dataset.v; if (UI.confirm !== k) { UI.confirm = k; break; } UI.confirm = ''; pubAct(pubFloat(+el.dataset.v), 'float'); return; }
+    case 'pubbuy': pubAct(pubTrade(UI.pubSel, 'buy', +el.dataset.v), 'buy'); return;
+    case 'pubsell': pubAct(pubTrade(UI.pubSel, 'sell', +el.dataset.v), 'sell'); return;
+    case 'usesave': { const o = el.dataset.v === 'cloud' ? NET.cloud : loadLocal(); if (o) { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // saved (here and online) once time away is paid
     case 'tutdone': S.tut = TUT_DONE; updateCoach(); saveLocal(); return;
     case 'tutreplay': S.tut = 0; UI.tutT = S.t; closeModal(); selectLot(-1); updateCoach(); return;
     case 'resetno': break;
@@ -3973,9 +4473,9 @@ function act(el) {
       catch (e) { toast('That save code didn’t work', 'bad'); }
       return;
     }
-    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
+    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} netClearSave(); running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
     case 'pick': UI.startPick = p; for (const b of document.querySelectorAll('.pick')) b.setAttribute('aria-pressed', b.dataset.p === p); return;
-    case 'continue': { const o = loadLocal(); if (o) { adopt(o); begin(true); } return; }
+    case 'continue': { const o = TITLE_SAVE; if (o && o !== 'both') { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // no save before begin(): saving stamps the time, and time away is worked out from it
   }
   if (err) { toast(err, 'bad'); sfx('error'); }
   else if (snd) sfx(UI.confirm ? 'tap' : snd);   // first tap of a two-tap action only clicks
@@ -4016,15 +4516,17 @@ let wasMode = isFlat() ? 'flat' : isPhone() ? 'phone' : 'desk';
 addEventListener('resize', () => { if (!running) return; const md = isFlat() ? 'flat' : isPhone() ? 'phone' : 'desk'; if (md !== wasMode) { wasMode = md; setSheet(false); CAM.set = false; UI.sideSig = ''; renderSide(true); renderNav(); } resize(); });
 document.addEventListener('visibilitychange', () => {
   if (!running) return;
-  if (document.hidden) { hiddenAt = nowMs(); saveLocal(); }
+  if (document.hidden) { hiddenAt = nowMs(); saveLocal(); netSaveNow(true); }
   else if (hiddenAt) { const r = offlineCatchUp((nowMs() - hiddenAt) / 1000); hiddenAt = 0; lastFrame = 0; if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000); }
 });
-addEventListener('pagehide', () => { if (running) saveLocal(); });
+addEventListener('pagehide', () => { if (running) { saveLocal(); netSaveNow(true); } });
 
 /* ---------- start: the starting menu, then the game ---------- */
 let titleTimer = 0;
+// what Continue opens: this browser's company, or (logged in) the server's copy, or a choice between them (v0.07)
+function refreshTitleSave() { const o = loadLocal(); TITLE_SAVE = pickSave(o && o.company ? o : null, NET.token && NET.cloud && NET.cloud.company ? NET.cloud : null); }
 function showTitle(page) {
-  const o = loadLocal(); TITLE_SAVE = o && o.company ? o : null;
+  refreshTitleSave();
   $('#app').hidden = true; $('#start').hidden = false;
   if (!WS.ready || Math.abs(worldNow() - WT) > 3) { WT = worldNow(); worldReset(); }
   renderTitle(page || 'home');
@@ -4035,9 +4537,22 @@ function showTitle(page) {
 function startNew() {
   const name = ($('#coInput').value || '').trim().replace(/\s+/g, ' ');
   if (name.length < 2) { $('#startErr').textContent = 'Give your company a name (2–24 letters).'; $('#coInput').focus(); return; }
-  if (TITLE_SAVE && UI.confirm !== 'tnew') { UI.confirm = 'tnew'; sfx('tap'); $('#tgo').textContent = `Tap again to replace ${TITLE_SAVE.company}`; $('#tgo').classList.replace('gold', 'danger'); return; }
+  const ex = TITLE_SAVE === 'both' ? NET.cloud : TITLE_SAVE;
+  if (ex && UI.confirm !== 'tnew') { UI.confirm = 'tnew'; sfx('tap'); $('#tgo').textContent = `Tap again to replace ${ex.company}`; $('#tgo').classList.replace('gold', 'danger'); return; }
   UI.confirm = '';
-  newGame(name, UI.startPick); S.settings = AUD.set; saveLocal(); sfx('goal'); begin(false);
+  newGame(name, UI.startPick); S.settings = AUD.set; saveLocal(); netSaveNow(); sfx('goal'); begin(false);
+}
+// v0.07: log in or create an account from the starting menu's Play Online page
+async function doLogin(create) {
+  const name = ($('#acName') ? $('#acName').value : '').trim(), pw = $('#acPw') ? $('#acPw').value : '', err = $('#acErr'), btns = [$('#acGo'), $('#acNew')];
+  if (!err) return;
+  if (!name || !pw) { err.textContent = 'Enter a name and a password.'; sfx('error'); return; }
+  err.textContent = create ? 'Creating your account…' : 'Logging in…'; btns.forEach(b => { if (b) b.disabled = true; });
+  try {
+    await netLogin(name, pw, create);
+    try { await netFetchSave(); } catch (e) {}
+    sfx('goal'); refreshTitleSave(); renderTitle(TITLE_SAVE === 'both' ? 'pick' : 'home');
+  } catch (e) { err.textContent = e.message; btns.forEach(b => { if (b) b.disabled = false; }); sfx('error'); }
 }
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
@@ -4055,9 +4570,12 @@ function begin(loaded) {
       if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000);
     });
   }
+  NET.lastSync = 0; NET.lastSave = 0;   // tell the server (or ask it) straight away
   if (!running) { running = true; lastFrame = 0; requestAnimationFrame(frame); }
 }
 function boot() {
+  netLoad();   // v0.07: logged in on this device? Then ask the server for the company saved there.
+  if (NET.token) netFetchSave().then(() => { refreshTitleSave(); if (!running && UI.tpage === 'home' && !$('#start').hidden) renderTitle('home'); }, () => {});
   const existing = loadLocal();
   applyAudioSettings(loadSound() || (existing && existing.settings));   // this device's sound settings (an older save's, the first time)
   showTitle();
@@ -4066,7 +4584,8 @@ function boot() {
   addEventListener('resize', () => { if (!running && !$('#start').hidden) paintTitleTown(); });
 }
 // test hook for automated playtests
-window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT };
+window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT,
+  NET, netTake, crowdMult, crowdOthersMult, simBoard, simsAlive, sellGoods, companyValue, pubPrice, pubListing, ownFrac };
 boot();
 
 </script>
