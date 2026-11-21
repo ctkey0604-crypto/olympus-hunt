@@ -4,6 +4,16 @@
    ========================================================================== */
 const canvas = $('#map'), ctx = canvas.getContext('2d');
 let HOVER = -1, lastFrame = 0, simAcc = 0, uiAcc = 0, saveAcc = 0, hiddenAt = 0, running = false;
+let lastInput = Date.now() + CLOCK_OFF, idleFrom = null;   // the idle rule: see frame()
+function noteInput() {
+  lastInput = nowMs();
+  if (idleFrom && running) {   // back after being idle: say what happened while the game ran at the away rate
+    const min = Math.round((lastInput - idleFrom.at) / 60000), d = S.cash - idleFrom.cash;
+    if (min >= 1) toast(`You were idle for ${min} min: the game ran at ${Math.round(OFFLINE_RATE * 100)}% speed (${d >= 0 ? '+' : ''}${money(d, false)})`, 'good', 5000);
+  }
+  idleFrom = null; AWAY_RATE = 1;
+}
+for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, noteInput, { passive: true, capture: true });
 const CAM = { x: TX, y: TY, s: 2, tx: null, ty: null, vw: MAP_W, vh: MAP_H, set: false };
 const popAcc = {};
 const isPhone = () => (innerWidth <= 900 && innerHeight > innerWidth) || (innerWidth > innerHeight && innerHeight <= 540);   // upright phone, or a phone on its side
@@ -154,6 +164,13 @@ function selectLot(i) {
 function frame(now) {
   if (!running) return;
   const dt = Math.min(.25, (now - (lastFrame || now)) / 1000); lastFrame = now;
+  // keep the shared world on the world clock: nudge small slips, start over after a big one (a sleeping tab, a clock fix)
+  const slip = worldNow() - WT;
+  if (Math.abs(slip) > 3) { WT = worldNow(); worldReset(); prefillGoodsHist(); renderTicker(); } else if (Math.abs(slip) > .5) WT += slip;
+  // idle: no input for IDLE_AFTER seconds. Then it runs like a closed game: a quarter speed, and after OFFLINE_MAX it waits.
+  const idle = (nowMs() - lastInput) / 1000 - IDLE_AFTER;
+  AWAY_RATE = idle <= 0 ? 1 : idle <= OFFLINE_MAX ? OFFLINE_RATE : 0;
+  if (AWAY_RATE < 1 && !idleFrom) idleFrom = { at: lastInput + IDLE_AFTER * 1000, cash: S.cash };
   simAcc += dt; let n = 0;
   while (simAcc >= .2 && n < 10) { step(.2); simAcc -= .2; n++; }
   stepWalkers(dt); stepParticles(dt); stepCamera(dt);
@@ -317,8 +334,8 @@ let wasMode = isFlat() ? 'flat' : isPhone() ? 'phone' : 'desk';
 addEventListener('resize', () => { if (!running) return; const md = isFlat() ? 'flat' : isPhone() ? 'phone' : 'desk'; if (md !== wasMode) { wasMode = md; setSheet(false); CAM.set = false; UI.sideSig = ''; renderSide(true); renderNav(); } resize(); });
 document.addEventListener('visibilitychange', () => {
   if (!running) return;
-  if (document.hidden) { hiddenAt = Date.now(); saveLocal(); }
-  else if (hiddenAt) { const r = offlineCatchUp((Date.now() - hiddenAt) / 1000); hiddenAt = 0; lastFrame = 0; if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000); }
+  if (document.hidden) { hiddenAt = nowMs(); saveLocal(); }
+  else if (hiddenAt) { const r = offlineCatchUp((nowMs() - hiddenAt) / 1000); hiddenAt = 0; lastFrame = 0; if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000); }
 });
 addEventListener('pagehide', () => { if (running) saveLocal(); });
 
@@ -335,7 +352,15 @@ function begin(loaded) {
   $('#start').hidden = true; $('#app').hidden = false;
   UI.sel = null; UI.sheet = false; UI.tutT = S.t; CAM.set = false; renderNav(); resize(); afterLoad(); setSheet(false); updateCoach();
   musicStart();
-  if (loaded) { const r = offlineCatchUp((Date.now() - (S.savedAt || Date.now())) / 1000); if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000); }
+  WT = worldNow(); worldReset(); prefillGoodsHist(); renderTicker();
+  lastInput = nowMs(); idleFrom = null;
+  if (loaded) {   // time away is measured on the server's clock once it has answered (so moving a device's clock doesn't pay)
+    const savedAt = S.savedAt || nowMs();
+    Promise.race([clockReady, new Promise(r => setTimeout(r, 2500))]).then(() => {
+      const r = offlineCatchUp((nowMs() - savedAt) / 1000);
+      if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000);
+    });
+  }
   if (!running) { running = true; lastFrame = 0; requestAnimationFrame(frame); }
 }
 function boot() {

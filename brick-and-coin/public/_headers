@@ -1,0 +1,11 @@
+# Cloudflare static-asset headers for brickncoin.com.
+# The page itself is checked for a new version on every visit, so updates show up at once.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+# Icons and the link-preview picture can be kept for a day.
+/*.png
+  Cache-Control: public, max-age=86400
+/favicon.svg
+  Cache-Control: public, max-age=86400

@@ -347,7 +347,7 @@ const MODAL = {
         <span class="acts"><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="10">Sell 10</button><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="all">Sell all</button><button class="btn small" type="button" data-act="buy" data-p="${p}" data-q="10">Buy 10</button></span></div>`;
     }).join('');
     return { sig, title: 'Market', html: `
-      <p class="m-sub">Prices move with supply, demand and the news. Sell a lot at once and the price drops. Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
+      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Sell a lot at once and the price drops for you. Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="seg" role="group" aria-label="Which goods"><button type="button" data-act="mktf" data-v="mine" aria-pressed="${f === 'mine'}">Your goods</button><button type="button" data-act="mktf" data-v="all" aria-pressed="${f === 'all'}">All goods</button></div>
         <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b></span></div>
@@ -385,7 +385,7 @@ const MODAL = {
     const sub = a.owner ? `by <b>${a.owner}</b> · ${a.kind}` : a.kind;
     const fee = Math.round(feeOf(t) * 1000) / 10;
     return { sig, title: 'Invest', html: tabs + `
-      <p class="m-sub">Invest your spare cash in other players' companies, the index fund or PixCoin. Prices move every second. Most companies pay dividends while you hold them.</p>
+      <p class="m-sub">Invest your spare cash in other players' companies, the index fund or PixCoin. Prices move every second, the same for everyone in Millbrook. Most companies pay dividends while you hold them.</p>
       <div class="st-wrap"><div style="display:flex;flex-direction:column;gap:12px">
         <div class="st-list">${list}</div>
         <section class="card"><h3>Your portfolio <b class="gold" data-live="pval"></b></h3><div class="kv">
@@ -443,7 +443,8 @@ const MODAL = {
           <p><b>Market:</b> the more you sell of one thing, the lower its price. Spread out.</p>
           <p><b>Invest:</b> stocks (the index fund is steady, PixCoin is wild) and real estate west and east of town that pays rent.</p>
           <p><b>Upgrades:</b> every building level makes it faster and grows the building: annex, back wing, smokestack, then a gold tower.</p>
-          <p><b>Offline:</b> your factories keep running at 25% speed for up to 2 hours.</p>
+          <p><b>One world:</b> the stock market, home prices, news, booms and slumps are the same for every player at the same moment.</p>
+          <p><b>Away:</b> closed, or left open untouched for 10 minutes, your factories run at 25% speed for up to 2 hours, at plain prices (booms and slumps don't count). Then they wait for you.</p>
           ${tutActive() ? '' : '<button class="btn ghost" type="button" data-act="tutreplay">Replay the tutorial</button>'}</section>
         <section class="card"><h3>Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
           <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
@@ -481,8 +482,10 @@ function toast(text, kind = '', ms = 2600) {
   $('#toasts').appendChild(el); setTimeout(() => el.remove(), ms);
   while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove();
 }
-function renderTicker() {
-  const n = S.news; if (!n.length) return;
+function renderTicker() {   // the world's headlines and the company's own news, newest first
+  if (!S) return;
+  const n = worldNews(3).concat(S.news.slice(0, 3).map(x => ({ text: x.text, kind: x.kind, wt: x.wt == null ? -1e12 : x.wt }))).sort((a, b) => b.wt - a.wt);
+  if (!n.length) return;
   const chip = k => k === 'up' ? '<span class="chip olive">UP</span>' : k === 'down' ? '<span class="chip red">DOWN</span>' : k === 'you' ? '<span class="chip gold">YOU</span>' : '<span class="chip blue">NEWS</span>';
   $('#ticker').innerHTML = `${chip(n[0].kind)}<span class="tk-new">${esc(n[0].text)}</span>${n[1] ? `<span class="tk-old">· ${esc(n[1].text)}</span>` : ''}`;
 }
@@ -511,7 +514,7 @@ function renderStart(existing) {
   const cards = ['wood', 'wheat', 'ore'].map(p => `<button type="button" class="pick" data-act="pick" data-p="${p}" aria-pressed="${pick === p}">
     <img class="px prev" src="${buildingPreview(p)}" alt=""><span class="pk-txt"><b>${PRODUCTS[p].name}</b><span>${PRODUCTS[p].bld}</span><span>Leads to: ${START_INFO[p].leads}</span></span></button>`).join('');
   $('#start').innerHTML = `<div class="start-card">
-    <div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · single-player test</div>
+    <div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div>
     ${existing ? `<section class="card" style="width:min(420px,100%);align-items:center"><b>${esc(existing.company)}</b><span class="muted" style="font-size:13px">Level ${existing.level} · ${money(existing.cash, false)} cash</span>
       <button class="btn gold wide" type="button" data-act="continue">Continue</button></section><div class="muted" style="font-size:13px">or start a new company (this replaces your save)</div>` : ''}
     <form class="start-form" id="startForm">

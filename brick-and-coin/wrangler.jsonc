@@ -1,0 +1,10 @@
+{
+  // Brick & Coin at brickncoin.com: a static site (the whole game is public/index.html). There's no server code,
+  // so visits don't use any of the Workers free plan's daily requests (static files are free and unlimited).
+  // v0.06 (accounts, shared market pressure) will add "main" and the database here; that's a separate step.
+  "name": "brickncoin",
+  "compatibility_date": "2025-10-01",
+  "assets": { "directory": "./public" }
+  // Once brickncoin.com is in this Cloudflare account, the domain can be set here instead of in the dashboard:
+  // ,"routes": [{ "pattern": "brickncoin.com", "custom_domain": true }, { "pattern": "www.brickncoin.com", "custom_domain": true }]
+}

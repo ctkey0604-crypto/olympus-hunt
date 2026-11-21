@@ -3,28 +3,23 @@
    SIM — the economy. Runs in fixed steps; nothing here touches the page.
    ========================================================================== */
 let S = null;                     // the whole game state (saved as JSON)
+let AWAY_RATE = 1;                // 1 while someone's playing; OFFLINE_RATE when the game is left idle; 0 once idle past OFFLINE_MAX
 const LOG = { onNews: null, onToast: null, onPop: null, onLevel: null, onGoal: null };
-const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-const fat = () => gauss() * (Math.random() < .04 ? 2.6 : 1) / 1.109;   // fat tails: now and then a much bigger move (scaled back to unit variance)
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-const SAVE_V = 2;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill). adopt() brings older saves up to date.
+const SAVE_V = 3;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world). adopt() brings older saves up to date.
 function newGame(company, start) {
+  // v0.05: the market, news, rivals and home prices live in the shared world (35_world.js), not in the save
   S = {
     v: SAVE_V, company, start, cash: START_CASH, t: 0, level: 1, hqLv: 0, whLv: 0, tut: 0, settings: null,
     lots: new Array(LOTS).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
-    market: {}, events: [], nextEvent: 45, news: [], goal: 0,
-    stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
-    assets: {}, hold: {}, regime: 'bull', mVar: 0, cryptoMode: 'calm', cryptoT: 0, stockAcc: 0, divAcc: 0, histAcc10: 0, histAcc60: 0,
-    rivals: RIVALS.map(r => ({ name: r.name, nw: r.nw })), savedAt: Date.now(), boostShown: false,
-    props: PLOTS.map(() => ({ own: false, reno: 1, paid: 0 })), house: { i: 1, h10: [], h60: [] },
+    market: {}, news: [], goal: 0, stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
+    hold: {}, divAcc: 0, savedAt: nowMs(), boostShown: false, props: PLOTS.map(() => ({ own: false, reno: 1, paid: 0 })),
   };
   S.lots[HQ_LOT] = { b: 'hq', lv: 1 };
-  for (const p of PIDS) S.market[p] = { n: gauss() * .04, sat: 0, bp: 0, hist: [] };
-  initAssets();
-  // four hours of market history so the charts aren't empty on day one
-  for (let i = 0; i < 4 * 3600; i++) stepAssets(1, true);
-  for (const p of PIDS) for (let i = 0; i < 60; i++) { stepMarketNoise(p, 5); S.market[p].hist.push(+price(p).toFixed(2)); }
+  for (const p of PIDS) S.market[p] = { sat: 0, bp: 0, hist: [] };
+  if (!WS.ready) WT = worldNow();
+  attachWorld(); prefillGoodsHist();
   pushNews('Welcome to Millbrook. ' + company + ' opens for business.', 'info');
 }
 
@@ -48,14 +43,22 @@ function lotUnlocked(i) { return ZONE_LEVEL[Math.floor(i / 12)] <= S.level; }
 function marketDepth(p) { const P = PRODUCTS[p]; return 60 * (60 / P.sec) * P.out * MARKET_SIZE[S.level]; }
 
 /* ---------------------------------------------------------------- goods market */
-function evMult(p) { let m = 1; for (const e of S.events) if (e.mult && e.mult[p]) m *= e.mult[p]; return m; }
-function evSpeed(p) { let m = 1; for (const e of S.events) if (e.speed && e.speed[p]) m *= e.speed[p]; return m; }
+// a good's price: its base, today's shared swing and news (the world), then this player's own selling and buying pressure
+function evMult(p) { return WS.mult[p] || 1; }
+function evSpeed(p) { return WS.speed[p] || 1; }
 function price(p) {
   const M = S.market[p], D = marketDepth(p);
-  return PRODUCTS[p].base * evMult(p) * Math.exp(M.n) / (1 + M.sat / D) * (1 + M.bp / D);
+  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) / (1 + M.sat / D) * (1 + M.bp / D);
 }
 function buyPrice(p) { return price(p) * NPC_MARKUP; }
-function stepMarketNoise(p, dt) { const M = S.market[p]; M.n += -0.01 * M.n * dt + 0.006 * Math.sqrt(dt) * gauss(); M.n = clamp(M.n, -.35, .35); }
+// the last 5 minutes of prices for the sparklines, from the world (at today's own selling pressure)
+function prefillGoodsHist() {
+  const now = Math.floor(WT);
+  for (const p of PIDS) {
+    const M = S.market[p], D = marketDepth(p), own = (1 + M.bp / D) / (1 + M.sat / D); M.hist = [];
+    for (let k = 59; k >= 0; k--) { const g = goodsAt(now - 5 * k, WS.evs); M.hist.push(+(PRODUCTS[p].base * (g.mult[p] || 1) * Math.exp(g.noise[p]) * own).toFixed(2)); }
+  }
+}
 function sellGoods(p, q, auto) {
   if (q <= 0) return 0;
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
@@ -193,133 +196,12 @@ function checkGoals() {
   }
 }
 
-/* ---------------------------------------------------------------- news events */
-function pushNews(text, kind = 'info') { S.news.unshift({ text, kind, t: S.t }); if (S.news.length > 12) S.news.length = 12; if (LOG.onNews) LOG.onNews(text, kind); }
-function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-function relevantProduct() {
-  const mine = PIDS.filter(p => S.unlocked[p] || (PRODUCTS[p].ring <= S.level && (PRODUCTS[p].raw || Object.keys(PRODUCTS[p].rec).some(q => S.unlocked[q]))));
-  return Math.random() < .75 && mine.length ? pick(mine) : pick(PIDS.filter(p => PRODUCTS[p].ring <= S.level));
-}
-function spawnEvent() {
-  const r = Math.random();
-  if (r < .42) {
-    const p = relevantProduct(), up = Math.random() < .55, m = up ? 1.3 + Math.random() * .4 : .62 + Math.random() * .16, dur = 110 + Math.random() * 100;
-    S.events.push({ until: S.t + dur, mult: { [p]: m } });
-    pushNews(pick(up ? EV_UP : EV_DOWN).replace('{P}', PRODUCTS[p].name) + ` (${up ? '+' : '−'}${Math.round(Math.abs(m - 1) * 100)}%)`, up ? 'up' : 'down');
-    nudgeSector(PRODUCTS[p].branch, (m - 1) * .08);
-  } else if (r < .55) {
-    const b = pick(Object.keys(EV_SECTOR)), [text, list] = EV_SECTOR[b], mult = {};
-    for (const p of list) mult[p] = 1.22; S.events.push({ until: S.t + 150, mult });
-    pushNews(text + ' (+22%)', 'up'); nudgeSector(b, .035);
-  } else if (r < .65) {
-    const opts = [
-      ['Heat wave: farms grow 30% slower', { wheat: .7 }, { wheat: 1.2 }],
-      ['Perfect weather: farms grow 30% faster', { wheat: 1.3 }, { wheat: .9 }],
-      ['Tunnel collapse: mines dig at half speed', { ore: .5 }, { ore: 1.35 }],
-      ['Storm knocks out the sawmills', { planks: .6 }, { planks: 1.25 }],
-      ['New furnace tech: smelters run 25% faster', { iron: 1.25, steel: 1.25 }, null],
-    ];
-    const [text, speed, mult] = pick(opts); S.events.push({ until: S.t + 120, speed, mult: mult || undefined });
-    pushNews(text, 'info');
-  } else {
-    stockEvent();
-  }
-  S.nextEvent = S.t + 55 + Math.random() * 55;
-}
-function nudgeSector(sector, x) { for (const a of ASSETS) if (a.sector === sector) jumpAsset(a.t, x * (0.6 + Math.random() * .8)); }
+/* ---------------------------------------------------------------- news */
+// the company's own news (the world's news comes from 35_world.js; the ticker shows both)
+function pushNews(text, kind = 'info') { S.news.unshift({ text, kind, wt: WT }); if (S.news.length > 12) S.news.length = 12; if (LOG.onNews) LOG.onNews(text, kind); }
 
-/* ---------------------------------------------------------------- stock market
-   Prices follow a factor model that behaves like a real market:
-   - one market factor with bull/bear regimes and volatility clustering (GARCH),
-   - sector factors (wood/food/metal also follow your goods prices),
-   - company-specific noise, fat tails and sudden jumps (earnings, scandals),
-   - an index fund built from all the listed companies,
-   - a crypto coin with its own calm/hype/crash moods and big jumps. */
-const MKT = { volBase: .016 / 60, a: .07, b: .91 };   // market moves about 1.6% an hour
-function initAssets() {
-  S.mVar = MKT.volBase ** 2; S.sect = { wood: 0, food: 0, metal: 0, tech: 0 };
-  for (const a of ASSETS) S.assets[a.t] = { p: a.p0, h10: [], h60: [], last: 0 };
-  const comps = ASSETS.filter(a => !a.index && !a.crypto);
-  S.idxDiv = comps.reduce((s, a) => s + a.shares * a.p0, 0) / 100;
-}
+/* ---------------------------------------------------------------- stock market (prices come from the shared world) */
 function asset(t) { return ASSETS.find(a => a.t === t); }
-function jumpAsset(t, x) { const A = S.assets[t]; if (A) A.p = Math.max(asset(t).crypto ? 50 : 0.5, A.p * Math.exp(x)); if (t !== 'MB10') recomputeIndex(); }
-function recomputeIndex() { let v = 0; for (const a of ASSETS) if (!a.index && !a.crypto) v += a.shares * S.assets[a.t].p; S.assets.MB10.p = v / S.idxDiv; }
-let lastSectorPx = null;
-function sectorGoodsIndex() { const o = { wood: 0, food: 0, metal: 0 }, n = { wood: 0, food: 0, metal: 0 }; for (const p of PIDS) { const b = PRODUCTS[p].branch; o[b] += Math.log(price(p) / PRODUCTS[p].base); n[b]++; } for (const b in o) o[b] /= n[b]; return o; }
-function stepAssets(dt, pre) {
-  // regime switching: long calm bull runs, shorter sharp bear spells
-  if (S.regime === 'bull' && Math.random() < dt / 1700) { S.regime = 'bear'; if (!pre) pushNews('Markets turn nervous: stocks slide', 'down'); }
-  else if (S.regime === 'bear' && Math.random() < dt / 380) { S.regime = 'bull'; if (!pre) pushNews('Buyers return: stocks recover', 'up'); }
-  const bear = S.regime === 'bear';
-  const mu = bear ? -0.05 / 3600 : 0.02 / 3600;      // bull: +2%/hr, bear: −5%/hr
-  const base = MKT.volBase * (bear ? 1.55 : 1);
-  const z = fat();
-  let rM = mu + Math.sqrt(S.mVar) * z;
-  S.mVar = base * base * (1 - MKT.a - MKT.b) + MKT.a * rM * rM + MKT.b * S.mVar;
-  const volMult = Math.sqrt(S.mVar) / MKT.volBase;
-  // sector moves, plus a pull from what goods are doing on the market
-  let goods = null;
-  if (!pre) { goods = sectorGoodsIndex(); if (!lastSectorPx) lastSectorPx = goods; }
-  const rS = {};
-  for (const s of ['wood', 'food', 'metal', 'tech']) {
-    rS[s] = (s === 'tech' ? .02 : .01) / 60 * gauss();
-    if (goods && goods[s] != null) rS[s] += (goods[s] - lastSectorPx[s]) * .25;
-  }
-  if (goods) lastSectorPx = goods;
-  for (const a of ASSETS) {
-    if (a.index) continue;
-    const A = S.assets[a.t]; let r;
-    if (a.crypto) {
-      S.cryptoT -= dt;
-      if (S.cryptoT <= 0) {
-        const m = S.cryptoMode, u = Math.random();
-        if (m === 'calm') { if (u < .08) { S.cryptoMode = 'hype'; S.cryptoT = 60 + Math.random() * 120; } else if (u < .12) { S.cryptoMode = 'crash'; S.cryptoT = 30 + Math.random() * 60; } else S.cryptoT = 30; }
-        else { S.cryptoMode = 'calm'; S.cryptoT = 120 + Math.random() * 300; }
-      }
-      const cm = S.cryptoMode, cmu = cm === 'hype' ? .25 / 3600 : cm === 'crash' ? -.5 / 3600 : .004 / 3600;
-      const cvol = (cm === 'calm' ? .10 : cm === 'hype' ? .15 : .22) / 60;   // per hour
-      r = cmu + .4 * rM + cvol * fat();
-      if (Math.random() < dt / 600) r += gauss() * .04;
-    } else {
-      r = a.beta * rM + a.gamma * rS[a.sector] + a.vol / 60 * Math.sqrt(volMult) * fat();
-      if (Math.random() < dt * a.jump) r += gauss() * a.jsize;
-    }
-    A.p = Math.max(a.crypto ? 50 : 0.5, A.p * Math.exp(r));
-  }
-  recomputeIndex();
-  stepHousing(dt, rM, pre);
-  S.histAcc10 += dt; S.histAcc60 += dt;
-  if (S.histAcc10 >= 10) { S.histAcc10 -= 10; for (const a of ASSETS) { const A = S.assets[a.t]; A.h10.push(+A.p.toPrecision(6)); if (A.h10.length > 360) A.h10.shift(); } S.house.h10.push(+S.house.i.toPrecision(6)); if (S.house.h10.length > 360) S.house.h10.shift(); }
-  if (S.histAcc60 >= 60) { S.histAcc60 -= 60; for (const a of ASSETS) { const A = S.assets[a.t]; A.h60.push(+A.p.toPrecision(6)); if (A.h60.length > 240) A.h60.shift(); } S.house.h60.push(+S.house.i.toPrecision(6)); if (S.house.h60.length > 240) S.house.h60.shift(); }
-  // rivals' fortunes follow their companies
-  if (!pre) {
-    for (let i = 0; i < S.rivals.length; i++) {
-      const R = RIVALS[i], X = S.rivals[i];
-      let r = R.g / 60 * dt + .0003 * gauss();
-      if (R.link) { const A = S.assets[R.link]; if (A.last) r += R.k * Math.log(A.p / A.last); }
-      X.nw = Math.max(1000, X.nw * Math.exp(r));
-    }
-  }
-  for (const a of ASSETS) S.assets[a.t].last = S.assets[a.t].p;
-}
-function stockEvent() {
-  const u = Math.random();
-  if (u < .14) { const up = Math.random() < .55; const x = up ? .05 + Math.random() * .04 : -(.06 + Math.random() * .04); S.house.i *= Math.exp(x);
-    pushNews(up ? 'Housing boom: home prices jump' : 'Housing slump: home prices fall', up ? 'up' : 'down'); return; }
-  if (u < .3) { const up = Math.random() < .5; const x = up ? .015 + Math.random() * .015 : -(.02 + Math.random() * .02);
-    pushNews(up ? 'Strong jobs report lifts the whole market' : 'Interest rate fears rattle the market', up ? 'up' : 'down');
-    for (const a of ASSETS) if (!a.index) jumpAsset(a.t, x * (a.crypto ? 1.5 : a.beta) * (0.8 + Math.random() * .4));
-    if (!up && Math.random() < .35) S.regime = 'bear';
-  } else if (u < .4) { const up = Math.random() < .45; jumpAsset('PXC', up ? .12 + Math.random() * .13 : -(.18 + Math.random() * .17));
-    if (up) { S.cryptoMode = 'hype'; S.cryptoT = 90; }
-    pushNews(up ? 'PixCoin hits the headlines: buyers pile in' : pick(['PixCoin exchange hacked: coins stolen', 'Regulators crack down on PixCoin']), up ? 'up' : 'down');
-  } else if (u < .52) { const up = Math.random() < .5; jumpAsset('NOVA', up ? .1 + Math.random() * .1 : -(.1 + Math.random() * .08));
-    pushNews(up ? 'Nova Robotics unveils a new robot' : 'Nova Robotics recalls 10,000 robots', up ? 'up' : 'down');
-  } else { const a = pick(ASSETS.filter(x => !x.index && !x.crypto)), up = Math.random() < .55; jumpAsset(a.t, up ? .05 + Math.random() * .06 : -(.06 + Math.random() * .07));
-    pushNews(pick(up ? EV_STOCK_UP : EV_STOCK_DOWN).replace('{C}', a.name) + ` (${a.t})`, up ? 'up' : 'down');
-  }
-}
 function holding(t) { return S.hold[t] || (S.hold[t] = { q: 0, cost: 0 }); }
 function portfolioValue() { let v = 0; for (const t in S.hold) v += S.hold[t].q * S.assets[t].p; return v; }
 function feeOf(t) { return asset(t).crypto ? FEE.crypto : FEE.stock; }
@@ -335,16 +217,13 @@ function payDividends(dtMin) { let d = 0; for (const t in S.hold) { const h = S.
 
 /* ---------------------------------------------------------------- main step */
 function step(dt) {
-  S.t += dt;
-  // events
-  S.events = S.events.filter(e => e.until > S.t);
-  if (S.t >= S.nextEvent) spawnEvent();
-  for (const p of PIDS) { stepMarketNoise(p, dt); const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
-  stepProduction(dt);
-  stepUpkeep(dt);
-  payRent(dt);
-  S.stockAcc += dt; while (S.stockAcc >= 1) { S.stockAcc -= 1; stepAssets(1, false); }
-  S.divAcc += dt; if (S.divAcc >= 10) { payDividends(S.divAcc / 60); S.divAcc = 0; }
+  S.t += dt; WT += dt;
+  worldTick();   // the shared world, once a world second
+  for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
+  stepProduction(dt, AWAY_RATE);   // left idle, the company runs like it does while closed (v0.05)
+  stepUpkeep(dt, AWAY_RATE);
+  payRent(dt, AWAY_RATE);
+  S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); S.divAcc = 0; }
   S._sec = (S._sec || 0) + dt;
   if (S._sec >= 1) {
     S._sec -= 1;
@@ -354,32 +233,31 @@ function step(dt) {
     checkLevel(); checkGoals();
   }
 }
-// production while the page was closed: slower, and markets stand still
+// Production while the game was closed: a quarter speed, for up to 2 hours, at plain prices. Booms, slumps and weather
+// are left out (v0.05): the world's news is public and timed, so a return could otherwise be timed to a boom.
 function offlineCatchUp(sec) {
-  sec = Math.min(sec, OFFLINE_MAX); if (sec < 30) return null;
-  const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN;
+  sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
+  const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
+  WS.mult = {}; WS.speed = {}; WS.noise = {};
   for (let i = 0; i < stepN; i++) {
     stepProduction(dt, OFFLINE_RATE); stepUpkeep(dt, OFFLINE_RATE); payRent(dt, OFFLINE_RATE);
     for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
     sellSurplus();
   }
+  [WS.mult, WS.speed, WS.noise] = keep;
   return { sec, earned: S.cash - cash0 };
 }
 
 /* ---------------------------------------------------------------- save / load */
-function serialize() { S.savedAt = Date.now(); return JSON.stringify(S); }
+// the save holds the company only: the shared world (S.assets, S.house, S.rivals) is worked out, never stored
+function serialize() { S.savedAt = nowMs(); const { assets, house, rivals, ...own } = S; return JSON.stringify(own); }
 function saveLocal() { if (!S) return false; try { localStorage.setItem(SAVE_KEY, serialize()); return true; } catch (e) { return false; } }
 function loadLocal() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function adopt(obj) {
   S = obj;
-  for (const p of PIDS) if (!S.market[p]) S.market[p] = { n: 0, sat: 0, bp: 0, hist: [] };
-  for (const a of ASSETS) if (!S.assets[a.t]) S.assets[a.t] = { p: a.p0, h10: [], h60: [], last: a.p0 };
-  if (!S.sect) S.sect = { wood: 0, food: 0, metal: 0, tech: 0 };
+  for (const p of PIDS) if (!S.market[p]) S.market[p] = { sat: 0, bp: 0, hist: [] };
   if (!S.props) S.props = PLOTS.map(() => ({ own: false, reno: 1, paid: 0 }));
   while (S.props.length < PLOTS.length) S.props.push({ own: false, reno: 1, paid: 0 });
-  if (!S.house) S.house = { i: 1, h10: [], h60: [] };
-  if (!S.idxDiv) { const comps = ASSETS.filter(a => !a.index && !a.crypto); S.idxDiv = comps.reduce((s, a) => s + a.shares * a.p0, 0) / 100; }
-  while (S.rivals.length < RIVALS.length) S.rivals.push({ name: RIVALS[S.rivals.length].name, nw: RIVALS[S.rivals.length].nw });
   if (typeof S.tut !== 'number') S.tut = countBuildings(S) > 0 ? TUT_DONE : 0;   // v0.03: players from older saves skip the tutorial
   if (S.settings === undefined) S.settings = null;                                // v0.03: sound settings (filled in by the page)
   while (S.lots.length < LOTS) S.lots.push(null);                                 // v0.04: 12 Gold Hill lots
@@ -387,20 +265,22 @@ function adopt(obj) {
     // v0.04 put two Gold Hill goals (13, 14) before "top 5" and "richest". Saves that were past goal 12 go to the
     // Gold Hill goals first; any that had already won "top 5" or "richest" can earn those rewards once more later.
     S.goal = Math.min(S.goal, 13);
-    S.v = 2;
   }
+  if (!(S.v >= 3)) {
+    // v0.05: the market moved to the shared world. Drop the old private one (prices, charts, events, rivals) and old news.
+    for (const k of ['assets', 'house', 'rivals', 'events', 'nextEvent', 'regime', 'mVar', 'cryptoMode', 'cryptoT', 'stockAcc', 'histAcc10', 'histAcc60', 'sect', 'idxDiv']) delete S[k];
+    for (const p of PIDS) delete S.market[p].n;
+    S.news = [];
+  }
+  if (S.divAcc == null) S.divAcc = 0;
+  S.v = SAVE_V;
+  if (!WS.ready) WT = worldNow();
+  attachWorld(); prefillGoodsHist();
 }
 function encodeSave() { return btoa(unescape(encodeURIComponent(serialize()))); }
 function decodeSave(str) { const o = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (!o || !o.lots || !o.company) throw new Error('bad'); return o; }
 
-/* ---------------------------------------------------------------- real estate */
-// Home prices drift up slowly, follow the stock market a little, and wobble far less than stocks.
-function stepHousing(dt, rM, pre) {
-  if (!S.house) return;
-  const mu = (S.regime === 'bear' ? -0.01 : 0.015) / 3600;
-  const r = mu * dt + .25 * rM + .008 / 60 * Math.sqrt(dt) * gauss();
-  S.house.i = clamp(S.house.i * Math.exp(r), .4, 6);
-}
+/* ---------------------------------------------------------------- real estate (the housing index comes from the shared world) */
 function propBase(k) { return PROPS[PLOTS[k].t].price; }
 function propValue(k) { const p = S.props[k]; return propBase(k) * S.house.i * (1 + RENO_VALUE * (p.reno - 1)); }
 function propRent(k) { const p = S.props[k], P = PROPS[PLOTS[k].t]; return P.price * P.yld * (1 + RENO_RENT * (p.reno - 1)); }   // per minute

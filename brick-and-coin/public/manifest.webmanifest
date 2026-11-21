@@ -1,0 +1,16 @@
+{
+  "name": "Brick & Coin",
+  "short_name": "Brick & Coin",
+  "description": "A pixel-art business tycoon with a live stock market shared by every player.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#130d0b",
+  "theme_color": "#130d0b",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

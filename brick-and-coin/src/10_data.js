@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.04';
+const VERSION = 'v0.05';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -586,7 +586,8 @@ const WH_CAP  = [200, 400, 800, 1500, 3000, 6000, 12000];
 const WH_COST = [600, 2000, 6000, 18000, 50000, 150000];
 const START_CASH = 2000;
 const STARTUP_BOOST = 1.5;            // production speed until you reach Level 2
-const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;
+const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
+const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
 const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% over the sell price
 
 /* ---------------------------------------------------------------- town layout (native px) */

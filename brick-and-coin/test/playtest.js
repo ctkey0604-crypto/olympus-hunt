@@ -11,7 +11,9 @@
       perfect one: use it to compare versions, not as the real time-to-level.
    3. Save, close for an hour, reopen: Continue works and offline earnings are paid.
    4. Gold Hill: a $1M company reaches Level 4, unlocks and builds a Grand Piano, buys a villa, hears the hill's tune.
-   5. A real v0.03 save (test/fixtures/v0.03-save.txt) loads through Continue and keeps playing.
+   5. Real v0.03 and v0.04 saves (test/fixtures/) load through Continue and keep playing.
+   6. One shared world: two separate browsers see the same prices, news, rivals and price swings at the same moment, the
+      player's own trading doesn't move them, a device with its clock 2 hours out still agrees, and gets no free offline pay.
    6. Phone on its side (844x390, touch), phone upright (rotate screen), short laptop window.
    Screenshots go to brick-and-coin/test/out/ (or --shots DIR). Exits 1 if anything failed.
 
@@ -24,7 +26,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const MINUTES = +arg('--minutes', 60);
 const SHOTS = path.resolve(arg('--shots', path.join(__dirname, 'out')));
-const PAGE = path.resolve(arg('--page', path.join(__dirname, '..', 'dist', 'brick-and-coin.html')));   // --page: test another build, e.g. an older version
+const PAGE = path.resolve(arg('--page', path.join(__dirname, '..', 'public', 'index.html')));   // --page: test another build, e.g. an older version
 if (!fs.existsSync(PAGE)) { console.error('No build found. Run: python3 brick-and-coin/build.py'); process.exit(1); }
 fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -164,7 +166,10 @@ let URL;
   if (process.argv.includes('--bot-only')) {
     console.log(`Bot only: ${MINUTES} game minutes on ${PAGE}`);
     const { page } = await open(browser, 'bot', { viewport: { width: 1280, height: 720 } });
-    await page.evaluate(() => { newGame('Bot Co', 'wood'); S.tut = TUT_DONE; running = false; });
+    // start at a random moment in the world's first month: the world is the same for everyone, so games started at the
+    // same moment play out the same way, and pacing needs different stretches of market and news
+    const start = await page.evaluate(() => { WT = worldNow() + Math.floor(Math.random() * 30 * 86400); worldReset(); newGame('Bot Co', 'wood'); S.tut = TUT_DONE; running = false; return new Date((WT + WORLD.epoch) * 1000).toISOString().slice(0, 16); });
+    console.log(`    world time ${start} UTC`);
     await playBot(page);
     await browser.close(); server.close();
     console.log(problems.length ? `\n${problems.length} problem(s):\n - ` + problems.join('\n - ') : '\nAll good.');
@@ -320,11 +325,19 @@ let URL;
   await page.click('#side [data-act=build][data-p=piano]');
   check(await page.evaluate(i => S.lots[i] && S.lots[i].b === 'piano', GH), 'building a Piano Workshop on Gold Hill');
   await page.check('#side [data-act=autobuy]');
-  const c0 = await page.evaluate(() => S.cash);
-  await play(page, 120);
-  check(await page.evaluate(() => S.market.piano.sat > 0), 'it buys its Furniture Sets and Steel and sells pianos');
-  check(await page.evaluate(c => S.cash > c, c0), 'and makes money doing it');
-  await page.evaluate(() => { S.cash += 4e6; });
+  // two minutes in a quiet stretch of world time: a live boom on Furniture Sets or Steel can (rightly) make a line that buys
+  // them lose money for a few minutes, and this check shouldn't depend on today's headlines
+  const piano = await page.evaluate(() => {
+    const touches = e => e.mult && ['piano', 'sofa', 'steel'].some(p => e.mult[p]);
+    let t = Math.floor(worldNow()); while (eventsBetween(t - 300, t + 180).some(touches)) t += 60;
+    WT = t; worldReset();
+    const c0 = S.cash; for (let k = 0; k < 600; k++) step(.2);
+    const r = { sold: S.market.piano.sat > 0, made: S.cash - c0 };
+    WT = worldNow(); worldReset(); return r;
+  });
+  check(piano.sold, 'it buys its Furniture Sets and Steel and sells pianos');
+  check(piano.made > 0, `and makes money doing it (+$${Math.round(piano.made).toLocaleString()} in 2 min)`);
+  await page.evaluate(() => { S.cash += propBuyPrice(PLOTS.findIndex(p => p.t === 'villa')) * 1.1; });   // home prices follow the shared housing market
   await tapLot(page, await page.evaluate(() => 100 + PLOTS.findIndex(p => p.t === 'villa')));
   await page.click('#side [data-act=pbuy]');
   check(await page.evaluate(() => S.props[PLOTS.findIndex(p => p.t === 'villa')].own), 'buying a Hilltop Villa');
@@ -344,7 +357,7 @@ let URL;
   await page.waitForSelector('#app:not([hidden])');
   const is = await page.evaluate(() => ({ company: S.company, level: S.level, lots: S.lots.length, bld: countBuildings(), goal: S.goal, v: S.v, goalText: GOALS[S.goal].text }));
   check(is.company === was.company && is.level === was.level && is.bld === was.bld, `Continue brings back the v0.03 company whole (${is.company}, Level ${is.level}, ${is.bld} buildings)`);
-  check(was.lots === 36 && is.lots === 48 && is.v === 2, 'it gets the 12 Gold Hill lots');
+  check(was.lots === 36 && is.lots === 48 && is.v === 3, 'it gets the 12 Gold Hill lots');
   check(was.goal === 14 && /1,000,000/.test(is.goalText), 'a save that was past "top 5" moves on to the Gold Hill goals first');
   const oldBad = await page.evaluate(inv => { const I = eval('(' + inv + ')'); for (let k = 0; k < 1500; k++) step(.2); return I(); }, INVARIANTS.toString());
   check(!oldBad.length, 'and plays on for 5 game minutes' + (oldBad.length ? ': ' + oldBad.join(', ') : ''));
@@ -353,10 +366,87 @@ let URL;
   await page.click('[data-act=menu]');
   await page.fill('#loadBox', allDone);
   await page.click('[data-act=loadsave]');
-  check(await page.evaluate(() => S.goal === 13 && S.v === 2), 'a v0.03 save with every goal done picks up the two new Gold Hill goals');
+  check(await page.evaluate(() => S.goal === 13 && S.v === 3), 'a v0.03 save with every goal done picks up the two new Gold Hill goals');
   await ctx.close();
 
-  /* ---------------- 6. other screens ---------------- */
+  console.log('A v0.04 save');
+  ({ ctx, page } = await open(browser, 'oldsave4', { viewport: { width: 1280, height: 720 } }));
+  const OLD4 = fs.readFileSync(path.join(__dirname, 'fixtures', 'v0.04-save.txt'), 'utf8').trim();
+  const was4 = await page.evaluate(code => { const o = decodeSave(code); localStorage.setItem(SAVE_KEY, JSON.stringify(o)); return { company: o.company, bld: o.lots.filter(l => l && l.b !== 'hq').length, size: code.length }; }, OLD4);
+  await page.reload({ waitUntil: 'load' });
+  await page.click('[data-act=continue]');
+  await page.waitForSelector('#app:not([hidden])');
+  const is4 = await page.evaluate(() => ({ company: S.company, bld: countBuildings(), v: S.v, size: encodeSave().length, keys: Object.keys(JSON.parse(serialize())) }));
+  check(is4.company === was4.company && is4.bld === was4.bld && is4.v === 3, `Continue brings back the v0.04 company whole (${is4.company}, ${is4.bld} buildings)`);
+  check(!is4.keys.some(k => ['assets', 'house', 'rivals', 'events'].includes(k)), `saves keep only the company now (save code ${Math.round(was4.size / 1000)}k -> ${Math.round(is4.size / 1000)}k characters)`);
+  await ctx.close();
+
+  /* ---------------- 6. one shared world ---------------- */
+  console.log('One shared world');
+  const A = await open(browser, 'worldA', { viewport: { width: 1280, height: 720 } }), B = await open(browser, 'worldB', { viewport: { width: 1280, height: 720 } });
+  const snap = (pg, t) => pg.evaluate(t => JSON.stringify(worldSnapshot(t)), t);
+  const moments = [await A.page.evaluate(() => Math.floor(worldNow())), 1e6 + 17, 9e6 + 123, 4e7 + 5];   // now, and days, months and a year from launch
+  let same = true;
+  for (const t of moments) if (await snap(A.page, t) !== await snap(B.page, t)) same = false;
+  check(same, 'two separate browsers work out the same prices, news, rivals and goods swings, now and months from now');
+  // a live game in A, a fresh page in B: the same second, to the cent
+  await newCompany(A.page, 'World Tester');
+  await A.page.click('[data-act=tutdone]');
+  await sleep(2500);
+  const live = await A.page.evaluate(() => ({ t: WS.sec, p: Object.fromEntries(ASSETS.map(a => [a.t, +S.assets[a.t].p.toFixed(2)])), house: +S.house.i.toFixed(5), rivals: S.rivals.map(r => Math.round(r.nw)), news: worldNews(1)[0] }));
+  const fresh = JSON.parse(await snap(B.page, live.t));
+  const priceDiff = Object.keys(live.p).filter(k => live.p[k] !== fresh.prices[k]);
+  check(!priceDiff.length && live.house === fresh.house && JSON.stringify(live.rivals) === JSON.stringify(fresh.rivals), `a live game and a fresh page agree on every price, home prices and rivals (MB10 $${live.p.MB10}, PixCoin $${live.p.PXC})` + (priceDiff.length ? ': differ on ' + priceDiff.join(', ') : ''));
+  check(!live.news || fresh.news.includes(live.news.text), `and on the news ("${live.news ? live.news.text : 'none yet'}")`);
+  // the player's own trading moves only their own goods prices, never the shared world
+  const untouched = await A.page.evaluate(() => JSON.stringify(worldSnapshot(WS.sec)));
+  await A.page.evaluate(() => { S.inv.wood = 5000; manualSell('wood', 5000); S.cash += 1e6; buyAsset('PXC', 900000); });
+  check(await A.page.evaluate(b => JSON.stringify(worldSnapshot(JSON.parse(b).t)) === b, untouched) && await A.page.evaluate(() => S.market.wood.sat > 0), 'a player dumping goods and buying PixCoin leaves the shared world untouched');
+  const sec0 = await A.page.evaluate(() => WS.sec);
+  await sleep(1500);
+  check(await A.page.evaluate(s0 => WS.sec > s0 && worldNews(5).length > 0, sec0), 'the world runs on: prices tick every second and the news keeps coming');
+  await A.ctx.close(); await B.ctx.close();
+  // a device whose clock is 2 hours fast: same world (the server's clock wins), and no free offline earnings
+  const skewed = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await skewed.addInitScript(() => { const real = Date.now; Date.now = () => real() + 2 * 3600e3; });
+  const sp = await skewed.newPage();
+  sp.on('pageerror', e => problems.push('[skewed] page error: ' + e.message));
+  await sp.goto(URL, { waitUntil: 'load' }); await sp.waitForSelector('#start .title');
+  await sp.evaluate(() => clockReady);
+  const drift = await sp.evaluate(() => worldNow() - (performance.timeOrigin + performance.now()) / 1000 + WORLD.epoch);
+  check(Math.abs(drift) < 3, `a device with its clock 2 hours fast still runs on world time (off by ${drift.toFixed(1)} s)`);
+  // a save stamped by the fast device clock, as a cheater's would be: reopening it on the world clock must not pay out
+  await sp.evaluate(() => { newGame('Clock Cheat Co', 'wood'); S.tut = TUT_DONE; build(17, 'wood'); const o = JSON.parse(serialize()); o.savedAt = Date.now() - 60e3; localStorage.setItem(SAVE_KEY, JSON.stringify(o)); });
+  await sp.reload({ waitUntil: 'load' }); await sp.click('[data-act=continue]'); await sp.waitForSelector('#app:not([hidden])');
+  await sleep(3000);
+  const awayToast = await sp.evaluate(() => [...document.querySelectorAll('.toast')].map(t => t.textContent).join(' | '));
+  check(!/While you were away/.test(awayToast), `moving the device clock doesn't count as time away (${awayToast || 'no offline toast'})`);
+  await skewed.close();
+  // offline earnings use plain prices: a boom running when you come back doesn't multiply the whole time away
+  ({ ctx, page } = await open(browser, 'offline', { viewport: { width: 1280, height: 720 } }));
+  const off = await page.evaluate(() => {
+    newGame('Away Co', 'wood'); S.tut = TUT_DONE; running = false; S.cash = 1e5; for (let i = 0; i < 6; i++) build(12 + i, 'wood');
+    const base = JSON.stringify(S), run = boom => { S = JSON.parse(base); attachWorld(); WS.mult = boom ? { wood: 1.7 } : {}; return offlineCatchUp(3600).earned; };
+    return [run(false), run(true)];
+  });
+  check(Math.abs(off[0] - off[1]) < 1, `an hour away pays the same with or without a boom on ($${Math.round(off[0])} both times)`);
+  await ctx.close();
+  // left open but untouched, the game runs like it's closed: 25% after 10 minutes idle, then waits after 2 hours more
+  ({ ctx, page } = await open(browser, 'idle', { viewport: { width: 1280, height: 720 } }));
+  await newCompany(page, 'Idle Co');
+  await page.click('[data-act=tutdone]');
+  const rates = await page.evaluate(async () => {
+    const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))), out = [];
+    for (const idleMin of [5, 11, 150]) { lastInput = nowMs() - idleMin * 60e3; await frames(); out.push(AWAY_RATE); }
+    return out;
+  });
+  check(rates.join() === '1,0.25,0', `left untouched: full speed at 5 min, 25% at 11 min, waiting at 2½ hours (${rates.join(', ')})`);
+  await page.mouse.move(300, 300); await page.mouse.move(320, 310);
+  const back = await page.waitForSelector('.toast >> text=/idle for/', { timeout: 2000 }).then(e => e.textContent()).catch(() => '');
+  check(await page.evaluate(() => AWAY_RATE === 1) && /idle for/.test(back), `moving the mouse brings it back to full speed and says so (${back || 'no message'})`);
+  await ctx.close();
+
+  /* ---------------- 7. other screens ---------------- */
   console.log('Phone on its side 844x390 (touch)');
   ({ ctx, page } = await open(browser, 'phone', { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }));
   const btn = await page.locator('#startForm button[type=submit]').boundingBox();
