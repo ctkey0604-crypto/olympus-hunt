@@ -294,6 +294,7 @@ function act(el) {
     case 'mktf': UI.mktFilter = el.dataset.v; break;
     case 'stsel': UI.stockSel = el.dataset.t; if (isPhone()) $('#modal .sheet').scrollTop = 0; break;
     case 'sttf': UI.stockTF = el.dataset.v; break;
+    case 'pubtf': UI.pubTF = el.dataset.v; break;   // v0.12: a player company's chart range
     case 'stbuy': err = buyAsset(UI.stockSel, el.dataset.v === 'half' ? S.cash / 2 : +el.dataset.v); break;
     case 'stsell': err = sellAsset(UI.stockSel, +el.dataset.v); break;
     case 'pbuy': err = buyProp(+el.dataset.k); if (!err) toast('Property bought. Rent starts now.', 'good'); break;

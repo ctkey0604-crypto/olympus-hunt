@@ -31,7 +31,28 @@ function pubKeep(L, now) { const s = Math.abs(Math.log(pubMove(L, L.fb, L.fs))) 
 function pubPressure(L) { const k = pubKeep(L, nowMs()); return [L.fb * k, L.fs * k]; }
 function pubImpact(L) { const [fb, fs] = pubPressure(L); return pubMove(L, fb, fs); }
 function pubMood() { const A = WS.assets.MB10, a = A.h60 && A.h60.length ? A.h60[0] : 0; return a ? clamp(Math.pow(A.p / a, 1.2), .85, 1.18) : 1; }
-function pubWander(L) { return Math.exp(fbm(950 + tickerSeed(L.ticker) % 97, WT, .02 / 60, OCT_ID)); }
+function pubWander(L, t = WT) { return Math.exp(fbm(950 + tickerSeed(L.ticker) % 97, t, .02 / 60, OCT_ID)); }
+/* v0.12: price charts for players' companies. The server keeps each listing's share price every 5 minutes for a day
+   (before the market's mood and the company's own wander); the game adds those for each moment, as it does for today's. */
+const PUBH = {};
+function pubMoodAt(t) { const a = marketAt(t - 14400, WS.evs).p.MB10, b = marketAt(t, WS.evs).p.MB10; return a ? clamp(Math.pow(b / a, 1.2), .85, 1.18) : 1; }
+async function pubHistLoad(tk) {
+  const H = PUBH[tk] || (PUBH[tk] = { at: 0, pts: [], busy: false });
+  if (!NET_API || H.busy || Date.now() - H.at < 60e3) return;
+  H.busy = true;
+  try {
+    const d = await (await fetch(NET_API + '/pubhist?t=' + encodeURIComponent(tk), { cache: 'no-store' })).json(), L = pubListing(tk) || { ticker: tk };
+    H.pts = (d.pts || []).map(([ms, px]) => { const t = ms / 1000 - WORLD.epoch; return [ms, px * pubMoodAt(t) * pubWander(L, t)]; });
+  } catch (e) {}
+  H.at = Date.now(); H.busy = false;
+}
+// the chart's prices: the last 4 hours or day of 5-minute prices, then today's price
+function pubSeries(tk, tf) {
+  const L = pubListing(tk), H = PUBH[tk]; if (!L) return [];
+  pubHistLoad(tk);
+  const from = Date.now() - (tf === '4h' ? 4 : 24) * 3600e3, pts = H ? H.pts.filter(p => p[0] >= from).map(p => p[1]) : [];
+  return pts.concat([pubPrice(L)]);
+}
 function pubPrice(L) { return pubFair(L) * pubImpact(L) * pubMood() * pubWander(L); }
 // this company's own listing, with its value and profit right now (the server's copy is up to a minute old)
 function pubMineL() {
@@ -133,6 +154,7 @@ async function pubAct(promise, kind) {
 /* ---------- Invest → Players and Invest → Your company ---------- */
 Object.assign(LIVE, {
   pubp(t) { const L = pubListing(t); return L ? money(pubPrice(L)) : '—'; },
+  pubchg(t) { const h = pubSeries(t, UI.pubTF || '1d'); if (h.length < 2) return { text: '', cls: '' }; const m = h[h.length - 1] / h[0] - 1; return { text: pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
   pubimp(t) { const L = pubListing(t); if (!L) return { text: '', cls: '' }; const m = pubImpact(L) - 1; return Math.abs(m) < .005 ? { text: 'steady', cls: 'muted' } : { text: 'players ' + pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
   pubcap(t) { const L = pubListing(t); return L ? money(pubPrice(L) * L.total, false) : '—'; },
   pubfree(t) { const L = pubListing(t); return L ? qty(Math.max(0, L.total - L.own - L.held)) + ' shares' : '—'; },
@@ -156,7 +178,7 @@ function pubPlayersView(tabs) {
   // v0.11: your own company is in the list too, marked YOU, just as other players see it (the server's copy: up to a minute old)
   const mine = S.pub ? S.pub.ticker : null, list = NET.listings.slice();
   if (!list.find(L => L.ticker === UI.pubSel)) UI.pubSel = (list.find(L => L.ticker !== mine) || list[0] || {}).ticker || null;
-  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(S.pubHold).join()}|${mine}`;
+  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(S.pubHold).join()}|${mine}|${UI.pubTF}`;
   const intro = `<p class="m-sub">Real players’ companies that have gone public (yours too, marked YOU, as other players see it). A share’s price follows its company’s value and profit, the market’s mood, and players buying and selling it. Each company pays 30% of its profit as dividends, and you get your part while you hold its shares, even while you’re away.${NET_API ? '' : ' Open the game at brickncoin.com to see them.'}</p>`;
   if (!L) return { sig, title: 'Invest', html: tabs + intro + `<section class="card"><h3>No player companies yet</h3><p class="muted" style="font-size:13px">When a player takes their company public, it shows up here. Reach Level ${PUB_LEVEL} and yours could be the first: see Your company.</p></section>` };
   const rows = list.map(x => `<button type="button" class="st-row ${x.ticker === UI.pubSel ? 'sel' : ''}" data-act="pubsel" data-t="${x.ticker}">${iconImg('house', 36)}
@@ -166,7 +188,10 @@ function pubPlayersView(tabs) {
   const sell = [[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, l]) => `<button class="btn ghost small" type="button" data-act="pubsell" data-v="${v}">${l}</button>`).join('');
   return { sig, title: 'Invest', html: tabs + intro + `<div class="st-wrap"><div class="st-list">${rows}</div><div class="st-detail">
       <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(L.co)}</h2><span class="muted">by <b>${esc(L.owner)}</b> · ${t} · public since ${new Date(L.listed).toLocaleDateString()}</span></div>
-        <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="pubp:${t}"></b><br><span data-live="pubimp:${t}" data-base=""></span></div></div>
+        <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="pubp:${t}"></b><br><span data-live="pubchg:${t}" data-base=""></span> <span class="muted" style="font-size:12px">${UI.pubTF || '1d'}</span> <span data-live="pubimp:${t}" data-base=""></span></div></div>
+      <div style="display:flex;justify-content:flex-end"><div class="seg" role="group" aria-label="Chart range">${['4h', '1d'].map(v => `<button type="button" data-act="pubtf" data-v="${v}" aria-pressed="${(UI.pubTF || '1d') === v}">${v}</button>`).join('')}</div></div>
+      <canvas id="stChart" class="st-chart" role="img" aria-label="${esc(L.co)} share price chart"></canvas>
+      <p class="muted" style="font-size:12px;margin:-4px 0 8px">The share price every 5 minutes, then now. A company that’s just gone public fills its chart in over the day.</p>
       <div class="stat-grid">${pubStat('Market value', '', 'pubcap:' + t)}${pubStat('Owner keeps', Math.round(L.own / L.total * 100) + '%')}${pubStat('Profit', money(L.profit) + '/min')}${pubStat('Profit trend', '', 'pubtrend:' + t)}
         ${pubStat('Dividends paid', money(L.paid, false))}${pubStat('Players hold', `${qty(L.held)} · ${L.holders} player${L.holders === 1 ? '' : 's'}`)}${pubStat('For sale', '', 'pubfree:' + t)}
         ${t === mine ? '' : pubStat('You own', '', 'pubhq:' + t) + pubStat('Worth', '', 'pubhv:' + t) + pubStat('Profit / loss', '', 'pubhpl:' + t)}</div>

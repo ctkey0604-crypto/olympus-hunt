@@ -484,9 +484,12 @@ function drawStockChart() {
   const c = $('#stChart'); if (!c) return;
   const W = Math.max(120, Math.floor(c.clientWidth / 2)), H = 120;
   if (c.width !== W) { c.width = W; c.height = H; }
-  const A = UI.investTab === 're' ? { p: S.house.i, h10: S.house.h10, h60: S.house.h60 } : S.assets[UI.stockSel], tf = UI.stockTF;
-  let h = tf === '10m' ? A.h10.slice(-60) : tf === '1h' ? A.h10.slice(-360) : A.h60.slice(-240);
-  h = h.concat([A.p]);
+  let h;
+  if (UI.investTab === 'players') h = pubSeries(UI.pubSel, UI.pubTF || '1d');   // v0.12: a player's company
+  else {
+    const A = UI.investTab === 're' ? { p: S.house.i, h10: S.house.h10, h60: S.house.h60 } : S.assets[UI.stockSel], tf = UI.stockTF;
+    h = (tf === '10m' ? A.h10.slice(-60) : tf === '1h' ? A.h10.slice(-360) : A.h60.slice(-240)).concat([A.p]);
+  }
   const ctx = c.getContext('2d'); ctx.clearRect(0, 0, W, H);
   if (h.length < 2) return;
   let lo = Math.min(...h), hi = Math.max(...h); const pad = (hi - lo) * .08 || hi * .01; lo -= pad; hi += pad;
