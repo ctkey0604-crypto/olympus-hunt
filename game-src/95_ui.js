@@ -102,7 +102,7 @@ function accountHTML() {
   if (!Store.api) return '';
   const msg = acctMsg ? `<p class="acct-msg">${esc(acctMsg)}</p>` : '';
   // One Inspirapixel account for every Inspirapixel game: Brick & Coin logs in with these same accounts.
-  if (Store.user) return `<div class="acct-row"><span>Logged into your Inspirapixel account as <b>${esc(Store.user)}</b></span><button class="btn ghost small" type="button" data-acct="out">Log out</button></div>${msg}`;
+  if (Store.user) return `<div class="acct-row"><span>Logged into your Inspirapixel account as <b>${esc(Store.user)}</b> · <a href="/account.html" target="_blank" rel="noopener">Account &amp; email</a></span><button class="btn ghost small" type="button" data-acct="out">Log out</button></div>${msg}`;
   if (!acctMode) return `<div class="acct-row"><span>Your Inspirapixel account keeps your saves on any device, in every Inspirapixel game.</span><button class="btn small" type="button" data-acct="in">Log in</button><button class="btn ghost small" type="button" data-acct="new">Create account</button></div>${msg}`;
   const create = acctMode === 'new';
   return `<p class="acct-note"><b>${create ? 'Create your Inspirapixel account' : 'Log into your Inspirapixel account'}</b></p>
@@ -111,8 +111,9 @@ function accountHTML() {
       <label>Password<input name="password" type="password" autocomplete="${create ? 'new-password' : 'current-password'}" maxlength="100"></label>
       <button class="btn small" type="submit" ${acctBusy ? 'disabled' : ''}>${acctBusy ? 'One moment…' : create ? 'Create account' : 'Log in'}</button>
       <button class="btn ghost small" type="button" data-acct="cancel">Cancel</button>
+      ${create ? '' : '<a class="acct-forgot" href="/account.html?forgot" target="_blank" rel="noopener">Forgot password?</a>'}
     </form>
-    ${create ? '<p class="acct-note">One account for every Inspirapixel game, Brick &amp; Coin too. Names are 3 to 20 letters, numbers or underscores. There\u2019s no email yet, so a forgotten password can\u2019t be reset.</p>' : ''}${msg}`;
+    ${create ? '<p class="acct-note">One account for every Inspirapixel game, Brick &amp; Coin too. Names are 3 to 20 letters, numbers or underscores. Afterwards, add an email on your account page so you can reset a forgotten password.</p>' : ''}${msg}`;
 }
 function renderAccount() {
   const box = $('acctBox'); box.hidden = !Store.api; box.innerHTML = accountHTML();
