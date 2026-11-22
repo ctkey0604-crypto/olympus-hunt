@@ -403,6 +403,15 @@ textarea:focus{outline:2px solid var(--gold)}
 .vote-banner.norse,.vote-banner.norse:hover{background:#14324d;box-shadow:0 0 0 2px #000,0 0 0 4px #8fc4f5,0 0 0 6px #000}
 .vote-banner.norse::before,.vote-banner.norse::after{background:repeating-linear-gradient(90deg,#8fc4f5 0 8px,#0b1c2c 8px 16px)}
 .vote-banner.norse span{background-image:linear-gradient(100deg,#cdeeff 42%,#ffffff 50%,#cdeeff 58%)}
+/* the Brick & Coin ad: Brick & Coin's gold coin on a brick wall, opening brickncoin.com in a new tab */
+.vote-banner.ad-brick{--bricks:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='16' shape-rendering='crispEdges'%3E%3Cg fill='black' fill-opacity='.22'%3E%3Crect y='6' width='28' height='2'/%3E%3Crect y='14' width='28' height='2'/%3E%3Crect x='26' width='2' height='6'/%3E%3Crect x='12' y='8' width='2' height='6'/%3E%3C/g%3E%3C/svg%3E");display:flex;align-items:center;justify-content:center;gap:12px;box-sizing:border-box;text-decoration:none;text-align:left;background:var(--bricks) 0 4px,#7a2a19}
+.vote-banner.ad-brick:hover,.vote-banner.ad-brick:focus-visible{background:var(--bricks) 0 4px,#953420}
+.ad-coin{flex:none;width:36px;height:36px}
+.ad-brick .ad-text{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.ad-brick small{font-family:var(--font-ui);font-size:.8rem;line-height:1.15;letter-spacing:.02em;color:#f0e4cc}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){.vote-banner.ad-brick:hover .ad-coin{animation:adCoin .4s steps(2) infinite alternate}}
+@keyframes adCoin{to{transform:translateY(-3px)}}
+@media (max-height:600px){.ad-coin{width:28px;height:28px}.ad-brick small{font-size:.72rem}.ad-brick .ad-text{gap:3px}}
 /* the owner's dashboard */
 .owner-wrap{max-width:1100px}
 .ow-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px}
@@ -811,7 +820,7 @@ input[type=range]{accent-color:var(--clay)}
       <button class="btn ghost" id="btnOwner" type="button" hidden>Owner dashboard</button>
     </div>
     <p class="title-sub muted" id="titleSub"></p>
-    <div class="vote-banner static norse" id="btnVote"><span>Update 1.1: The Norse update is here!</span></div>
+    <a class="vote-banner ad-brick" id="adBrick" href="https://brickncoin.com" target="_blank" rel="noopener"><svg class="ad-coin" viewBox="0 0 18 18" shape-rendering="crispEdges" aria-hidden="true"><path fill="#140d0b" d="M7 1h4v1h-4zM5 2h2v1h-2zM11 2h2v1h-2zM4 3h1v1h-1zM13 3h1v1h-1zM3 4h1v1h-1zM14 4h1v1h-1zM2 5h1v1h-1zM15 5h1v1h-1zM2 6h1v1h-1zM15 6h1v1h-1zM1 7h1v1h-1zM16 7h1v1h-1zM1 8h1v1h-1zM16 8h1v1h-1zM1 9h1v1h-1zM16 9h1v1h-1zM1 10h1v1h-1zM16 10h1v1h-1zM2 11h1v1h-1zM15 11h1v1h-1zM2 12h1v1h-1zM15 12h1v1h-1zM3 13h1v1h-1zM14 13h1v1h-1zM4 14h1v1h-1zM13 14h1v1h-1zM5 15h2v1h-2zM11 15h2v1h-2zM7 16h4v1h-4z"/><path fill="#ffd463" d="M7 2h4v1h-4zM5 3h8v1h-8zM4 4h2v1h-2zM12 4h1v1h-1zM3 5h2v1h-2zM8 5h1v1h-1zM3 6h1v1h-1zM8 6h1v1h-1zM2 7h2v1h-2zM8 7h1v1h-1zM2 8h2v1h-2zM8 8h1v1h-1zM2 9h2v1h-2zM8 9h1v1h-1zM2 10h2v1h-2zM8 10h1v1h-1zM3 11h1v1h-1zM8 11h1v1h-1zM3 12h2v1h-2zM8 12h1v1h-1z"/><path fill="#ebc152" d="M6 4h6v1h-6zM5 5h3v1h-3zM10 5h3v1h-3zM4 6h4v1h-4zM10 6h4v1h-4zM4 7h4v1h-4zM10 7h4v1h-4zM4 8h4v1h-4zM10 8h4v1h-4zM4 9h4v1h-4zM10 9h4v1h-4zM4 10h4v1h-4zM10 10h4v1h-4zM4 11h4v1h-4zM10 11h4v1h-4zM5 12h3v1h-3zM10 12h3v1h-3zM6 13h6v1h-6z"/><path fill="#b8913a" d="M13 4h1v1h-1zM9 5h1v1h-1zM13 5h2v1h-2zM9 6h1v1h-1zM14 6h1v1h-1zM9 7h1v1h-1zM14 7h2v1h-2zM9 8h1v1h-1zM14 8h2v1h-2zM9 9h1v1h-1zM14 9h2v1h-2zM9 10h1v1h-1zM14 10h2v1h-2zM9 11h1v1h-1zM14 11h1v1h-1zM9 12h1v1h-1zM13 12h2v1h-2zM4 13h2v1h-2zM12 13h2v1h-2zM5 14h8v1h-8zM7 15h4v1h-4z"/></svg><div class="ad-text"><span>New game: Brick &amp; Coin</span><small>A pixel business tycoon · free at brickncoin.com</small></div></a>
     <div class="app-row" id="appRow" hidden><button class="btn ghost small" id="btnInstall" type="button">Install the app</button></div>
     <p class="app-hint" id="iosHint" hidden>Play it like an app, full screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
     <p class="lede">Clear hordes of monsters, carry home the parts they drop, and forge armor and weapons from the gods of Olympus, from swift Hermes to Zeus himself.</p>
