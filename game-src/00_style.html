@@ -394,6 +394,15 @@ textarea:focus{outline:2px solid var(--gold)}
 .vote-banner.norse,.vote-banner.norse:hover{background:#14324d;box-shadow:0 0 0 2px #000,0 0 0 4px #8fc4f5,0 0 0 6px #000}
 .vote-banner.norse::before,.vote-banner.norse::after{background:repeating-linear-gradient(90deg,#8fc4f5 0 8px,#0b1c2c 8px 16px)}
 .vote-banner.norse span{background-image:linear-gradient(100deg,#cdeeff 42%,#ffffff 50%,#cdeeff 58%)}
+/* the Brick & Coin ad: Brick & Coin's gold coin on a brick wall, opening brickncoin.com in a new tab */
+.vote-banner.ad-brick{--bricks:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='16' shape-rendering='crispEdges'%3E%3Cg fill='black' fill-opacity='.22'%3E%3Crect y='6' width='28' height='2'/%3E%3Crect y='14' width='28' height='2'/%3E%3Crect x='26' width='2' height='6'/%3E%3Crect x='12' y='8' width='2' height='6'/%3E%3C/g%3E%3C/svg%3E");display:flex;align-items:center;justify-content:center;gap:12px;box-sizing:border-box;text-decoration:none;text-align:left;background:var(--bricks) 0 4px,#7a2a19}
+.vote-banner.ad-brick:hover,.vote-banner.ad-brick:focus-visible{background:var(--bricks) 0 4px,#953420}
+.ad-coin{flex:none;width:36px;height:36px}
+.ad-brick .ad-text{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.ad-brick small{font-family:var(--font-ui);font-size:.8rem;line-height:1.15;letter-spacing:.02em;color:#f0e4cc}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){.vote-banner.ad-brick:hover .ad-coin{animation:adCoin .4s steps(2) infinite alternate}}
+@keyframes adCoin{to{transform:translateY(-3px)}}
+@media (max-height:600px){.ad-coin{width:28px;height:28px}.ad-brick small{font-size:.72rem}.ad-brick .ad-text{gap:3px}}
 /* the owner's dashboard */
 .owner-wrap{max-width:1100px}
 .ow-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:14px}
