@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Your Inspirapixel account</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;600&display=swap">
+<style>
+/* The Inspirapixel account page: one account for Olympus Hunt and Brick & Coin. Uses the same session as Olympus Hunt
+   (localStorage olympus-hunt/session), so being logged in on one means being logged in on the other. */
+:root{--bg:#130d0b;--card:#1d1411;--line:#3e2c24;--bone:#f0e4cc;--dim:#b9a78b;--gold:#ebc152;--gold-hi:#ffd463;--olive:#9bbb55;--red:#ff8a7a;--clay:#cf6a2f}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--bone);font:16px/1.5 "Pixelify Sans",ui-monospace,monospace;display:flex;justify-content:center;padding:32px 16px}
+main{width:min(460px,100%)}
+h1{font:400 56px/1 "Jersey 10","Pixelify Sans",monospace;color:var(--gold);margin:0;letter-spacing:.02em}
+.sub{color:var(--dim);margin:4px 0 22px}
+.card{background:var(--card);border-radius:10px;box-shadow:inset 0 0 0 2px var(--line);padding:20px;display:flex;flex-direction:column;gap:12px}
+h2{font-family:inherit;font-weight:600;font-size:20px;line-height:1.2;margin:0}
+label{display:flex;flex-direction:column;gap:4px;color:var(--dim);font-size:14px}
+input[type=text],input[type=password],input[type=email]{font:inherit;color:var(--bone);background:#0b0706;border:2px solid var(--line);border-radius:6px;padding:10px 12px}
+input:focus{outline:none;border-color:var(--gold)}
+.check{flex-direction:row;align-items:center;gap:8px;color:var(--bone)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{font-family:inherit;font-weight:600;font-size:15px;line-height:1;border:0;border-radius:6px;padding:12px 18px;cursor:pointer;background:var(--gold);color:#160e0b}
+button.ghost{background:transparent;color:var(--bone);box-shadow:inset 0 0 0 2px var(--line)}
+button:disabled{opacity:.6;cursor:default}
+a{color:var(--gold)} .linkbtn{background:none;padding:0;color:var(--gold);text-decoration:underline;font-weight:400}
+.msg{margin:0;font-size:14px}.ok{color:var(--olive)}.bad{color:var(--red)}.dim{color:var(--dim);font-size:14px}
+.pill{display:inline-block;font-size:12px;padding:3px 8px;border-radius:4px;font-weight:600}
+.pill.ok{background:var(--olive);color:#160e0b}.pill.wait{background:var(--gold);color:#160e0b}.pill.none{box-shadow:inset 0 0 0 1px var(--line);color:var(--dim)}
+.foot{color:var(--dim);font-size:14px;margin-top:18px;text-align:center}
+</style>
+</head>
+<body>
+<main>
+  <h1>Inspirapixel</h1>
+  <p class="sub">One account for <b>Olympus Hunt</b> and <b>Brick &amp; Coin</b></p>
+  <section class="card" id="box" aria-live="polite"><p class="dim">One moment…</p></section>
+  <p class="foot"><a href="/">Play Olympus Hunt</a> · <a href="https://brickncoin.com">Play Brick &amp; Coin</a></p>
+</main>
+<script>
+(() => {
+'use strict';
+const box = document.getElementById('box'), q = new URLSearchParams(location.search), KEY_S = 'olympus-hunt/session', KEY_U = 'olympus-hunt/user';
+let token = null, user = null, flash = '', flashOk = true;
+try { token = localStorage.getItem(KEY_S); user = localStorage.getItem(KEY_U); } catch (e) {}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function api(path, body) {
+  const h = { 'Content-Type': 'application/json' }; if (token) h.Authorization = 'Bearer ' + token;
+  let r; try { r = await fetch('/api' + path, { method: body ? 'POST' : 'GET', headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }); }
+  catch (e) { throw new Error('Can’t reach the server. Check your connection and try again.'); }
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  if (!r.ok) { const e = new Error(d.error || 'Something went wrong. Try again in a minute.'); e.status = r.status; throw e; }
+  return d;
+}
+function remember(d) { token = d.token; user = d.name; try { localStorage.setItem(KEY_S, token); localStorage.setItem(KEY_U, user); } catch (e) {} }
+function forget() { token = user = null; try { localStorage.removeItem(KEY_S); localStorage.removeItem(KEY_U); } catch (e) {} }
+const msg = () => flash ? `<p class="msg ${flashOk ? 'ok' : 'bad'}">${esc(flash)}</p>` : '';
+function say(text, ok) { flash = text; flashOk = ok !== false; }
+// run a form: disable its buttons, call fn, show any error in the form
+function busy(form, fn) {
+  form.addEventListener('submit', async e => {
+    e.preventDefault(); const btns = form.querySelectorAll('button'), out = form.querySelector('.msg-slot');
+    btns.forEach(b => b.disabled = true); if (out) out.innerHTML = '';
+    try { await fn(new FormData(form)); } catch (err) { if (out) out.innerHTML = `<p class="msg bad">${esc(err.message)}</p>`; btns.forEach(b => b.disabled = false); }
+  });
+}
+
+function showLogin() {
+  box.innerHTML = `<h2>Log into your Inspirapixel account</h2>${msg()}
+    <form class="card" style="padding:0;box-shadow:none;gap:12px" id="f">
+      <label>Name<input type="text" name="name" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20" required></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" maxlength="100" required></label>
+      <div class="msg-slot"></div>
+      <div class="row"><button type="submit">Log in</button><button type="button" class="linkbtn" id="fg">Forgot password?</button></div></form>
+    <p class="dim">No account yet? Create one in either game: it’s just a name and a password.</p>`;
+  flash = '';
+  busy(document.getElementById('f'), async f => { remember(await api('/login', { name: f.get('name').trim(), password: f.get('password') })); showAccount(); });
+  document.getElementById('fg').onclick = showForgot;
+}
+function showForgot() {
+  box.innerHTML = `<h2>Forgot your password?</h2>
+    <p class="dim">Enter your account name or the email you confirmed. If the account has a confirmed email, we’ll send a link to choose a new password.</p>
+    <form id="f" style="display:flex;flex-direction:column;gap:12px"><label>Name or email<input type="text" name="who" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="254" required></label>
+      <div class="msg-slot"></div><div class="row"><button type="submit">Send the link</button><button type="button" class="ghost" id="bk">Back</button></div></form>
+    <p class="dim">No email on the account? Then the password can’t be reset, sorry. Once you’re back in, add one here.</p>`;
+  busy(document.getElementById('f'), async f => { const d = await api('/forgot', { who: f.get('who') }); say(d.message, true); showLogin(); });
+  document.getElementById('bk').onclick = showLogin;
+}
+function showReset(t) {
+  box.innerHTML = `<h2>Choose a new password</h2>
+    <form id="f" style="display:flex;flex-direction:column;gap:12px">
+      <label>New password<input type="password" name="p1" autocomplete="new-password" minlength="6" maxlength="100" required></label>
+      <label>The same again<input type="password" name="p2" autocomplete="new-password" minlength="6" maxlength="100" required></label>
+      <div class="msg-slot"></div><button type="submit">Save my new password</button></form>`;
+  busy(document.getElementById('f'), async f => {
+    if (f.get('p1') !== f.get('p2')) throw new Error('The two passwords don’t match.');
+    remember(await api('/reset', { token: t, password: f.get('p1') }));
+    say('Password changed, and you’re logged in. Every other device was logged out.'); showAccount();
+  });
+}
+async function showAccount() {
+  let a;
+  try { a = await api('/account'); }
+  catch (e) { if (e.status === 401) { forget(); say('Please log in again.', false); showLogin(); return; } box.innerHTML = `<p class="msg bad">${esc(e.message)}</p>`; return; }
+  const status = !a.email ? '<span class="pill none">No email yet</span>' : a.verified ? '<span class="pill ok">Confirmed</span>' : '<span class="pill wait">Waiting for you to confirm</span>';
+  box.innerHTML = `<h2>${esc(a.name)}</h2>${msg()}
+    <form id="f" style="display:flex;flex-direction:column;gap:12px">
+      <label>Email for password recovery <span>${status}</span>
+        <input type="email" name="email" autocomplete="email" maxlength="254" value="${esc(a.email)}" placeholder="you@example.com"></label>
+      <p class="dim" style="margin:0">Optional, but it’s the only way back in if you forget your password. We only email you for that, and for news if you tick the box.</p>
+      <label class="check"><input type="checkbox" name="news" ${a.news ? 'checked' : ''}> Email me now and then about new Inspirapixel games and updates</label>
+      <div class="msg-slot"></div>
+      <div class="row"><button type="submit">Save</button>
+        ${a.email && !a.verified ? '<button type="button" class="ghost" id="rs">Send the confirmation again</button>' : ''}
+        ${a.email ? '<button type="button" class="linkbtn" id="rm">Remove my email</button>' : ''}</div></form>
+    ${a.mail ? '' : '<p class="msg bad">Emails aren’t switched on yet on the server.</p>'}
+    <div class="row" style="justify-content:space-between"><span class="dim">Works in Olympus Hunt and Brick &amp; Coin.</span><button type="button" class="ghost" id="lo">Log out</button></div>`;
+  flash = '';
+  const form = document.getElementById('f');
+  busy(form, async f => {
+    const d = await api('/account/email', { email: f.get('email'), news: !!f.get('news') });
+    say(!d.email ? 'Email removed.' : d.sent ? `Check ${d.email} (and its spam folder) for a link to confirm it.` : 'Saved.'); showAccount();
+  });
+  const rs = document.getElementById('rs'); if (rs) rs.onclick = async () => { rs.disabled = true; try { const d = await api('/account/email', { email: form.email.value, news: form.news.checked, resend: true }); say(`Sent again to ${d.email}.`); } catch (e) { say(e.message, false); } showAccount(); };
+  const rm = document.getElementById('rm'); if (rm) rm.onclick = async () => { await api('/account/email', { email: '' }).catch(() => {}); say('Email removed.'); showAccount(); };
+  document.getElementById('lo').onclick = async () => { try { await api('/logout', {}); } catch (e) {} forget(); say('Logged out.'); showLogin(); };
+}
+
+(async () => {
+  const v = q.get('verify'), r = q.get('reset');
+  if (v || r || q.has('forgot')) history.replaceState(null, '', location.pathname);   // don't leave the token in the address bar
+  if (v) { try { const d = await api('/verify', { token: v }); say(`${d.email} is confirmed. You can reset your password with it now.`); } catch (e) { say(e.message, false); } }
+  if (r) return showReset(r);
+  if (q.has('forgot') && !token) return showForgot();
+  if (token) return showAccount();
+  showLogin();
+})();
+})();
+</script>
+</body>
+</html>
