@@ -30,6 +30,7 @@ const ACTIVE = 30 * 60e3;          // a player's flow counts while they've synce
 const ONLINE = 3 * 60e3;           // "online" on the leaderboard: synced in the last 3 minutes
 const BOARD_DAYS = 30;             // the leaderboard shows players seen in the last 30 days
 const AGG_EVERY = 20e3;            // work the totals out again at most this often
+const HIST_EVERY = 300e3, HIST_KEEP = 26 * 3600e3;   // v0.12: each listing's share price every 5 minutes, kept a day, for the charts
 const FLOW_CAP = 400;              // most building-level minutes of one good a player can report per minute
 const SYNC_MIN = 15e3;             // reports closer together than this are ignored (the market is still returned)
 const SAVE_MAX = 400e3;            // characters
@@ -75,6 +76,7 @@ function schema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS holdings (holder TEXT NOT NULL, ticker TEXT NOT NULL, shares REAL NOT NULL, cost REAL NOT NULL DEFAULT 0,
       seen REAL NOT NULL DEFAULT 0, PRIMARY KEY (holder, ticker))`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS holdings_ticker ON holdings(ticker)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS pub_hist (ticker TEXT NOT NULL, t INTEGER NOT NULL, px REAL NOT NULL, PRIMARY KEY (ticker, t))'),
   ]).then(async () => {   // v0.11: a listing's profit trend (added to tables made before it)
     const cols = (await env.DB.prepare('PRAGMA table_info(listings)').all()).results || [];
     if (!cols.some(c => c.name === 'growth')) await env.DB.prepare('ALTER TABLE listings ADD COLUMN growth REAL NOT NULL DEFAULT 1').run();
@@ -86,6 +88,12 @@ function schema(env) {
 async function api(req, env, path, method) {
   if (path === '/api/health') return json({ ok: true, game: 'brick-and-coin' });
   if (path === '/api/market' && method === 'GET') { const m = await market(env, Date.now()); return json(publicMarket(m, null)); }
+  if (path === '/api/pubhist' && method === 'GET') {   // v0.12: a listing's share prices over the last day, oldest first
+    const t = new URL(req.url).searchParams.get('t') || '';
+    if (!TICK_RE.test(t)) return json({ error: 'Which company?' }, 400);
+    const rows = (await env.DB.prepare('SELECT t, px FROM pub_hist WHERE ticker = ? AND t > ? ORDER BY t').bind(t, Date.now() - HIST_KEEP).all()).results || [];
+    return json({ t, every: HIST_EVERY, pts: rows.map(r => [r.t, r4(r.px)]) });
+  }
   if ((path === '/api/login' || path === '/api/register') && method === 'POST') return signIn(req, env, path === '/api/register');
 
   const user = await authed(req, env);
@@ -350,8 +358,17 @@ async function market(env, now) {
     // a listing: ticker, company, owner, shares, owner's shares, value, profit/min, buying, selling (both $, at ft), ft, dividends paid, listed, players' shares, holders, owner online, profit trend (v0.11)
     listings: lst.map(L => [L.ticker, L.company, L.display, r4(L.total), r4(L.own), r2(L.book), r2(L.profit), r2(L.fb), r2(L.fs), L.ft, r2(L.paid), L.listed, r4(L.held), L.holders, L.seen > now - ONLINE ? 1 : 0, r4(L.growth == null ? 1 : L.growth)]) };
   await env.DB.prepare("INSERT INTO meta (k, v, t) VALUES ('market', ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, t = excluded.t").bind(JSON.stringify(MEM), now).run();
+  // v0.12: once every 5 minutes, each listing's share price for the charts (before the market's mood and the company's own
+  // wander, which the game adds, as it does for today's price). A second server copy's try for the same slot is ignored.
+  const slot = Math.floor(now / HIST_EVERY) * HIST_EVERY;
+  if (lst.length && slot > HIST_T) {
+    HIST_T = slot;
+    await env.DB.batch([...lst.map(L => env.DB.prepare('INSERT OR IGNORE INTO pub_hist (ticker, t, px) VALUES (?, ?, ?)').bind(L.ticker, slot, r4(sharePrice(L, now)))),
+      env.DB.prepare('DELETE FROM pub_hist WHERE t < ?').bind(now - HIST_KEEP)]);
+  }
   return MEM;
 }
+let HIST_T = 0;
 function publicMarket(m, me) { return { now: Date.now(), t: m.t, crowd: m.crowd, online: m.online, players: m.players, board: m.board, listings: m.listings || [], me }; }
 
 /* ---------- helpers ---------- */
