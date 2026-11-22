@@ -46,12 +46,44 @@ async function pubHistLoad(tk) {
   } catch (e) {}
   H.at = Date.now(); H.busy = false;
 }
-// the chart's prices: the last 4 hours or day of 5-minute prices, then today's price
+// v0.13: the game also notes every player company's price every 10 seconds while it runs (kept in this browser for 4 hours),
+// so a chart moves as you watch and its recent part is fine-grained; the server's 5-minute prices fill in the rest of the day.
+const PUBL = {}, PUBL_EVERY = 10e3, PUBL_KEEP = 4 * 3600e3, PUBL_KEY = 'brick-and-coin/share-prices';
+let PUBL_AT = 0, PUBL_SAVED = 0;
+try { const o = JSON.parse(localStorage.getItem(PUBL_KEY) || '{}'); for (const k in o) if (Array.isArray(o[k])) PUBL[k] = o[k]; } catch (e) {}
+function pubSampleTick() {
+  const now = Date.now(); if (now - PUBL_AT < PUBL_EVERY || !NET.listings.length) return; PUBL_AT = now;
+  for (const L of NET.listings) { const a = PUBL[L.ticker] || (PUBL[L.ticker] = []); a.push([now, +pubPrice(L).toPrecision(6)]); while (a.length && a[0][0] < now - PUBL_KEEP) a.shift(); }
+  if (now - PUBL_SAVED > 60e3) { PUBL_SAVED = now; try { localStorage.setItem(PUBL_KEY, JSON.stringify(PUBL)); } catch (e) {} }
+}
+// the chart's prices, as [time, price]: the server's 5-minute prices up to where this browser's 10-second ones start, then now
 function pubSeries(tk, tf) {
-  const L = pubListing(tk), H = PUBH[tk]; if (!L) return [];
+  const L = pubListing(tk); if (!L) return [];
   pubHistLoad(tk);
-  const from = Date.now() - (tf === '4h' ? 4 : 24) * 3600e3, pts = H ? H.pts.filter(p => p[0] >= from).map(p => p[1]) : [];
-  return pts.concat([pubPrice(L)]);
+  const now = Date.now(), from = now - (tf === '4h' ? 4 : 24) * 3600e3, live = (PUBL[tk] || []).filter(p => p[0] >= from), first = live.length ? live[0][0] : now;
+  const old = ((PUBH[tk] || {}).pts || []).filter(p => p[0] >= from && p[0] < first - 60e3);
+  return old.concat(live, [[now, pubPrice(L)]]);
+}
+// a smooth, full-resolution chart of [time, price] points (the players' charts): a line through every point, joined straight
+// across any gap, stretched to fill the width from the first point to now
+function drawSmoothChart(c, pts) {
+  const k = Math.min(2, window.devicePixelRatio || 1), W = Math.max(160, Math.floor(c.clientWidth * k)), H = Math.max(80, Math.floor(c.clientHeight * k));
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const ctx = c.getContext('2d'); ctx.clearRect(0, 0, W, H);
+  if (pts.length < 2) return;
+  const t0 = pts[0][0], t1 = pts[pts.length - 1][0] || t0 + 1, vs = pts.map(p => p[1]);
+  let lo = Math.min(...vs), hi = Math.max(...vs); const pad = (hi - lo) * .12 || hi * .01; lo -= pad; hi += pad;
+  const X = t => 3 * k + (t - t0) / Math.max(1, t1 - t0) * (W - 6 * k), Y = v => H - 4 * k - (v - lo) / (hi - lo) * (H - 8 * k);
+  const up = vs[vs.length - 1] >= vs[0], col = up ? '#9bbb55' : '#ff8a7a';
+  ctx.fillStyle = '#2a1e19'; for (let g = 1; g < 4; g++) { const y = Math.round(H * g / 4); for (let x = 0; x < W; x += 3 * k) ctx.fillRect(x, y, k, k); }
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
+  ctx.lineTo(X(t1), H); ctx.lineTo(X(t0), H); ctx.closePath();
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, up ? 'rgba(155,187,85,.32)' : 'rgba(255,138,122,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
+  ctx.strokeStyle = col; ctx.lineWidth = 2 * k; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+  const y0 = Y(vs[0]); ctx.fillStyle = '#85735d'; for (let x = 0; x < W; x += 6 * k) ctx.fillRect(x, y0, 3 * k, k);
+  const last = pts[pts.length - 1]; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(last[0]), Y(last[1]), 3.5 * k, 0, Math.PI * 2); ctx.fill();
 }
 function pubPrice(L) { return pubFair(L) * pubImpact(L) * pubMood() * pubWander(L); }
 // this company's own listing, with its value and profit right now (the server's copy is up to a minute old)
@@ -154,7 +186,7 @@ async function pubAct(promise, kind) {
 /* ---------- Invest → Players and Invest → Your company ---------- */
 Object.assign(LIVE, {
   pubp(t) { const L = pubListing(t); return L ? money(pubPrice(L)) : '—'; },
-  pubchg(t) { const h = pubSeries(t, UI.pubTF || '1d'); if (h.length < 2) return { text: '', cls: '' }; const m = h[h.length - 1] / h[0] - 1; return { text: pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
+  pubchg(t) { const h = pubSeries(t, UI.pubTF || '1d'); if (h.length < 2) return { text: '', cls: '' }; const m = h[h.length - 1][1] / h[0][1] - 1; return { text: pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
   pubimp(t) { const L = pubListing(t); if (!L) return { text: '', cls: '' }; const m = pubImpact(L) - 1; return Math.abs(m) < .005 ? { text: 'steady', cls: 'muted' } : { text: 'players ' + pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
   pubcap(t) { const L = pubListing(t); return L ? money(pubPrice(L) * L.total, false) : '—'; },
   pubfree(t) { const L = pubListing(t); return L ? qty(Math.max(0, L.total - L.own - L.held)) + ' shares' : '—'; },
@@ -190,8 +222,8 @@ function pubPlayersView(tabs) {
       <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(L.co)}</h2><span class="muted">by <b>${esc(L.owner)}</b> · ${t} · public since ${new Date(L.listed).toLocaleDateString()}</span></div>
         <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="pubp:${t}"></b><br><span data-live="pubchg:${t}" data-base=""></span> <span class="muted" style="font-size:12px">${UI.pubTF || '1d'}</span> <span data-live="pubimp:${t}" data-base=""></span></div></div>
       <div style="display:flex;justify-content:flex-end"><div class="seg" role="group" aria-label="Chart range">${['4h', '1d'].map(v => `<button type="button" data-act="pubtf" data-v="${v}" aria-pressed="${(UI.pubTF || '1d') === v}">${v}</button>`).join('')}</div></div>
-      <canvas id="stChart" class="st-chart" role="img" aria-label="${esc(L.co)} share price chart"></canvas>
-      <p class="muted" style="font-size:12px;margin:-4px 0 8px">The share price every 5 minutes, then now. A company that’s just gone public fills its chart in over the day.</p>
+      <canvas id="stChart" class="st-chart smooth" role="img" aria-label="${esc(L.co)} share price chart"></canvas>
+      <p class="muted" style="font-size:12px;margin:-4px 0 8px">Every 10 seconds while you play, and every 5 minutes before that. A company that’s just gone public fills its chart in as the day goes on.</p>
       <div class="stat-grid">${pubStat('Market value', '', 'pubcap:' + t)}${pubStat('Owner keeps', Math.round(L.own / L.total * 100) + '%')}${pubStat('Profit', money(L.profit) + '/min')}${pubStat('Profit trend', '', 'pubtrend:' + t)}
         ${pubStat('Dividends paid', money(L.paid, false))}${pubStat('Players hold', `${qty(L.held)} · ${L.holders} player${L.holders === 1 ? '' : 's'}`)}${pubStat('For sale', '', 'pubfree:' + t)}
         ${t === mine ? '' : pubStat('You own', '', 'pubhq:' + t) + pubStat('Worth', '', 'pubhv:' + t) + pubStat('Profit / loss', '', 'pubhpl:' + t)}</div>

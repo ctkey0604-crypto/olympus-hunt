@@ -176,7 +176,7 @@ function frame(now) {
   stepWalkers(dt); stepParticles(dt); stepCamera(dt);
   for (const i in popAcc) { popAcc[i].t -= dt; if (popAcc[i].t <= 0) { if (popAcc[i].v >= 1) { floatText(+i, '+' + money(popAcc[i].v, false)); sfx('cash'); } delete popAcc[i]; } }
   render(now / 1000);
-  uiAcc += dt; if (uiAcc >= .25) { uiAcc = 0; updateTop(); renderSide(); renderModal(); updateCoach(); renderGoalPill(); netTick(); }
+  uiAcc += dt; if (uiAcc >= .25) { uiAcc = 0; updateTop(); renderSide(); renderModal(); updateCoach(); renderGoalPill(); netTick(); pubSampleTick(); }
   saveAcc += dt; if (saveAcc >= 15) { saveAcc = 0; saveLocal(); }
   requestAnimationFrame(frame);
 }

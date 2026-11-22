@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.12';
+const VERSION = 'v0.13';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -760,6 +760,9 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.13', title: 'Smoother charts', items: [
+    'Players’ share charts are <b>smooth and live</b>: the price every 10 seconds while you play (kept in this browser for 4 hours), joined up with the server’s 5-minute prices for the rest of the day.',
+  ] },
   { v: 'v0.12', title: 'Share charts', items: [
     '<b>Price charts for players’ companies</b> in Invest → Players, yours included: the share price over the last 4 hours or day, every 5 minutes.',
   ] },
