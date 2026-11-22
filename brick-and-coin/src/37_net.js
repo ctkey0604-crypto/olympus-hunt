@@ -71,7 +71,7 @@ async function netFetchSave() {
   const d = await netCall('/save');
   try { NET.cloud = d.save ? JSON.parse(d.save) : null; } catch (e) { NET.cloud = null; }
 }
-function netBody() { return { company: S.company, nw: Math.round(netWorth()), level: S.level, book: Math.round(companyValue()), profit: Math.round(profitPerMin() * 100) / 100 }; }
+function netBody() { return { company: S.company, nw: Math.round(netWorth()), level: S.level, book: Math.round(companyValue()), profit: Math.round(profitSteady() * 100) / 100 }; }
 // send the save now (leaving, the main menu, a new company). keepalive lets it finish after the page closes.
 function netSaveNow(leaving) {
   if (!NET.token || !S || !NET_API) return;

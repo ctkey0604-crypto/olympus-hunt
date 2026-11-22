@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.09';
+const VERSION = 'v0.10';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -600,12 +600,14 @@ const OWN_MIN = 0.6, OWN_MAX = 1.4;
 const CROWD_HALF = 300;               // seconds: a burst of selling fades with a 5-minute half-life (the server uses the same)
 const CROWD_R0 = 300;                 // everyone together selling the output of 300 building levels non-stop: about −29%
 const CROWD_MIN = 0.7, CROWD_MAX = 1.35;   // the most a crowd can move a price: −30% selling, +35% buying
-/* v0.08: going public (see 38_pub.js; the server has the same numbers). A company at Level 3 can sell up to 49% of itself in
+/* v0.08: going public (see 55_pub.js; the server has the same numbers). A company at Level 3 can sell up to 49% of itself in
    new shares: the cash goes into the company, and its owner keeps the rest. Investors value a company at what it's worth plus
-   up to an hour of profit (at most twice its worth); an IPO is priced 10% under that, and the bank keeps 5%. A public company
-   pays 30% of its profit as dividends, split by who owns it, so its outside shareholders get their part. */
+   15 minutes of its steady profit, at most 25% more (v0.10: it was an hour, up to 3× its worth, so share prices ran far
+   ahead of the company); an IPO is priced 10% under that, and the bank keeps 5%. A public company pays 30% of its profit as
+   dividends, split by who owns it, so its outside shareholders get their part. */
 const PUB_LEVEL = 3;
-const PUB_SHARES = 100000, PUB_MAX = 0.49, PUB_PREMIUM = 60;
+const PUB_SHARES = 100000, PUB_MAX = 0.49, PUB_PREMIUM = 15, PUB_PREM_CAP = 0.25;
+const PROF_AVG = 600;   // seconds: "steady profit" is profit averaged over about 10 minutes (it values companies)
 const PUB_HALF = 1800, PUB_DEPTH = 0.05, PUB_MOVE = [0.6, 1.6];   // players' trading moves a share price (fades over 30 min), within ×0.6..×1.6
 const IPO_DISCOUNT = 0.9, IPO_FEE = 0.05, ISSUE_FEE = 0.05, BUYBACK_FEE = 0.005;
 const PUB_DIV = 0.3;
@@ -745,6 +747,12 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.10', title: 'Fair shares', items: [
+    '<b>Share prices that add up</b>: investors now pay what a company is worth plus 15 minutes of its steady profit, at most 25% more. Before, they paid up to three times its worth, so a public company’s market value ran far ahead of its owner’s net worth.',
+    'Companies are valued on their <b>steady profit</b> (about the last 10 minutes), so one big sale or a bulk buy of materials no longer swings a share price.',
+    'Your company (Invest) shows how the share price is worked out, the market value next to the company value, and how many shares you own.',
+    '<b>Clearer numbers</b>: every 5 now looks like a 5, not an S.',
+  ] },
   { v: 'v0.09', title: 'Smoother', items: [
     'A more <b>realistic market</b>: Millbrook’s buyers are a big market, so your own steady selling barely moves a price any more (a busy factory line used to cut its own price in half). Dumping a huge pile at once still pushes it down for a couple of minutes, and what all the players do together sets the trends.',
     '<b>More room for factories</b>: your HQ starts with room for 10 building levels (was 6), and every upgrade adds more for less.',

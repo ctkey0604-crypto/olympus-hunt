@@ -3,8 +3,8 @@
    PUBLIC COMPANIES (v0.08): going public, and owning part of other players'
    companies. The server (server/index.js) keeps the share register; cash stays
    in each game, like everything else about a company.
-   - A share's price: the company's value plus up to an hour of its profit (at most
-     twice its value), over all its shares (pubFair); moved by players buying and
+   - A share's price: the company's value plus 15 minutes of its steady profit (at
+     most 25% more, v0.10), over all its shares (pubFair); moved by players buying and
      selling it (pubImpact: the square-root law, fading over half an hour), by the
      market's mood (pubMood: the Millbrook 10 over 4 hours) and by the company's own
      wander (pubWander). The last two come from the shared world, so every player
@@ -21,7 +21,8 @@ function pubParse(r) { return { ticker: r[0], co: r[1], owner: r[2], total: +r[3
 function pubListing(t) { return NET.listings.find(L => L.ticker === t) || null; }
 function ownFrac() { return S && S.pub && S.pub.total > 0 ? clamp(S.pub.own / S.pub.total, 0, 1) : 1; }
 function tickerSeed(t) { let h = 7; for (let i = 0; i < t.length; i++) h = (Math.imul(h, 31) + t.charCodeAt(i)) >>> 0; return h; }
-function pubFair(L) { const b = Math.max(0, L.book); return Math.max(.01, (b + Math.min(2 * b, PUB_PREMIUM * Math.max(0, L.profit))) / L.total); }
+function pubPremium(book, profit) { return Math.min(PUB_PREM_CAP * Math.max(0, book), PUB_PREMIUM * Math.max(0, profit)); }   // what investors add for profit
+function pubFair(L) { const b = Math.max(0, L.book); return Math.max(.01, (b + pubPremium(b, L.profit)) / L.total); }
 function pubPressure(L) { const k = Math.pow(.5, Math.max(0, nowMs() - L.ft) / 1000 / PUB_HALF); return [L.fb * k, L.fs * k]; }
 function pubImpact(L) { const [fb, fs] = pubPressure(L), D = PUB_DEPTH * pubFair(L) * L.total; return clamp(Math.sqrt((1 + fb / D) / (1 + fs / D)), PUB_MOVE[0], PUB_MOVE[1]); }
 function pubMood() { const A = WS.assets.MB10, a = A.h60 && A.h60.length ? A.h60[0] : 0; return a ? clamp(Math.pow(A.p / a, 1.2), .85, 1.18) : 1; }
@@ -31,7 +32,7 @@ function pubPrice(L) { return pubFair(L) * pubImpact(L) * pubMood() * pubWander(
 function pubMineL() {
   if (!S || !S.pub) return null;
   const L = pubListing(S.pub.ticker) || { ticker: S.pub.ticker, fb: 0, fs: 0, ft: 0, held: 0, holders: 0, paid: 0 };
-  return { ...L, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: profitPerMin() };
+  return { ...L, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: profitSteady() };
 }
 // shares this company holds in other players' companies, at today's prices (the last known one if a company drops off the list)
 function pubHoldValue() {
@@ -59,7 +60,7 @@ function pubTake(d) {
 
 /* ---------- actions (each returns a promise of a message, or throws one) ---------- */
 function ipoQuote(f) {
-  const cv = companyValue(), fair = cv + Math.min(2 * cv, PUB_PREMIUM * Math.max(0, profitPerMin())), raised = fair * f / (1 - f) * IPO_DISCOUNT * (1 - IPO_FEE);
+  const cv = companyValue(), fair = cv + pubPremium(cv, profitSteady()), raised = fair * f / (1 - f) * IPO_DISCOUNT * (1 - IPO_FEE);
   return { fair, raised, nwAfter: (cv + raised) * (1 - f) };
 }
 function floatQuote(target) {
@@ -75,7 +76,7 @@ async function pubGoPublic(f) {
   if (!NET.token) throw new Error('Log in first (Menu → Online): going public needs the server');
   if (!PUB_STEPS.includes(f)) throw new Error('Pick how much to sell');
   if (!NET.lastSave) await netSync(true);   // the server needs the company before it can list it
-  const d = await netCall('/ipo', { f, company: S.company, book: Math.round(companyValue()), profit: profitPerMin() });
+  const d = await netCall('/ipo', { f, company: S.company, book: Math.round(companyValue()), profit: profitSteady() });
   NET.pubAt = Date.now();
   S.cash += d.raised; S.pub = { ...d.mine, paid: 0 };
   pushNews(`${S.company} goes public as ${d.ticker}: ${Math.round(f * 100)}% sold to investors for ${money(d.raised, false)}`, 'up');
@@ -85,7 +86,7 @@ async function pubGoPublic(f) {
 async function pubFloat(target) {
   const q = floatQuote(target); if (!q) throw new Error(`${S.company} isn’t public`);
   if (q.cash < 0 && S.cash < -q.cash) throw new Error(`Not enough cash: buying back costs about ${money(-q.cash, false)}`);
-  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: profitPerMin() });
+  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: profitSteady() });
   NET.pubAt = Date.now();
   S.cash += d.cash; const paid = S.pub.paid || 0; S.pub = d.mine ? { ...d.mine, paid } : null;
   saveLocal(); netSaveNow();
@@ -134,7 +135,8 @@ Object.assign(LIVE, {
   pubhpl(t) { const h = S.pubHold[t], L = pubListing(t); if (!h || !L || h.q <= 0) return { text: '—', cls: 'muted' }; const v = h.q * pubPrice(L) - h.cost; return { text: (v >= 0 ? '+' : '') + money(v) + ' (' + pctTxt(v / h.cost) + ')', cls: v >= 0 ? 'olive' : 'red' }; },
   mypx() { const L = pubMineL(); return L ? money(pubPrice(L)) : '—'; },
   mycap() { const L = pubMineL(); return L ? money(pubPrice(L) * L.total, false) : '—'; },
-  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false),
+  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false), mysteady: () => money(profitSteady()) + '/min',
+  myprem() { const L = pubMineL(); if (!L) return '—'; const v = pubPrice(L) * L.total / Math.max(1, companyValue()) - 1; return (v >= 0 ? '+' : '−') + Math.round(Math.abs(v) * 100) + '%'; },
   ipoval: () => money(ipoQuote(UI.ipoF).fair, false),
   iporaise: () => '+' + money(ipoQuote(UI.ipoF).raised, false),
   iponw: () => money(ipoQuote(UI.ipoF).nwAfter, false),
@@ -173,7 +175,8 @@ function pubMineView(tabs) {
     return { sig: `mine|ipo|${f}|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `
       <p class="m-sub">Going public sells part of ${esc(S.company)} to investors in new shares. The cash goes straight into the company to grow with, and you keep the rest of it. Players can then buy your shares, and the company pays 30% of its profit as dividends, split by who owns it.</p>
       <section class="card"><h3>Go public</h3>
-        <div class="stat-grid">${pubStat('Company value', '', 'mycv')}${pubStat('Profit', '', 'ppm')}${pubStat('Investors value it at', '', 'ipoval')}</div>
+        <div class="stat-grid">${pubStat('Company value', '', 'mycv')}${pubStat('Steady profit (10 min)', '', 'mysteady')}${pubStat('Investors value it at', '', 'ipoval')}</div>
+        <p class="muted" style="font-size:12px">Investors pay what ${esc(S.company)} is worth plus ${PUB_PREMIUM} minutes of its steady profit, at most ${PUB_PREM_CAP * 100}% more.</p>
         <div class="trade"><span class="muted" style="font-size:13px">Sell</span><div class="seg" role="group" aria-label="How much to sell">${steps}</div></div>
         <div class="kv"><span>You raise (10% IPO discount, 5% bank fee)</span><b class="olive" data-live="iporaise"></b>
           <span>You keep</span><b>${Math.round((1 - f) * 100)}% of ${esc(S.company)}</b>
@@ -189,9 +192,10 @@ function pubMineView(tabs) {
   return { sig: `mine|pub|${t}|${S.pub.total}|${S.pub.own}|${conf}|${L.held}`, title: 'Invest', html: tabs + `
     <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(S.company)}</h2><span class="muted">public as <b>${t}</b> since ${new Date(S.pub.listed).toLocaleDateString()}</span></div>
       <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="mypx"></b><br><span class="muted" style="font-size:12px">a share</span></div></div>
-    <div class="stat-grid">${pubStat('Market value', '', 'mycap')}${pubStat('Company value', '', 'mycv')}${pubStat('You own', Math.round(ownFrac() * 1000) / 10 + '%')}
-      ${pubStat('Your net worth', '', 'mynw')}${pubStat('Players hold', `${qty(L.held || 0)} shares · ${L.holders || 0}`)}${pubStat('Dividends paid', money(S.pub.paid || 0, false))}</div>
-    <section class="card"><h3>Shares</h3><p class="muted" style="font-size:13px">Outside shareholders own ${Math.round(out * 1000) / 10}% (players and Millbrook’s investors). You pay them ${Math.round(PUB_DIV * out * 100)}% of your profit as dividends.
+    <div class="stat-grid">${pubStat('Company value', '', 'mycv')}${pubStat('Market value', '', 'mycap')}${pubStat('Market vs company', '', 'myprem')}
+      ${pubStat('You own', Math.round(ownFrac() * 1000) / 10 + '%')}${pubStat('Your net worth', '', 'mynw')}${pubStat('Dividends paid', money(S.pub.paid || 0, false))}</div>
+    <p class="muted" style="font-size:12px;margin:8px 0 12px">A share is priced at the company value plus ${PUB_PREMIUM} minutes of steady profit (at most ${PUB_PREM_CAP * 100}% more), split over all ${qty(S.pub.total)} shares (you hold ${qty(S.pub.own)}), then moved by the market’s mood and players’ trading. Market value is that price times every share. Your net worth, and the leaderboard, count your ${Math.round(ownFrac() * 1000) / 10}% of the company value.</p>
+    <section class="card"><h3>Shares</h3><p class="muted" style="font-size:13px">Outside shareholders own ${Math.round(out * 1000) / 10}%: Millbrook’s investors, and players (${qty(L.held || 0)} shares, ${L.holders || 0} player${(L.holders || 0) === 1 ? '' : 's'}). You pay them ${Math.round(PUB_DIV * out * 100)}% of your profit as dividends.
       Selling new shares raises cash at today’s price (5% fee); buying back from investors costs today’s price (players keep theirs).</p>
       <div class="trade">${canUp ? fbtn(up, `Sell more (to ${Math.round(up * 100)}% outside)`) : ''}${canDown ? fbtn(down, down === 0 ? 'Buy all back (go private)' : `Buy back (to ${Math.round(down * 100)}% outside)`) : ''}</div></section>` };
 }

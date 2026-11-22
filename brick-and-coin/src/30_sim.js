@@ -98,6 +98,9 @@ function sellAllSpare() {
 function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
 function addProfit(x) { S.prof[S.profI] += x; }
 function profitPerMin() { let s = 0; for (const v of S.prof) s += v; const n = Math.min(60, Math.max(1, S.profN)); return s * 60 / n; }
+// profit per minute averaged over about 10 minutes: what investors value a company on, so one big sale or a bulk buy of
+// inputs doesn't swing its share price (v0.10)
+function profitSteady() { return S.profAvg == null ? profitPerMin() : S.profAvg; }
 
 /* how much of a product we want to keep in storage before selling the rest */
 function flowOf(p) { return S.flow[p] || 'auto'; }
@@ -255,6 +258,7 @@ function step(dt) {
     S._sec -= 1;
     sellSurplus();
     for (const p of PIDS) { const M = S.market[p]; M._h = (M._h || 0) + 1; if (M._h >= 5) { M._h = 0; M.hist.push(+price(p).toFixed(2)); if (M.hist.length > 60) M.hist.shift(); } }
+    S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
     S.profI = (S.profI + 1) % 60; S.prof[S.profI] = 0; S.profN++;
     checkLevel(); checkGoals();
   }
