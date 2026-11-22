@@ -36,6 +36,12 @@ function ensureTables(env) {
       // Older copies of each save, so the owner can roll a player back (see HISTORY_* below). Nothing here is ever sent to players.
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS save_history (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slot INTEGER NOT NULL, data TEXT NOT NULL, saved_at INTEGER NOT NULL, kept_at INTEGER NOT NULL, why TEXT NOT NULL)`),
       env.DB.prepare(`CREATE INDEX IF NOT EXISTS save_history_by_slot ON save_history (name, slot, kept_at)`),
+      // Inspirapixel accounts (Nov 2026): an optional email for password recovery, confirmed by a link, and one-time reset links.
+      // Kept in their own tables so the users table is never changed. Tokens are stored hashed, like sessions.
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS emails (name TEXT PRIMARY KEY, email TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 0,
+        news INTEGER NOT NULL DEFAULT 0, token TEXT, token_exp INTEGER NOT NULL DEFAULT 0, sent_at INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS emails_by_email ON emails (email)`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS resets (token TEXT PRIMARY KEY, name TEXT NOT NULL, expires INTEGER NOT NULL)`),
     ]).catch(e => { tablesReady = null; throw e; });
   }
   return tablesReady;
@@ -46,6 +52,10 @@ async function route(req, env, url) {
   const path = url.pathname, method = req.method;
   if (path === '/api/health') return json({ ok: true, game: 'olympus-hunt' });
   if (path === '/api/register' && method === 'POST') return register(req, env);
+  if (path === '/api/forgot' && method === 'POST') return forgot(req, env);          // Inspirapixel accounts: a reset link by email
+  if (path === '/api/reset' && method === 'POST') return resetPassword(req, env);
+  if (path === '/api/verify' && method === 'POST') return verifyEmail(req, env);
+  if (path === '/api/mail-test' && method === 'GET' && env.MAIL_TEST === '1') return json(await env.DB.prepare('SELECT * FROM mail_test ORDER BY t DESC LIMIT 1').first() || {});
   if (path === '/api/login' && method === 'POST') return login(req, env);
   if (path.startsWith('/api/rooms') || path === '/api/pvp/board') { const r = await roomsPublic(req, env, path, method); if (r) return r; }
   if (path === '/api/vote' && method === 'GET') { const who = await authed(req, env); return json(await lobbyStub(env).vote(null, who ? who.name : null)); }
@@ -59,6 +69,11 @@ async function route(req, env, url) {
   const user = await authed(req, env);
   if (!user) return json({ error: 'You are signed out. Sign in again.' }, 401);
   if (path === '/api/me' && method === 'GET') return json({ name: user.display });
+  if (path === '/api/account' && method === 'GET') {   // the account page: this account's email, if any
+    const e = await env.DB.prepare('SELECT email, verified, news FROM emails WHERE name = ?').bind(user.name).first();
+    return json({ name: user.display, email: e ? e.email : '', verified: !!(e && e.verified), news: !!(e && e.news), mail: !!env.RESEND_KEY || env.MAIL_TEST === '1' });
+  }
+  if (path === '/api/account/email' && method === 'POST') return setEmail(req, env, user);
   // The owner's dashboard. It reads game progress, and runs the community suggestions. To any other account these addresses don't exist.
   if (path === '/api/owner/players' && method === 'GET') { if (user.name !== OWNER) return json({ error: 'Not found.' }, 404); let activity = []; try { activity = await lobbyStub(env).activity(); } catch {} return json({ ...(await ownerReport(env)), activity }); }
   if (path === '/api/owner/delete' && method === 'POST') {          // the owner deletes an account: its sign-in, sessions and saves, and its marks on the boards
@@ -264,6 +279,89 @@ async function authed(req, env) {
   if (!row || row.expires < Date.now()) return null;
   return { name: row.name, display: row.display, tokenHash };
 }
+/* ---------- Inspirapixel accounts: optional email, confirmation and password reset ----------
+   Email is optional (casual players can skip it) but it's the only way back into an account with a forgotten password.
+   - Setting an email sends a confirmation link (24 hours). Only a confirmed email can receive reset links.
+   - "Forgot password": a name or an email; if that account has a confirmed email, a one-time link (1 hour) goes to it.
+     The answer is the same either way, so nobody can use it to find out who has an account or an email.
+   - Resetting changes the password and signs the account out everywhere.
+   - "news" is a separate opt-in for occasional update emails (nothing sends them yet).
+   Emails go out through Resend (free tier) from mail.olympushunt.com; its key is the Worker secret RESEND_KEY. */
+const MAIL_FROM = 'Inspirapixel <accounts@mail.olympushunt.com>', SITE = 'https://olympushunt.com';
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,185}\.[^\s@]{2,}$/, MAIL_GAP = 60e3, VERIFY_HOURS = 24, RESET_MINUTES = 60;
+async function sendMail(env, to, subject, lines, link, button) {
+  if (env.MAIL_TEST === '1') {   // local tests only: keep the mail in a table instead of sending it
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS mail_test (t INTEGER, to_addr TEXT, subject TEXT, link TEXT)').run();
+    await env.DB.prepare('INSERT INTO mail_test VALUES (?, ?, ?, ?)').bind(Date.now(), to, subject, link).run(); return;
+  }
+  if (!env.RESEND_KEY) throw new Error('Email isn’t set up on the server yet.');
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#1d1411"><h2 style="color:#86391a">Inspirapixel</h2>`
+    + lines.map(l => `<p>${esc(l)}</p>`).join('') + `<p><a href="${esc(link)}" style="display:inline-block;background:#ebc152;color:#1d1411;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:bold">${esc(button)}</a></p>`
+    + `<p style="font-size:12px;color:#85735d">Or open this link: ${esc(link)}<br>One Inspirapixel account works in Olympus Hunt and Brick &amp; Coin. If you didn't ask for this, you can ignore this email.</p></div>`;
+  const text = lines.join('\n\n') + '\n\n' + button + ': ' + link + '\n\nIf you didn\'t ask for this, you can ignore this email.';
+  const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: 'Bearer ' + env.RESEND_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: MAIL_FROM, to: [to], subject, html, text }) });
+  if (!r.ok) throw new Error('The email couldn’t be sent. Try again in a minute.');
+}
+async function setEmail(req, env, user) {
+  const b = await readJson(req), email = typeof b.email === 'string' ? b.email.trim().toLowerCase() : '', news = b.news ? 1 : 0, now = Date.now();
+  if (!email) { await env.DB.prepare('DELETE FROM emails WHERE name = ?').bind(user.name).run(); return json({ ok: true, email: '', verified: false, news: false }); }
+  if (email.length > 254 || !EMAIL_RE.test(email)) return json({ error: 'That doesn’t look like an email address.' }, 400);
+  const old = await env.DB.prepare('SELECT email, verified, sent_at FROM emails WHERE name = ?').bind(user.name).first();
+  if (old && old.email === email && old.verified && !b.resend) {   // same confirmed email: just the news choice
+    await env.DB.prepare('UPDATE emails SET news = ?, updated = ? WHERE name = ?').bind(news, now, user.name).run();
+    return json({ ok: true, email, verified: true, news: !!news });
+  }
+  if (old && now - old.sent_at < MAIL_GAP) return json({ error: 'An email just went out. Wait a minute before sending another.' }, 429);
+  const token = randomB64(32);
+  await env.DB.prepare(`INSERT INTO emails (name, email, verified, news, token, token_exp, sent_at, updated) VALUES (?, ?, 0, ?, ?, ?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET email = excluded.email, verified = 0, news = excluded.news, token = excluded.token, token_exp = excluded.token_exp, sent_at = excluded.sent_at, updated = excluded.updated`)
+    .bind(user.name, email, news, await sha256(token), now + VERIFY_HOURS * 3600e3, now, now).run();
+  await sendMail(env, email, 'Confirm your email for your Inspirapixel account', [`Hi ${user.display},`, 'Confirm this email so you can reset your password if you ever forget it.'],
+    `${SITE}/account.html?verify=${token}`, 'Confirm my email');
+  return json({ ok: true, email, verified: false, news: !!news, sent: true });
+}
+async function verifyEmail(req, env) {
+  const t = String((await readJson(req)).token || ''); if (!t || t.length > 100) return json({ error: 'That link isn’t valid.' }, 400);
+  const h = await sha256(t), e = await env.DB.prepare('SELECT name, email FROM emails WHERE token = ? AND token_exp > ?').bind(h, Date.now()).first();
+  if (!e) return json({ error: 'That link has expired or was already used. Send a new one from your account page.' }, 400);
+  await env.DB.prepare('UPDATE emails SET verified = 1, token = NULL, token_exp = 0 WHERE name = ?').bind(e.name).run();
+  return json({ ok: true, email: e.email });
+}
+async function forgot(req, env) {
+  const who = String((await readJson(req)).who || '').trim().toLowerCase(), now = Date.now();
+  const done = json({ ok: true, message: 'If that account has a confirmed email, a reset link is on its way. It works for an hour.' });
+  if (!who || who.length > 254) return done;
+  const e = who.includes('@')
+    ? await env.DB.prepare('SELECT e.name, e.email, e.sent_at, u.display FROM emails e JOIN users u ON u.name = e.name WHERE e.email = ? AND e.verified = 1 ORDER BY e.updated DESC LIMIT 1').bind(who).first()
+    : await env.DB.prepare('SELECT e.name, e.email, e.sent_at, u.display FROM emails e JOIN users u ON u.name = e.name WHERE e.name = ? AND e.verified = 1').bind(who).first();
+  if (!e || now - e.sent_at < MAIL_GAP) return done;
+  const token = randomB64(32);
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM resets WHERE name = ? OR expires < ?').bind(e.name, now),
+    env.DB.prepare('INSERT INTO resets (token, name, expires) VALUES (?, ?, ?)').bind(await sha256(token), e.name, now + RESET_MINUTES * 60e3),
+    env.DB.prepare('UPDATE emails SET sent_at = ? WHERE name = ?').bind(now, e.name),
+  ]);
+  try { await sendMail(env, e.email, 'Reset your Inspirapixel password', [`Hi ${e.display},`, 'Someone (hopefully you) asked to reset the password for this Inspirapixel account. The link works for one hour, once.'],
+    `${SITE}/account.html?reset=${token}`, 'Choose a new password'); } catch (err) {}
+  return done;
+}
+async function resetPassword(req, env) {
+  const b = await readJson(req), t = String(b.token || ''), password = typeof b.password === 'string' ? b.password : '', now = Date.now();
+  if (password.length < 6 || password.length > 100) return json({ error: 'Passwords need at least 6 characters.' }, 400);
+  const r = t && t.length <= 100 ? await env.DB.prepare('SELECT name FROM resets WHERE token = ? AND expires > ?').bind(await sha256(t), now).first() : null;
+  if (!r) return json({ error: 'That reset link has expired or was already used. Ask for a new one.' }, 400);
+  const salt = randomHex(16), hash = await pbkdf2(password, salt, ITER);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET salt = ?, hash = ?, iter = ?, fails = 0, locked_until = 0 WHERE name = ?').bind(salt, hash, ITER, r.name),
+    env.DB.prepare('DELETE FROM sessions WHERE name = ?').bind(r.name),   // signed out everywhere
+    env.DB.prepare('DELETE FROM resets WHERE name = ?').bind(r.name),
+  ]);
+  const u = await env.DB.prepare('SELECT display FROM users WHERE name = ?').bind(r.name).first();
+  return json({ ok: true, name: u.display, token: await newSession(env, r.name) });
+}
+
 async function newSession(env, name) {
   const token = randomB64(32);
   await env.DB.prepare('INSERT INTO sessions (token, name, expires) VALUES (?, ?, ?)').bind(await sha256(token), name, Date.now() + SESSION_DAYS * 86400000).run();
