@@ -631,7 +631,7 @@ function renderTitle(page) {
     st.innerHTML = `<div class="ttown" id="ttown"></div><div class="tshade"></div><div class="tbox" id="tbox"></div><footer class="tmarket" id="tmarket" aria-label="The live market"></footer>`;
     paintTitleTown();
   }
-  const head = `<header class="thead"><div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION} · test version</div></header>`;
+  const head = `<header class="thead"><div class="brand">INSPIRAPIXEL</div><h1 class="title">Brick &amp; <span class="shine">Coin</span></h1><div class="ver">${VERSION}</div></header>`;
   const home = `<nav class="tmenu" aria-label="Main menu">
     ${ex ? `<button type="button" class="tbtn main" data-act="continue">Continue<small>${esc(ex.company)} · Lv ${ex.level} ${LEVELS[ex.level] ? LEVELS[ex.level].name : ''} · ${money(ex.cash, false)}${NET.token ? ' · online' : ''}</small></button>` : ''}
     ${both ? '<button type="button" class="tbtn main" data-act="tpage" data-v="pick">Continue<small>Choose a company</small></button>' : ''}
