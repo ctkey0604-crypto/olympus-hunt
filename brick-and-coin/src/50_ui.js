@@ -65,7 +65,10 @@ const LIVE = {
   bupkeep(i) { const l = S.lots[i]; if (!l) return ''; return l.stall ? 'paused while it waits' : money(upkeepPerMin(l)) + '/min'; },
   spark(p, el) { el.setAttribute('d', sparkPath(S.market[p].hist, 90, 24)); },
   mchg(p) { const c = changeOf(S.market[p].hist, 59); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
-  crowd(p) { const m = crowdOthersMult(p) - 1; return Math.abs(m) < .01 ? { text: '', cls: '' } : { text: ' · players ' + pctTxt(m), cls: m < 0 ? 'red' : 'olive' }; },   // v0.07
+  crowd(p) {   // v0.07: what the other players are doing to a price; v0.11: and an Auto product waiting for a better price
+    const m = crowdOthersMult(p) - 1, held = S.market[p].hold && (S.inv[p] || 0) >= 1, c = Math.abs(m) < .01 ? '' : ' · players ' + pctTxt(m);
+    return { text: c + (held ? ' · holding for a better price' : ''), cls: held ? 'gold' : m < 0 ? 'red' : 'olive' };
+  },
   aprice: t => money(S.assets[t].p),
   achg(arg) { const [t, w] = arg.split('|'); const A = S.assets[t]; const c = w === '4h' ? changeOf(A.h60, 239) : w === '10m' ? changeOf(A.h10, 59) : changeOf(A.h10, 359); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
   hq: t => { const h = S.hold[t]; return h && h.q > 0 ? (h.q < 1 ? h.q.toFixed(4) : qty(h.q)) : '0'; },
@@ -152,7 +155,7 @@ function homeView() {
     <section class="card"><h3>Goal ${S.goal < GOALS.length ? `<span class="muted">${S.goal + 1} of ${GOALS.length}</span>` : ''}</h3>
       ${g ? `<p>${g.text}</p><span class="chip gold" style="align-self:flex-start">Reward ${money(g.reward, false)}</span>` : '<p>Every goal done. You run Millbrook now.</p>'}</section>
     <section class="card"><h3>Your products <span class="muted">${act.size} of ${MAX_ACTIVE_PRODUCTS} running</span></h3>${prods}
-      <p class="muted" style="font-size:12px">Auto keeps what your own factories need and sells the rest. Sell sells everything. Keep stores it all.</p></section>
+      <p class="muted" style="font-size:12px">Auto keeps what your own factories need and sells the rest, but holds it back while the price is well below normal and sells it once the price recovers. Sell sells everything. Keep stores it all.</p></section>
     <section class="card"><h3>How to play</h3>
       <p class="tip">Tap an <b>empty lot</b> to build. Tap a <b>building</b> to upgrade it. Drag the map to look around.</p>
       <p class="tip">Open <b>Production</b> to unlock new products, <b>Market</b> to trade goods, <b>Invest</b> for stocks and real estate.</p>
@@ -216,7 +219,7 @@ function hqView() {
 }
 function bldView(i, l) {
   const P = PRODUCTS[l.b], up = l.lv < MAX_BLD_LV, uc = up ? upgradeCost(l) : 0, conf = UI.confirm === 'demo' + i;
-  const stallKind = !l.stall ? '' : l.stall === 'storage full' ? 'full' : 'needs';
+  const stallKind = !l.stall ? '' : l.stall === 'storage full' ? 'full' : l.stall.startsWith('needs') ? 'needs' : 'price';
   const sig = `bld|${i}|${l.b}|${l.lv}|${l.autoBuy}|${flowOf(l.b)}|${conf}|${stallKind}`;
   let fix = '';
   if (stallKind === 'needs') { const miss = Object.keys(P.rec).filter(q => (S.inv[q] || 0) < P.rec[q]); const canMake = miss.filter(q => S.unlocked[q]).map(q => PRODUCTS[q].bld);

@@ -96,11 +96,25 @@ function sellAllSpare() {
   return { got, n };
 }
 function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
-function addProfit(x) { S.prof[S.profI] += x; }
+// v0.11: what the company made while the game was closed isn't this minute's profit: it used to land in one second of the
+// ledger, so $/min (and the steady profit investors value) jumped for a while after every return
+let PROFIT_OFF = false;
+function addProfit(x) { if (!PROFIT_OFF) S.prof[S.profI] += x; }
 function profitPerMin() { let s = 0; for (const v of S.prof) s += v; const n = Math.min(60, Math.max(1, S.profN)); return s * 60 / n; }
 // profit per minute averaged over about 10 minutes: what investors value a company on, so one big sale or a bulk buy of
 // inputs doesn't swing its share price (v0.10)
 function profitSteady() { return S.profAvg == null ? profitPerMin() : S.profAvg; }
+// v0.11: profit averaged over the last hour, and the trend investors see: steady profit against it (0.5 to 1.5)
+function profitLong() { return S.profLong == null ? profitSteady() : S.profLong; }
+function profitGrowth() { const a = profitSteady(), b = profitLong(); return a > 0 && b > 0 ? clamp(a / b, GROWTH_MIN, GROWTH_MAX) : 1; }
+// v0.11: a good's price against its usual one, and whether an Auto product is waiting in storage for a better price
+function priceRatio(p) { return price(p) / PRODUCTS[p].base; }
+function autoHold(p) {
+  const M = S.market[p];
+  if (flowOf(p) !== 'auto' || CROWD_OFF) return (M.hold = false);   // CROWD_OFF: the game was closed (plain prices)
+  const r = priceRatio(p), roomy = whUsed() < whMax() * HOLD_ROOM;
+  return (M.hold = roomy && (M.hold ? r < HOLD_UNTIL : r < HOLD_BELOW));
+}
 
 /* how much of a product we want to keep in storage before selling the rest */
 function flowOf(p) { return S.flow[p] || 'auto'; }
@@ -110,7 +124,8 @@ function keepBuffer(p) {
   if (f === 'sell') return 0;
   let use = 0;
   for (const l of S.lots) if (l && l.b !== 'hq') { const r = PRODUCTS[l.b].rec[p]; if (r) use += r * 60 / PRODUCTS[l.b].sec * l.lv; }
-  return use > 0 ? Math.max(20, use * 2) : 0;   // two minutes of what your own factories eat
+  const need = use > 0 ? Math.max(20, use * 2) : 0;   // two minutes of what your own factories eat
+  return autoHold(p) ? Math.max(need, whMax() * HOLD_ROOM) : need;   // v0.11: or all of it, while the price is low
 }
 
 /* ---------------------------------------------------------------- production */
@@ -124,8 +139,16 @@ function stepProduction(dt, offlineRate = 1) {
       let ok = true; const miss = [];
       for (const q in P.rec) if ((S.inv[q] || 0) < P.rec[q]) { ok = false; miss.push(q); }
       if (!ok && l.autoBuy) {
-        let cost = 0; for (const q of miss) cost += quoteBuy(q, P.rec[q] - (S.inv[q] || 0));
-        if (S.cash >= cost) { for (const q of miss) { const need = P.rec[q] - (S.inv[q] || 0); const c = buyGoods(q, need); S.cash -= c; addProfit(-c); S.inv[q] = (S.inv[q] || 0) + need; } ok = true; }
+        // v0.11: wait out a price spike if buying now would lose money; stock up when an input is cheap and there's room
+        const spike = offlineRate === 1 && miss.find(q => priceRatio(q) > BUY_WAIT);
+        if (spike && !buysPay(l.b)) { l.stall = `${PRODUCTS[spike].name} costs ${Math.round((priceRatio(spike) - 1) * 100)}% more than usual: it waits for the price to come down`; continue; }
+        const amt = {}; let cost = 0, extra = 0;
+        for (const q of miss) {
+          const need = P.rec[q] - (S.inv[q] || 0), cheap = offlineRate === 1 && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
+          amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q]);
+        }
+        if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q]); } }   // short of cash: just this cycle
+        if (S.cash >= cost) { for (const q of miss) { const c = buyGoods(q, amt[q]); S.cash -= c; addProfit(-c); S.inv[q] = (S.inv[q] || 0) + amt[q]; } ok = true; }
       }
       if (!ok) { l.stall = 'needs ' + miss.map(q => PRODUCTS[q].name).join(' + '); continue; }
       for (const q in P.rec) { S.inv[q] -= P.rec[q]; if (S.inv[q] <= 1e-9) delete S.inv[q]; }
@@ -156,7 +179,10 @@ function sellSurplus() {
   for (const p in S.inv) {
     const f = flowOf(p); if (f === 'keep') continue;
     const extra = S.inv[p] - keepBuffer(p);
-    if (extra >= 1) { const q = Math.floor(extra); S.inv[p] -= q; if (S.inv[p] <= 1e-9) delete S.inv[p]; sellGoods(p, q, true); }
+    // v0.11: an Auto product sells a pile it held back a little at a time (about a minute's worth of the market a second), so
+    // it doesn't knock its own price straight back down
+    const step = f === 'auto' ? Math.max(5, marketDepth(p) / 20) : Infinity;
+    if (extra >= 1) { const q = Math.floor(Math.min(extra, step)); S.inv[p] -= q; if (S.inv[p] <= 1e-9) delete S.inv[p]; sellGoods(p, q, true); }
   }
 }
 
@@ -259,6 +285,7 @@ function step(dt) {
     sellSurplus();
     for (const p of PIDS) { const M = S.market[p]; M._h = (M._h || 0) + 1; if (M._h >= 5) { M._h = 0; M.hist.push(+price(p).toFixed(2)); if (M.hist.length > 60) M.hist.shift(); } }
     S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
+    S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
     S.profI = (S.profI + 1) % 60; S.prof[S.profI] = 0; S.profN++;
     checkLevel(); checkGoals();
   }
@@ -269,12 +296,13 @@ function offlineCatchUp(sec) {
   sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
   const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
   WS.mult = {}; WS.speed = {}; WS.noise = {}; CROWD_OFF = true;   // plain prices: no news, and no crowd (v0.07)
+  PROFIT_OFF = true;                                              // v0.11: and none of it counts as this minute's profit
   for (let i = 0; i < stepN; i++) {
     stepProduction(dt, OFFLINE_RATE); stepUpkeep(dt, OFFLINE_RATE); payRent(dt, OFFLINE_RATE);
     for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
     sellSurplus();
   }
-  [WS.mult, WS.speed, WS.noise] = keep; CROWD_OFF = false;
+  [WS.mult, WS.speed, WS.noise] = keep; CROWD_OFF = false; PROFIT_OFF = false;
   return { sec, earned: S.cash - cash0 };
 }
 

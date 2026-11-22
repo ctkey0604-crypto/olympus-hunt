@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.10';
+const VERSION = 'v0.11';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -608,6 +608,19 @@ const CROWD_MIN = 0.7, CROWD_MAX = 1.35;   // the most a crowd can move a price:
 const PUB_LEVEL = 3;
 const PUB_SHARES = 100000, PUB_MAX = 0.49, PUB_PREMIUM = 15, PUB_PREM_CAP = 0.25;
 const PROF_AVG = 600;   // seconds: "steady profit" is profit averaged over about 10 minutes (it values companies)
+// v0.11: investors weigh the profit trend too: steady profit against its average over the last hour. A company whose profit
+// is climbing is worth up to 1.5× its 15 minutes of profit, one whose profit is sliding as little as half of it.
+const PROF_LONG = 3600, GROWTH_MIN = 0.5, GROWTH_MAX = 1.5;
+// v0.11: Millbrook's investors lean against a stretched share price: players' buying and selling pressure fades up to 4×
+// faster (a 7½-minute half-life instead of 30) the further it has pushed the price from its fair value.
+const PUB_REVERT = 3;
+/* v0.11: smarter automation.
+   - An Auto product whose price is well below normal (a slump, or players dumping it) waits in storage for a better price
+     instead of being sold cheap, while storage is under 75% full; it sells again, a little at a time, once the price is back.
+   - A factory that buys its inputs waits out a price spike (an input 15%+ over its usual price) if buying it would lose
+     money, and stocks up (3 cycles' worth) when an input is 10%+ under its usual price and there's room. */
+const HOLD_BELOW = 0.9, HOLD_UNTIL = 0.96, HOLD_ROOM = 0.75;
+const BUY_WAIT = 1.15, BUY_CHEAP = 0.9, BUY_STOCK = 3;
 const PUB_HALF = 1800, PUB_DEPTH = 0.05, PUB_MOVE = [0.6, 1.6];   // players' trading moves a share price (fades over 30 min), within ×0.6..×1.6
 const IPO_DISCOUNT = 0.9, IPO_FEE = 0.05, ISSUE_FEE = 0.05, BUYBACK_FEE = 0.005;
 const PUB_DIV = 0.3;
@@ -747,6 +760,14 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.11', title: 'Smarter Millbrook', items: [
+    '<b>Smarter selling</b>: an Auto product whose price is well below normal (a slump, or players dumping it) now waits in storage and sells, a little at a time, once the price recovers. The Market says when it is holding.',
+    '<b>Smarter buying</b>: a factory that buys its materials waits out a price spike when buying would lose money, and stocks up when a material is cheap.',
+    '<b>Smarter rivals</b>: Millbrook’s other companies each make a main product, switch to whatever is selling best, run flat out in a boom and cut back in a slump, and their fortunes follow their prices. Booms and slumps ease as they pile in or pull out.',
+    'Coming back after time away no longer makes your <b>$/min profit</b> jump: what the company made while you were gone is paid, but isn’t counted as this minute’s profit.',
+    'Once you’re public, <b>Invest → Players</b> shows your company too, marked YOU, as other players see it.',
+    '<b>Smarter investors</b>: a company whose profit is climbing is worth more than one whose profit is sliding, and investors buy the dips and sell the spikes, so a share pushed far from its fair price comes back sooner.',
+  ] },
   { v: 'v0.10', title: 'Fair shares', items: [
     '<b>Share prices that add up</b>: investors now pay what a company is worth plus 15 minutes of its steady profit, at most 25% more. Before, they paid up to three times its worth, so a public company’s market value ran far ahead of its owner’s net worth.',
     'Companies are valued on their <b>steady profit</b> (about the last 10 minutes), so one big sale or a bulk buy of materials no longer swings a share price.',

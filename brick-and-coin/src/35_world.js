@@ -114,7 +114,11 @@ function slotEvent(j) {
 }
 // every event between two world times, oldest first (v0.07: the simulated companies' news too)
 function eventsBetween(t0, t1) {
-  const out = []; for (let j = Math.floor(t0 / EV_SLOT); j <= Math.floor(t1 / EV_SLOT); j++) for (const e of slotEvent(j)) if (e.t >= t0 && e.t <= t1) out.push(e);
+  const out = [];
+  for (let j = Math.floor((t0 - SIM_REACT) / EV_SLOT); j <= Math.floor(t1 / EV_SLOT); j++) for (const e of slotEvent(j)) {
+    if (e.t >= t0 && e.t <= t1) out.push(e);
+    const r = simReaction(e); if (r && r.t >= t0 && r.t <= t1) out.push(r);   // v0.11: a rival reacts to a boom or slump
+  }
   const sims = simEventsBetween(t0, t1);
   if (sims.length) { for (const e of sims) out.push(e); out.sort((a, b) => a.t - b.t); }
   return out;
@@ -185,10 +189,50 @@ function simOf(n) {
 // net worth by hours played: about $10k after 30 min, $100k after 3 h, $1M after a long day (like the playtest bot), levelling
 // off at the company's own ceiling
 function simCurve(x, cap) { const nw = Math.pow(10, 3.3 + .714 * Math.log(1 + x / .3)); return nw * cap / (nw + cap); }
+/* v0.11: smarter rivals. Each one makes a main product in its branch and reviews it every 6 hours: it moves to whichever
+   product it can make (by its level) is selling best right then, favouring the more valuable ones, and sticks with what it
+   has unless the new one is clearly better (15%). Its fortunes rise and fall with that product's prices, and it reacts to
+   the news: when its product booms it runs flat out, when it slumps it cuts back. Everything comes from the world clock and
+   the world's news, so every player sees the same rivals making the same choices. */
+const SIM_BRANCH = { wood: 'wood', wheat: 'food', ore: 'metal' }, SIM_REVIEW = 6 * 3600, SIM_STICK = 1.15, SIM_REACT = 20, SIM_SAYS = .25;
+// a good's price against normal at world time t, from the world alone (its swing and any boom or slump)
+function goodsRatio(p, t) {
+  let r = Math.exp(goodsNoise(p, t));
+  for (let j = Math.floor((t - 300) / EV_SLOT); j <= Math.floor(t / EV_SLOT); j++)
+    for (const e of slotEvent(j)) if (e.mult && e.mult[p] && e.dur && t >= e.t && t < e.t + e.dur) r *= evMultAt(e, p, t);
+  return r;
+}
+function simBase(s, t) { return simCurve((t - s.born) / 3600 * s.k, s.cap); }
+// what s is making at world time t: its plan of switches, worked out (and kept) up to t
+function simProd(s, t) {
+  if (!s.plan) { s.plan = [{ t: s.born, p: s.branch }]; s.reviewed = s.born; }   // every company starts with its raw material
+  const until = Math.min(t, s.end);
+  while (s.reviewed + SIM_REVIEW <= until) {
+    const td = s.reviewed += SIM_REVIEW, cur = s.plan[s.plan.length - 1].p, L = simLevel(simBase(s, td));
+    const score = p => goodsRatio(p, td) * (1 + .06 * PRODUCTS[p].ring);
+    let best = cur, bs = score(cur) * SIM_STICK;
+    for (const p of PIDS) if (PRODUCTS[p].branch === SIM_BRANCH[s.branch] && PRODUCTS[p].ring <= L && p !== cur) { const v = score(p); if (v > bs) { best = p; bs = v; } }
+    if (best !== cur && simBase(s, td) > 5000) s.plan.push({ t: td, p: best, up: Math.round((goodsRatio(best, td) - 1) * 100) });
+  }
+  for (let k = s.plan.length - 1; k > 0; k--) if (s.plan[k].t <= t) return s.plan[k].p;
+  return s.plan[0].p;
+}
+// a rival's reaction to a boom or slump in a product: one company making it says what it's doing, 20 s after the news
+// (for one in four of them, so the news isn't all rivals)
+function simReaction(e) {
+  if (!e.mult || !e.dur || e.speed || (e.kind !== 'up' && e.kind !== 'down') || hu(781, e.j) >= SIM_SAYS) return null;
+  const ps = Object.keys(e.mult); if (ps.length !== 1) return null;
+  const p = ps[0], makers = simsAlive(e.t).filter(s => simProd(s, e.t) === p && simBase(s, e.t) > 20000); if (!makers.length) return null;
+  const s = makers[Math.floor(hu(780, e.j) * makers.length)], P = PRODUCTS[p];
+  return { t: e.t + SIM_REACT, j: -1, kind: e.kind, jumps: [],
+    text: e.kind === 'up' ? `${s.co} runs its ${P.bld} day and night while ${P.name.toLowerCase()} prices are high` : `${s.co} cuts back on ${P.name.toLowerCase()} until prices recover` };
+}
 function simHoursTo(nw, cap) { if (nw >= cap * .9) return Infinity; const raw = nw * cap / (cap - nw); return .3 * (Math.exp((Math.log10(raw) - 3.3) / .714) - 1); }
 function simNw(s, t) {
   if (t < s.born || t >= s.end) return 0;
-  let nw = simCurve((t - s.born) / 3600 * s.k, s.cap) * Math.exp(fbm(900 + s.n % 61, t, .0005, OCT_F));
+  // v0.11: its fortunes follow its main product's prices (its slower swings, about ±10%)
+  const p = simProd(s, t), k = 300 + 3 * PIDS.indexOf(p), fortune = Math.exp(2.5 * (.03 * vn(k + 1, t, 80) + .035 * vn(k + 2, t, 320)));
+  let nw = simBase(s, t) * fortune * Math.exp(fbm(900 + s.n % 61, t, .0005, OCT_F));
   if (s.busts && s.end - t < 7200) nw *= Math.max(.05, (s.end - t) / 7200);   // a failing company slides for its last two hours
   return Math.max(800, nw);
 }
@@ -212,6 +256,8 @@ function simEventsBetween(t0, t1) {
   for (let n = Math.max(0, Math.floor((t0 - SIM_LIFE) / SIM_EVERY) - 1); n <= Math.floor(t1 / SIM_EVERY); n++) {
     const s = simOf(n); if (s.end < t0 || s.born > t1) continue;
     ev(s.born, `New in town: ${s.co} opens on Main Street`, 'info');
+    simProd(s, t1);   // v0.11: its product switches
+    for (let k = 1; k < s.plan.length; k++) { const x = s.plan[k]; ev(x.t, `${s.co} switches to ${PRODUCTS[x.p].name.toLowerCase()}${x.up >= 3 ? `: prices are up ${x.up}%` : ''}`, 'info'); }
     for (let L = 2; L <= MAX_LEVEL; L++) {
       const h = simHoursTo(LEVELS[L].nw * 1.02, s.cap); if (!Number.isFinite(h)) break;
       const t = s.born + Math.round(h / s.k * 3600);
@@ -223,13 +269,18 @@ function simEventsBetween(t0, t1) {
 }
 
 // goods: shared price swings (about ±4%) and any news that is boosting or cutting prices or production speed
+function goodsNoise(p, t) { const s = 300 + 3 * PIDS.indexOf(p); return .025 * vn(s, t, 20) + .03 * vn(s + 1, t, 80) + .035 * vn(s + 2, t, 320); }
+// v0.11: a boom or slump eases as it goes on (rivals pile in to sell at the high price, or stop making a good that's gone
+// cheap): by the time it ends, half of it is gone
+const EV_EASE = .5;
+function evMultAt(e, q, t) { return 1 + (e.mult[q] - 1) * (1 - EV_EASE * clamp((t - e.t) / e.dur, 0, 1)); }
 function goodsAt(t, evs) {
   const noise = {}, mult = {}, speed = {};
-  PIDS.forEach((p, k) => { const s = 300 + 3 * k; noise[p] = .025 * vn(s, t, 20) + .03 * vn(s + 1, t, 80) + .035 * vn(s + 2, t, 320); });
+  PIDS.forEach(p => { noise[p] = goodsNoise(p, t); });
   for (let n = evs.length - 1; n >= 0; n--) {
     const e = evs[n]; if (e.t > t) continue; if (t - e.t > 300) break;
     if (!e.dur || t >= e.t + e.dur) continue;
-    if (e.mult) for (const q in e.mult) mult[q] = (mult[q] || 1) * e.mult[q];
+    if (e.mult) for (const q in e.mult) mult[q] = (mult[q] || 1) * evMultAt(e, q, t);
     if (e.speed) for (const q in e.speed) speed[q] = (speed[q] || 1) * e.speed[q];
   }
   return { noise, mult, speed };
