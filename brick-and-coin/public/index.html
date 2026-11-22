@@ -3560,7 +3560,8 @@ const MODAL = {
       const ago = NET.lastSave ? Math.max(0, Math.round((Date.now() - NET.lastSave) / 60000)) : -1;
       pane = NET.token ? `<h3>Online</h3><p class="muted" style="font-size:13px">Logged into your Inspirapixel account as <b>${esc(NET.name)}</b>. ${esc(S.company)} is saved on the server every few minutes and when you leave, so you can carry on from any device. Your selling and buying count in the shared market, and you’re on the players’ leaderboard.</p>
           <div class="mstats">${stat('Players online', NET.online)}${stat('Players', NET.players || '—')}${stat('Saved online', ago < 0 ? 'not yet' : ago === 0 ? 'just now' : ago + ' min ago')}</div>
-          <div class="trade"><button class="btn" type="button" data-act="netsave">Save online now</button><button class="btn ghost" type="button" data-act="logout">Log out</button></div>`
+          <div class="trade"><button class="btn" type="button" data-act="netsave">Save online now</button><button class="btn ghost" type="button" data-act="logout">Log out</button></div>
+          <p class="muted" style="font-size:13px">Add an email for password recovery on your <a href="https://olympushunt.com/account.html" target="_blank" rel="noopener" class="linkbtn">Inspirapixel account page</a>.</p>`
         : NET_API ? `<h3>Play online</h3><p class="muted" style="font-size:13px">Log into your <b>Inspirapixel account</b>, or create one: one account for every Inspirapixel game (it’s the same as your Olympus Hunt account), just a name and a password. Then ${esc(S.company)} is saved on the server (play it on any device), you join the players’ leaderboard, and your selling and buying count in the shared market.</p>
           <button class="btn gold" type="button" data-act="acctpage" style="align-self:flex-start">Log in or create your Inspirapixel account</button>
           <p class="muted" style="font-size:13px">No account? Keep playing: ${esc(S.company)} stays saved in this browser.</p>`
@@ -3703,7 +3704,7 @@ const TPAGES = {
       <div class="tfoot"><button class="btn ghost" type="button" data-act="tpage" data-v="home">Back</button>
         <button class="btn ghost" type="button" data-act="register" id="acNew">Create account</button>
         <button class="btn gold" type="submit" id="acGo" style="font-size:18px;padding:12px 28px">Log in</button></div>
-      <p class="muted" style="font-size:13px">Names are 3 to 20 letters, numbers or underscores. There’s no email yet, so a forgotten password can’t be reset. No account? You can still play: your company is saved in this browser.</p></form>`;
+      <p class="muted" style="font-size:13px"><a href="https://olympushunt.com/account.html?forgot" target="_blank" rel="noopener" class="linkbtn">Forgot password?</a> Names are 3 to 20 letters, numbers or underscores. Once you’re in, add an email on your <a href="https://olympushunt.com/account.html" target="_blank" rel="noopener" class="linkbtn">account page</a> so a forgotten password can be reset. No account? You can still play: your company is saved in this browser.</p></form>`;
   },
   pick() {   // v0.07: the account's online company and this browser's are different companies
     const L = loadLocal(), C = NET.cloud, card = (o, v, where) => o ? `<button type="button" class="tbtn" data-act="usesave" data-v="${v}">${where}<small>${esc(o.company)} · Lv ${o.level} · ${money(o.cash, false)}</small></button>` : '';
