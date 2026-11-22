@@ -245,6 +245,13 @@ If Brick & Coin moves to its own GitHub repository later, copy the `brick-and-co
 
 ## Version history
 
+**v0.11: Smarter Millbrook**
+- **Automation** (`30_sim.js`): an Auto product waits in storage while its price is under 90% of normal (`autoHold`, `HOLD_*`; until 96%, while storage is under 75% full) and sells the pile a little at a time; a factory that buys inputs waits out a 15%+ spike when buying would lose money and buys 3 cycles' worth when an input is 10%+ cheap (`BUY_*`).
+- **Time away** no longer counts as this minute's profit (`PROFIT_OFF` during `offlineCatchUp`); a pile of dividends from players' companies after time away doesn't either.
+- **Rivals** (`35_world.js`): each simulated company makes a main product (`simProd`, reviewed every 6 h, deterministic from the world), its fortune follows that product's price swings, and one in four booms or slumps gets a rival's reaction in the news (`simReaction`). Booms and slumps ease by half over their run (`EV_EASE`).
+- **Investors** (`55_pub.js`, server): the premium scales with the profit trend (`profitGrowth()`: 10-min against 60-min profit, 0.5 to 1.5; listings column `growth`, added by `schema()`), and trading pressure fades up to 4× faster when it has stretched the price (`PUB_REVERT`).
+- **Invest → Players** lists your own company too (YOU), as others see it, without trade buttons.
+
 **v0.10: Fair shares**
 - **Share prices line up with the company:** investors pay its value plus 15 minutes of **steady profit** (`profitSteady()`, a 10-minute average), at most +25% (`PUB_PREMIUM`, `PUB_PREM_CAP`, the same on the server). It was an hour of the last minute's profit, up to 3× the value, so market value ran far ahead of the owner's net worth and jumped with every big sale.
 - **Your company** shows company value, market value and the gap between them, and explains how the price is worked out.
