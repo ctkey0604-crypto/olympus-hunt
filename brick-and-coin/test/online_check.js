@@ -100,7 +100,7 @@ async function untilTrue(page, fn, ms = 30000) { const end = Date.now() + ms; wh
   // Dave buys 500 of her shares (straight through the API) and she sees it after a sync
   let L = null;   // the listings are worked out every 20 s: wait for hers
   for (let k = 0; k < 30 && !L; k++) { L = ((await api('/market')).listings || []).find(r => r[0] === pub.pub.ticker); if (!L) await sleep(1000); }
-  const fairC = L ? (L[5] + Math.min(2 * L[5], 60 * Math.max(0, L[6]))) / L[3] : 0;
+  const fairC = L ? (L[5] + Math.min(.25 * L[5], 15 * Math.max(0, L[6]))) / L[3] : 0;   // v0.10 valuation
   const dv = await api('/shares', { ticker: pub.pub.ticker, side: 'buy', shares: 500, price: fairC }, D);
   check(dv.ok, `Dave buys 500 ${pub.pub.ticker} shares at $${fairC.toFixed(2)}`);
   await page.evaluate(() => { window.__game.NET.lastSync = 0; });

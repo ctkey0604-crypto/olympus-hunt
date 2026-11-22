@@ -70,15 +70,16 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
   check(a && a[1] === 'Alice Mills' && a[2] === 15000 && a[4] === 1, 'Alice is on the players’ leaderboard, online');
   check(b && board.indexOf(a) < board.indexOf(b), 'richer players come first');
 
-  // v0.08, going public. Alice: worth $150k, $1,000/min profit. Investors value her at 150k + an hour of profit = $210k,
-  // $2.10 a share over her 100,000; she sells 25% in new shares at a 10% discount ($1.89), less the bank's 5%.
+  // v0.08, going public. Alice: worth $150k, $1,000/min steady profit. Investors value her at 150k + 15 minutes of profit
+  // = $165k (v0.10; at most 25% over her worth), $1.65 a share over her 100,000; she sells 25% in new shares at a 10%
+  // discount ($1.485), less the bank's 5%.
   const wait = ms => new Promise(r => setTimeout(r, ms));
   check((await call('/ipo', { f: .25, company: 'Bob Foods', book: 50000, profit: 100 }, B.token)).status === 400, 'a company worth under $100k can’t go public');
   check((await call('/ipo', { f: .6, company: 'Alice Mills', book: 150000, profit: 1000 }, A.token)).status === 400, 'selling more than 49% is refused');
   const ip = await call('/ipo', { f: .25, company: 'Alice Mills', book: 150000, profit: 1000 }, A.token);
   const T = ip.d.ticker, issued = 1e5 * .25 / .75;
   check(ip.status === 200 && /^AMLI\d*$/.test(T), `Alice goes public as ${T}`);
-  check(near(ip.d.issued, issued, .01) && near(ip.d.price, 1.89, .001) && near(ip.d.raised, issued * 1.89 * .95, 1), `25% sold: ${Math.round(ip.d.issued)} new shares at $${ip.d.price}, raising $${ip.d.raised}`);
+  check(near(ip.d.issued, issued, .01) && near(ip.d.price, 1.485, .001) && near(ip.d.raised, issued * 1.485 * .95, 1), `25% sold: ${Math.round(ip.d.issued)} new shares at $${ip.d.price}, raising $${ip.d.raised}`);
   check(ip.d.mine.own === 1e5 && near(ip.d.mine.total, 1e5 + issued, .01), 'she keeps her 100,000 shares, 75% of the company');
   check((await call('/ipo', { f: .1, company: 'Alice Mills', book: 150000, profit: 1000 }, A.token)).status === 409, 'a company can only go public once');
   // Bob buys 1,000 shares at about today's price; a made-up price and a too-big order are refused; Alice can't trade her own
