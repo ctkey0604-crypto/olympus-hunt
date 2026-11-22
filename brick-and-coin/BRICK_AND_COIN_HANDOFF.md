@@ -203,9 +203,9 @@ News picks products from `PROD_PICK` in `35_world.js` (lower rings more often).
 ## Public companies (v0.08: `src/55_pub.js` and the server)
 
 - **Who:** a company at Level 3 (worth $100k), logged in. It sells 10%, 25%, 40% or 49% (`PUB_STEPS`, at most `PUB_MAX`).
-- **Valuation:** investors value a company at its whole value plus up to an hour of profit (`PUB_PREMIUM`, at most twice its value). The IPO issues **new** shares at 10% under that (`IPO_DISCOUNT`), the bank keeps 5% (`IPO_FEE`), and the cash goes into the company. So the owner's part shrinks to match and their net worth dips about 7% at the IPO, in exchange for cash to grow with.
+- **Valuation:** investors value a company at its whole value plus 15 minutes of its steady profit (`PUB_PREMIUM`, at most 25% more: `PUB_PREM_CAP`; v0.10, it was an hour and up to twice its value; steady profit is `profitSteady()`, a 10-minute average). The IPO issues **new** shares at 10% under that (`IPO_DISCOUNT`), the bank keeps 5% (`IPO_FEE`), and the cash goes into the company. So the owner's part shrinks to match and their net worth dips about 7% at the IPO, in exchange for cash to grow with.
 - **Net worth:** `netWorth() = companyValue() × ownFrac()`. Areas of town open with `companyValue()` (the whole company), so going public never costs a level.
-- **The share price** (`pubPrice`): (value + up to an hour of profit) ÷ shares, × players' buying and selling (square-root law against 5% of the company's value, fading with a 30-minute half-life, within ×0.6..×1.6), × the market's mood (the Millbrook 10 over 4 hours, ×0.85..×1.18), × the company's own wander (from the shared world, about ±5%). Every player sees the same price.
+- **The share price** (`pubPrice`): (value + 15 minutes of steady profit, at most +25%) ÷ shares, × players' buying and selling (square-root law against 5% of the company's value, fading with a 30-minute half-life, within ×0.6..×1.6), × the market's mood (the Millbrook 10 over 4 hours, ×0.85..×1.18), × the company's own wander (from the shared world, about ±5%). Every player sees the same price.
 - **Who holds the shares:** the owner, players, and Millbrook's (simulated) investors, who hold whatever players don't. Players buy from and sell to the investors at today's price (0.5% fee); the server checks the price within a wide band (×0.6..×1.7 of its own idea, which leaves out the mood and wander).
 - **Later:** the owner can sell more new shares (up to 49% outside, 5% fee) or buy shares back from the investors (never from players).
 - **Dividends:** a public company pays 30% of its profit (`PUB_DIV`) × the outside part, every 10 s, out of its cash. The server adds it to the listing's dividends per share; each holder's next sync collects shares × (dividends per share − what they'd seen). One row per payment, however many holders.
@@ -244,6 +244,14 @@ If Brick & Coin moves to its own GitHub repository later, copy the `brick-and-co
 - **Phones held sideways:** the closed side panel sits off-screen to the right, so code can scroll `#app` sideways. Real taps don't. The playtest uses plain click events there for that reason.
 
 ## Version history
+
+**v0.10: Fair shares**
+- **Share prices line up with the company:** investors pay its value plus 15 minutes of **steady profit** (`profitSteady()`, a 10-minute average), at most +25% (`PUB_PREMIUM`, `PUB_PREM_CAP`, the same on the server). It was an hour of the last minute's profit, up to 3× the value, so market value ran far ahead of the owner's net worth and jumped with every big sale.
+- **Your company** shows company value, market value and the gap between them, and explains how the price is worked out.
+- **Digits:** every digit in the game comes from "Inspirapixel Digits" (Pixelify Sans digits with a redrawn 5; Pixelify's 5 looks like an S), made by `tools/digits.py`. Olympus Hunt uses the same faces.
+
+**v0.09: Smoother**
+- Own selling barely moves a price (`OWN_DEPTH`); the HQ starts with room for 10 building levels; Invest → Portfolio; Sell all spare; the top bar says when factories wait for materials.
 
 **v0.08: Going public**
 - **IPO** from Level 3: sell 10–49% of your company in new shares (Invest → Your company); the cash goes into the company.
