@@ -41,6 +41,7 @@ const PUB_HALF = 1800;             // seconds: buying and selling pressure on a 
 const PUB_DEPTH = .05;             // buying 5% of a company's value pushes its price up about 41% (the square-root law)
 const PUB_MOVE = [.6, 1.6];        // the most players' trading can move a share price
 const PUB_PREMIUM = 15, PUB_PREM_CAP = .25;   // investors add 15 minutes of steady profit to a company's value, at most 25% more
+const GROWTH = [.5, 1.5], PUB_REVERT = 3;      // v0.11: × its profit trend; trading pressure fades up to 4× faster when stretched
                                                // (v0.10; it was an hour, up to 3× its value, so share prices ran far ahead of the company)
 const IPO_DISCOUNT = .9, IPO_FEE = .05, ISSUE_FEE = .05, BUYBACK_FEE = .005;
 const BAND = [.6, 1.7];            // a trade's price must be this close to the server's own idea of it
@@ -74,7 +75,10 @@ function schema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS holdings (holder TEXT NOT NULL, ticker TEXT NOT NULL, shares REAL NOT NULL, cost REAL NOT NULL DEFAULT 0,
       seen REAL NOT NULL DEFAULT 0, PRIMARY KEY (holder, ticker))`),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS holdings_ticker ON holdings(ticker)'),
-  ]).catch(e => { schemaReady = null; throw e; });
+  ]).then(async () => {   // v0.11: a listing's profit trend (added to tables made before it)
+    const cols = (await env.DB.prepare('PRAGMA table_info(listings)').all()).results || [];
+    if (!cols.some(c => c.name === 'growth')) await env.DB.prepare('ALTER TABLE listings ADD COLUMN growth REAL NOT NULL DEFAULT 1').run();
+  }).catch(e => { schemaReady = null; throw e; });
   return schemaReady;
 }
 
@@ -194,8 +198,8 @@ async function sync(req, env, user) {
     own = await env.DB.prepare('SELECT * FROM listings WHERE ticker = ? AND dead IS NULL').bind(row.ticker).first();
     if (own) {
       const out = own.total - own.own, div = counts ? Math.min(Math.max(0, +b.div || 0), Math.max(0, num(b.profit)) * 5 + 1) : 0;
-      q.push(env.DB.prepare('UPDATE listings SET book = ?, profit = ?, company = ?, dps = dps + ?, paid = paid + ? WHERE ticker = ?')
-        .bind(Math.max(0, num(b.book)), num(b.profit), str(b.company, 24), out > 0 ? div / out : 0, div, own.ticker));
+      q.push(env.DB.prepare('UPDATE listings SET book = ?, profit = ?, growth = ?, company = ?, dps = dps + ?, paid = paid + ? WHERE ticker = ?')
+        .bind(Math.max(0, num(b.book)), num(b.profit), growthOf(b), str(b.company, 24), out > 0 ? div / out : 0, div, own.ticker));
     }
   }
   // v0.08, a shareholder: dividends since the last look, buyouts of closed companies, and the holdings themselves
@@ -226,25 +230,28 @@ function mineOf(L) { return { ticker: L.ticker, total: r4(L.total), own: r4(L.ow
 // What a share is worth to investors: the company's value plus 15 minutes of steady profit (at most 25% more), split
 // over every share, then moved by players' buying and selling (square-root law, fading over half an hour). The game adds
 // the market's mood and each company's own day-to-day wander on top, so the server checks trades within a wide band.
-function fairPerShare(L) { const book = Math.max(0, L.book); return Math.max(.01, (book + Math.min(PUB_PREM_CAP * book, PUB_PREMIUM * Math.max(0, L.profit))) / L.total); }
-function pressure(L, now) { const k = Math.pow(.5, Math.max(0, now - L.ft) / 1000 / PUB_HALF); return [L.fb * k, L.fs * k]; }
-function sharePrice(L, now) {
-  const f = fairPerShare(L), [fb, fs] = pressure(L, now), D = PUB_DEPTH * f * L.total;
-  return f * Math.min(PUB_MOVE[1], Math.max(PUB_MOVE[0], Math.sqrt((1 + fb / D) / (1 + fs / D))));
+function growthOf(b) { const g = +b.growth; return Number.isFinite(g) ? Math.min(GROWTH[1], Math.max(GROWTH[0], g)) : 1; }
+function fairPerShare(L) { const book = Math.max(0, L.book), g = L.growth == null ? 1 : L.growth; return Math.max(.01, (book + Math.min(PUB_PREM_CAP * book, PUB_PREMIUM * Math.max(0, L.profit) * g)) / L.total); }
+function moveOf(L, fb, fs) { const D = PUB_DEPTH * fairPerShare(L) * L.total; return Math.min(PUB_MOVE[1], Math.max(PUB_MOVE[0], Math.sqrt((1 + fb / D) / (1 + fs / D)))); }
+// players' pressure fades with a 30-minute half-life, faster the further it had pushed the price (v0.11: investors lean against it)
+function pressure(L, now) {
+  const s = Math.min(1, Math.abs(Math.log(moveOf(L, L.fb, L.fs))) / Math.log(PUB_MOVE[1]));
+  const k = Math.pow(.5, Math.max(0, now - L.ft) / 1000 / (PUB_HALF / (1 + PUB_REVERT * s))); return [L.fb * k, L.fs * k];
 }
+function sharePrice(L, now) { const [fb, fs] = pressure(L, now); return fairPerShare(L) * moveOf(L, fb, fs); }
 async function ipo(req, env, user) {
-  const b = await readJson(req), now = Date.now(), f = +b.f, book = num(b.book), profit = num(b.profit);
+  const b = await readJson(req), now = Date.now(), f = +b.f, book = num(b.book), profit = num(b.profit), growth = growthOf(b);
   const p = await env.DB.prepare('SELECT company, ticker FROM players WHERE name = ?').bind(user.name).first();
   if (!p || !p.company) return json({ error: 'Save your company online first (it saves every few minutes).' }, 400);
   if (p.ticker) return json({ error: 'Your company is already public.' }, 409);
   if (!(f >= .05 && f <= PUB_MAX)) return json({ error: `You can sell 5% to ${PUB_MAX * 100}% of your company.` }, 400);
   if (!(book >= 1e5)) return json({ error: 'A company needs to be worth $100,000 (Level 3) to go public.' }, 400);
   const ticker = await newTicker(env, str(b.company, 24) || p.company);
-  const L = { total: PUB_SHARES, own: PUB_SHARES, book, profit, fb: 0, fs: 0, ft: now };
+  const L = { total: PUB_SHARES, own: PUB_SHARES, book, profit, growth, fb: 0, fs: 0, ft: now };
   const pre = fairPerShare(L), issued = PUB_SHARES * f / (1 - f), price = pre * IPO_DISCOUNT, raised = issued * price * (1 - IPO_FEE);
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO listings (ticker, owner, company, total, own, book, profit, ft, listed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(ticker, user.name, str(b.company, 24) || p.company, PUB_SHARES + issued, PUB_SHARES, book + raised, profit, now, now),
+    env.DB.prepare('INSERT INTO listings (ticker, owner, company, total, own, book, profit, growth, ft, listed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(ticker, user.name, str(b.company, 24) || p.company, PUB_SHARES + issued, PUB_SHARES, book + raised, profit, growth, now, now),
     env.DB.prepare('UPDATE players SET ticker = ? WHERE name = ?').bind(ticker, user.name),
   ]);
   MEM = null;
@@ -256,7 +263,7 @@ async function float(req, env, user) {
   const p = await env.DB.prepare('SELECT ticker FROM players WHERE name = ?').bind(user.name).first();
   const L = p && p.ticker && await env.DB.prepare('SELECT * FROM listings WHERE ticker = ? AND dead IS NULL').bind(p.ticker).first();
   if (!L) return json({ error: 'Your company isn’t public.' }, 400);
-  if (b.book != null) { L.book = Math.max(0, num(b.book)); L.profit = num(b.profit); }
+  if (b.book != null) { L.book = Math.max(0, num(b.book)); L.profit = num(b.profit); L.growth = growthOf(b); }
   const held = (await env.DB.prepare('SELECT COALESCE(SUM(shares), 0) AS n FROM holdings WHERE ticker = ?').bind(L.ticker).first()).n;
   const price = sharePrice(L, now), out = L.total - L.own;
   if (!(target >= 0 && target <= PUB_MAX + 1e-9)) return json({ error: `Outside shareholders can own at most ${PUB_MAX * 100}%.` }, 400);
@@ -334,14 +341,14 @@ async function market(env, now) {
   }
   const top = (await env.DB.prepare('SELECT display, company, nw, level, seen FROM players WHERE seen > ? AND company IS NOT NULL ORDER BY nw DESC LIMIT 25').bind(now - BOARD_DAYS * 86400e3).all()).results || [];
   const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM players WHERE seen > ? AND company IS NOT NULL').bind(now - BOARD_DAYS * 86400e3).first();
-  const lst = (await env.DB.prepare(`SELECT l.ticker, l.company, p.display, l.total, l.own, l.book, l.profit, l.fb, l.fs, l.ft, l.paid, l.listed, p.seen,
+  const lst = (await env.DB.prepare(`SELECT l.ticker, l.company, p.display, l.total, l.own, l.book, l.profit, l.growth, l.fb, l.fs, l.ft, l.paid, l.listed, p.seen,
       (SELECT COALESCE(SUM(h.shares), 0) FROM holdings h WHERE h.ticker = l.ticker) AS held,
       (SELECT COUNT(*) FROM holdings h WHERE h.ticker = l.ticker) AS holders
     FROM listings l JOIN players p ON p.name = l.owner WHERE l.dead IS NULL ORDER BY l.book DESC LIMIT 40`).all()).results || [];
   MEM = { t: now, crowd: roundFlow(crowd), online, players: total ? total.n : top.length,
     board: top.map(r => [r.display, r.company, Math.round(r.nw), r.level, r.seen > now - ONLINE ? 1 : 0]),
-    // a listing: ticker, company, owner, shares, owner's shares, value, profit/min, buying, selling (both $, at ft), ft, dividends paid, listed, players' shares, holders, owner online
-    listings: lst.map(L => [L.ticker, L.company, L.display, r4(L.total), r4(L.own), r2(L.book), r2(L.profit), r2(L.fb), r2(L.fs), L.ft, r2(L.paid), L.listed, r4(L.held), L.holders, L.seen > now - ONLINE ? 1 : 0]) };
+    // a listing: ticker, company, owner, shares, owner's shares, value, profit/min, buying, selling (both $, at ft), ft, dividends paid, listed, players' shares, holders, owner online, profit trend (v0.11)
+    listings: lst.map(L => [L.ticker, L.company, L.display, r4(L.total), r4(L.own), r2(L.book), r2(L.profit), r2(L.fb), r2(L.fs), L.ft, r2(L.paid), L.listed, r4(L.held), L.holders, L.seen > now - ONLINE ? 1 : 0, r4(L.growth == null ? 1 : L.growth)]) };
   await env.DB.prepare("INSERT INTO meta (k, v, t) VALUES ('market', ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, t = excluded.t").bind(JSON.stringify(MEM), now).run();
   return MEM;
 }
