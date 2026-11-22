@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.08';
+const VERSION = 'v0.09';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -580,8 +580,8 @@ const LEVELS = [
 ];
 const MAX_LEVEL = 4;                     // v0.04 adds Gold Hill
 const MARKET_SIZE = [0, 1, 1.6, 2.5, 4]; // NPC demand grows with your level
-const HQ_CAP  = [6, 12, 20, 30, 45, 65, 95, 140];
-const HQ_COST = [1000, 4000, 12000, 35000, 100000, 300000, 900000];
+const HQ_CAP  = [10, 18, 28, 40, 56, 78, 110, 160];       // v0.09: more room for factories (was 6, 12, 20, 30, 45, 65, 95, 140)
+const HQ_COST = [800, 3000, 9000, 25000, 70000, 200000, 600000];   // v0.09: cheaper (was 1000, 4000, 12000, 35000, 100000, 300000, 900000)
 const WH_CAP  = [200, 400, 800, 1500, 3000, 6000, 12000];
 const WH_COST = [600, 2000, 6000, 18000, 50000, 150000];
 const START_CASH = 2000;
@@ -589,6 +589,11 @@ const STARTUP_BOOST = 1.5;            // production speed until you reach Level 
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
 const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% over the sell price
+/* v0.09: your own selling. Millbrook's buyers are a big market, so your steady output barely moves a price (a few percent at
+   most); dumping a huge pile at once still pushes it down for a couple of minutes (square-root law, like real order books),
+   never by more than 40%. Buying works the same way upwards. Before v0.09 a busy factory line could cut its own price in half. */
+const OWN_DEPTH = 8;                  // how many hours of one building's output it takes to move a price ~30% (× the level's MARKET_SIZE)
+const OWN_MIN = 0.6, OWN_MAX = 1.4;
 /* v0.07: the shared market. What every player sells and buys adds up (on the server) and moves a good's price for
    everyone, on top of your own selling (which still hits your own price hardest). Real markets move with the square root
    of how much is dumped: one player barely moves a price, a crowd moves it a lot, and it's capped. See crowdMult(). */
@@ -740,13 +745,21 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.09', title: 'Smoother', items: [
+    'A more <b>realistic market</b>: Millbrook’s buyers are a big market, so your own steady selling barely moves a price any more (a busy factory line used to cut its own price in half). Dumping a huge pile at once still pushes it down for a couple of minutes, and what all the players do together sets the trends.',
+    '<b>More room for factories</b>: your HQ starts with room for 10 building levels (was 6), and every upgrade adds more for less.',
+    'A new <b>Portfolio</b> page (Invest → Portfolio): everything you own, what it’s worth, how it’s done and what it pays you, in one list.',
+    '<b>Sell all spare</b> in the Market sells everything in storage that your factories don’t need.',
+    'New factories buy their missing materials from the market by default, when that still makes a profit.',
+    'The top bar tells you when factories are waiting for materials (tap it to go to one) or when your HQ is full.',
+    'Upgrade buttons show how much more profit the upgrade brings.'] },
   { v: 'v0.08', title: 'Going public', items: [
     'Take your company <b>public</b> (Invest → Your company) once it reaches Level 3: sell 10% to 49% of it in new shares and the cash goes straight into the company to grow with. You keep the rest.',
     'Investors value a company at what it’s worth plus up to an hour of its profit. Your share price then moves with your company, the market’s mood, and players buying and selling it.',
     'Buy <b>other players’ companies</b> (Invest → Players): a public company pays 30% of its profit as dividends, and shareholders get their part, even while you’re away.',
     'Later you can sell more shares (up to 49% outside) or buy shares back from Millbrook’s investors.',
     'Your <b>net worth</b> is now your part of your company; areas of town still open with the whole company’s value.',
-    '<b>Gold Hill</b> looks like a hill now: lit slopes with terraces, two rocky banks on the side facing you, and the town’s roads climb onto it by stone steps instead of running straight through. The stray white posts are gone.'] },
+    'The stray white posts on Gold Hill are gone.'] },
   { v: 'v0.07', title: 'Online', items: [
     'Play <b>online</b>: log into your <b>Inspirapixel account</b> (one account for every Inspirapixel game, the same as your Olympus Hunt account: just a name and a password) and your company is saved on the server, so you can pick it up on any device. Playing without an account still works, saved in your browser.',
     'A <b>shared market</b>: when players sell a lot of the same good its price drops a little for everyone, and buying pushes it up. One player barely moves it; a crowd can move it up to 30%, and it recovers over about 15 minutes. The Market shows how much players are moving each price.',

@@ -4,7 +4,7 @@
    start screen, toasts and the news ticker.
    ========================================================================== */
 const $ = s => document.querySelector(s);
-const UI = { investTab: 'stocks', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help', lbTab: 'all' };
+const UI = { investTab: 'portfolio', sel: null, sheet: false, modal: null, sideSig: '', modalSig: '', webSel: null, stockSel: 'MB10', stockTF: '1h', mktFilter: 'mine', confirm: '', startPick: 'wood', tpage: 'home', helpPg: 0, mtab: 'help', lbTab: 'all' };
 
 /* ---------- formatting ---------- */
 function money(n, cents) {
@@ -120,7 +120,13 @@ function updateTop() {
   $('#lvBarWrap').setAttribute('aria-label', 'Progress to next level');
   $('#cap').textContent = `${capUsed()} / ${capMax()}`;
   const cb = $('#capBar'); cb.style.width = Math.min(100, capUsed() / capMax() * 100) + '%'; cb.classList.toggle('over', capUsed() > capMax());
-  $('#capNote').textContent = capUsed() > capMax() ? `Over the limit: all factories at ${Math.round(efficiency() * 100)}% speed` : 'each building level uses one';
+  // v0.09: say what needs doing: over the limit, factories waiting for materials, or an HQ that's full
+  const waiting = S.lots.filter(l => l && l.b !== 'hq' && l.stall && l.stall !== 'storage full').length, note = $('#capNote');
+  note.textContent = capUsed() > capMax() ? `Over the limit: all factories at ${Math.round(efficiency() * 100)}% speed`
+    : waiting ? `${waiting} waiting for materials: tap to see`
+    : capUsed() >= capMax() && S.hqLv < HQ_COST.length ? `Full: upgrade HQ for ${HQ_CAP[S.hqLv + 1] - capMax()} more (${money(hqUpgradeCost(), false)})`
+    : 'each building level uses one';
+  note.classList.toggle('red', capUsed() > capMax() || waiting > 0);
   $('#wh').textContent = `${qty(whUsed())} / ${whMax()}`;
   const wb = $('#whBar'); wb.style.width = Math.min(100, whUsed() / whMax() * 100) + '%'; wb.classList.toggle('over', whUsed() >= whMax());
 }
@@ -235,7 +241,7 @@ function bldView(i, l) {
       <p class="muted" style="font-size:12px">${flowOf(l.b) === 'auto' ? 'Keeps what your own factories need, sells the rest.' : flowOf(l.b) === 'sell' ? 'Sells everything as it is made.' : 'Stores everything. The factory stops when storage is full.'}</p>
       ${P.raw ? '' : `<label class="check"><input type="checkbox" data-act="autobuy" data-i="${i}" ${l.autoBuy ? 'checked' : ''}> Buy missing inputs from the market (costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than making them)</label>`}</section>
     <p class="muted" style="font-size:13px">${BLURB[l.b]}</p>
-    ${up ? `<button class="btn" type="button" data-act="upgrade" data-cost="${uc}">Upgrade to Lv ${l.lv + 1} · ${money(uc, false)}</button><span class="muted" style="font-size:12px">Each level makes it faster and fancier: ${['street lamps', 'banner flags', 'gold roof trim', 'a gold crown'][l.lv - 1]} next.</span>` : '<span class="chip gold">Max level: fully decked out</span>'}
+    ${up ? `<button class="btn" type="button" data-act="upgrade" data-cost="${uc}">Upgrade to Lv ${l.lv + 1} · ${money(uc, false)}${(() => { const g = estProfit(l.b, l.lv + 1, lotMult()) - estProfit(l.b, l.lv, lotMult()); return g > 0 ? ` · +${money(g)}/min` : ''; })()}</button><span class="muted" style="font-size:12px">Each level makes it faster and fancier: ${['street lamps', 'banner flags', 'gold roof trim', 'a gold crown'][l.lv - 1]} next.</span>` : '<span class="chip gold">Max level: fully decked out</span>'}
     <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="demolish">${conf ? `Tap again: tear down for ${money(l.spent * .4, false)} back` : 'Tear down'}</button>
     <button class="btn ghost" type="button" data-act="deselect">Back</button>` };
 }
@@ -348,16 +354,17 @@ const MODAL = {
         <span class="acts"><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="10">Sell 10</button><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="all">Sell all</button><button class="btn small" type="button" data-act="buy" data-p="${p}" data-q="10">Buy 10</button></span></div>`;
     }).join('');
     return { sig, title: 'Market', html: `
-      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Sell a lot at once and the price drops, most for you and a little for everyone; when many players sell the same good, it drops for all (shown as “players”). Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
+      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Millbrook is a big market: your steady selling barely moves a price, but dumping a huge pile at once pushes it down for a couple of minutes. When many players sell the same good, it drops for everyone (shown as “players”). Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="seg" role="group" aria-label="Which goods"><button type="button" data-act="mktf" data-v="mine" aria-pressed="${f === 'mine'}">Your goods</button><button type="button" data-act="mktf" data-v="all" aria-pressed="${f === 'all'}">All goods</button></div>
-        <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b></span></div>
+        <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b> <button class="btn ghost small" type="button" data-act="sellspare" title="Sells everything in storage except what your own factories need">Sell all spare</button></span></div>
       <div class="mlist"><div class="mrow mhead"><span class="good">GOOD</span><span class="sellp">SELL</span><span class="buyp">BUY</span><span class="chg">5 MIN</span><span class="trend">TREND</span><span class="have">YOU HAVE</span><span class="flow">OUTPUT</span><span class="acts"></span></div>${rows}</div>` };
   },
   stocks() {
-    const it = UI.investTab, tabs = `<div class="seg" role="group" aria-label="Invest in" style="margin-bottom:12px">${[['stocks', 'Stocks'], ['re', 'Real estate'], ['players', 'Players'], ['mine', 'Your company']]
+    const it = UI.investTab, tabs = `<div class="seg" role="group" aria-label="Invest in" style="margin-bottom:12px">${[['portfolio', 'Portfolio'], ['stocks', 'Stocks'], ['re', 'Real estate'], ['players', 'Players'], ['mine', 'Your company']]
       .map(([v, l]) => `<button type="button" data-act="itab" data-v="${v}" aria-pressed="${it === v}">${l}</button>`).join('')}</div>`;
-    if (it === 'players') return pubPlayersView(tabs);   // v0.08 (38_pub.js)
+    if (it === 'portfolio') return portfolioView(tabs);  // v0.09 (55_pub.js)
+    if (it === 'players') return pubPlayersView(tabs);   // v0.08 (55_pub.js)
     if (it === 'mine') return pubMineView(tabs);
     if (UI.investTab === 're') {
       const tf = UI.stockTF, own = S.props.map(p => p.own ? p.reno : 0).join('');

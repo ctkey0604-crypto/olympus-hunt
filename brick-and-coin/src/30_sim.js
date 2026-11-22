@@ -50,14 +50,16 @@ function evMult(p) { return WS.mult[p] || 1; }
 function evSpeed(p) { return WS.speed[p] || 1; }
 function price(p) {
   const M = S.market[p], D = marketDepth(p);
-  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) * crowdMult(p) / (1 + M.sat / D) * (1 + M.bp / D);
+  return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) * crowdMult(p) * ownImpact(M, D);
 }
 function buyPrice(p) { return price(p) * NPC_MARKUP; }
+// your own recent selling (sat) and buying (bp), fading with a 2-minute half-life, against a deep market (v0.09)
+function ownImpact(M, D) { const K = OWN_DEPTH * D; return clamp(Math.sqrt((1 + M.bp / K) / (1 + M.sat / K)), OWN_MIN, OWN_MAX); }
 // the last 5 minutes of prices for the sparklines, from the world (at today's own selling pressure)
 function prefillGoodsHist() {
   const now = Math.floor(WT);
   for (const p of PIDS) {
-    const M = S.market[p], D = marketDepth(p), own = (1 + M.bp / D) / (1 + M.sat / D); M.hist = [];
+    const M = S.market[p], D = marketDepth(p), own = ownImpact(M, D); M.hist = [];
     for (let k = 59; k >= 0; k--) { const g = goodsAt(now - 5 * k, WS.evs); M.hist.push(+(PRODUCTS[p].base * (g.mult[p] || 1) * Math.exp(g.noise[p]) * own).toFixed(2)); }
   }
 }
@@ -77,7 +79,23 @@ function buyGoods(p, q) {
   crowdNote(p, 0, q);
   return cost;
 }
-function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * (1 + q / D / 2); }
+// does making p still pay if every input you don't make yourself is bought from the market?
+function buysPay(p) {
+  const P = PRODUCTS[p]; if (P.raw) return false;
+  const act = activeProducts(); let cost = 0; for (const q in P.rec) cost += P.rec[q] * (act.has(q) ? price(q) : buyPrice(q));
+  return P.out * price(p) - cost > upkeepPerMin({ b: p, lv: 1 }) * P.sec / 60;
+}
+// v0.09: sell everything in storage except what your own factories need (two minutes of it), Keep products included
+function sellAllSpare() {
+  let got = 0, n = 0;
+  for (const p in S.inv) {
+    let use = 0; for (const l of S.lots) if (l && l.b !== 'hq') { const r = PRODUCTS[l.b].rec[p]; if (r) use += r * 60 / PRODUCTS[l.b].sec * l.lv; }
+    const q = Math.floor(S.inv[p] - (use > 0 ? Math.max(20, use * 2) : 0));
+    if (q >= 1) { S.inv[p] -= q; if (S.inv[p] <= 1e-9) delete S.inv[p]; got += sellGoods(p, q); n += q; }
+  }
+  return { got, n };
+}
+function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
 function addProfit(x) { S.prof[S.profI] += x; }
 function profitPerMin() { let s = 0; for (const v of S.prof) s += v; const n = Math.min(60, Math.max(1, S.profN)); return s * 60 / n; }
 
@@ -159,7 +177,8 @@ function canBuild(i, p) {
 }
 function build(i, p) {
   const e = canBuild(i, p); if (e) return e;
-  S.cash -= buildCost(p); S.lots[i] = { b: p, lv: 1, prog: 0, running: false, stall: '', autoBuy: false, spent: buildCost(p) };
+  // v0.09: a new factory buys missing inputs from the market by default, as long as that still makes a profit
+  S.cash -= buildCost(p); S.lots[i] = { b: p, lv: 1, prog: 0, running: false, stall: '', autoBuy: buysPay(p), spent: buildCost(p) };
   S.stats.built++; return '';
 }
 function canUpgrade(i) { const l = S.lots[i]; if (!l || l.b === 'hq') return 'No building'; if (l.lv >= MAX_BLD_LV) return 'Max level'; if (S.cash < upgradeCost(l)) return 'Not enough cash'; return ''; }

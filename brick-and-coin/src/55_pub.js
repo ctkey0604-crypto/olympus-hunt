@@ -195,3 +195,32 @@ function pubMineView(tabs) {
       Selling new shares raises cash at today’s price (5% fee); buying back from investors costs today’s price (players keep theirs).</p>
       <div class="trade">${canUp ? fbtn(up, `Sell more (to ${Math.round(up * 100)}% outside)`) : ''}${canDown ? fbtn(down, down === 0 ? 'Buy all back (go private)' : `Buy back (to ${Math.round(down * 100)}% outside)`) : ''}</div></section>` };
 }
+
+/* ---------- Invest → Portfolio (v0.09): everything you own in one place, what it's worth and what it pays ---------- */
+Object.assign(LIVE, {
+  pftotal: () => money(portfolioValue() + pubHoldValue() + propertyValue(), false),
+  pfstk: () => money(portfolioValue(), false), pfpub: () => money(pubHoldValue(), false), pfre: () => money(propertyValue(), false),
+  pfinc() { let d = 0; for (const t in S.hold) d += S.hold[t].q * S.assets[t].p * asset(t).yld * 60; return '+' + money(d + rentPerMin() * 60) + '/hr'; },
+  pfshare() { const nw = netWorth(), v = (portfolioValue() + pubHoldValue() + propertyValue()) * ownFrac(); return nw > 0 ? Math.round(v / nw * 100) + '% of your net worth' : ''; },
+});
+function portfolioView(tabs) {
+  const rows = [], row = (ic, name, sub, val, pl, extra, act) => `<button type="button" class="st-row" ${act}>${ic}
+      <span class="nm"><b>${name}</b><small>${sub}</small></span>
+      <span class="px2"><b data-live="${val}"></b><small data-live="${pl}" data-base=""></small>${extra ? `<small class="olive">${extra}</small>` : ''}</span></button>`;
+  for (const a of ASSETS) { const h = S.hold[a.t]; if (!h || h.q <= 0) continue;
+    rows.push(row(iconImg(a.icon, 36), a.name, `${a.crypto ? 'Crypto' : a.index ? 'Index fund' : 'Shares'} · ${h.q < 1 ? h.q.toFixed(4) : qty(h.q)} ${a.t}`, 'hval:' + a.t, 'hpl:' + a.t,
+      a.yld ? `${money(h.q * S.assets[a.t].p * a.yld * 60)}/hr` : '', `data-act="pfgo" data-v="stocks" data-t="${a.t}"`)); }
+  for (const t in S.pubHold) { const h = S.pubHold[t], L = pubListing(t);
+    rows.push(row(iconImg('house', 36), L ? esc(L.co) : t, `Player company · ${qty(h.q)} ${t}`, 'pubhv:' + t, 'pubhpl:' + t, 'dividends', `data-act="pfgo" data-v="players" data-t="${t}"`)); }
+  S.props.forEach((p, k) => { if (!p.own) return;
+    rows.push(row(`<img class="px" src="${housePreview(PLOTS[k].t, p.reno)}" width="36" height="44" alt="" style="margin:-6px 0">`, PROPS[PLOTS[k].t].name, `Property · ${PLOT_SIDE(k)} · renovated ${p.reno - 1}×`, 'pv:' + k, 'pgain:' + k, '', `data-act="pshow" data-k="${k}"`)); });
+  const sig = `pf|${rows.length}|${Object.keys(S.hold).filter(t => S.hold[t].q > 0).join()}|${Object.keys(S.pubHold).join()}|${S.props.map(p => p.own ? p.reno : 0).join('')}`;
+  const stat = (k, live) => `<div class="stat"><span>${k}</span><b data-live="${live}"></b></div>`;
+  return { sig, title: 'Invest', html: tabs + `
+    <p class="m-sub">Everything you own besides your factories: what it’s worth now, how it’s done since you bought it, and what it pays you. Tap one to trade it.</p>
+    <div class="stat-grid">${stat('All investments', 'pftotal')}${stat('Pays you', 'pfinc')}${stat('Stocks & PixCoin', 'pfstk')}${stat('Players’ companies', 'pfpub')}${stat('Property', 'pfre')}
+      <div class="stat"><span>Share of your wealth</span><b data-live="pfshare"></b></div></div>
+    ${rows.length ? `<div class="st-list" style="margin-top:12px">${rows.join('')}</div>`
+      : `<section class="card" style="margin-top:12px"><h3>Nothing here yet</h3><p class="muted" style="font-size:13px">Spare cash can work for you: shares and the index fund pay dividends, homes pay rent every second, and other players’ companies pay part of their profit. Start in Stocks or Real estate.</p>
+        <div class="trade"><button class="btn small" type="button" data-act="itab" data-v="stocks">Stocks</button><button class="btn ghost small" type="button" data-act="itab" data-v="re">Real estate</button></div></section>`}` };
+}

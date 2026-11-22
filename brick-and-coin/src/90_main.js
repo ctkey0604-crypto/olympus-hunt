@@ -268,9 +268,16 @@ function act(el) {
     case 'full': toggleFullscreen(); return;
     case 'prod': UI.webSel = UI.webSel || S.start; openModal('prod'); return;
     case 'market': openModal('market'); return;
-    case 'stocks': openModal('stocks'); return;
+    case 'stocks': openInvest(); return;
     case 'board': openModal('board'); return;
     case 'hq': closeModal(); selectLot(HQ_LOT); return;
+    case 'tbfact': {   // v0.09: the top bar's Factories: a factory that's waiting for materials if any, else the HQ
+      closeModal(); const k = S.lots.findIndex(l => l && l.b !== 'hq' && l.stall && l.stall !== 'storage full');
+      if (k >= 0) { const { x, y } = lotXY(k); centerOn(TX + x + LOT / 2, TY + y + LOT / 2, true); selectLot(k); } else selectLot(HQ_LOT);
+      return;
+    }
+    case 'sellspare': { const r = sellAllSpare(); if (r.n) toast(`Sold ${qty(r.n)} goods for ${money(r.got, false)}`, 'good'); else toast('Nothing spare to sell: your factories need what’s in storage', ''); break; }
+    case 'pfgo': UI.investTab = el.dataset.v; if (el.dataset.v === 'stocks') UI.stockSel = el.dataset.t; else UI.pubSel = el.dataset.t; break;
     case 'goals': UI.sel = null; renderSide(true); setSheet(true); return;
     case 'sheetclose': UI.sel = null; setSheet(false); renderSide(true); return;
     case 'jump': { const [x, y] = zoneCenter(+el.dataset.b); centerOn(TX + x, TY + y, true); return; }
@@ -342,7 +349,7 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'escape') { if (UI.modal) closeModal(); else if (UI.sel || UI.sheet) selectLot(-1); else { sfx('tap'); openModal('menu'); } return; }   // nothing open: Esc opens the menu
   const map = { p: 'prod', m: 'market', s: 'stocks', l: 'board' };
-  if (map[k]) { sfx('tap'); if (UI.modal === map[k]) closeModal(); else { if (k === 'p') UI.webSel = UI.webSel || S.start; openModal(map[k]); } }
+  if (map[k]) { sfx('tap'); if (UI.modal === map[k]) closeModal(); else { if (k === 'p') UI.webSel = UI.webSel || S.start; if (k === 's') openInvest(); else openModal(map[k]); } }
   if (k === 'h') { sfx('tap'); closeModal(); selectLot(HQ_LOT); }
   if (k === 'f') toggleFullscreen();
   const pan = { arrowleft: [-40, 0], arrowright: [40, 0], arrowup: [0, -40], arrowdown: [0, 40] }[k];
@@ -389,6 +396,12 @@ async function doLogin(create) {
     try { await netFetchSave(); } catch (e) {}
     sfx('goal'); refreshTitleSave(); renderTitle(TITLE_SAVE === 'both' ? 'pick' : 'home');
   } catch (e) { err.textContent = e.message; btns.forEach(b => { if (b) b.disabled = false; }); sfx('error'); }
+}
+// v0.09: Invest opens on your Portfolio once you own something, and on Stocks until then
+function openInvest() {
+  const owns = Object.values(S.hold).some(h => h.q > 0) || Object.keys(S.pubHold || {}).length > 0 || S.props.some(p => p.own);
+  if (UI.investTab === 'portfolio' && !owns) UI.investTab = 'stocks';
+  openModal('stocks');
 }
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
