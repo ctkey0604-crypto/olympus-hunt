@@ -40,7 +40,8 @@ const PUB_MAX = .49;               // the most of a company outside shareholders
 const PUB_HALF = 1800;             // seconds: buying and selling pressure on a share fades with a 30-minute half-life
 const PUB_DEPTH = .05;             // buying 5% of a company's value pushes its price up about 41% (the square-root law)
 const PUB_MOVE = [.6, 1.6];        // the most players' trading can move a share price
-const PUB_PREMIUM = 60;            // investors add up to an hour of profit to a company's value (at most twice its value)
+const PUB_PREMIUM = 15, PUB_PREM_CAP = .25;   // investors add 15 minutes of steady profit to a company's value, at most 25% more
+                                               // (v0.10; it was an hour, up to 3× its value, so share prices ran far ahead of the company)
 const IPO_DISCOUNT = .9, IPO_FEE = .05, ISSUE_FEE = .05, BUYBACK_FEE = .005;
 const BAND = [.6, 1.7];            // a trade's price must be this close to the server's own idea of it
 const RESERVED = ['MB10', 'TSW', 'FORG', 'CRMB', 'RDLN', 'SITW', 'GLDN', 'NOVA', 'PXC'];
@@ -222,10 +223,10 @@ async function holdingsOf(env, name, q) {
 function mineOf(L) { return { ticker: L.ticker, total: r4(L.total), own: r4(L.own), listed: L.listed, paid: r2(L.paid) }; }
 
 /* ---------- going public ---------- */
-// What a share is worth to investors: the company's value plus up to an hour of profit (at most twice its value), split
+// What a share is worth to investors: the company's value plus 15 minutes of steady profit (at most 25% more), split
 // over every share, then moved by players' buying and selling (square-root law, fading over half an hour). The game adds
 // the market's mood and each company's own day-to-day wander on top, so the server checks trades within a wide band.
-function fairPerShare(L) { const book = Math.max(0, L.book); return Math.max(.01, (book + Math.min(2 * book, PUB_PREMIUM * Math.max(0, L.profit))) / L.total); }
+function fairPerShare(L) { const book = Math.max(0, L.book); return Math.max(.01, (book + Math.min(PUB_PREM_CAP * book, PUB_PREMIUM * Math.max(0, L.profit))) / L.total); }
 function pressure(L, now) { const k = Math.pow(.5, Math.max(0, now - L.ft) / 1000 / PUB_HALF); return [L.fb * k, L.fs * k]; }
 function sharePrice(L, now) {
   const f = fairPerShare(L), [fb, fs] = pressure(L, now), D = PUB_DEPTH * f * L.total;
