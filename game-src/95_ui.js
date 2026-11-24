@@ -99,7 +99,7 @@ async function renderSlots() {
 /* ---- accounts (only on your own website) ---- */
 let acctMode = null, acctMsg = '', acctBusy = false;
 function accountHTML() {
-  if (!Store.api) return '';
+  if (!Store.api) return ITCH ? itchCard('Log in to hunt with friends online and keep your saves on any device. Your saves here come along.') : '';
   const msg = acctMsg ? `<p class="acct-msg">${esc(acctMsg)}</p>` : '';
   // One Inspirapixel account for every Inspirapixel game: Brick & Coin logs in with these same accounts.
   if (Store.user) return `<div class="acct-row"><span>Logged into your Inspirapixel account as <b>${esc(Store.user)}</b> · <a href="/account.html" target="_blank" rel="noopener">Account &amp; email</a></span><button class="btn ghost small" type="button" data-acct="out">Log out</button></div>${msg}`;
@@ -116,7 +116,7 @@ function accountHTML() {
     ${create ? '<p class="acct-note">One account for every Inspirapixel game, Brick &amp; Coin too. Names are 3 to 20 letters, numbers or underscores. Afterwards, add an email on your account page so you can reset a forgotten password.</p>' : ''}${msg}`;
 }
 function renderAccount() {
-  const box = $('acctBox'); box.hidden = !Store.api; box.innerHTML = accountHTML();
+  const box = $('acctBox'); box.hidden = !Store.api && !ITCH; box.innerHTML = accountHTML();
   const home = $('acctHome'); if (home) home.innerHTML = accountHTML();
   const f = document.querySelector('[data-acctform] input[name="name"]'); if (f && !acctBusy && document.activeElement !== f && !f.value) f.focus();
 }
@@ -572,7 +572,7 @@ function renderOptions() {
       <div class="opt-split"></div>
       <div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Olympus Saga credits</button>' : ''}${G.save.northEnd ? '<button class="btn ghost small" type="button" data-opt="ncredits">Northern Saga credits</button>' : ''}</div>
     </div>
-    ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
+    ${Store.api || ITCH ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
     <details class="opt wide fold" id="ctlBox" ${G.ctlOpen || G.rebinding ? 'open' : ''}><summary><h3>Controls</h3><span class="muted">${touchMode ? 'Auto-aim' : 'Keys, auto-aim and mouse'}</span></summary>
       ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. A gaming mouse’s side buttons (Mouse 4 and 5) and the middle button work too. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
       <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key or mouse button… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
@@ -805,7 +805,7 @@ function resNextButton(next) {
 
 /* ---- the Oracle: hunting with others ---- */
 function renderOracle() {
-  if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
+  if (!Store.api) return ITCH ? `<div class="opt"><h3>Hunt together online</h3><p>Rooms for up to six, the Coliseum and accounts are on olympushunt.com. It opens right here, and your saves come along.</p><button class="btn" type="button" data-itch="1">Play online</button></div>` : `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
   if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/${PARTY_MAX}</span></h3>
@@ -1194,13 +1194,16 @@ function frame(now) {
   document.documentElement.style.setProperty('--meander', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 })();
 Settings.load();
+itchTakeSaves();                                                      // coming from the itch.io page: its saves come along (94_itch.js)
 Store.init();
+$('btnOnline').hidden = !ITCH;
 anHit('visit');                                                       // anonymous daily counts for the owner dashboard
 renderTitleControls();
 drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
+SPLASH.done.then(itchArrive);
 SPLASH.done.then(() => Music.play('menu'));         // the menu theme starts once the Inspirapixel splash is gone
 // Browsers only allow sound before the first click, tap or key press on sites people use a lot (Chrome remembers), so
 // try right away; otherwise the very first input anywhere switches it on (for most players, the splash's

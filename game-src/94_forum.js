@@ -10,7 +10,7 @@ function renderForum() {
   const box = $('forumBody'), signed = !!Store.user, busy = fmBusy ? 'disabled' : '';
   const err = fmMsg ? `<p class="sg-err">${esc(fmMsg)}</p>` : '';
   const sign = `<div class="row"><button class="btn" type="button" data-fm="sign">Sign in to post</button></div>`;
-  if (!Store.api) { box.innerHTML = '<p class="vote-lead">The community board needs the online version of the game.</p>'; return; }
+  if (!Store.api) { box.innerHTML = '<p class="vote-lead">The community board needs the online version of the game.</p>' + (ITCH ? itchCard('It opens right here.') : ''); return; }
   if (fmView === 'new') {
     box.innerHTML = `<p class="vote-lead">Start a post. Everyone can read it, so keep it friendly.</p>${err}
       <form class="fm-form" id="fmNew" autocomplete="off"><input id="fmTitle" maxlength="60" placeholder="Title" value="${esc(fmDraft.title)}" aria-label="Title">
