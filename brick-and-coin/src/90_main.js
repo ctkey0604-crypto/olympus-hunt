@@ -53,7 +53,7 @@ function stepCamera(dt) {
   if (Math.abs(CAM.x - cx) < .5 && Math.abs(CAM.y - cy) < .5) { CAM.x = cx; CAM.y = cy; CAM.tx = CAM.ty = null; }
 }
 function spotXY(i) { return i >= 100 ? PLOTS[i - 100] : lotXY(i); }
-function hqTier() { return 1 + Math.round(S.hqLv * 4 / 7); }
+function hqTier() { return Math.min(5, 1 + Math.round(S.hqLv * 4 / 7)); }   // v0.14: five looks, the last from the 160-slot HQ on
 function drawPlot(P, k, x, y, t) {
   const pr = S.props[k], type = PLOTS[k].t, locked = PROPS[type].lvl > S.level;
   ctx.drawImage(houseSprite(type, pr.own ? pr.reno : 1), x - 6, y - 14);

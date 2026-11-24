@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.13';
+const VERSION = 'v0.14';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -580,8 +580,8 @@ const LEVELS = [
 ];
 const MAX_LEVEL = 4;                     // v0.04 adds Gold Hill
 const MARKET_SIZE = [0, 1, 1.6, 2.5, 4]; // NPC demand grows with your level
-const HQ_CAP  = [10, 18, 28, 40, 56, 78, 110, 160];       // v0.09: more room for factories (was 6, 12, 20, 30, 45, 65, 95, 140)
-const HQ_COST = [800, 3000, 9000, 25000, 70000, 200000, 600000];   // v0.09: cheaper (was 1000, 4000, 12000, 35000, 100000, 300000, 900000)
+const HQ_CAP  = [10, 18, 28, 40, 56, 78, 110, 160, 200, 235];   // v0.09: more room for factories (was 6, 12, 20, 30, 45, 65, 95, 140); v0.14: two more upgrades, up to a full town (47 lots x 5 levels)
+const HQ_COST = [800, 3000, 9000, 25000, 70000, 200000, 600000, 1000000, 1600000];   // v0.09: cheaper (was 1000, 4000, 12000, 35000, 100000, 300000, 900000)
 const WH_CAP  = [200, 400, 800, 1500, 3000, 6000, 12000];
 const WH_COST = [600, 2000, 6000, 18000, 50000, 150000];
 const START_CASH = 2000;
@@ -760,6 +760,9 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.14', title: 'Room for a full town', items: [
+    '<b>Two more HQ upgrades</b>: room for 200 building levels, then 235, enough for every lot in town at its highest level (it stopped at 160).',
+  ] },
   { v: 'v0.13', title: 'Smoother charts', items: [
     'Players’ share charts are <b>smooth and live</b>: the price every 10 seconds while you play (kept in this browser for 4 hours), joined up with the server’s 5-minute prices for the rest of the day.',
   ] },

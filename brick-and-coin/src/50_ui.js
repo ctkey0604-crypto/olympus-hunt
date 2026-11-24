@@ -201,7 +201,7 @@ function hqView() {
   const sig = `hq|${S.hqLv}|${S.whLv}|${S.level}`;
   const hqNext = S.hqLv < HQ_COST.length, whNext = S.whLv < WH_COST.length;
   return { sig, html: `
-    <div class="side-head"><img class="px big-prev" src="${buildingPreview('hq', 1 + Math.round(S.hqLv * 4 / 7))}" alt=""><div><h2>${esc(S.company)} HQ</h2><span class="muted">Level ${S.level} · ${LEVELS[S.level].name}</span></div></div>
+    <div class="side-head"><img class="px big-prev" src="${buildingPreview('hq', hqTier())}" alt=""><div><h2>${esc(S.company)} HQ</h2><span class="muted">Level ${S.level} · ${LEVELS[S.level].name}</span></div></div>
     <section class="card"><h3>Factory limit <span data-live="capt"></span></h3><div class="bar"><i data-live="capbar"></i></div>
       <p class="muted" style="font-size:13px">Every building level uses one slot. Go over the limit and <b>all</b> your factories slow down.</p>
       ${hqNext ? `<button class="btn" type="button" data-act="hqup" data-cost="${hqUpgradeCost()}">Upgrade HQ to ${HQ_CAP[S.hqLv + 1]} slots · ${money(hqUpgradeCost(), false)}</button>` : '<span class="chip gold">HQ fully upgraded</span>'}</section>
