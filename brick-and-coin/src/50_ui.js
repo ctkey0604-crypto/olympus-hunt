@@ -25,7 +25,7 @@ function rateTxt(x) { return (x >= 10 ? Math.round(x) : Math.round(x * 10) / 10)
 function cyclesPerMin(p, lv, mult) { return 60 / PRODUCTS[p].sec * lv * mult; }
 // Inputs you make yourself count at the market's sell price (what they'd fetch). Inputs you don't make count at the
 // buy price, since the building has to buy them (v0.04: before, a factory buying everything could show a profit while losing money).
-function inputPrice(q, act = activeProducts()) { return act.has(q) ? price(q) : buyPrice(q); }
+function inputPrice(q, act = activeProducts()) { return act.has(q) ? price(q) : buyPrice(q, FACTORY_MARKUP); }
 function estProfit(p, lv = 1, mult = 1) {
   const P = PRODUCTS[p], c = cyclesPerMin(p, lv, mult), act = activeProducts();
   let v = c * P.out * price(p); for (const q in P.rec) v -= c * P.rec[q] * inputPrice(q, act);
@@ -242,7 +242,7 @@ function bldView(i, l) {
       <div style="font-size:13px">${recipeHTML(l.b, true)}</div></section>
     <section class="card"><h3>Output</h3>${flowSeg(l.b)}
       <p class="muted" style="font-size:12px">${flowOf(l.b) === 'auto' ? 'Keeps what your own factories need, sells the rest.' : flowOf(l.b) === 'sell' ? 'Sells everything as it is made.' : 'Stores everything. The factory stops when storage is full.'}</p>
-      ${P.raw ? '' : `<label class="check"><input type="checkbox" data-act="autobuy" data-i="${i}" ${l.autoBuy ? 'checked' : ''}> Buy missing inputs from the market (costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than making them)</label>`}</section>
+      ${P.raw ? '' : `<label class="check"><input type="checkbox" data-act="autobuy" data-i="${i}" ${l.autoBuy ? 'checked' : ''}> Buy missing inputs from the market (costs ${Math.round((FACTORY_MARKUP - 1) * 100)}% more than making them)</label>`}</section>
     <p class="muted" style="font-size:13px">${BLURB[l.b]}</p>
     ${up ? `<button class="btn" type="button" data-act="upgrade" data-cost="${uc}">Upgrade to Lv ${l.lv + 1} · ${money(uc, false)}${(() => { const g = estProfit(l.b, l.lv + 1, lotMult()) - estProfit(l.b, l.lv, lotMult()); return g > 0 ? ` · +${money(g)}/min` : ''; })()}</button><span class="muted" style="font-size:12px">Each level makes it faster and fancier: ${['street lamps', 'banner flags', 'gold roof trim', 'a gold crown'][l.lv - 1]} next.</span>` : '<span class="chip gold">Max level: fully decked out</span>'}
     <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="demolish">${conf ? `Tap again: tear down for ${money(l.spent * .4, false)} back` : 'Tear down'}</button>
@@ -357,7 +357,7 @@ const MODAL = {
         <span class="acts"><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="10">Sell 10</button><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="all">Sell all</button><button class="btn small" type="button" data-act="buy" data-p="${p}" data-q="10">Buy 10</button></span></div>`;
     }).join('');
     return { sig, title: 'Market', html: `
-      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Millbrook is a big market: your steady selling barely moves a price, but dumping a huge pile at once pushes it down for a couple of minutes. When many players sell the same good, it drops for everyone (shown as “players”). Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
+      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Millbrook is a big market: your steady selling barely moves a price, but dumping a huge pile at once pushes it down for a couple of minutes. When many players sell the same good, it drops for everyone (shown as “players”). Buying by hand costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling; a factory buying its own materials pays ${Math.round((FACTORY_MARKUP - 1) * 100)}% more.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="seg" role="group" aria-label="Which goods"><button type="button" data-act="mktf" data-v="mine" aria-pressed="${f === 'mine'}">Your goods</button><button type="button" data-act="mktf" data-v="all" aria-pressed="${f === 'all'}">All goods</button></div>
         <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b> <button class="btn ghost small" type="button" data-act="sellspare" title="Sells everything in storage except what your own factories need">Sell all spare</button></span></div>
@@ -541,7 +541,7 @@ const HELP = [
   { art: () => bigArt(buildingPreview('planks', 3)), t: 'Make better goods', p: [
     'Open <b>Production</b> (P) to unlock new products.',
     '<b>Factories</b> turn goods into better goods: wood → planks → chairs → furniture → grand pianos.',
-    'A factory short of materials can <b>buy them</b> from the market, at 30% more.'] },
+    'A factory short of materials can <b>buy them</b> from the market, at 15% more.'] },
   { art: () => bigArt(buildingPreview('hq', 4)), t: 'Grow', p: [
     'Your <b>HQ</b> can run a limited number of building levels. Upgrade it to grow.',
     'You can make <b>5 different products</b> at once, so pick a direction.',

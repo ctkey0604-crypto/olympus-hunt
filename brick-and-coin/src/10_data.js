@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.14';
+const VERSION = 'v0.15';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -588,7 +588,10 @@ const START_CASH = 2000;
 const STARTUP_BOOST = 1.5;            // production speed until you reach Level 2
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
-const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% over the sell price
+const NPC_MARKUP = 1.3;               // buying from the NPC market by hand costs 30% over the sell price
+// v0.15: a factory buying its own inputs pays 15% over (it was 30% too). Hand buying stays at 30%: at 15%, filling storage
+// in a slump and selling after it would pay several times better than it does.
+const FACTORY_MARKUP = 1.15;
 /* v0.09: your own selling. Millbrook's buyers are a big market, so your steady output barely moves a price (a few percent at
    most); dumping a huge pile at once still pushes it down for a couple of minutes (square-root law, like real order books),
    never by more than 40%. Buying works the same way upwards. Before v0.09 a busy factory line could cut its own price in half. */
@@ -760,6 +763,10 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.15', title: 'Cheaper materials', items: [
+    '<b>Cheaper materials</b>: a factory that buys its own materials now pays 15% over the market price (it was 30%). Buying by hand still costs 30% more.',
+    'Leaving the game open and idle no longer makes your company <b>look like it’s failing</b>: the steady profit and trend investors see stay as you left them until you’re back. The town still runs at 25% speed while you’re idle.',
+  ] },
   { v: 'v0.14', title: 'Room for a full town', items: [
     '<b>Two more HQ upgrades</b>: room for 200 building levels, then 235, enough for every lot in town at its highest level (it stopped at 160).',
   ] },

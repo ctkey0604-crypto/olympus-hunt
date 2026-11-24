@@ -52,7 +52,8 @@ function price(p) {
   const M = S.market[p], D = marketDepth(p);
   return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) * crowdMult(p) * ownImpact(M, D);
 }
-function buyPrice(p) { return price(p) * NPC_MARKUP; }
+// what buying costs: by hand, or for a factory's own inputs (FACTORY_MARKUP, v0.15)
+function buyPrice(p, markup = NPC_MARKUP) { return price(p) * markup; }
 // your own recent selling (sat) and buying (bp), fading with a 2-minute half-life, against a deep market (v0.09)
 function ownImpact(M, D) { const K = OWN_DEPTH * D; return clamp(Math.sqrt((1 + M.bp / K) / (1 + M.sat / K)), OWN_MIN, OWN_MAX); }
 // the last 5 minutes of prices for the sparklines, from the world (at today's own selling pressure)
@@ -72,17 +73,17 @@ function sellGoods(p, q, auto) {
   S.cash += rev; S.stats.sales += rev; addProfit(rev);
   return rev;
 }
-function buyGoods(p, q) {
+function buyGoods(p, q, markup) {
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
   let left = q, cost = 0;
-  while (left > 0) { const c = Math.min(left, chunk); cost += c * buyPrice(p); M.bp += c; left -= c; }
+  while (left > 0) { const c = Math.min(left, chunk); cost += c * buyPrice(p, markup); M.bp += c; left -= c; }
   crowdNote(p, 0, q);
   return cost;
 }
 // does making p still pay if every input you don't make yourself is bought from the market?
 function buysPay(p) {
   const P = PRODUCTS[p]; if (P.raw) return false;
-  const act = activeProducts(); let cost = 0; for (const q in P.rec) cost += P.rec[q] * (act.has(q) ? price(q) : buyPrice(q));
+  const act = activeProducts(); let cost = 0; for (const q in P.rec) cost += P.rec[q] * (act.has(q) ? price(q) : buyPrice(q, FACTORY_MARKUP));
   return P.out * price(p) - cost > upkeepPerMin({ b: p, lv: 1 }) * P.sec / 60;
 }
 // v0.09: sell everything in storage except what your own factories need (two minutes of it), Keep products included
@@ -95,7 +96,7 @@ function sellAllSpare() {
   }
   return { got, n };
 }
-function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
+function quoteBuy(p, q, markup) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p, markup) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
 // v0.11: what the company made while the game was closed isn't this minute's profit: it used to land in one second of the
 // ledger, so $/min (and the steady profit investors value) jumped for a while after every return
 let PROFIT_OFF = false;
@@ -145,10 +146,10 @@ function stepProduction(dt, offlineRate = 1) {
         const amt = {}; let cost = 0, extra = 0;
         for (const q of miss) {
           const need = P.rec[q] - (S.inv[q] || 0), cheap = offlineRate === 1 && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
-          amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q]);
+          amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q], FACTORY_MARKUP);
         }
-        if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q]); } }   // short of cash: just this cycle
-        if (S.cash >= cost) { for (const q of miss) { const c = buyGoods(q, amt[q]); S.cash -= c; addProfit(-c); S.inv[q] = (S.inv[q] || 0) + amt[q]; } ok = true; }
+        if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q], FACTORY_MARKUP); } }   // short of cash: just this cycle
+        if (S.cash >= cost) { for (const q of miss) { const c = buyGoods(q, amt[q], FACTORY_MARKUP); S.cash -= c; addProfit(-c); S.inv[q] = (S.inv[q] || 0) + amt[q]; } ok = true; }
       }
       if (!ok) { l.stall = 'needs ' + miss.map(q => PRODUCTS[q].name).join(' + '); continue; }
       for (const q in P.rec) { S.inv[q] -= P.rec[q]; if (S.inv[q] <= 1e-9) delete S.inv[q]; }
@@ -284,8 +285,12 @@ function step(dt) {
     S._sec -= 1;
     sellSurplus();
     for (const p of PIDS) { const M = S.market[p]; M._h = (M._h || 0) + 1; if (M._h >= 5) { M._h = 0; M.hist.push(+price(p).toFixed(2)); if (M.hist.length > 60) M.hist.shift(); } }
-    S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
-    S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
+    // v0.15: left idle, the averages investors look at wait, as they do while the game is closed. They used to take in the
+    // quarter-speed profit, so a company whose owner stepped away looked like it was failing.
+    if (AWAY_RATE === 1) {
+      S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
+      S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
+    }
     S.profI = (S.profI + 1) % 60; S.prof[S.profI] = 0; S.profN++;
     checkLevel(); checkGoals();
   }
