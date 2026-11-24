@@ -524,6 +524,9 @@ let URL;
     return [run(false), run(true)];
   });
   check(Math.abs(off[0] - off[1]) < 1, `an hour away pays the same with or without a boom on ($${Math.round(off[0])} both times)`);
+  // v0.17: rent is paid in full while away, for up to 8 hours (factories: 25% for 2)
+  const rentAway = await page.evaluate(() => { const base = JSON.stringify(S), run = own => { S = JSON.parse(base); attachWorld(); S.props[0].own = own; return offlineCatchUp(10 * 3600).earned; }; const a = run(false), b = run(true), want = propRent(0) * RENT_MAX / 60; S = JSON.parse(base); attachWorld(); return [b - a, want]; });
+  check(Math.abs(rentAway[0] - rentAway[1]) < 1, `ten hours away pays 8 hours of a cottage's rent ($${Math.round(rentAway[0])})`);
   await ctx.close();
   // left open but untouched, the game runs like it's closed: 25% after 10 minutes idle, then waits after 2 hours more
   ({ ctx, page } = await open(browser, 'idle', { viewport: { width: 1280, height: 720 } }));
