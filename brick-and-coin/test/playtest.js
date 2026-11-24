@@ -540,6 +540,28 @@ let URL;
   check(await page.evaluate(() => AWAY_RATE === 1) && /idle for/.test(back), `moving the mouse brings it back to full speed and says so (${back || 'no message'})`);
   await ctx.close();
 
+  /* ---------------- v0.16: HQ room, Replace, levels ---------------- */
+  console.log('HQ room, Replace and levels');
+  ({ ctx, page } = await open(browser, 'hqroom', { viewport: { width: 1280, height: 720 } }));
+  await newCompany(page, 'Room Co');
+  await page.click('[data-act=tutdone]');
+  const room = await page.evaluate(() => {
+    const r = { sums: HQ_UNITS.every((u, lv) => u.reduce((a, x) => a + x[0], 0) === HQ_CAP[lv + 1] - HQ_CAP[lv] && u.reduce((a, x) => a + x[1], 0) === HQ_COST[lv]) };
+    S.goal = GOALS.length; S.level = 3; S.hqLv = 3; S.cash = 1e6; ['planks', 'chair'].forEach(q => S.unlocked[q] = true);
+    const lots = [...Array(LOTS).keys()].filter(i => lotUnlocked(i) && !S.lots[i]); let k = 0;
+    while (capUsed() < capMax()) { if (k < 20) { build(lots[k++], 'planks'); } else upgrade(lots[capUsed() % 20]); }
+    r.full = capUsed() + '/' + capMax(); r.build = build(lots[25], 'wood'); r.up = upgrade(lots[0]); r.used = capUsed();
+    const v = levelValue(); r.hq = upgradeHQ(5) || capMax(); r.lv = Math.abs(levelValue() - v) < .01; const s = serialize(); adopt(JSON.parse(s)); r.again = capMax();
+    S.cash = 1e6; selectLot(lots[0]); r.lot = lots[0]; return r; });
+  check(room.sums, 'every HQ upgrade’s slots add up to its room and price');
+  check(room.full === '40/40' && /HQ is full/.test(room.build) && /HQ is full/.test(room.up) && room.used === 40, `a full HQ (${room.full}) takes no building and no upgrade`);
+  check(room.hq === 45 && room.again === 45, 'five slots at once, kept in the save'); check(room.lv, 'buying HQ room doesn’t move the next level away');
+  await page.click('#side [data-act=repopen]'); await page.click('#side [data-act=replace][data-p=chair]');
+  check(await page.evaluate(i => S.lots[i].b, room.lot) === 'planks', 'Replace asks twice');
+  await page.click('#side [data-act=replace][data-p=chair]');
+  check(await page.evaluate(i => S.lots[i].b + S.lots[i].lv, room.lot) === 'chair1', 'then swaps the building');
+  await ctx.close();
+
   /* ---------------- 7. other screens ---------------- */
   console.log('Phone on its side 844x390 (touch)');
   ({ ctx, page } = await open(browser, 'phone', { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }));
