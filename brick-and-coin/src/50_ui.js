@@ -31,7 +31,7 @@ function estProfit(p, lv = 1, mult = 1) {
   let v = c * P.out * price(p); for (const q in P.rec) v -= c * P.rec[q] * inputPrice(q, act);
   return v - UPKEEP[tierOf(p)] * lv;
 }
-function lotMult() { return efficiency() * (boostOn() ? STARTUP_BOOST : 1); }
+function lotMult() { return efficiency() * boostMult(); }
 function recipeHTML(p, small) {
   const P = PRODUCTS[p], sz = small ? 18 : 36;
   if (P.raw) return `<span class="muted">Needs no materials</span> → makes ${P.out} ${iconImg(p, sz, P.name)}`;
@@ -44,18 +44,19 @@ const LIVE = {
   inv: p => qty(S.inv[p]),
   price: p => money(price(p)),
   bprice: p => money(buyPrice(p)),
-  est(arg) { const [p, lv, own] = arg.split('|'); const v = estProfit(p, +lv, own ? lotMult() : (boostOn() ? STARTUP_BOOST : 1)); return { text: (v >= 0 ? '+' : '') + money(v) + '/min', cls: v >= 0 ? 'olive' : 'red' }; },
+  est(arg) { const [p, lv, own] = arg.split('|'); const v = estProfit(p, +lv, own ? lotMult() : boostMult()); return { text: (v >= 0 ? '+' : '') + money(v) + '/min', cls: v >= 0 ? 'olive' : 'red' }; },
   prog(i, el) { const l = S.lots[i]; el.style.width = (l && l.running ? Math.min(100, l.prog * 100) : 0) + '%'; },
   status(i) {
     const l = S.lots[i]; if (!l) return '';
     if (l.stall) return { text: (l.stall === 'storage full' ? 'Stopped: storage full. Sell some, or set output to Auto.' : 'Waiting: ' + l.stall + '.') + ' No upkeep while it waits.', cls: 'status bad' };
     const e = efficiency();
     if (e < 1) return { text: `Running slow: over your factory limit (${Math.round(e * 100)}% speed)`, cls: 'status warn' };
-    return { text: 'Running' + (boostOn() ? ' · startup boost +50%' : ''), cls: 'status ok' };
+    return { text: 'Running' + (boostPct() > 0 ? ` · startup boost +${boostPct()}%` : ''), cls: 'status ok' };
   },
   rate(i) { const l = S.lots[i]; if (!l) return ''; return rateTxt(cyclesPerMin(l.b, l.lv, lotMult()) * PRODUCTS[l.b].out) + ' ' + PRODUCTS[l.b].name; },
   uses(i) { const l = S.lots[i]; if (!l) return ''; const P = PRODUCTS[l.b]; if (P.raw) return 'no materials'; const c = cyclesPerMin(l.b, l.lv, lotMult()); return Object.keys(P.rec).map(q => rateTxt(c * P.rec[q]) + ' ' + PRODUCTS[q].name).join(', '); },
-  lvbar(_, el) { const L = S.level; if (L >= MAX_LEVEL) { el.style.width = '100%'; return; } const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; el.style.width = clamp((companyValue() - a) / (b - a), 0, 1) * 100 + '%'; },
+  lvv: () => money(levelValue(), false),
+  lvbar(_, el) { const L = S.level; if (L >= MAX_LEVEL) { el.style.width = '100%'; return; } const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; el.style.width = clamp((levelValue() - a) / (b - a), 0, 1) * 100 + '%'; },
   nw: () => money(netWorth(), false),
   capt: () => `${capUsed()} / ${capMax()}`, wht: () => `${qty(whUsed())} / ${whMax()}`,
   capbar(_, el) { el.style.width = Math.min(100, capUsed() / capMax() * 100) + '%'; el.classList.toggle('over', capUsed() > capMax()); },
@@ -113,12 +114,12 @@ function sparkPath(h, w, ht) {
 function updateTop() {
   $('#coName').textContent = S.company;
   $('#lvChip').textContent = `LV ${S.level} · ${LEVELS[S.level].name.toUpperCase()}`;
-  $('#boostChip').hidden = !boostOn();
+  const bc = $('#boostChip'), bp = boostPct(); bc.hidden = bp <= 0; if (bp > 0) bc.textContent = `Startup boost +${bp}%`;
   $('#cash').textContent = money(S.cash, false); $('#cash').style.color = S.cash < 0 ? 'var(--pink)' : '';   // red when in debt
   const v = profitPerMin(), pp = $('#ppm'); pp.textContent = (v >= 0 ? '+' : '') + money(v) + '/min profit'; pp.className = v >= 0 ? 'olive' : 'red';
-  const nw = netWorth(), cv = companyValue(); $('#nw').textContent = money(nw, false);
+  const nw = netWorth(); $('#nw').textContent = money(nw, false);
   const L = S.level, bar = $('#lvBar');
-  if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; bar.style.width = clamp((cv - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1} (${LEVELS[L + 1].name}) at ${S.pub ? 'company value ' : ''}${money(b, false)}`; }
+  if (L < MAX_LEVEL) { const a = LEVELS[L].nw, b = LEVELS[L + 1].nw; const lv = levelValue(); bar.style.width = clamp((lv - a) / (b - a), 0, 1) * 100 + '%'; $('#lvNext').textContent = `Level ${L + 1}: ${money(lv, false)} of ${money(b, false)}`; }
   else { bar.style.width = '100%'; $('#lvNext').textContent = `Top level: all of Millbrook is open`; }
   $('#lvBarWrap').setAttribute('aria-label', 'Progress to next level');
   $('#cap').textContent = `${capUsed()} / ${capMax()}`;
@@ -127,7 +128,7 @@ function updateTop() {
   const waiting = S.lots.filter(l => l && l.b !== 'hq' && l.stall && l.stall !== 'storage full').length, note = $('#capNote');
   note.textContent = capUsed() > capMax() ? `Over the limit: all factories at ${Math.round(efficiency() * 100)}% speed`
     : waiting ? `${waiting} waiting for materials: tap to see`
-    : capUsed() >= capMax() && S.hqLv < HQ_COST.length ? `Full: upgrade HQ for ${HQ_CAP[S.hqLv + 1] - capMax()} more (${money(hqUpgradeCost(), false)})`
+    : capUsed() >= capMax() && S.hqLv < HQ_COST.length ? `Full: ${hqQuote(1).slots > 1 ? `upgrade HQ for ${hqQuote(1).slots} more` : 'add a slot'} (${money(hqUpgradeCost(), false)})`
     : 'each building level uses one';
   note.classList.toggle('red', capUsed() > capMax() || waiting > 0);
   $('#wh').textContent = `${qty(whUsed())} / ${whMax()}`;
@@ -141,7 +142,7 @@ function sideView() {
   if (i >= 100) return propView(i - 100);
   const l = S.lots[i];
   if (l && l.b === 'hq') return hqView();
-  if (l) return bldView(i, l);
+  if (l) return UI.rep === i ? replaceView(i, l) : bldView(i, l);
   if (!lotUnlocked(i)) return lockedView(i);
   return emptyView(i);
 }
@@ -159,31 +160,32 @@ function homeView() {
     <section class="card"><h3>How to play</h3>
       <p class="tip">Tap an <b>empty lot</b> to build. Tap a <b>building</b> to upgrade it. Drag the map to look around.</p>
       <p class="tip">Open <b>Production</b> to unlock new products, <b>Market</b> to trade goods, <b>Invest</b> for stocks and real estate.</p>
-      <p class="tip">Grow your <b>net worth</b> to open new areas of town and deeper products.</p></section>` };
+      <p class="tip">Grow your <b>company</b> to open new areas of town and deeper products.</p></section>` };
 }
 function flowSeg(p, compact) {
   const f = flowOf(p);
   return `<div class="seg" role="group" aria-label="What to do with ${PRODUCTS[p].name}">${['auto', 'sell', 'keep'].map(v =>
     `<button type="button" data-act="flow" data-p="${p}" data-v="${v}" aria-pressed="${f === v}">${v === 'auto' ? 'Auto' : v === 'sell' ? 'Sell' : 'Keep'}</button>`).join('')}</div>`;
 }
+const LIMIT_TXT = `Product limit ${MAX_ACTIVE_PRODUCTS}/${MAX_ACTIVE_PRODUCTS}: tear down another product first`;
 function emptyView(i) {
   const act = activeProducts();
   const list = PIDS.filter(p => S.unlocked[p]);
-  const sig0 = `empty|${i}|${list.join()}|${[...act].join()}|${S.level}`;
-  let best = null, bs = -Infinity;
-  for (const p of list) { if (!act.has(p) && act.size >= MAX_ACTIVE_PRODUCTS) continue; const sc = estProfit(p) / buildCost(p); if (S.cash >= buildCost(p) && sc > bs) { bs = sc; best = p; } }
+  const full = !hqRoom(), sig0 = `empty|${i}|${list.join()}|${[...act].join()}|${S.level}|${full ? capMax() + ',' + S.hqLv : ''}`;
+  const best = bestPick(list, act);
   const cards = list.map(p => {
     const c = buildCost(p), blocked = !act.has(p) && act.size >= MAX_ACTIVE_PRODUCTS;
     return `<div class="bcard"><img class="px" src="${buildingPreview(p)}" alt="">
       <div class="info"><b>${PRODUCTS[p].bld} ${p === best ? '<span class="chip gold">Best pick</span>' : ''}</b><span>${recipeText(p)}</span>
-      <span>${rateTxt(cyclesPerMin(p, 1, boostOn() ? STARTUP_BOOST : 1) * PRODUCTS[p].out)} · upkeep ${money(UPKEEP[tierOf(p)])}/min</span>
+      <span>${rateTxt(cyclesPerMin(p, 1, boostMult()) * PRODUCTS[p].out)} · upkeep ${money(UPKEEP[tierOf(p)])}/min</span>
       <span>Profit about <b data-live="est:${p}|1" data-base=""></b></span></div>
-      <div class="act">${blocked ? `<span class="why">Product limit ${MAX_ACTIVE_PRODUCTS}/${MAX_ACTIVE_PRODUCTS}: tear down another product first</span>` : '<span></span>'}
-      <button class="btn small" type="button" data-act="build" data-p="${p}" data-cost="${c}" ${blocked ? 'data-block="1"' : ''}>Build ${money(c, false)}</button></div></div>`;
+      <div class="act">${blocked ? `<span class="why">${LIMIT_TXT}</span>` : '<span></span>'}
+      <button class="btn small" type="button" data-act="build" data-p="${p}" data-cost="${c}" ${blocked ? `data-block="${LIMIT_TXT}"` : full ? `data-block="${HQ_FULL}"` : ''}>Build ${money(c, false)}</button></div></div>`;
   }).join('');
   const sig = sig0 + '|' + best;
   return { sig, html: `
     <div class="side-head"><div><h2>Empty lot</h2><span class="muted">${ZONE_NAME[Math.floor(i / 12)]}</span></div></div>
+    ${full ? hqFullCard() : ''}
     ${cards || '<p class="muted">You have no products unlocked yet.</p>'}
     <button class="btn ghost wide" type="button" data-act="prod">${iconImg('gear', 18)} Unlock more products</button>
     <button class="btn ghost wide" type="button" data-act="deselect">Back</button>` };
@@ -192,19 +194,27 @@ function lockedView(i) {
   const b = Math.floor(i / 12), L = ZONE_LEVEL[b];
   return { sig: `locked|${b}|${S.level}`, html: `
     <div class="side-head">${iconImg('lock', 54)}<div><h2>${ZONE_NAME[b]}</h2><span class="muted">Opens at Level ${L} (${LEVELS[L].name})</span></div></div>
-    <section class="card"><p>Reach <b class="gold">${money(LEVELS[L].nw, false)}</b> net worth to build here. You're at <b data-live="nw"></b>.</p>
+    <section class="card"><p>Grow your company to <b class="gold">${money(LEVELS[L].nw, false)}</b> to build here. You're at <b data-live="lvv"></b>: its value, plus all you’ve put into your HQ, storage and research.</p>
     <div class="bar"><i data-live="lvbar"></i></div>
     <p class="muted" style="font-size:13px">A new level also unlocks deeper products in the Production web, and the market gets bigger so prices hold up when you sell more.</p></section>
     <button class="btn ghost wide" type="button" data-act="deselect">Back</button>` };
 }
+// buy HQ room: a whole upgrade early on, then a slot (or a few) at a time
+function hqBtns() {
+  if (S.hqLv >= HQ_COST.length) return '<span class="chip gold">HQ fully upgraded</span>';
+  const q = hqQuote(1), b = (n, cls) => { const Q = hqQuote(n); return `<button class="btn ${cls}" type="button" data-act="hqup" data-n="${n}" data-cost="${Q.cost}">+${Q.slots} slot${Q.slots === 1 ? '' : 's'} · ${money(Q.cost, false)}</button>`; };
+  if (q.slots > 1) return `<button class="btn" type="button" data-act="hqup" data-n="1" data-cost="${q.cost}">Upgrade HQ to ${capMax() + q.slots} slots · ${money(q.cost, false)}</button>`;
+  return `<div class="hqbuy">${b(1, '')}${hqQuote(5).n > 1 ? b(5, 'ghost') : ''}</div>`;
+}
+function hqFullCard() { return `<section class="card"><h3>Your HQ is full <span class="muted" data-live="capt"></span></h3><p class="muted" style="font-size:13px">${S.hqLv < HQ_COST.length ? 'Add room, or' : 'Open a building to'} <b>replace</b> ${S.hqLv < HQ_COST.length ? 'a building with a better one (tap it on the map)' : 'it with a better one'}.</p>${hqBtns()}</section>`; }
 function hqView() {
-  const sig = `hq|${S.hqLv}|${S.whLv}|${S.level}`;
-  const hqNext = S.hqLv < HQ_COST.length, whNext = S.whLv < WH_COST.length;
+  const sig = `hq|${S.hqLv}|${hqPart()}|${S.whLv}|${S.level}|${capUsed() > capMax()}`;
+  const whNext = S.whLv < WH_COST.length;
   return { sig, html: `
     <div class="side-head"><img class="px big-prev" src="${buildingPreview('hq', hqTier())}" alt=""><div><h2>${esc(S.company)} HQ</h2><span class="muted">Level ${S.level} · ${LEVELS[S.level].name}</span></div></div>
     <section class="card"><h3>Factory limit <span data-live="capt"></span></h3><div class="bar"><i data-live="capbar"></i></div>
-      <p class="muted" style="font-size:13px">Every building level uses one slot. Go over the limit and <b>all</b> your factories slow down.</p>
-      ${hqNext ? `<button class="btn" type="button" data-act="hqup" data-cost="${hqUpgradeCost()}">Upgrade HQ to ${HQ_CAP[S.hqLv + 1]} slots · ${money(hqUpgradeCost(), false)}</button>` : '<span class="chip gold">HQ fully upgraded</span>'}</section>
+      <p class="muted" style="font-size:13px">Every building level uses one slot. When it’s full, add room here, or open a building and <b>replace</b> it with a better one.${capUsed() > capMax() ? ' You’re over the limit, so <b>all</b> your factories run slower.' : ''}</p>
+      ${hqBtns()}</section>
     <section class="card"><h3>Storage <span data-live="wht"></span></h3><div class="bar"><i data-live="whbar"></i></div>
       <p class="muted" style="font-size:13px">Goods you keep wait here for your other factories. When it's full, Auto products sell their extra.</p>
       ${whNext ? `<button class="btn ghost" type="button" data-act="whup" data-cost="${whUpgradeCost()}">Bigger warehouse (${WH_CAP[S.whLv + 1]}) · ${money(whUpgradeCost(), false)}</button>` : '<span class="chip gold">Warehouse fully upgraded</span>'}</section>
@@ -220,7 +230,7 @@ function hqView() {
 function bldView(i, l) {
   const P = PRODUCTS[l.b], up = l.lv < MAX_BLD_LV, uc = up ? upgradeCost(l) : 0, conf = UI.confirm === 'demo' + i;
   const stallKind = !l.stall ? '' : l.stall === 'storage full' ? 'full' : l.stall.startsWith('needs') ? 'needs' : 'price';
-  const sig = `bld|${i}|${l.b}|${l.lv}|${l.autoBuy}|${flowOf(l.b)}|${conf}|${stallKind}`;
+  const full = up && !hqRoom(), sig = `bld|${i}|${l.b}|${l.lv}|${l.autoBuy}|${flowOf(l.b)}|${conf}|${stallKind}|${full ? capMax() + ',' + S.hqLv : ''}`;
   let fix = '';
   if (stallKind === 'needs') { const miss = Object.keys(P.rec).filter(q => (S.inv[q] || 0) < P.rec[q]); const canMake = miss.filter(q => S.unlocked[q]).map(q => PRODUCTS[q].bld);
     fix = `<section class="card"><h3>Missing inputs</h3><p class="muted" style="font-size:13px">${canMake.length ? `Build a ${canMake.join(' or ')} to supply it, or buy` : 'You don’t make this yet. Buy'} it from the market automatically.</p>${l.autoBuy ? '' : `<button class="btn gold" type="button" data-act="fixbuy" data-i="${i}">Buy inputs automatically</button>`}</section>`; }
@@ -244,9 +254,30 @@ function bldView(i, l) {
       <p class="muted" style="font-size:12px">${flowOf(l.b) === 'auto' ? 'Keeps what your own factories need, sells the rest.' : flowOf(l.b) === 'sell' ? 'Sells everything as it is made.' : 'Stores everything. The factory stops when storage is full.'}</p>
       ${P.raw ? '' : `<label class="check"><input type="checkbox" data-act="autobuy" data-i="${i}" ${l.autoBuy ? 'checked' : ''}> Buy missing inputs from the market (costs ${Math.round((FACTORY_MARKUP - 1) * 100)}% more than making them)</label>`}</section>
     <p class="muted" style="font-size:13px">${BLURB[l.b]}</p>
-    ${up ? `<button class="btn" type="button" data-act="upgrade" data-cost="${uc}">Upgrade to Lv ${l.lv + 1} · ${money(uc, false)}${(() => { const g = estProfit(l.b, l.lv + 1, lotMult()) - estProfit(l.b, l.lv, lotMult()); return g > 0 ? ` · +${money(g)}/min` : ''; })()}</button><span class="muted" style="font-size:12px">Each level makes it faster and fancier: ${['street lamps', 'banner flags', 'gold roof trim', 'a gold crown'][l.lv - 1]} next.</span>` : '<span class="chip gold">Max level: fully decked out</span>'}
-    <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="demolish">${conf ? `Tap again: tear down for ${money(l.spent * .4, false)} back` : 'Tear down'}</button>
+    ${full ? hqFullCard() : ''}
+    ${up ? `<button class="btn" type="button" data-act="upgrade" data-cost="${uc}" ${full ? `data-block="${HQ_FULL}"` : ''}>Upgrade to Lv ${l.lv + 1} · ${money(uc, false)}${(() => { const g = estProfit(l.b, l.lv + 1, lotMult()) - estProfit(l.b, l.lv, lotMult()); return g > 0 ? ` · +${money(g)}/min` : ''; })()}</button><span class="muted" style="font-size:12px">Each level makes it faster and fancier: ${['street lamps', 'banner flags', 'gold roof trim', 'a gold crown'][l.lv - 1]} next.</span>` : '<span class="chip gold">Max level: fully decked out</span>'}
+    <button class="btn ghost" type="button" data-act="repopen">Replace with another building</button>
+    <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="demolish">${conf ? `Tap again: tear down for ${money(l.spent * TEAR_DOWN, false)} back` : 'Tear down'}</button>
     <button class="btn ghost" type="button" data-act="deselect">Back</button>` };
+}
+// v0.16: pick what to put here instead
+function replaceView(i, l) {
+  const P = PRODUCTS[l.b], list = PIDS.filter(p => S.unlocked[p] && p !== l.b), now = usualProfit(l.b) * l.lv;
+  const act = new Set(); S.lots.forEach((x, j) => { if (x && x.b !== 'hq' && j !== i) act.add(x.b); });
+  let best = null, bs = now; for (const p of list) { const e = canReplace(i, p); if (e && e !== 'Not enough cash') continue; const v = usualProfit(p, act); if (v > bs) { bs = v; best = p; } }
+  const cards = list.map(p => {
+    const e = canReplace(i, p), blocked = e && e !== 'Not enough cash', c = replaceCost(i, p), conf = UI.confirm === `rep${i}${p}`;
+    return `<div class="bcard"><img class="px" src="${buildingPreview(p)}" alt="">
+      <div class="info"><b>${PRODUCTS[p].bld} ${p === best ? '<span class="chip gold">Earns more</span>' : ''}</b><span>${recipeText(p)}</span>
+      <span>Profit about <b data-live="est:${p}|1" data-base=""></b></span></div>
+      <div class="act">${blocked ? `<span class="why">${e}</span>` : '<span></span>'}
+      <button class="btn small ${conf ? 'danger' : ''}" type="button" data-act="replace" data-p="${p}" data-cost="${Math.max(0, c)}" ${blocked ? `data-block="${e}"` : ''}>${conf ? 'Tap again: ' : ''}${c >= 0 ? `Replace ${money(c, false)}` : `Replace, get ${money(-c, false)} back`}</button></div></div>`;
+  }).join('');
+  return { sig: `rep|${i}|${l.b}|${l.lv}|${list.join()}|${[...act].join()}|${best}|${UI.confirm}`, html: `
+    <div class="side-head"><img class="px big-prev" src="${buildingPreview(l.b, l.lv)}" alt=""><div><h2>Replace ${P.bld}</h2><span class="muted">Level ${l.lv} · profit about <b data-live="est:${l.b}|${l.lv}|own" data-base=""></b></span></div></div>
+    <p class="muted" style="font-size:13px">The new building starts at level 1. What you spent on this one counts ${TRADE_IN * 100}% towards it; anything left over comes back at ${TEAR_DOWN * 100}%.</p>
+    ${cards || '<p class="muted">Unlock another product first.</p>'}
+    <button class="btn ghost wide" type="button" data-act="repclose">Back</button>` };
 }
 function propView(k) {
   const pl = PLOTS[k], P = PROPS[pl.t], pr = S.props[k], locked = P.lvl > S.level, conf = UI.confirm === 'psell' + k;
@@ -547,7 +578,7 @@ const HELP = [
     'You can make <b>5 different products</b> at once, so pick a direction.',
     'Buildings cost a little <b>upkeep</b> each minute, but nothing while they wait for materials.'] },
   { art: () => icoArt('trophy'), t: 'Open the town', p: [
-    'Your <b>net worth</b> (cash, buildings, goods and investments) opens new parts of town:',
+    'Growing your <b>company</b> opens new parts of town: its value, plus all you put into your HQ, storage and research.',
     `<b>Market Row</b> at ${money(LEVELS[2].nw, false)}, <b>Industrial Park</b> at ${money(LEVELS[3].nw, false)}, <b>Gold Hill</b> at ${money(LEVELS[4].nw, false)}.`,
     'Follow the <b>goals</b> for cash rewards.'] },
   { art: () => icoArt('bars'), t: 'Markets', p: [

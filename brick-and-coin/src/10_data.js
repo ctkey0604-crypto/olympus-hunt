@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.15';
+const VERSION = 'v0.16';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -582,10 +582,22 @@ const MAX_LEVEL = 4;                     // v0.04 adds Gold Hill
 const MARKET_SIZE = [0, 1, 1.6, 2.5, 4]; // NPC demand grows with your level
 const HQ_CAP  = [10, 18, 28, 40, 56, 78, 110, 160, 200, 235];   // v0.09: more room for factories (was 6, 12, 20, 30, 45, 65, 95, 140); v0.14: two more upgrades, up to a full town (47 lots x 5 levels)
 const HQ_COST = [800, 3000, 9000, 25000, 70000, 200000, 600000, 1000000, 1600000];   // v0.09: cheaper (was 1000, 4000, 12000, 35000, 100000, 300000, 900000)
+// v0.16: from 40 slots up, HQ room is bought a slot at a time. Within each upgrade a slot climbs from 0.7 to 1.3 times its
+// average price, and they add up to exactly the old price. hqLv stays the number of whole upgrades, so older saves mean what
+// they always did; the slots of the next one bought so far are in S.hqPart (see capMax()).
+const HQ_SLOTWISE = 3;
+const HQ_UNITS = HQ_COST.map((cost, lv) => {   // what you buy in turn within each upgrade: [slots, price]
+  const n = HQ_CAP[lv + 1] - HQ_CAP[lv]; if (lv < HQ_SLOTWISE) return [[n, cost]];
+  const u = Array.from({ length: n }, (_, i) => [1, Math.round(cost / n * (.7 + .6 * i / (n - 1)) / 10) * 10]);
+  u[n - 1][1] += cost - u.reduce((a, x) => a + x[1], 0);
+  return u;
+});
+const TRADE_IN = .75, TEAR_DOWN = .4;   // what a building gives back: towards its replacement (v0.16), or torn down
 const WH_CAP  = [200, 400, 800, 1500, 3000, 6000, 12000];
 const WH_COST = [600, 2000, 6000, 18000, 50000, 150000];
 const START_CASH = 2000;
 const STARTUP_BOOST = 1.5;            // production speed until you reach Level 2
+const BOOST_FADE = 15 * 60;           // v0.16: seconds of play it then takes to fade out (it used to end at once, cutting income by a third)
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
 const NPC_MARKUP = 1.3;               // buying from the NPC market by hand costs 30% over the sell price
@@ -734,15 +746,15 @@ const GOALS = [
   { text:'Unlock a new product in Production (P).', reward:300, done:s => Object.keys(s.unlocked).length >= 2 },
   { text:'Build a factory that turns materials into a product.', reward:500, done:s => s.lots.some(l => l && l.b !== 'hq' && !PRODUCTS[l.b].raw) },
   { text:'Upgrade your HQ so it can run more factories.', reward:500, done:s => s.hqLv >= 1 },
-  { text:'Reach $10,000 net worth to open Market Row.', reward:1000, done:s => s.level >= 2 },
+  { text:'Grow your company to $10,000 to open Market Row.', reward:1000, done:s => s.level >= 2 },
   { text:'Buy into a stock, the index fund or PixCoin (S).', reward:500, done:s => Object.values(s.hold).some(h => h.q > 0) },
   { text:'Build a Level 2 product.', reward:2000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 2) },
   { text:'Buy a property: homes are for sale west and east of town (Invest → Real estate).', reward:1000, done:s => (s.props || []).some(p => p.own) },
   { text:'Upgrade any building to level 3.', reward:2000, done:s => s.lots.some(l => l && l.b !== 'hq' && l.lv >= 3) },
-  { text:'Reach $100,000 net worth to open Industrial Park.', reward:5000, done:s => s.level >= 3 },
+  { text:'Grow your company to $100,000 to open Industrial Park.', reward:5000, done:s => s.level >= 3 },
   { text:'Build a Level 3 product.', reward:10000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 3) },
   // v0.04: the two Gold Hill goals go before the ranking goals, whose rivals keep growing (adopt() moves older saves along)
-  { text:'Reach $1,000,000 net worth to open Gold Hill, south of town.', reward:25000, done:s => s.level >= 4 },
+  { text:'Grow your company to $1,000,000 to open Gold Hill, south of town.', reward:25000, done:s => s.level >= 4 },
   { text:'Build a Gold Hill product (Level 4).', reward:100000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 4) },
   { text:'Climb into the top 5 richest players.', reward:20000, done:s => playerRank(s) <= 5 },
   { text:'Become the richest player in Millbrook.', reward:50000, done:s => playerRank(s) === 1 },
@@ -763,6 +775,14 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.16', title: 'Smoother growth', items: [
+    '<b>Reaching Level 2 no longer cuts your income</b>: the startup boost now fades out over 15 minutes instead of ending at once.',
+    '<b>HQ room a slot at a time</b>: from 40 slots up you buy one slot (or five) whenever you can afford it, for the same total price. No more waiting on one huge upgrade.',
+    '<b>A full HQ takes no more buildings</b>: going over the limit only slowed everything down. If you’re already over, you keep what you have.',
+    '<b>Replace</b> a building with a better one in one go: what you spent on it counts 75% towards the new one.',
+    '<b>Investing counts</b>: what you put into your HQ, storage and research now counts in full towards the next level. (Net worth and share prices are unchanged.)',
+    '<b>Best pick</b> now counts the HQ room a building takes, so it points to what really earns the most. It kept suggesting raw materials, even at Level 4.',
+  ] },
   { v: 'v0.15', title: 'Cheaper materials', items: [
     '<b>Cheaper materials</b>: a factory that buys its own materials now pays 15% over the market price (it was 30%). Buying by hand still costs 30% more.',
     'Leaving the game open and idle no longer makes your company <b>look like it’s failing</b>: the steady profit and trend investors see stay as you left them until you’re back. The town still runs at 25% speed while you’re idle.',

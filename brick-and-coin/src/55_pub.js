@@ -132,6 +132,7 @@ function floatQuote(target) {
 async function pubGoPublic(f) {
   if (S.pub) throw new Error(`${S.company} is already public`);
   if (S.level < PUB_LEVEL) throw new Error(`Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) first`);
+  if (companyValue() < LEVELS[PUB_LEVEL].nw) throw new Error(`The company needs to be worth ${money(LEVELS[PUB_LEVEL].nw, false)} to go public`);   // v0.16: Level 3 can come sooner; the server asks for this
   if (!NET.token) throw new Error('Log in first (Menu → Online): going public needs the server');
   if (!PUB_STEPS.includes(f)) throw new Error('Pick how much to sell');
   if (!NET.lastSave) await netSync(true);   // the server needs the company before it can list it
@@ -237,8 +238,9 @@ function pubPlayersView(tabs) {
 function pubMineView(tabs) {
   const conf = UI.confirm;
   if (!S.pub) {
-    const f = PUB_STEPS.includes(UI.ipoF) ? UI.ipoF : (UI.ipoF = .25), ok = S.level >= PUB_LEVEL;
-    const why = !ok ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}: a company worth ${money(LEVELS[PUB_LEVEL].nw, false)}) to go public.`
+    const f = PUB_STEPS.includes(UI.ipoF) ? UI.ipoF : (UI.ipoF = .25), ok = S.level >= PUB_LEVEL && companyValue() >= LEVELS[PUB_LEVEL].nw;
+    const why = S.level < PUB_LEVEL ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) to go public.`
+      : !ok ? `Going public needs a company value of ${money(LEVELS[PUB_LEVEL].nw, false)} (above): HQ and storage count half there, and research doesn’t.`
       : !NET_API ? 'Open the game at brickncoin.com to go public.' : !NET.token ? 'Log in (Menu → Online) to go public: the server keeps the share register.' : '';
     const steps = PUB_STEPS.map(x => `<button type="button" data-act="ipof" data-v="${x}" aria-pressed="${f === x}">${Math.round(x * 100)}%</button>`).join('');
     return { sig: `mine|ipo|${f}|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `

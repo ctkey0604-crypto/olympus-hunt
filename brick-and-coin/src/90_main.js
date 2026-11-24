@@ -150,7 +150,7 @@ function renderGoalPill() {
 /* ---------- bottom sheet (phones) ---------- */
 function setSheet(open) { UI.sheet = open; $('#side').classList.toggle('open', open); renderGoalPill(); }
 function selectLot(i) {
-  UI.sel = i >= 0 ? { i } : null; UI.confirm = '';
+  UI.sel = i >= 0 ? { i } : null; UI.confirm = ''; UI.rep = null;
   renderSide(true);
   if (isPhone()) {
     setSheet(i >= 0);
@@ -235,12 +235,12 @@ function toggleFullscreen() {
 ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => setTimeout(resize, 60)));
 
 // actions with their own sound (played once they succeed); every other button just clicks
-const ACT_SND = { build: 'build', upgrade: 'upgrade', hqup: 'upgrade', whup: 'upgrade', preno: 'upgrade', unlock: 'unlock',
+const ACT_SND = { build: 'build', replace: 'build', upgrade: 'upgrade', hqup: 'upgrade', whup: 'upgrade', preno: 'upgrade', unlock: 'unlock',
   stbuy: 'buy', pbuy: 'buy', buy: 'buy', sell: 'sell', stsell: 'sell', psell: 'sell', demolish: 'demolish' };
 function act(el) {
   const a = el.dataset.act, p = el.dataset.p, snd = ACT_SND[a]; let err = '';
   if (!snd) sfx('tap');
-  if (a !== 'demolish' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat') UI.confirm = '';
+  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat') UI.confirm = '';
   switch (a) {
     case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
     case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
@@ -284,6 +284,9 @@ function act(el) {
     case 'deselect': UI.sel = null; if (isPhone()) setSheet(false); break;
     case 'build': err = build(UI.sel.i, p); if (!err) { toast(`${PRODUCTS[p].bld} built`, 'good'); } break;
     case 'upgrade': err = upgrade(UI.sel.i); break;
+    case 'repopen': UI.rep = UI.sel.i; UI.confirm = ''; break;   // v0.16
+    case 'repclose': UI.rep = null; UI.confirm = ''; break;
+    case 'replace': { const k = `rep${UI.sel.i}${p}`, was = S.lots[UI.sel.i]; if (UI.confirm !== k) { UI.confirm = k; break; } err = replaceBld(UI.sel.i, p); UI.confirm = ''; if (!err) { UI.rep = null; toast(`${PRODUCTS[was.b].bld} replaced by ${PRODUCTS[p].bld}`, 'good'); } break; }
     case 'demolish': if (UI.confirm === 'demo' + UI.sel.i) { err = demolish(UI.sel.i); UI.confirm = ''; } else UI.confirm = 'demo' + UI.sel.i; break;
     case 'flow': S.flow[p] = el.dataset.v; break;
     case 'fixbuy': { const l = S.lots[+el.dataset.i]; if (l) l.autoBuy = true; break; }
@@ -302,7 +305,7 @@ function act(el) {
     case 'preno': err = renovate(+el.dataset.k); if (!err) toast('Renovated: higher rent and value', 'good'); break;
     case 'pshow': { const k = +el.dataset.k; closeModal(); centerOn(TX + PLOTS[k].x + PLOT / 2, TY + PLOTS[k].y + PLOT / 2, true); setTimeout(() => selectLot(100 + k), 350); return; }
     case 'itab': UI.investTab = el.dataset.v; break;
-    case 'hqup': err = upgradeHQ(); if (!err) toast(`HQ upgraded: ${capMax()} factory slots`, 'good'); break;
+    case 'hqup': err = upgradeHQ(+el.dataset.n || 1); if (!err) toast(`HQ upgraded: ${capMax()} factory slots`, 'good'); break;
     case 'whup': err = upgradeWH(); if (!err) toast(`Warehouse holds ${whMax()} now`, 'good'); break;
     case 'savenow': { const ok = saveLocal(); toast(ok ? 'Saved' : 'This browser blocked saving. Use Copy save code.', ok ? 'good' : 'bad'); return; }
     case 'copysave': {
@@ -331,7 +334,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el || el.tagName === 'INPUT') return; if (el.disabled) return;
   if (el.classList.contains('off')) {   // can't afford it (or not allowed): say so
     sfx('error');
-    toast(el.dataset.block ? `Product limit ${MAX_ACTIVE_PRODUCTS}/${MAX_ACTIVE_PRODUCTS}: tear down another product first` : `Not enough cash: this costs ${money(+el.dataset.cost, false)}`, 'bad');
+    toast(el.dataset.block ? el.dataset.block : `Not enough cash: this costs ${money(+el.dataset.cost, false)}`, 'bad');
     return;
   }
   act(el);

@@ -22,7 +22,7 @@ function bestBuildBtn() {
 
 const TUT = [
   { // 1: first building
-    text: () => selEmpty() ? 'Pick a building and press <b>Build</b>. <b>Best pick</b> earns the most for its price.'
+    text: () => selEmpty() ? 'Pick a building and press <b>Build</b>. <b>Best pick</b> earns the most for its price and room.'
       : 'Welcome to Millbrook! Tap the <b>flashing lot</b> next to your HQ to build your first business.',
     lot: () => selEmpty() ? -1 : tutLot(),
     el: () => selEmpty() ? bestBuildBtn() : null,
@@ -45,7 +45,7 @@ const TUT = [
     el: () => '#nav [data-act=prod]',
     done: () => UI.modal === 'prod' },
   { // 5: off you go
-    text: () => 'That’s the basics. Follow the <b>goals</b> for cash rewards, and grow your net worth to open new parts of town.',
+    text: () => 'That’s the basics. Follow the <b>goals</b> for cash rewards, and grow your company to open new parts of town.',
     btn: 'Got it', done: () => false },
 ];
 
