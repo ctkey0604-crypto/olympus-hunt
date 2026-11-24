@@ -2,7 +2,9 @@
 /* ============================================================================
    SIM — the economy. Runs in fixed steps; nothing here touches the page.
    ========================================================================== */
-let S = null;                     // the whole game state (saved as JSON)
+let S = null;                     // the company you're in
+let ROOT = null;                  // v0.19: your first company, and the save: the others are in ROOT.grp (see 36_group.js)
+let MANAGED = 0;                  // v0.19: while another company is being run for you, its manager's speed
 let RENT_RATE = 1;                // v0.17: rent is paid in full, left idle too, until RENT_MAX
 let AWAY_RATE = 1;                // 1 while someone's playing; OFFLINE_RATE when the game is left idle; 0 once idle past OFFLINE_MAX
 const LOG = { onNews: null, onToast: null, onPop: null, onLevel: null, onGoal: null };
@@ -10,19 +12,23 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 const SAVE_V = 4;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world), 4 = v0.08 (public companies). adopt() brings older saves up to date.
 function newGame(company, start) {
+  S = ROOT = blankCo(company, start);
+  if (!WS.ready) WT = worldNow();
+  attachWorld(); prefillGoodsHist();
+  pushNews('Welcome to Millbrook. ' + company + ' opens for business.', 'info');
+}
+function blankCo(company, start) {   // v0.19: a new company, yours or one of yours
   // v0.05: the market, news, rivals and home prices live in the shared world (35_world.js), not in the save
-  S = {
+  const c = {
     v: SAVE_V, company, start, cash: START_CASH, t: 0, level: 1, hqLv: 0, whLv: 0, tut: 0, settings: null,
     lots: new Array(LOTS).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
     market: {}, news: [], goal: 0, stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
     hold: {}, divAcc: 0, savedAt: nowMs(), boostShown: false, props: PLOTS.map(() => ({ own: false, reno: 1, paid: 0 })),
     pub: null, pubHold: {},   // v0.08: this company's listing (if public), and shares it holds in other players' companies
   };
-  S.lots[HQ_LOT] = { b: 'hq', lv: 1 };
-  for (const p of PIDS) S.market[p] = { sat: 0, bp: 0, hist: [] };
-  if (!WS.ready) WT = worldNow();
-  attachWorld(); prefillGoodsHist();
-  pushNews('Welcome to Millbrook. ' + company + ' opens for business.', 'info');
+  c.lots[HQ_LOT] = { b: 'hq', lv: 1 };
+  for (const p of PIDS) c.market[p] = { sat: 0, bp: 0, hist: [] };
+  return c;
 }
 
 /* ---------------------------------------------------------------- helpers */
@@ -155,7 +161,7 @@ function keepBuffer(p) {
 }
 
 /* ---------------------------------------------------------------- production */
-function stepProduction(dt, offlineRate = 1) {
+function stepProduction(dt, offlineRate = 1, live = offlineRate === 1) {   // live (v0.19): minding prices as it goes, as a managed company does too
   const eff = efficiency() * boostMult() * offlineRate;
   if (S.boostLeft > 0) S.boostLeft = Math.max(0, S.boostLeft - dt * offlineRate);   // idle or closed, it fades as slowly as the town runs
   for (let i = 0; i < S.lots.length; i++) {
@@ -167,11 +173,11 @@ function stepProduction(dt, offlineRate = 1) {
       for (const q in P.rec) if ((S.inv[q] || 0) < P.rec[q]) { ok = false; miss.push(q); }
       if (!ok && l.autoBuy) {
         // v0.11: wait out a price spike if buying now would lose money; stock up when an input is cheap and there's room
-        const spike = offlineRate === 1 && miss.find(q => priceRatio(q) > BUY_WAIT);
+        const spike = live && miss.find(q => priceRatio(q) > BUY_WAIT);
         if (spike && !buysPay(l.b)) { l.stall = `${PRODUCTS[spike].name} costs ${Math.round((priceRatio(spike) - 1) * 100)}% more than usual: it waits for the price to come down`; continue; }
         const amt = {}; let cost = 0, extra = 0;
         for (const q of miss) {
-          const need = P.rec[q] - (S.inv[q] || 0), cheap = offlineRate === 1 && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
+          const need = P.rec[q] - (S.inv[q] || 0), cheap = live && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
           amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q], FACTORY_MARKUP);
         }
         if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q], FACTORY_MARKUP); } }   // short of cash: just this cycle
@@ -191,7 +197,7 @@ function stepProduction(dt, offlineRate = 1) {
       if (flowOf(l.b) === 'keep' && sell > 0) { l.prog = 1; l.stall = 'storage full'; continue; }
       if (keep > 0) S.inv[l.b] = have + keep;
       let rev = 0; if (sell > 0) rev = sellGoods(l.b, sell, true);
-      if (LOG.onPop && offlineRate === 1) LOG.onPop(i, l.b, rev);
+      if (LOG.onPop && live && !MANAGED) LOG.onPop(i, l.b, rev);
       l.running = false; l.prog = 0; l.stall = '';
     }
   }
@@ -276,8 +282,8 @@ function manualBuy(p, q) {
 
 /* ---------------------------------------------------------------- net worth, levels, rank */
 // v0.08: the company's whole value, and the owner's net worth (their part of it, once outside shareholders own some)
-function netWorth() { return companyValue() * ownFrac(); }
-function companyValue() {
+function companyValue() { return withSubs(townValue); }   // v0.19: and what it owns
+function townValue() {
   let nw = S.cash;
   for (const l of S.lots) if (l && l.b !== 'hq') nw += l.spent * .6;
   nw += ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5;
@@ -289,7 +295,7 @@ function companyValue() {
 // putting money into them pushed the next level further away.
 function researchSpent() { let v = 0; for (const p in S.unlocked) if (p !== S.start && PRODUCTS[p]) v += researchCost(p); return v; }
 // v0.18: money from investors doesn't count (selling most of a company would open the next level on the spot); what's made with it does
-function levelValue() { return companyValue() + ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5 + researchSpent() - (S.pub ? Math.max(0, S.pub.raised || 0) : 0); }
+function levelValue() { return companyValue() + ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5 + researchSpent() - (S.pub ? Math.max(0, S.pub.raised || 0) : 0) - (S.put || 0); }   // v0.19: nor does your own money put in (and what you've taken out still counts)
 // rank among the real players (v0.07: the leaderboard is players only)
 function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of netOthers()) if (x.nw > nw) r++; return r; }
 function checkLevel() {
@@ -298,10 +304,11 @@ function checkLevel() {
     S.level++;
     if (S.level === 2) S.boostLeft = BOOST_FADE;
     pushNews(`${S.company} reaches Level ${S.level}: ${LEVELS[S.level].name} is open!`, 'you');
-    if (LOG.onLevel) LOG.onLevel(S.level);
+    if (MANAGED) { if (LOG.onToast) LOG.onToast(`${S.company} reaches Level ${S.level}`, 'good'); } else if (LOG.onLevel) LOG.onLevel(S.level);
   }
 }
 function checkGoals() {
+  if (S !== mainCo()) return;   // v0.19: goals are yours: your first company keeps them
   while (S.goal < GOALS.length && GOALS[S.goal].done(S)) {
     const g = GOALS[S.goal]; S.cash += g.reward; S.goal++;
     if (LOG.onToast) LOG.onToast(`Goal complete: +$${g.reward.toLocaleString()}`, 'good');
@@ -311,7 +318,7 @@ function checkGoals() {
 
 /* ---------------------------------------------------------------- news */
 // the company's own news (the world's news comes from 35_world.js; the ticker shows both)
-function pushNews(text, kind = 'info') { S.news.unshift({ text, kind, wt: WT }); if (S.news.length > 12) S.news.length = 12; if (LOG.onNews) LOG.onNews(text, kind); }
+function pushNews(text, kind = 'info') { S.news.unshift({ text, kind, wt: WT }); if (S.news.length > 12) S.news.length = 12; if (LOG.onNews && !MANAGED) LOG.onNews(text, kind); }
 
 /* ---------------------------------------------------------------- stock market (prices come from the shared world) */
 function asset(t) { return ASSETS.find(a => a.t === t); }
@@ -330,11 +337,17 @@ function payDividends(dtMin) { let d = 0; for (const t in S.hold) { const h = S.
 
 /* ---------------------------------------------------------------- main step */
 function step(dt) {
-  S.t += dt; WT += dt;
+  WT += dt;
   worldTick();   // the shared world, once a world second
+  coStep(dt, AWAY_RATE);
+  for (const c of allCos()) if (c !== S) withCo(c, () => coStep(dt, AWAY_RATE * MANAGED));   // v0.19: the others, under their managers
+}
+// one company's step (S), at a rate: 1 while you're in it
+function coStep(dt, rate) {
+  S.t += dt;
   for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
-  stepProduction(dt, AWAY_RATE);   // left idle, the company runs like it does while closed (v0.05)
-  stepUpkeep(dt, AWAY_RATE);
+  if (!MANAGED || mgrTick()) stepProduction(dt, AWAY_RATE, AWAY_RATE === 1);   // left idle, the company runs like it does while closed (v0.05)
+  stepUpkeep(dt, rate);
   payRent(dt, RENT_RATE);
   S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); pubPayDividends(S.divAcc / 60); S.divAcc = 0; }
   S._sec = (S._sec || 0) + dt;
@@ -345,16 +358,24 @@ function step(dt) {
     // v0.15: left idle, the averages investors look at wait, as they do while the game is closed. They used to take in the
     // quarter-speed profit, so a company whose owner stepped away looked like it was failing.
     if (AWAY_RATE === 1) {
-      S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
-      S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
+      // v0.19: a managed company is valued on what it makes at full speed, so stepping out of one isn't a slump to investors
+      const rent = rentPerMin(), raw = S.prof[S.profI] * 60, now = MANAGED ? (raw - rent) / MANAGED + rent : raw;
+      S.profAvg = profitSteady() + (now - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
+      S.profLong = profitLong() + (now - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
     }
+    if (MANAGED) mgrSecond();
     S.profI = (S.profI + 1) % 60; S.prof[S.profI] = 0; S.profN++;
     checkLevel(); checkGoals();
   }
 }
 // Production while the game was closed: a quarter speed, for up to 2 hours, at plain prices. Booms, slumps and weather
 // are left out (v0.05): the world's news is public and timed, so a return could otherwise be timed to a boom.
-function offlineCatchUp(sec) {
+function offlineCatchUp(sec) {   // v0.19: every company, each at a quarter speed
+  const r = coCatchUp(sec); if (!r) return r;
+  for (const c of allCos()) if (c !== S) { const o = withCo(c, () => coCatchUp(sec)); if (o) { r.earned += o.earned; r.rent += o.rent; if (o.rent > 0) r.sec = Math.max(r.sec, o.sec); r.cos = (r.cos || 1) + 1; } }
+  return r;
+}
+function coCatchUp(sec) {
   const gone = sec; sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
   const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
   WS.mult = {}; WS.speed = {}; WS.noise = {}; CROWD_OFF = true;   // plain prices: no news, and no crowd (v0.07)
@@ -370,15 +391,28 @@ function offlineCatchUp(sec) {
   const rent = rentPerMin() / 60 * rentSec;
   return { sec: rent > 0 ? rentSec : sec, earned: S.cash - cash0, rent };
 }
-function awayText(r) { const m = r.sec / 60; return `While you were away (${m < 120 ? Math.round(m) + ' min' : Math.round(m / 6) / 10 + ' h'}): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}${r.rent > 0 ? `, ${money(r.rent, false)} of it rent` : ''}`; }
+function awayText(r) { const m = r.sec / 60; return `While you were away (${m < 120 ? Math.round(m) + ' min' : Math.round(m / 6) / 10 + ' h'}): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}${r.cos ? ` from ${r.cos} companies` : ''}${r.rent > 0 ? `, ${money(r.rent, false)} of it rent` : ''}`; }
 
 /* ---------------------------------------------------------------- save / load */
 // the save holds the company only: the shared world (S.assets, S.house, S.rivals) is worked out, never stored
-function serialize() { S.savedAt = nowMs(); const { assets, house, rivals, ...own } = S; return JSON.stringify(own); }
+// v0.19: your first company is the save, as it always was; the others and your own money are in its grp, if there's one at all
+function plainCo(c) { const { assets, house, rivals, grp: g, ...own } = c; return own; }
+function serialize() {
+  const R = mainCo(); R.savedAt = nowMs(); const o = plainCo(R);
+  if (R.grp) o.grp = { ...R.grp, active: Math.max(0, allCos().indexOf(S)), cos: R.grp.cos.map(plainCo) };
+  return JSON.stringify(o);
+}
 function saveLocal() { if (!S) return false; try { localStorage.setItem(SAVE_KEY, serialize()); return true; } catch (e) { return false; } }
 function loadLocal() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function adopt(obj) {
-  S = obj;
+  ROOT = obj; if (ROOT.grp) { ROOT.grp.cos = (Array.isArray(ROOT.grp.cos) ? ROOT.grp.cos : []).filter(c => c && Array.isArray(c.lots) && c.company).slice(0, GRP_MAX - 1); ROOT.grp.wallet = Math.max(0, +ROOT.grp.wallet || 0); }
+  adoptSubs([ROOT, ...(ROOT.grp ? ROOT.grp.cos : [])]);
+  for (const c of [ROOT, ...(ROOT.grp ? ROOT.grp.cos : [])]) { S = c; adoptCo(); }
+  S = ROOT; S = allCos()[ROOT.grp ? ROOT.grp.active | 0 : 0] || ROOT;
+  if (!WS.ready) WT = worldNow();
+  attachWorld(); prefillGoodsHist();
+}
+function adoptCo() {   // bring one company (S) up to date
   for (const p of PIDS) if (!S.market[p]) S.market[p] = { sat: 0, bp: 0, hist: [] };
   if (!S.props) S.props = PLOTS.map(() => ({ own: false, reno: 1, paid: 0 }));
   while (S.props.length < PLOTS.length) S.props.push({ own: false, reno: 1, paid: 0 });
@@ -400,8 +434,6 @@ function adopt(obj) {
   if (S.pub === undefined) S.pub = null;            // v0.08
   if (!S.pubHold) S.pubHold = {};
   S.v = SAVE_V;
-  if (!WS.ready) WT = worldNow();
-  attachWorld(); prefillGoodsHist();
 }
 function encodeSave() { return btoa(unescape(encodeURIComponent(serialize()))); }
 function decodeSave(str) { const o = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (!o || !o.lots || !o.company) throw new Error('bad'); return o; }

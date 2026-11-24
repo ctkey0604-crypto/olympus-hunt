@@ -55,14 +55,22 @@ function setCoachHi(target) {
   if (want && !want.classList.contains('coach-hi')) want.classList.add('coach-hi');
 }
 // v0.18: once, when the company can go public: where to find it (the screen itself explains it). S.pubTut is 1 once seen
-function pubTutActive() { return !!S && !tutActive() && S.level >= PUB_LEVEL && !S.pub && !S.pubTut && companyValue() >= LEVELS[PUB_LEVEL].nw; }
+function pubTutActive() { return !!S && !tutActive() && S.level >= PUB_LEVEL && !listedCo() && !mainCo().pubTut && S === mainCo() && companyValue() >= LEVELS[PUB_LEVEL].nw; }
+function grpTutActive() { return !!S && !tutActive() && !pubTutActive() && (allCos().length > 1 ? S !== mainCo() && (mainCo().grpTut || 0) < 2 : !nextSlotWhy() && !mainCo().grpTut); }
 function updateCoach() {
   const el = $('#coach');
   if (pubTutActive()) {
-    if (UI.modal === 'stocks' && UI.investTab === 'mine') { S.pubTut = 1; saveLocal(); return updateCoach(); }
+    if (UI.modal === 'stocks' && UI.investTab === 'mine') { mainCo().pubTut = 1; saveLocal(); return updateCoach(); }
     if (el.dataset.sig !== 'pub') { el.dataset.sig = 'pub'; el.innerHTML = '<p class="c-txt">Your company can <b>go public</b> now: sell part of it to investors for cash to grow with, on your terms. Open <b>Invest</b>, then <b>Your company</b>.</p><div class="c-row"><span class="c-step">New at Level 3</span><button type="button" class="btn small gold" data-act="pubtutdone">Got it</button></div>'; }
     if (el.hidden) { el.hidden = false; renderGoalPill(); }
     TUTLOT = -1; setCoachHi(UI.modal === 'stocks' ? '#modal [data-act=itab][data-v=mine]' : '#nav [data-act=stocks]'); return;
+  }
+  // v0.19: when a second company can be founded, and again once you're in it
+  if (grpTutActive()) {
+    const two = allCos().length > 1, sig = two ? 'grp2' : 'grp1';
+    if (el.dataset.sig !== sig) { el.dataset.sig = sig; el.innerHTML = `<p class="c-txt">${two ? `This is <b>${esc(S.company)}</b>’s own town. <b>${esc(mainCo().company)}</b> carries on under a manager. Tap a name here${matchMedia('(pointer: coarse)').matches ? '' : ', or press 1 to 5,'} to switch.` : 'You can run <b>more than one company</b> now. Tap the <b>▾ at the top left</b> to found a second.'}</p><div class="c-row"><span class="c-step">${two ? 'Your companies' : 'New at Level 3'}</span><button type="button" class="btn small gold" data-act="grptutdone">Got it</button></div>`; }
+    if (el.hidden) { el.hidden = false; renderGoalPill(); }
+    TUTLOT = -1; setCoachHi(two ? '#cobar' : '.tb-co'); return;
   }
   if (!tutActive()) {
     if (!el.hidden) { el.hidden = true; renderGoalPill(); }

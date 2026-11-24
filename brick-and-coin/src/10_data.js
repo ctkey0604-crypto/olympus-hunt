@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.18';
+const VERSION = 'v0.19';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -764,6 +764,7 @@ const GOALS = [
   { text:'Build a Gold Hill product (Level 4).', reward:100000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 4) },
   { text:'Climb into the top 5 richest players.', reward:20000, done:s => playerRank(s) <= 5 },
   { text:'Become the richest player in Millbrook.', reward:50000, done:s => playerRank(s) === 1 },
+  { text:'Found a second company: tap the ▾ at the top left.', reward:50000, done:() => allCos().length >= 2 },   // v0.19 (at the end: saves keep their place)
 ];
 
 /* ---------------------------------------------------------------- news events */
@@ -781,6 +782,13 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.19', title: 'More than one company', items: [
+    '<b>Found a second company</b> at Level 3, a third at Level 4, and up to five: tap the ▾ at the top left. Each has its own town, HQ and five products.',
+    '<b>Switch in one tap.</b> The one you’re in runs at full speed; the others run under a <b>manager</b> at 60%, trained up to 100%, for a tenth of their profit. Tell each to hold, grow, or send its money home.',
+    '<b>Your own money:</b> what your companies send home, and your dividends from a public one if you take them. Use it to found companies or move it into one.',
+    '<b>A public company can found companies too</b>, with its own money. It owns them, so your part of them is your part of it.',
+    'Your net worth is your own money and your part of every company.',
+  ] },
   { v: 'v0.18', title: 'Your terms', items: [
     '<b>Go public your way</b> (Invest → Your company): sell 5% to 90%, pick the price, the ticker and how much of the profit you pay out. A lower price sells every share; a higher one is better per share, but some may not sell. You always run your company.',
     '<b>Change your dividend</b> any time, from 0% to 80% of profit. Investors pay more for a company that pays more, once they believe it (about half a day).',

@@ -113,7 +113,7 @@ function sparkPath(h, w, ht) {
 
 /* ---------- top bar ---------- */
 function updateTop() {
-  $('#coName').textContent = S.company;
+  $('#coName').textContent = S.company; renderCobar();
   $('#lvChip').textContent = `LV ${S.level} · ${LEVELS[S.level].name.toUpperCase()}`;
   const bc = $('#boostChip'), bp = boostPct(); bc.hidden = bp <= 0; if (bp > 0) bc.textContent = `Startup boost +${bp}%`;
   $('#cash').textContent = money(S.cash, false); $('#cash').style.color = S.cash < 0 ? 'var(--pink)' : '';   // red when in debt
@@ -148,14 +148,15 @@ function sideView() {
   return emptyView(i);
 }
 function homeView() {
-  const g = GOALS[S.goal], act = activeProducts();
-  const sig = `home|${S.goal}|${Object.keys(S.unlocked).join()}|${[...act].join()}|${JSON.stringify(S.flow)}`;
+  const g = GOALS[S.goal], act = activeProducts(), sub = S !== mainCo();   // v0.19: goals are your first company's
+  const sig = `home|${S.company}|${S.goal}|${Object.keys(S.unlocked).join()}|${[...act].join()}|${JSON.stringify(S.flow)}`;
   const prods = PIDS.filter(p => S.unlocked[p]).map(p => `
     <div class="prow">${iconImg(p, 36)}<div class="nm"><b>${PRODUCTS[p].name}</b><span>${act.has(p) ? 'Have' : 'Not built yet · have'} <b data-live="inv:${p}"></b> · <b data-live="price:${p}"></b></span></div>
     ${flowSeg(p, true)}</div>`).join('');
   return { sig, html: `
-    <section class="card"><h3>Goal ${S.goal < GOALS.length ? `<span class="muted">${S.goal + 1} of ${GOALS.length}</span>` : ''}</h3>
-      ${g ? `<p>${g.text}</p><span class="chip gold" style="align-self:flex-start">Reward ${money(g.reward, false)}</span>` : '<p>Every goal done. You run Millbrook now.</p>'}</section>
+    ${sub ? `<section class="card"><h3>${esc(S.company)}</h3><p>One of your companies. While you’re here it runs at full speed, and the others run under their managers.</p><button class="btn small" type="button" data-act="group">Your companies</button></section>`
+    : `<section class="card"><h3>Goal ${S.goal < GOALS.length ? `<span class="muted">${S.goal + 1} of ${GOALS.length}</span>` : ''}</h3>
+      ${g ? `<p>${g.text}</p><span class="chip gold" style="align-self:flex-start">Reward ${money(g.reward, false)}</span>` : '<p>Every goal done. You run Millbrook now.</p>'}</section>`}
     <section class="card"><h3>Your products <span class="muted">${act.size} of ${MAX_ACTIVE_PRODUCTS} running</span></h3>${prods}
       <p class="muted" style="font-size:12px">Auto keeps what your own factories need and sells the rest, but holds it back while the price is well below normal and sells it once the price recovers. Sell sells everything. Keep stores it all.</p></section>
     <section class="card"><h3>How to play</h3>
@@ -455,7 +456,7 @@ const MODAL = {
           <p class="muted" style="font-size:13px">${a.about || `A company run by ${a.owner}. Its price follows the whole market, the ${a.sector === 'tech' ? 'tech' : a.sector} business and its own news.`}</p></div></div>` };
   },
   board() {   // v0.07: real players only. Simulated companies live in the town's news, never here.
-    const me = netWorth(), you = { name: NET.name || 'You', co: S.company, nw: me, lv: S.level, you: true, player: !!NET.token };
+    const me = netWorth(), you = { name: NET.name || 'You', co: mainCo().company, nw: me, lv: topLevel(), you: true, player: !!NET.token };
     const all = netOthers().concat([you]);
     all.sort((a, b) => b.nw - a.nw);
     const at = all.findIndex(x => x.you), show = all.map((x, k) => ({ x, k })).filter(({ k }) => k < 10 || Math.abs(k - at) <= 2);
@@ -465,11 +466,11 @@ const MODAL = {
       const gap = k > last + 1 ? '<div class="lb-gap">···</div>' : ''; last = k;
       const tag = x.you ? '<span class="chip gold">YOU</span>' : `<span class="chip olive">${x.online ? '<i class="dot" title="online now"></i>' : ''}PLAYER</span>`;
       return gap + `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg('house', 36)}
-        <div style="min-width:0"><b>${esc(x.you ? S.company : x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.you ? (NET.token ? NET.name : 'You') : x.co || '')} · LV ${x.lv || lvl(x.nw)}</span></div>
+        <div style="min-width:0"><b>${esc(x.you ? mainCo().company : x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.you ? (NET.token ? NET.name : 'You') : x.co || '')} · LV ${x.lv || lvl(x.nw)}</span></div>
         <span class="nw">${money(x.nw, false)}</span><span class="lb-tag">${tag}</span></div>`;
     }).join('');
     const sub = !NET_API ? 'Real players only. This copy of the game was opened as a file: open it at brickncoin.com to see the other players.'
-      : `Real players only, by net worth (your part of your company, plus everything else you own).${NET.players ? ` ${NET.players} player${NET.players === 1 ? '' : 's'} · ${NET.online} online now.` : ''}${NET.token ? '' : ' <b>Log into your Inspirapixel account (Menu → Online) so other players see you here.</b>'}`;
+      : `Real players only, by net worth (your own money and your part of every company you own).${NET.players ? ` ${NET.players} player${NET.players === 1 ? '' : 's'} · ${NET.online} online now.` : ''}${NET.token ? '' : ' <b>Log into your Inspirapixel account (Menu → Online) so other players see you here.</b>'}`;
     return { sig: `board|${show.map(({ x, k }) => k + x.name).join()}|${NET.token ? 1 : 0}|${NET.players}|${Math.floor(S.t / 2)}`, title: 'Leaderboard', html: `<p class="m-sub">${sub}</p><div class="lb">${rows}</div>` };
   },
   menu() {   // v0.06: sections down the side
@@ -489,8 +490,8 @@ const MODAL = {
         <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
         <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
         <button class="btn ghost" type="button" data-act="loadsave" style="align-self:flex-start">Import save code</button>
-        <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
-          <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
+        <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${allCos().length > 1 ? 'all your companies, ' : ''}${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
+          <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${allCos().length > 1 ? 'all of them' : esc(S.company)}` : 'Start a new company'}</button>
           ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</div></section>`;
     } else if (tab === 'online') {   // v0.07
       const ago = NET.lastSave ? Math.max(0, Math.round((Date.now() - NET.lastSave) / 60000)) : -1;
@@ -587,6 +588,11 @@ const HELP = [
     'Sell a lot of one thing and its <b>price drops</b>, so spread out. Booms and slumps in the news move prices too.',
     '<b>Invest</b> (S) in shares, the index fund or PixCoin, and buy homes that pay <b>rent</b>.',
     'The stock market and the news are <b>the same for every player</b>, live.'] },
+  { art: () => bigArt(buildingPreview('hq', 3)), t: 'Several companies', p: [
+    'At <b>Level 3</b> you can found a second company, at Level 4 a third, and up to five: tap the <b>▾ at the top left</b>. Each has its own town, HQ and products.',
+    'Tap a name on the map (or press <b>1</b> to <b>5</b>) to switch. The one you’re in runs at full speed. The others run under a <b>manager</b>: 60% speed, trained up to 100%, for a tenth of their profit.',
+    'Tell a manager to <b>hold</b>, <b>grow</b> (it spends the company’s own cash) or <b>send home</b> (spare cash becomes yours). <b>Your own money</b> can found companies or go into one; money you put in doesn’t count toward its levels.',
+    'A <b>public</b> company can found one with <b>its own money</b>, and owns it: your part is the same as your part of that company.'] },
   { art: () => icoArt('house'), t: 'Going public', p: [
     'At Level 3, worth $100,000, your company can <b>go public</b> (Invest → Your company): sell 5% to 90% of it to investors for cash to grow with.',
     'You pick the <b>price</b> (a lower one sells every share, a higher one may not), the <b>ticker</b>, and the <b>dividend</b>: how much of the profit you pay out.',

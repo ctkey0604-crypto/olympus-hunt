@@ -144,7 +144,7 @@ function renderGoalPill() {
   const g = GOALS[S.goal], el = $('#goalPill');
   const html = `${iconImg('trophy', 27)}<span>${g ? `<b>Goal:</b> ${esc(g.text)}` : '<b>All goals done!</b>'}</span>`;
   if (el.dataset.g !== String(S.goal)) { el.innerHTML = html; el.dataset.g = S.goal; }
-  el.hidden = (!!UI.sheet && isPhone()) || tutActive() || pubTutActive();   // the tutorial card takes its place
+  el.hidden = (!!UI.sheet && isPhone()) || tutActive() || pubTutActive() || grpTutActive() || S !== mainCo();   // the tutorial card takes its place
 }
 
 /* ---------- bottom sheet (phones) ---------- */
@@ -240,7 +240,7 @@ const ACT_SND = { build: 'build', replace: 'build', upgrade: 'upgrade', hqup: 'u
 function act(el) {
   const a = el.dataset.act, p = el.dataset.p, snd = ACT_SND[a]; let err = '';
   if (!snd) sfx('tap');
-  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat' && a !== 'pubtender' && a !== 'pubtend') UI.confirm = '';
+  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat' && a !== 'pubtender' && a !== 'pubtend' && a !== 'coclose') UI.confirm = '';
   switch (a) {
     case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
     case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
@@ -261,7 +261,19 @@ function act(el) {
     case 'pubtender': if (UI.confirm !== 'tender') { UI.confirm = 'tender'; break; } UI.confirm = ''; pubAct(pubTender(), 'buy'); return;
     case 'pubtend': if (UI.confirm !== 'tend') { UI.confirm = 'tend'; break; } UI.confirm = ''; pubAct(pubTenderEnd(), 'float'); return;
     case 'pubtsell': pubAct(pubTenderSell(UI.pubSel, +el.dataset.v), 'sell'); return;
-    case 'pubtutdone': S.pubTut = 1; updateCoach(); saveLocal(); return;
+    case 'pubtutdone': mainCo().pubTut = 1; updateCoach(); saveLocal(); return;
+    // v0.19: your companies
+    case 'group': mainCo().grpTut = 1; openModal('group'); return;
+    case 'gogo': enterCo(allCos()[+el.dataset.i]); return;
+    case 'grptutdone': mainCo().grpTut = Math.max(mainCo().grpTut || 0, allCos().length > 1 ? 2 : 1); updateCoach(); saveLocal(); return;
+    case 'found': err = foundCo((UI.fnd.name || '').trim().replace(/\s+/g, ' '), UI.fnd.start, UI.fnd.amt, UI.fnd.by); if (!err) { const c = allCos()[allCos().length - 1]; UI.fnd = null; closeModal(); enterCo(c); toast(`${c.company} opens for business`, 'big', 3200); sfx('level'); return; } break;
+    case 'fstart': fndPick().start = p; break;
+    case 'fby': fndPick().by = el.dataset.v; break;
+    case 'morder': mgrOf(allCos()[+el.dataset.i]).order = el.dataset.v; break;
+    case 'mtrain': err = trainMgr(allCos()[+el.dataset.i]); if (!err) toast('Manager trained', 'good'); break;
+    case 'cotake': { const P = parentOf(S), w = S.cash; err = takeMoney(S, w * +el.dataset.v); if (!err) toast(`${money(w - S.cash, false)} ${P ? 'sent to ' + P.company : 'is yours now'}`, 'good'); break; }
+    case 'coput': { const P = parentOf(S), w = S.cash; err = putMoney(S, (P ? P.cash : wallet()) * +el.dataset.v); if (!err) toast(`${money(S.cash - w, false)} put into ${S.company}`, 'good'); break; }
+    case 'coclose': { const k = 'close' + el.dataset.i; if (UI.confirm !== k) { UI.confirm = k; break; } UI.confirm = ''; const c = allCos()[+el.dataset.i], was = S; err = closeCo(c); if (!err) { toast(`${c.company} is closed`, 'good'); if (was === c) afterSwitch(); saveLocal(); netSaveNow(); } break; }
     case 'pubbuy': pubAct(pubTrade(UI.pubSel, 'buy', +el.dataset.v), 'buy'); return;
     case 'pubsell': pubAct(pubTrade(UI.pubSel, 'sell', +el.dataset.v), 'sell'); return;
     case 'usesave': { const o = el.dataset.v === 'cloud' ? NET.cloud : loadLocal(); if (o) { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // saved (here and online) once time away is paid
@@ -325,7 +337,7 @@ function act(el) {
       catch (e) { toast('That save code didn’t work', 'bad'); }
       return;
     }
-    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} netClearSave(); running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
+    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} netClearSave(); running = false; closeModal(); S = ROOT = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
     case 'pick': UI.startPick = p; for (const b of document.querySelectorAll('.pick')) b.setAttribute('aria-pressed', b.dataset.p === p); return;
     case 'continue': { const o = TITLE_SAVE; if (o && o !== 'both') { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // no save before begin(): saving stamps the time, and time away is worked out from it
   }
@@ -346,6 +358,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target; if (!el.dataset) return;
+  if (el.dataset.act === 'takediv') { if (el.checked) grp(); S.takeDiv = el.checked; UI.modalSig = ''; sfx('tap'); saveLocal(); return; }   // v0.19
   if (el.dataset.act === 'autobuy') { const l = S.lots[+el.dataset.i]; if (l) l.autoBuy = el.checked; UI.sideSig = ''; sfx('tap'); }
   if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveSound(); saveLocal(); }
 });
@@ -354,6 +367,8 @@ document.addEventListener('input', e => {
   const k = e.target.dataset && e.target.dataset.slide; if (!k || !S) return;
   if (k === 'ipo.t') { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); ipoPick().t = e.target.value; }
   else if (k.startsWith('ipo.')) ipoPick()[k.slice(4)] = +e.target.value;
+  else if (k === 'fnd.name') fndPick().name = e.target.value;
+  else if (k === 'fnd.amt') fndPick().amt = +e.target.value;
   else if (k === 'tnd.p') (UI.tnd || (UI.tnd = { p: 10, q: 100 })).p = +e.target.value;
   else UI[k] = +e.target.value;
   if (UI.confirm) { UI.confirm = ''; UI.modalSig = ''; }
@@ -363,6 +378,7 @@ document.addEventListener('input', e => { const el = e.target; if (el.dataset &&
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => {
   if (!running) { if (e.key === 'Escape' && !$('#start').hidden && UI.tpage !== 'home') renderTitle('home'); return; }   // starting menu: Esc goes back
+  if (e.key === 'Enter' && e.target.closest('.tb-co')) { mainCo().grpTut = 1; openModal('group'); return; }   // v0.19
   if (e.target.closest('input,textarea')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
@@ -371,6 +387,7 @@ document.addEventListener('keydown', e => {
   if (map[k]) { sfx('tap'); if (UI.modal === map[k]) closeModal(); else { if (k === 'p') UI.webSel = UI.webSel || S.start; if (k === 's') openInvest(); else openModal(map[k]); } }
   if (k === 'h') { sfx('tap'); closeModal(); selectLot(HQ_LOT); }
   if (k === 'f') toggleFullscreen();
+  if (/^[1-5]$/.test(k) && !UI.modal && allCos().length > 1 && allCos()[+k - 1]) enterCo(allCos()[+k - 1]);   // v0.19
   const pan = { arrowleft: [-40, 0], arrowright: [40, 0], arrowup: [0, -40], arrowdown: [0, 40] }[k];
   if (pan && !UI.modal) { e.preventDefault(); CAM.tx = CAM.ty = null; CAM.x += pan[0]; CAM.y += pan[1]; clampCam(); }
 });
@@ -418,13 +435,20 @@ async function doLogin(create) {
 }
 // v0.09: Invest opens on your Portfolio once you own something, and on Stocks until then
 function openInvest() {
-  const owns = Object.values(S.hold).some(h => h.q > 0) || Object.keys(S.pubHold || {}).length > 0 || S.props.some(p => p.own);
+  const owns = Object.values(S.hold).some(h => h.q > 0) || Object.keys(mainCo().pubHold || {}).length > 0 || S.props.some(p => p.own);
   if (UI.investTab === 'portfolio' && !owns) UI.investTab = 'stocks';
   openModal('stocks');
 }
+// v0.19: step into another of your companies
+function enterCo(c) { if (!goCo(c)) { closeModal(); return; } afterSwitch(); closeModal(); sfx('tap'); saveLocal(); }
+function afterSwitch() {
+  UI.sel = null; UI.confirm = ''; UI.rep = null; UI.flt = UI.divp = UI.ipo = UI.tnd = null; UI.webSel = S.start; idleFrom = null;
+  for (const k in popAcc) delete popAcc[k]; POPS.length = 0; document.querySelectorAll('#overlay .pop').forEach(e => e.remove());
+  setSheet(false); afterLoad(); updateCoach(); const p = lotXY(HQ_LOT); centerOn(TX + p.x + LOT / 2, TY + p.y + LOT / 2, false);
+}
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
-  S.settings = AUD.set;   // sound settings belong to the device (SOUND_KEY); the save keeps a copy for older versions
+  mainCo().settings = AUD.set;   // sound settings belong to the device (SOUND_KEY); the save keeps a copy for older versions
   clearInterval(titleTimer);
   $('#start').hidden = true; $('#app').hidden = false;
   UI.sel = null; UI.sheet = false; UI.tutT = S.t; CAM.set = false; renderNav(); resize(); afterLoad(); setSheet(false); updateCoach();
@@ -432,7 +456,7 @@ function begin(loaded) {
   WT = worldNow(); worldReset(); prefillGoodsHist(); renderTicker();
   lastInput = nowMs(); idleFrom = null;
   if (loaded) {   // time away is measured on the server's clock once it has answered (so moving a device's clock doesn't pay)
-    const savedAt = S.savedAt || nowMs();
+    const savedAt = mainCo().savedAt || nowMs();
     Promise.race([clockReady, new Promise(r => setTimeout(r, 2500))]).then(() => {
       const r = offlineCatchUp((nowMs() - savedAt) / 1000);
       if (r) toast(awayText(r), 'good', 5000);
@@ -453,6 +477,6 @@ function boot() {
 }
 // test hook for automated playtests
 window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT,
-  NET, netTake, crowdMult, crowdOthersMult, simBoard, simsAlive, sellGoods, companyValue, pubPrice, pubListing, ownFrac };
+  get ROOT() { return ROOT; }, allCos, withCo, NET, netTake, crowdMult, crowdOthersMult, simBoard, simsAlive, sellGoods, companyValue, pubPrice, pubListing, ownFrac };
 boot();
 

@@ -1,8 +1,8 @@
 <div id="splash"><canvas id="splashArt" role="img" aria-label="Inspirapixel"></canvas><p id="splashTap" aria-live="polite"></p></div>
 <div id="app" hidden>
   <header id="top">
-    <div class="tb-co">
-      <span id="coName" class="disp"></span>
+    <div class="tb-co" data-act="group" role="button" tabindex="0" title="Your companies">
+      <span id="coName" class="disp"></span><span class="co-more" aria-hidden="true">▾</span>
       <span id="lvChip" class="chip gold"></span>
       <span id="boostChip" class="chip olive" title="Your factories run 50% faster until you reach Level 2, then the boost fades over 15 minutes">Startup boost +50%</span>
     </div>
@@ -25,6 +25,7 @@
     <div id="mapwrap">
       <div id="stage"><canvas id="map" width="480" height="270" aria-label="Your town. Tap a lot to build, or a building to manage it. Drag to look around." role="img"></canvas><div id="overlay"></div></div>
       <button id="goalPill" class="goal-pill" type="button" data-act="goals"></button>
+      <div id="cobar" class="cobar" role="group" aria-label="Your companies" hidden></div>
       <div id="coach" class="coach" role="status" aria-live="polite" hidden></div>
       <div class="dist" role="group" aria-label="Jump to an area">
         <button type="button" data-act="jump" data-b="0">Market Row</button><button type="button" data-act="jump" data-b="1">Main St</button><button type="button" data-act="jump" data-b="2">Industrial</button><button type="button" data-act="jump" data-b="3">Gold Hill</button>

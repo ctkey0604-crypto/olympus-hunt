@@ -71,7 +71,8 @@ async function netFetchSave() {
   const d = await netCall('/save');
   try { NET.cloud = d.save ? JSON.parse(d.save) : null; } catch (e) { NET.cloud = null; }
 }
-function netBody() { return { company: S.company, nw: Math.round(netWorth()), level: S.level, book: Math.round(companyValue()), profit: Math.round(profitSteady() * 100) / 100, growth: Math.round(profitGrowth() * 1000) / 1000 }; }
+// v0.19: your net worth is everything you own; the value and profit are the public company's, if one of yours is (else your first)
+function netBody() { return { ...withCo(listedCo() || mainCo(), () => ({ company: S.company, book: Math.round(companyValue()), profit: Math.round(steadyAll() * 100) / 100, growth: Math.round(growthAll() * 1000) / 1000 })), nw: Math.round(netWorth()), level: topLevel() }; }
 // send the save now (leaving, the main menu, a new company). keepalive lets it finish after the page closes.
 function netSaveNow(leaving) {
   if (!NET.token || !S || !NET_API) return;

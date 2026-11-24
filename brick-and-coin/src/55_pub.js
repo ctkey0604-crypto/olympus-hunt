@@ -20,7 +20,7 @@
 function pubParse(r) { return { ticker: r[0], co: r[1], owner: r[2], total: +r[3], own: +r[4], book: +r[5], profit: +r[6], fb: +r[7], fs: +r[8], ft: +r[9], paid: +r[10], listed: +r[11], held: +r[12], holders: +r[13], online: !!r[14], growth: r[15] != null ? +r[15] : 1,
   divr: r[16] != null ? +r[16] : PUB_DIV, divp: r[17] != null ? +r[17] : PUB_DIV, divt: +r[18] || 0, tp: +r[19] || 0, tn: +r[20] || 0, tt: +r[21] || 0 }; }
 function pubListing(t) { return NET.listings.find(L => L.ticker === t) || null; }
-function ownFrac() { return S && S.pub && S.pub.total > 0 ? clamp(S.pub.own / S.pub.total, 0, 1) : 1; }
+function ownFrac(c = S) { return c && c.pub && c.pub.total > 0 ? clamp(c.pub.own / c.pub.total, 0, 1) : 1; }
 function tickerSeed(t) { let h = 7; for (let i = 0; i < t.length; i++) h = (Math.imul(h, 31) + t.charCodeAt(i)) >>> 0; return h; }
 // what investors add for profit: 15 minutes of steady profit, scaled by its trend (v0.11), at most 25% of the company's value
 // v0.18: and by the dividend investors believe in: 0.6x the minutes at none, 1x at 30% (what every company paid before), 1.67x at 80%
@@ -105,7 +105,7 @@ function pubMineL() {
   if (!S || !S.pub) return null;
   const L = pubListing(S.pub.ticker) || { ticker: S.pub.ticker, fb: 0, fs: 0, ft: 0, held: 0, holders: 0, paid: 0 };
   const { divr, divp, divt, tp, tn, tt } = S.pub, put = { divr, divp, divt, tp, tn, tt }; for (const k in put) if (put[k] == null) delete put[k];
-  return { ...L, ...put, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: profitSteady(), growth: profitGrowth() };
+  return { ...L, ...put, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: steadyAll(), growth: growthAll() };
 }
 // shares this company holds in other players' companies, at today's prices (the last known one if a company drops off the list)
 function pubHoldValue() {
@@ -115,21 +115,25 @@ function pubHoldValue() {
 }
 // dividends: the outside shareholders' part leaves the company (every 10 s, from step())
 function pubPayDividends(dtMin) {
-  if (!S.pub) return;
-  const out = 1 - ownFrac(), p = profitPerMin(); if (out <= 0 || p <= 0) return;
-  const d = divRate(S.pub) * p * dtMin * out; if (d <= 0) return; S.cash -= d; S.pub.paid = (S.pub.paid || 0) + d; if (NET.token) NET.div += d;
+  const L = S.pub ? S : parentOf(S); if (!L || !L.pub) return;   // v0.19: a company that a public one owns pays its shareholders too
+  const out = 1 - ownFrac(L), p = profitPerMin(); if (out <= 0 || p <= 0) return;
+  const d = divRate(L.pub) * p * dtMin * out; if (d <= 0) return;
+  if (L.takeDiv && ROOT && ROOT.grp) { const mine = d / out * (1 - out); S.cash -= mine; ROOT.grp.wallet += mine; L.pubMine = (L.pubMine || 0) + mine; }   // v0.19: your own part, if you take it
+  S.cash -= d; L.pub.paid = (L.pub.paid || 0) + d; if (NET.token) NET.div += d;
 }
 // what the server says about this company's listing and holdings, dividends received and buyouts (from netTake)
 function pubTake(d) {
   if (!('mine' in d) || (d._t0 || 0) < (NET.pubAt || 0)) return;   // not a sync, or one that started before a trade
-  S.pub = d.mine ? { ...d.mine, paid: Math.max(S.pub && S.pub.ticker === d.mine.ticker ? S.pub.paid || 0 : 0, d.mine.paid || 0) } : null;
-  if (d.refund > 0) { S.cash += d.refund; pushNews(`Your offer to buy shares ended: ${money(d.refund, false)} wasn’t used and is back`, 'info'); }   // v0.18
+  // v0.19: the listing is whichever company of yours is public; the shares you hold, and what they pay, are your first company's
+  const c = d.mine ? allCos().find(x => x.pub && x.pub.ticker === d.mine.ticker) || listedCo() || mainCo() : null, H = mainCo();
+  if (c) c.pub = { ...d.mine, paid: Math.max(c.pub && c.pub.ticker === d.mine.ticker ? c.pub.paid || 0 : 0, d.mine.paid || 0) }; else for (const x of allCos()) x.pub = null;
+  if (d.refund > 0) { (c || H).cash += d.refund; pushNews(`Your offer to buy shares ended: ${money(d.refund, false)} wasn’t used and is back`, 'info'); }   // v0.18
   if (Array.isArray(d.holdings)) {
-    const old = S.pubHold || {}; S.pubHold = {};
-    for (const [t, q, cost] of d.holdings) { const L = pubListing(t); S.pubHold[t] = { q, cost, p: L ? pubPrice(L) : old[t] ? old[t].p : 0 }; }
+    const old = H.pubHold || {}; H.pubHold = {};
+    for (const [t, q, cost] of d.holdings) { const L = pubListing(t); H.pubHold[t] = { q, cost, p: L ? pubPrice(L) : old[t] ? old[t].p : 0 }; }
   }
   // dividends from players' companies count as profit as they come in, but not a pile that built up while you were away (v0.11)
-  if (d.credit > 0) { S.cash += d.credit; if (d.credit <= Math.max(100, 3 * Math.abs(profitSteady()))) addProfit(d.credit); S.pubDivIn = (S.pubDivIn || 0) + d.credit; }
+  if (d.credit > 0) { H.cash += d.credit; withCo(H, () => { if (d.credit <= Math.max(100, 3 * Math.abs(profitSteady()))) addProfit(d.credit); }); H.pubDivIn = (H.pubDivIn || 0) + d.credit; }
   for (const [t, co, cash] of d.paidOut || []) pushNews(`${co} (${t}) has closed: your shares were bought out for ${money(cash, false)}`, 'info');
 }
 
@@ -137,9 +141,9 @@ function pubTake(d) {
 // what the owner has picked on the Go public screen (whole numbers: %), and on Your company
 function ipoPick() { return UI.ipo || (UI.ipo = { f: 25, m: 90, d: Math.round(PUB_DIV * 100), t: '' }); }
 function ipoQuote() {
-  const o = ipoPick(), f = o.f / 100, m = o.m / 100, cv = companyValue(), g = profitGrowth(), fair = cv + pubPremium(cv, profitSteady(), g, o.d / 100), taken = ipoTaken(m, g);
+  const o = ipoPick(), f = o.f / 100, m = o.m / 100, cv = companyValue(), g = growthAll(), fair = cv + pubPremium(cv, steadyAll(), g, o.d / 100), taken = ipoTaken(m, g);
   const n = f / (1 - f) * taken, raised = fair * n * m * bigSale(f) * (1 - IPO_FEE), out = n / (1 + n);
-  return { fair, raised, taken, out, nwAfter: (cv + raised) * (1 - out) };
+  return { fair, raised, taken, out, nwAfter: netWorth() - coWorth() + (cv + raised) * (1 - out) };
 }
 function floatQuote(target) {
   const L = pubMineL(); if (!L) return null;
@@ -155,14 +159,16 @@ function tenderQuote() {
 }
 const leftMin = ms => { const m = Math.max(0, Math.ceil(ms / 60e3)); return m < 90 ? m + ' min' : Math.round(m / 60) + ' h'; };
 async function pubGoPublic() {
+  const other = listedCo(); if (other && other !== S) throw new Error(`${other.company} is public already: one of your companies can be, for now`);
   if (S.pub) throw new Error(`${S.company} is already public`);
+  if (parentOf(S)) throw new Error(`${S.company} belongs to ${parentOf(S).company}`);
   if (S.level < PUB_LEVEL) throw new Error(`Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) first`);
   if (companyValue() < LEVELS[PUB_LEVEL].nw) throw new Error(`The company needs to be worth ${money(LEVELS[PUB_LEVEL].nw, false)} to go public`);   // v0.16: Level 3 can come sooner; the server asks for this
   if (!NET.token) throw new Error('Log in first (Menu → Online): going public needs the server');
   const o = ipoPick(), t = (o.t || '').trim().toUpperCase();
   if (t && !/^[A-Z][A-Z0-9]{1,4}$/.test(t)) throw new Error('A ticker is 2 to 5 letters or numbers, starting with a letter');
   if (!NET.lastSave) await netSync(true);   // the server needs the company before it can list it
-  const d = await netCall('/ipo', { f: o.f / 100, m: o.m / 100, div: o.d / 100, ticker: t, company: S.company, book: Math.round(companyValue()), profit: profitSteady(), growth: profitGrowth() });
+  const d = await netCall('/ipo', { f: o.f / 100, m: o.m / 100, div: o.d / 100, ticker: t, company: S.company, book: Math.round(companyValue()), profit: steadyAll(), growth: growthAll() });
   NET.pubAt = Date.now();
   S.cash += d.raised; S.pub = { ...d.mine, paid: 0 }; S.pubTut = 1;
   const sold = Math.round((1 - ownFrac()) * 1000) / 10;
@@ -173,7 +179,7 @@ async function pubGoPublic() {
 async function pubFloat(target) {
   const q = floatQuote(target); if (!q) throw new Error(`${S.company} isn’t public`);
   if (q.cash < 0 && S.cash < -q.cash) throw new Error(`Not enough cash: buying back costs about ${money(-q.cash, false)}`);
-  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: profitSteady(), growth: profitGrowth() });
+  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: steadyAll(), growth: growthAll() });
   NET.pubAt = Date.now();
   S.cash += d.cash + (d.refund || 0); const paid = S.pub.paid || 0; S.pub = d.mine ? { ...d.mine, paid } : null; UI.flt = null;
   saveLocal(); netSaveNow();
@@ -199,34 +205,34 @@ async function pubTenderEnd() {
   return `Offer called off: ${money(d.refund || 0, false)} is back`;
 }
 async function pubTenderSell(t, part) {
-  const L = pubListing(t), h = S.pubHold[t]; if (!L || !h || !(h.q > 0)) throw new Error('You own none');
+  const H = mainCo(), L = pubListing(t), h = H.pubHold[t]; if (!L || !h || !(h.q > 0)) throw new Error('You own none');
   const d = await netCall('/tender/sell', { ticker: t, shares: h.q * part }); NET.pubAt = Date.now();
-  S.cash += d.cash + (d.credit || 0); if (d.credit > 0) S.pubDivIn = (S.pubDivIn || 0) + d.credit;
-  if (d.holding) S.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: h.p }; else delete S.pubHold[t];
+  H.cash += d.cash + (d.credit || 0); if (d.credit > 0) H.pubDivIn = (H.pubDivIn || 0) + d.credit;
+  if (d.holding) H.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: h.p }; else delete H.pubHold[t];
   L.tn = Math.max(0, L.tn - d.shares); L.total -= d.shares; L.held -= d.shares; saveLocal();
   return `Sold ${qty(d.shares)} ${t} shares to ${L.co}: +${money(d.cash, false)}`;
 }
-async function pubTrade(t, side, v) {
-  const L = pubListing(t); if (!L) throw new Error('Pick a company first');
+async function pubTrade(t, side, v) {   // v0.19: with your first company's cash, whichever you're in
+  const H = mainCo(), L = pubListing(t); if (!L) throw new Error('Pick a company first');
   if (!NET.token) throw new Error('Log in first (Menu → Online) to trade players’ shares');
   const price = pubPrice(L), fee = FEE.stock;
   let shares;
   if (side === 'buy') {
-    const dollars = Math.min(v, S.cash); if (dollars < 1) throw new Error('Not enough cash');
+    const dollars = Math.min(v, H.cash); if (dollars < 1) throw new Error('Not enough cash' + (H !== S ? ` in ${H.company}` : ''));
     shares = Math.min(pubSharesFor(L, dollars / (1 + fee) * .9995), L.total - L.own - L.held);
     if (shares < 1e-3) throw new Error('No shares for sale right now: players hold them all');
   } else {
-    const h = S.pubHold[t]; if (!h || h.q <= 0) throw new Error('You own none');
+    const h = H.pubHold[t]; if (!h || h.q <= 0) throw new Error('You own none');
     shares = h.q * v;
   }
   const d = await netCall('/shares', { ticker: t, side, shares, price });
   NET.pubAt = Date.now();
   const amt = shares * d.price;
-  if (side === 'buy') S.cash -= amt * (1 + fee); else S.cash += amt * (1 - fee);
-  if (d.credit > 0) { S.cash += d.credit; S.pubDivIn = (S.pubDivIn || 0) + d.credit; }
-  const had = !!S.pubHold[t];
-  if (d.holding) S.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: d.price }; else delete S.pubHold[t];
-  L.holders += (S.pubHold[t] ? 1 : 0) - (had ? 1 : 0);
+  if (side === 'buy') H.cash -= amt * (1 + fee); else H.cash += amt * (1 - fee);
+  if (d.credit > 0) { H.cash += d.credit; H.pubDivIn = (H.pubDivIn || 0) + d.credit; }
+  const had = !!H.pubHold[t];
+  if (d.holding) H.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: d.price }; else delete H.pubHold[t];
+  L.holders += (H.pubHold[t] ? 1 : 0) - (had ? 1 : 0);
   const k = pubKeep(L, nowMs());   // show the move at once, before the next sync
   L.fb *= k; L.fs *= k; L.ft = nowMs(); if (side === 'buy') { L.fb += amt; L.held += shares; } else { L.fs += amt; L.held -= shares; }
   saveLocal();
@@ -245,13 +251,14 @@ Object.assign(LIVE, {
   pubimp(t) { const L = pubListing(t); if (!L) return { text: '', cls: '' }; const m = pubImpact(L) - 1; return Math.abs(m) < .005 ? { text: 'steady', cls: 'muted' } : { text: 'players ' + pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
   pubcap(t) { const L = pubListing(t); return L ? money(pubPrice(L) * L.total, false) : '—'; },
   pubfree(t) { const L = pubListing(t); return L ? qty(Math.max(0, L.total - L.own - L.held)) + ' shares' : '—'; },
-  pubhq: t => { const h = S.pubHold[t]; return h ? qty(h.q) : '0'; },
-  pubhv: t => { const h = S.pubHold[t], L = pubListing(t); return money(h && L ? h.q * pubPrice(L) : 0); },
-  pubhpl(t) { const h = S.pubHold[t], L = pubListing(t); if (!h || !L || h.q <= 0) return { text: '—', cls: 'muted' }; const v = h.q * pubPrice(L) - h.cost; return { text: (v >= 0 ? '+' : '') + money(v) + ' (' + pctTxt(v / h.cost) + ')', cls: v >= 0 ? 'olive' : 'red' }; },
+  pubhq: t => { const h = mainCo().pubHold[t]; return h ? qty(h.q) : '0'; },
+  pubhv: t => { const h = mainCo().pubHold[t], L = pubListing(t); return money(h && L ? h.q * pubPrice(L) : 0); },
+  pubhpl(t) { const h = mainCo().pubHold[t], L = pubListing(t); if (!h || !L || h.q <= 0) return { text: '—', cls: 'muted' }; const v = h.q * pubPrice(L) - h.cost; return { text: (v >= 0 ? '+' : '') + money(v) + ' (' + pctTxt(v / h.cost) + ')', cls: v >= 0 ? 'olive' : 'red' }; },
+  hcash: () => money(mainCo().cash, false),
   mypx() { const L = pubMineL(); return L ? money(pubPrice(L)) : '—'; },
   mycap() { const L = pubMineL(); return L ? money(pubPrice(L) * L.total, false) : '—'; },
-  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false), mysteady: () => money(profitSteady()) + '/min',
-  mytrend: () => trendTxt(profitGrowth()), pubtrend: t => { const L = pubListing(t); return L ? trendTxt(L.growth) : '—'; },
+  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false), mysteady: () => money(steadyAll()) + '/min',
+  mytrend: () => trendTxt(growthAll()), pubtrend: t => { const L = pubListing(t); return L ? trendTxt(L.growth) : '—'; },
   myprem() { const L = pubMineL(); if (!L) return '—'; const v = pubPrice(L) * L.total / Math.max(1, companyValue()) - 1; return (v >= 0 ? '+' : '−') + Math.round(Math.abs(v) * 100) + '%'; },
   ipoval: () => money(ipoQuote().fair, false),
   iporaise: () => '+' + money(ipoQuote().raised, false),
@@ -270,9 +277,9 @@ function trendTxt(g) { return { text: Math.abs(g - 1) < .05 ? 'steady' : (g > 1 
 function pubStat(k, v, live) { return `<div class="stat"><span>${k}</span><b${live ? ` data-live="${live}"` : ''}>${v || ''}</b></div>`; }
 function pubPlayersView(tabs) {
   // v0.11: your own company is in the list too, marked YOU, just as other players see it (the server's copy: up to a minute old)
-  const mine = S.pub ? S.pub.ticker : null, list = NET.listings.slice();
+  const mine = listedCo() ? listedCo().pub.ticker : null, list = NET.listings.slice(), H = mainCo();
   if (!list.find(L => L.ticker === UI.pubSel)) UI.pubSel = (list.find(L => L.ticker !== mine) || list[0] || {}).ticker || null;
-  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(S.pubHold).join()}|${mine}|${UI.pubTF}|${L && L.tn > 0 && S.pubHold[L.ticker] ? L.tp : ''}`;
+  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(H.pubHold).join()}|${mine}|${UI.pubTF}|${L && L.tn > 0 && H.pubHold[L.ticker] ? L.tp : ''}|${H === S}`;
   const intro = `<p class="m-sub">Real players’ companies that have gone public (yours too, marked YOU, as other players see it). A share’s price follows its company’s value and profit, the market’s mood, and players buying and selling it. Each company pays part of its profit as dividends (its owner sets how much), and you get your part while you hold its shares, even while you’re away.${NET_API ? '' : ' Open the game at brickncoin.com to see them.'}</p>`;
   if (!L) return { sig, title: 'Invest', html: tabs + intro + `<section class="card"><h3>No player companies yet</h3><p class="muted" style="font-size:13px">When a player takes their company public, it shows up here. Reach Level ${PUB_LEVEL} and yours could be the first: see Your company.</p></section>` };
   const rows = list.map(x => `<button type="button" class="st-row ${x.ticker === UI.pubSel ? 'sel' : ''}" data-act="pubsel" data-t="${x.ticker}">${iconImg('house', 36)}
@@ -289,14 +296,14 @@ function pubPlayersView(tabs) {
       <div class="stat-grid">${pubStat('Market value', '', 'pubcap:' + t)}${pubStat('Owner keeps', Math.round(L.own / L.total * 100) + '%')}${pubStat('Profit', money(L.profit) + '/min')}${pubStat('Profit trend', '', 'pubtrend:' + t)}
         ${pubStat('Pays out', Math.round(divRate(L) * 100) + '% of profit')}${pubStat('Dividends paid', money(L.paid, false))}${pubStat('Players hold', `${qty(L.held)} · ${L.holders} player${L.holders === 1 ? '' : 's'}`)}${pubStat('For sale', '', 'pubfree:' + t)}
         ${t === mine ? '' : pubStat('You own', '', 'pubhq:' + t) + pubStat('Worth', '', 'pubhv:' + t) + pubStat('Profit / loss', '', 'pubhpl:' + t)}</div>
-      ${t !== mine && L.tn > 0 && S.pubHold[t] && L.tt > nowMs() ? `<section class="card"><h3>An offer for your shares</h3><p style="font-size:13px"><b>${esc(L.co)}</b> offers <b class="gold">${money(L.tp)}</b> a share for shares players hold (today’s price is <b data-live="pubp:${t}"></b>). <span class="muted" data-live="tleft:${t}"></span></p>
+      ${t !== mine && L.tn > 0 && H.pubHold[t] && L.tt > nowMs() ? `<section class="card"><h3>An offer for your shares</h3><p style="font-size:13px"><b>${esc(L.co)}</b> offers <b class="gold">${money(L.tp)}</b> a share for shares players hold (today’s price is <b data-live="pubp:${t}"></b>). <span class="muted" data-live="tleft:${t}"></span></p>
         <div class="trade"><span class="muted" style="font-size:13px">Sell into it</span>${[[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, l]) => `<button class="btn ghost small" type="button" data-act="pubtsell" data-v="${v}">${l}</button>`).join('')}</div></section>` : ''}
       ${t === mine ? `<section class="card"><h3>This is your company</h3><p class="muted" style="font-size:13px">This is how ${esc(L.co)} looks to other players: what investors see, from the server, up to a minute old. You can’t trade your own shares here. To sell more of the company or buy shares back, go to Your company.</p>
         <div class="trade"><button class="btn small" type="button" data-act="itab" data-v="mine">Your company</button></div></section>`
-      : `<section class="card"><h3>Trade <span class="muted">cash <b data-live="cash"></b> · ${FEE.stock * 100}% fee</span></h3>
+      : `<section class="card"><h3>Trade <span class="muted">${H === S ? 'cash <b data-live="cash"></b>' : `with ${esc(H.company)}’s cash <b data-live="hcash"></b>`} · ${FEE.stock * 100}% fee</span></h3>
         ${NET.token ? `<div class="trade"><span class="muted" style="font-size:13px">Buy</span>${buy}</div><div class="trade"><span class="muted" style="font-size:13px">Sell</span>${sell}</div>`
           : '<p class="muted" style="font-size:13px">Log in (Menu → Online) to buy and sell players’ shares.</p>'}<p class="muted" style="font-size:12px">A big order moves the price as it goes through, so you pay (or get) the average along the way.</p></section>`}
-      <p class="muted" style="font-size:12px">Dividends you’ve had from players’ companies: ${money(S.pubDivIn || 0, false)}.</p></div></div>` };
+      <p class="muted" style="font-size:12px">Dividends you’ve had from players’ companies: ${money(H.pubDivIn || 0, false)}.</p></div></div>` };
 }
 // a slider with its value next to it: it keeps its place while the numbers round it change
 const slide = (k, label, live, min, max, step, v) => `<label class="sld"><span>${label}</span><b data-live="${live}"></b><input type="range" data-slide="${k}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"></label>`;
@@ -313,11 +320,11 @@ function pubMineView(tabs) {
   const conf = UI.confirm;
   if (!S.pub) {
     const o = ipoPick(), ok = S.level >= PUB_LEVEL && companyValue() >= LEVELS[PUB_LEVEL].nw;
-    const why = S.level < PUB_LEVEL ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) to go public.`
+    const other = listedCo(), why = parentOf(S) ? `${esc(S.company)} belongs to ${esc(parentOf(S).company)}, so it can’t go public itself.` : other ? `${esc(other.company)} is public already: one of your companies can be, for now.` : S.level < PUB_LEVEL ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) to go public.`
       : !ok ? `Going public needs a company value of ${money(LEVELS[PUB_LEVEL].nw, false)} (above): HQ and storage count half there, and research doesn’t.`
       : !NET_API ? 'Open the game at brickncoin.com to go public.' : !NET.token ? 'Log in (Menu → Online) to go public: the server keeps the share register.' : '';
     const steps = PUB_STEPS.map(x => `<button type="button" data-act="ipof" data-v="${x}">${Math.round(x * 100)}%</button>`).join('');
-    return { sig: `mine|ipo|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `
+    return { sig: `mine|ipo|${S.company}|${other ? 1 : 0}|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `
       <p class="m-sub">Going public sells part of ${esc(S.company)} to investors in new shares, on your terms. The cash goes straight into the company to grow with, and you keep running it.</p>
       ${PUB_HOW}
       <section class="card"><h3>Go public</h3>
@@ -336,7 +343,7 @@ function pubMineView(tabs) {
   }
   const L = pubMineL(), out = 1 - ownFrac(), t = S.pub.ticker, held = L.held || 0, now = nowMs();
   const wait = (S.pub.issuet || 0) + ISSUE_WAIT - now, dwait = (S.pub.divt || 0) + DIV_WAIT - now, offer = S.pub.tn > 0 && S.pub.tt > now, twait = (S.pub.tt || 0) - now, o = UI.tnd || (UI.tnd = { p: 10, q: 100 });
-  return { sig: `mine|pub|${t}|${S.pub.total}|${S.pub.own}|${conf}|${held}|${S.pub.divr}|${offer ? S.pub.tp : twait > 0}|${wait > 0}|${dwait > 0}`, title: 'Invest', html: tabs + `
+  return { sig: `mine|pub|${t}|${S.pub.total}|${S.pub.own}|${conf}|${held}|${S.pub.divr}|${offer ? S.pub.tp : twait > 0}|${wait > 0}|${dwait > 0}|${S.takeDiv ? 1 : 0}`, title: 'Invest', html: tabs + `
     <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(S.company)}</h2><span class="muted">public as <b>${t}</b> since ${new Date(S.pub.listed).toLocaleDateString()}</span></div>
       <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="mypx"></b><br><span class="muted" style="font-size:12px">a share</span></div></div>
     <div class="stat-grid">${pubStat('Company value', '', 'mycv')}${pubStat('Market value', '', 'mycap')}${pubStat('Market vs company', '', 'myprem')}${pubStat('Profit trend', '', 'mytrend')}
@@ -347,6 +354,7 @@ function pubMineView(tabs) {
       <div class="trade"><button class="btn ${conf === 'float' ? 'danger' : 'ghost'} small" type="button" data-act="pubfloat">${conf === 'float' ? 'Tap again: ' : ''}Change it <b data-live="fltq" data-base=""></b></button>${wait > 0 ? `<span class="muted" style="font-size:12px">More can be sold in ${leftMin(wait)}.</span>` : ''}</div></section>
     <section class="card"><h3>Dividend</h3><p class="muted" style="font-size:13px">You pay out ${Math.round(divRate(S.pub) * 100)}% of profit: outside shareholders get ${Math.round(divRate(S.pub) * out * 1000) / 10}% of it all. Investors pay more for a higher one, once they believe it (about half a day).</p>
       ${slide('divp', 'Pay out', 'divv', 0, DIV_MAX * 100, 5, divPick())}
+      <label class="check"><input type="checkbox" data-act="takediv" ${S.takeDiv ? 'checked' : ''}> Take my own part too (${Math.round(divRate(S.pub) * (1 - out) * 1000) / 10}% of profit), as my own money${S.takeDiv ? '' : '. Off: it stays in the company'}</label>
       <div class="trade"><button class="btn ghost small" type="button" data-act="pubdiv" ${dwait > 0 ? `data-cost="0" data-block="You can change it again in ${leftMin(dwait)}"` : ''}>Set the dividend</button></div></section>
     ${offer ? `<section class="card"><h3>Your offer to players</h3><p style="font-size:13px"><b class="gold">${money(S.pub.tp)}</b> a share. <span class="muted" data-live="tleft:mine"></span></p><p class="muted" style="font-size:12px">What isn’t used comes back to you when it ends.</p>
       <div class="trade"><button class="btn ${conf === 'tend' ? 'danger' : 'ghost'} small" type="button" data-act="pubtend">${conf === 'tend' ? 'Tap again: call it off' : 'Call it off'}</button></div></section>`
