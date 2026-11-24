@@ -112,6 +112,10 @@ p{margin:0}
 #map{display:block;cursor:pointer;touch-action:none}
 #map.dragging{cursor:grabbing}
 #overlay{position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none}
+.tb-co{cursor:pointer}.co-more{color:var(--bone-dim);font-size:13px}
+.cobar{position:absolute;top:10px;right:10px;z-index:3;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:60%}.cobar[hidden]{display:none}
+.cobar button{border:0;padding:6px 10px;border-radius:var(--rad);background:rgba(19,13,11,.94);box-shadow:0 0 0 2px #000,inset 0 0 0 2px var(--line);color:var(--bone-dim);font-size:13px;cursor:pointer;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cobar button[aria-pressed=true]{background:var(--gold);color:#160e0b;box-shadow:0 0 0 2px #000}
+.corow{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center}.corow .seg{grid-column:1/-1}
 .goal-pill{display:none;position:absolute;top:10px;left:10px;max-width:calc(100% - 20px);align-items:center;gap:8px;padding:5px 10px 5px 5px;border:0;border-radius:var(--rad);background:rgba(19,13,11,.94);box-shadow:0 0 0 2px #000,0 0 0 4px var(--line);font-size:13px;text-align:left;cursor:pointer;z-index:2;color:var(--bone)}
 .goal-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .goal-pill b{color:var(--gold)}
@@ -386,7 +390,8 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
   #app{grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top top" "nav main";position:relative}
   #top{grid-area:top;display:flex;flex-wrap:nowrap;gap:14px;padding:max(4px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 5px max(10px,env(safe-area-inset-left))}
   #coName,#boostChip{display:none}
-  .tb-co{flex:none}
+  .tb-co{flex:none;min-height:36px;padding:0 6px;margin:0 -6px}
+  .co-more{font-size:18px}
   .tb-cash img{width:27px;height:27px}
   .tb-cash>div{flex-direction:row;align-items:baseline;gap:8px}
   #cash{font-size:22px}
@@ -557,8 +562,8 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
 <div id="splash"><canvas id="splashArt" role="img" aria-label="Inspirapixel"></canvas><p id="splashTap" aria-live="polite"></p></div>
 <div id="app" hidden>
   <header id="top">
-    <div class="tb-co">
-      <span id="coName" class="disp"></span>
+    <div class="tb-co" data-act="group" role="button" tabindex="0" title="Your companies">
+      <span id="coName" class="disp"></span><span class="co-more" aria-hidden="true">▾</span>
       <span id="lvChip" class="chip gold"></span>
       <span id="boostChip" class="chip olive" title="Your factories run 50% faster until you reach Level 2, then the boost fades over 15 minutes">Startup boost +50%</span>
     </div>
@@ -581,6 +586,7 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
     <div id="mapwrap">
       <div id="stage"><canvas id="map" width="480" height="270" aria-label="Your town. Tap a lot to build, or a building to manage it. Drag to look around." role="img"></canvas><div id="overlay"></div></div>
       <button id="goalPill" class="goal-pill" type="button" data-act="goals"></button>
+      <div id="cobar" class="cobar" role="group" aria-label="Your companies" hidden></div>
       <div id="coach" class="coach" role="status" aria-live="polite" hidden></div>
       <div class="dist" role="group" aria-label="Jump to an area">
         <button type="button" data-act="jump" data-b="0">Market Row</button><button type="button" data-act="jump" data-b="1">Main St</button><button type="button" data-act="jump" data-b="2">Industrial</button><button type="button" data-act="jump" data-b="3">Gold Hill</button>
@@ -609,7 +615,7 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.18';
+const VERSION = 'v0.19';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -1369,6 +1375,7 @@ const GOALS = [
   { text:'Build a Gold Hill product (Level 4).', reward:100000, done:s => s.lots.some(l => l && l.b !== 'hq' && PRODUCTS[l.b].ring === 4) },
   { text:'Climb into the top 5 richest players.', reward:20000, done:s => playerRank(s) <= 5 },
   { text:'Become the richest player in Millbrook.', reward:50000, done:s => playerRank(s) === 1 },
+  { text:'Found a second company: tap the ▾ at the top left.', reward:50000, done:() => allCos().length >= 2 },   // v0.19 (at the end: saves keep their place)
 ];
 
 /* ---------------------------------------------------------------- news events */
@@ -1386,6 +1393,13 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.19', title: 'More than one company', items: [
+    '<b>Found a second company</b> at Level 3, a third at Level 4, and up to five: tap the ▾ at the top left. Each has its own town, HQ and five products.',
+    '<b>Switch in one tap.</b> The one you’re in runs at full speed; the others run under a <b>manager</b> at 60%, trained up to 100%, for a tenth of their profit. Tell each to hold, grow, or send its money home.',
+    '<b>Your own money:</b> what your companies send home, and your dividends from a public one if you take them. Use it to found companies or move it into one.',
+    '<b>A public company can found companies too</b>, with its own money. It owns them, so your part of them is your part of it.',
+    'Your net worth is your own money and your part of every company.',
+  ] },
   { v: 'v0.18', title: 'Your terms', items: [
     '<b>Go public your way</b> (Invest → Your company): sell 5% to 90%, pick the price, the ticker and how much of the profit you pay out. A lower price sells every share; a higher one is better per share, but some may not sell. You always run your company.',
     '<b>Change your dividend</b> any time, from 0% to 80% of profit. Investors pay more for a company that pays more, once they believe it (about half a day).',
@@ -2200,7 +2214,9 @@ function drawParticles(P) {
 /* ============================================================================
    SIM — the economy. Runs in fixed steps; nothing here touches the page.
    ========================================================================== */
-let S = null;                     // the whole game state (saved as JSON)
+let S = null;                     // the company you're in
+let ROOT = null;                  // v0.19: your first company, and the save: the others are in ROOT.grp (see 36_group.js)
+let MANAGED = 0;                  // v0.19: while another company is being run for you, its manager's speed
 let RENT_RATE = 1;                // v0.17: rent is paid in full, left idle too, until RENT_MAX
 let AWAY_RATE = 1;                // 1 while someone's playing; OFFLINE_RATE when the game is left idle; 0 once idle past OFFLINE_MAX
 const LOG = { onNews: null, onToast: null, onPop: null, onLevel: null, onGoal: null };
@@ -2208,19 +2224,23 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 const SAVE_V = 4;                 // save format: 1 = v0.01-v0.03, 2 = v0.04 (Gold Hill), 3 = v0.05 (shared world), 4 = v0.08 (public companies). adopt() brings older saves up to date.
 function newGame(company, start) {
+  S = ROOT = blankCo(company, start);
+  if (!WS.ready) WT = worldNow();
+  attachWorld(); prefillGoodsHist();
+  pushNews('Welcome to Millbrook. ' + company + ' opens for business.', 'info');
+}
+function blankCo(company, start) {   // v0.19: a new company, yours or one of yours
   // v0.05: the market, news, rivals and home prices live in the shared world (35_world.js), not in the save
-  S = {
+  const c = {
     v: SAVE_V, company, start, cash: START_CASH, t: 0, level: 1, hqLv: 0, whLv: 0, tut: 0, settings: null,
     lots: new Array(LOTS).fill(null), inv: {}, unlocked: { [start]: true }, flow: {}, spent: {},
     market: {}, news: [], goal: 0, stats: { sales: 0, built: 0 }, prof: new Array(60).fill(0), profI: 0, profN: 0,
     hold: {}, divAcc: 0, savedAt: nowMs(), boostShown: false, props: PLOTS.map(() => ({ own: false, reno: 1, paid: 0 })),
     pub: null, pubHold: {},   // v0.08: this company's listing (if public), and shares it holds in other players' companies
   };
-  S.lots[HQ_LOT] = { b: 'hq', lv: 1 };
-  for (const p of PIDS) S.market[p] = { sat: 0, bp: 0, hist: [] };
-  if (!WS.ready) WT = worldNow();
-  attachWorld(); prefillGoodsHist();
-  pushNews('Welcome to Millbrook. ' + company + ' opens for business.', 'info');
+  c.lots[HQ_LOT] = { b: 'hq', lv: 1 };
+  for (const p of PIDS) c.market[p] = { sat: 0, bp: 0, hist: [] };
+  return c;
 }
 
 /* ---------------------------------------------------------------- helpers */
@@ -2353,7 +2373,7 @@ function keepBuffer(p) {
 }
 
 /* ---------------------------------------------------------------- production */
-function stepProduction(dt, offlineRate = 1) {
+function stepProduction(dt, offlineRate = 1, live = offlineRate === 1) {   // live (v0.19): minding prices as it goes, as a managed company does too
   const eff = efficiency() * boostMult() * offlineRate;
   if (S.boostLeft > 0) S.boostLeft = Math.max(0, S.boostLeft - dt * offlineRate);   // idle or closed, it fades as slowly as the town runs
   for (let i = 0; i < S.lots.length; i++) {
@@ -2365,11 +2385,11 @@ function stepProduction(dt, offlineRate = 1) {
       for (const q in P.rec) if ((S.inv[q] || 0) < P.rec[q]) { ok = false; miss.push(q); }
       if (!ok && l.autoBuy) {
         // v0.11: wait out a price spike if buying now would lose money; stock up when an input is cheap and there's room
-        const spike = offlineRate === 1 && miss.find(q => priceRatio(q) > BUY_WAIT);
+        const spike = live && miss.find(q => priceRatio(q) > BUY_WAIT);
         if (spike && !buysPay(l.b)) { l.stall = `${PRODUCTS[spike].name} costs ${Math.round((priceRatio(spike) - 1) * 100)}% more than usual: it waits for the price to come down`; continue; }
         const amt = {}; let cost = 0, extra = 0;
         for (const q of miss) {
-          const need = P.rec[q] - (S.inv[q] || 0), cheap = offlineRate === 1 && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
+          const need = P.rec[q] - (S.inv[q] || 0), cheap = live && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
           amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q], FACTORY_MARKUP);
         }
         if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q], FACTORY_MARKUP); } }   // short of cash: just this cycle
@@ -2389,7 +2409,7 @@ function stepProduction(dt, offlineRate = 1) {
       if (flowOf(l.b) === 'keep' && sell > 0) { l.prog = 1; l.stall = 'storage full'; continue; }
       if (keep > 0) S.inv[l.b] = have + keep;
       let rev = 0; if (sell > 0) rev = sellGoods(l.b, sell, true);
-      if (LOG.onPop && offlineRate === 1) LOG.onPop(i, l.b, rev);
+      if (LOG.onPop && live && !MANAGED) LOG.onPop(i, l.b, rev);
       l.running = false; l.prog = 0; l.stall = '';
     }
   }
@@ -2474,8 +2494,8 @@ function manualBuy(p, q) {
 
 /* ---------------------------------------------------------------- net worth, levels, rank */
 // v0.08: the company's whole value, and the owner's net worth (their part of it, once outside shareholders own some)
-function netWorth() { return companyValue() * ownFrac(); }
-function companyValue() {
+function companyValue() { return withSubs(townValue); }   // v0.19: and what it owns
+function townValue() {
   let nw = S.cash;
   for (const l of S.lots) if (l && l.b !== 'hq') nw += l.spent * .6;
   nw += ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5;
@@ -2487,7 +2507,7 @@ function companyValue() {
 // putting money into them pushed the next level further away.
 function researchSpent() { let v = 0; for (const p in S.unlocked) if (p !== S.start && PRODUCTS[p]) v += researchCost(p); return v; }
 // v0.18: money from investors doesn't count (selling most of a company would open the next level on the spot); what's made with it does
-function levelValue() { return companyValue() + ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5 + researchSpent() - (S.pub ? Math.max(0, S.pub.raised || 0) : 0); }
+function levelValue() { return companyValue() + ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5 + researchSpent() - (S.pub ? Math.max(0, S.pub.raised || 0) : 0) - (S.put || 0); }   // v0.19: nor does your own money put in (and what you've taken out still counts)
 // rank among the real players (v0.07: the leaderboard is players only)
 function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of netOthers()) if (x.nw > nw) r++; return r; }
 function checkLevel() {
@@ -2496,10 +2516,11 @@ function checkLevel() {
     S.level++;
     if (S.level === 2) S.boostLeft = BOOST_FADE;
     pushNews(`${S.company} reaches Level ${S.level}: ${LEVELS[S.level].name} is open!`, 'you');
-    if (LOG.onLevel) LOG.onLevel(S.level);
+    if (MANAGED) { if (LOG.onToast) LOG.onToast(`${S.company} reaches Level ${S.level}`, 'good'); } else if (LOG.onLevel) LOG.onLevel(S.level);
   }
 }
 function checkGoals() {
+  if (S !== mainCo()) return;   // v0.19: goals are yours: your first company keeps them
   while (S.goal < GOALS.length && GOALS[S.goal].done(S)) {
     const g = GOALS[S.goal]; S.cash += g.reward; S.goal++;
     if (LOG.onToast) LOG.onToast(`Goal complete: +$${g.reward.toLocaleString()}`, 'good');
@@ -2509,7 +2530,7 @@ function checkGoals() {
 
 /* ---------------------------------------------------------------- news */
 // the company's own news (the world's news comes from 35_world.js; the ticker shows both)
-function pushNews(text, kind = 'info') { S.news.unshift({ text, kind, wt: WT }); if (S.news.length > 12) S.news.length = 12; if (LOG.onNews) LOG.onNews(text, kind); }
+function pushNews(text, kind = 'info') { S.news.unshift({ text, kind, wt: WT }); if (S.news.length > 12) S.news.length = 12; if (LOG.onNews && !MANAGED) LOG.onNews(text, kind); }
 
 /* ---------------------------------------------------------------- stock market (prices come from the shared world) */
 function asset(t) { return ASSETS.find(a => a.t === t); }
@@ -2528,11 +2549,17 @@ function payDividends(dtMin) { let d = 0; for (const t in S.hold) { const h = S.
 
 /* ---------------------------------------------------------------- main step */
 function step(dt) {
-  S.t += dt; WT += dt;
+  WT += dt;
   worldTick();   // the shared world, once a world second
+  coStep(dt, AWAY_RATE);
+  for (const c of allCos()) if (c !== S) withCo(c, () => coStep(dt, AWAY_RATE * MANAGED));   // v0.19: the others, under their managers
+}
+// one company's step (S), at a rate: 1 while you're in it
+function coStep(dt, rate) {
+  S.t += dt;
   for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
-  stepProduction(dt, AWAY_RATE);   // left idle, the company runs like it does while closed (v0.05)
-  stepUpkeep(dt, AWAY_RATE);
+  if (!MANAGED || mgrTick()) stepProduction(dt, AWAY_RATE, AWAY_RATE === 1);   // left idle, the company runs like it does while closed (v0.05)
+  stepUpkeep(dt, rate);
   payRent(dt, RENT_RATE);
   S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); pubPayDividends(S.divAcc / 60); S.divAcc = 0; }
   S._sec = (S._sec || 0) + dt;
@@ -2543,16 +2570,24 @@ function step(dt) {
     // v0.15: left idle, the averages investors look at wait, as they do while the game is closed. They used to take in the
     // quarter-speed profit, so a company whose owner stepped away looked like it was failing.
     if (AWAY_RATE === 1) {
-      S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
-      S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
+      // v0.19: a managed company is valued on what it makes at full speed, so stepping out of one isn't a slump to investors
+      const rent = rentPerMin(), raw = S.prof[S.profI] * 60, now = MANAGED ? (raw - rent) / MANAGED + rent : raw;
+      S.profAvg = profitSteady() + (now - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
+      S.profLong = profitLong() + (now - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
     }
+    if (MANAGED) mgrSecond();
     S.profI = (S.profI + 1) % 60; S.prof[S.profI] = 0; S.profN++;
     checkLevel(); checkGoals();
   }
 }
 // Production while the game was closed: a quarter speed, for up to 2 hours, at plain prices. Booms, slumps and weather
 // are left out (v0.05): the world's news is public and timed, so a return could otherwise be timed to a boom.
-function offlineCatchUp(sec) {
+function offlineCatchUp(sec) {   // v0.19: every company, each at a quarter speed
+  const r = coCatchUp(sec); if (!r) return r;
+  for (const c of allCos()) if (c !== S) { const o = withCo(c, () => coCatchUp(sec)); if (o) { r.earned += o.earned; r.rent += o.rent; if (o.rent > 0) r.sec = Math.max(r.sec, o.sec); r.cos = (r.cos || 1) + 1; } }
+  return r;
+}
+function coCatchUp(sec) {
   const gone = sec; sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
   const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
   WS.mult = {}; WS.speed = {}; WS.noise = {}; CROWD_OFF = true;   // plain prices: no news, and no crowd (v0.07)
@@ -2568,15 +2603,28 @@ function offlineCatchUp(sec) {
   const rent = rentPerMin() / 60 * rentSec;
   return { sec: rent > 0 ? rentSec : sec, earned: S.cash - cash0, rent };
 }
-function awayText(r) { const m = r.sec / 60; return `While you were away (${m < 120 ? Math.round(m) + ' min' : Math.round(m / 6) / 10 + ' h'}): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}${r.rent > 0 ? `, ${money(r.rent, false)} of it rent` : ''}`; }
+function awayText(r) { const m = r.sec / 60; return `While you were away (${m < 120 ? Math.round(m) + ' min' : Math.round(m / 6) / 10 + ' h'}): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}${r.cos ? ` from ${r.cos} companies` : ''}${r.rent > 0 ? `, ${money(r.rent, false)} of it rent` : ''}`; }
 
 /* ---------------------------------------------------------------- save / load */
 // the save holds the company only: the shared world (S.assets, S.house, S.rivals) is worked out, never stored
-function serialize() { S.savedAt = nowMs(); const { assets, house, rivals, ...own } = S; return JSON.stringify(own); }
+// v0.19: your first company is the save, as it always was; the others and your own money are in its grp, if there's one at all
+function plainCo(c) { const { assets, house, rivals, grp: g, ...own } = c; return own; }
+function serialize() {
+  const R = mainCo(); R.savedAt = nowMs(); const o = plainCo(R);
+  if (R.grp) o.grp = { ...R.grp, active: Math.max(0, allCos().indexOf(S)), cos: R.grp.cos.map(plainCo) };
+  return JSON.stringify(o);
+}
 function saveLocal() { if (!S) return false; try { localStorage.setItem(SAVE_KEY, serialize()); return true; } catch (e) { return false; } }
 function loadLocal() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function adopt(obj) {
-  S = obj;
+  ROOT = obj; if (ROOT.grp) { ROOT.grp.cos = (Array.isArray(ROOT.grp.cos) ? ROOT.grp.cos : []).filter(c => c && Array.isArray(c.lots) && c.company).slice(0, GRP_MAX - 1); ROOT.grp.wallet = Math.max(0, +ROOT.grp.wallet || 0); }
+  adoptSubs([ROOT, ...(ROOT.grp ? ROOT.grp.cos : [])]);
+  for (const c of [ROOT, ...(ROOT.grp ? ROOT.grp.cos : [])]) { S = c; adoptCo(); }
+  S = ROOT; S = allCos()[ROOT.grp ? ROOT.grp.active | 0 : 0] || ROOT;
+  if (!WS.ready) WT = worldNow();
+  attachWorld(); prefillGoodsHist();
+}
+function adoptCo() {   // bring one company (S) up to date
   for (const p of PIDS) if (!S.market[p]) S.market[p] = { sat: 0, bp: 0, hist: [] };
   if (!S.props) S.props = PLOTS.map(() => ({ own: false, reno: 1, paid: 0 }));
   while (S.props.length < PLOTS.length) S.props.push({ own: false, reno: 1, paid: 0 });
@@ -2598,8 +2646,6 @@ function adopt(obj) {
   if (S.pub === undefined) S.pub = null;            // v0.08
   if (!S.pubHold) S.pubHold = {};
   S.v = SAVE_V;
-  if (!WS.ready) WT = worldNow();
-  attachWorld(); prefillGoodsHist();
 }
 function encodeSave() { return btoa(unescape(encodeURIComponent(serialize()))); }
 function decodeSave(str) { const o = JSON.parse(decodeURIComponent(escape(atob(str.trim())))); if (!o || !o.lots || !o.company) throw new Error('bad'); return o; }
@@ -2984,6 +3030,144 @@ const clockReady = (async () => {
 })();
 'use strict';
 /* ============================================================================
+   GROUP (v0.19): your own money, and more than one company.
+   - ROOT is your first company, and it is the save. S is the company you're in: ROOT, or one of ROOT.grp.cos. A save with
+     one company has no grp at all, so it is exactly what it was before, and a game from before keeps a grp it doesn't know.
+   - ROOT.grp = { wallet: your own money, active: which one you're in, cos: the others }. It's made the first time it's
+     needed (a second company, or taking dividends from a public one).
+   - The company you're in runs at full speed. The others run under a manager (c.mgr): slower until trained, for 10% of
+     their profit, with an order: hold, grow (it spends the company's own cash) or home (its cash goes to your wallet).
+   - Money moves freely between you and a company that's all yours. Money you put in doesn't count toward its levels
+     (c.put); what it makes with it does, and what you take out still counts. A public company pays you dividends instead.
+   - A public company can found companies with its own money, and owns them: c.subOf is its owner's gid. Their value and
+     profit are part of its own, they pay its shareholders their part, and their money goes to it and comes from it.
+   ========================================================================== */
+const GRP_MAX = 5, GRP_LEVEL = 3, GRP_MIN = 25000;          // the most companies, the level it takes to found one, and the least to put in
+const GRP_WORTH = [0, 0, 0, 1e7, 5e7];                       // your net worth for a 4th and a 5th (a 3rd takes Level 4)
+const MGR_SPEED = [.6, .75, .9, 1], MGR_TRAIN = [25000, 100000, 400000], MGR_FEE = .1, MGR_EVERY = 10;
+const MGR_ORDERS = { hold: 'Hold', grow: 'Grow', home: 'Send home' };
+
+function allCos() {   // every company, the first one first (a test that swaps S for its own copy gets just that)
+  if (!ROOT) return S ? [S] : [];
+  const l = ROOT.grp && ROOT.grp.cos.length ? [ROOT, ...ROOT.grp.cos] : [ROOT];
+  return !S || l.includes(S) ? l : [S];
+}
+function mainCo() { return allCos()[0] || S; }
+function grp() { return ROOT.grp || (ROOT.grp = { wallet: 0, active: 0, cos: [] }); }
+function wallet() { return ROOT && ROOT.grp && mainCo() === ROOT ? ROOT.grp.wallet || 0 : 0; }
+function mgrOf(c) { return c.mgr || (c.mgr = { tr: 0, order: 'hold', paid: 0, t: 0 }); }
+function mgrSpeed(c) { return MGR_SPEED[clamp(mgrOf(c).tr | 0, 0, MGR_SPEED.length - 1)]; }
+// do something as another company: every rule in the game works on S
+function withCo(c, fn) {
+  if (c === S) return fn();
+  const was = S, m = MANAGED; S = c; MANAGED = mgrSpeed(c); attachWorld();
+  try { return fn(); } finally { c.assets = c.house = c.rivals = undefined; S = was; MANAGED = m; attachWorld(); }
+}
+function listedCo() { return allCos().find(c => c.pub) || null; }   // the server keeps one listing a player, so one company can be public
+function coWorth() { return companyValue() * ownFrac(); }
+// companies a public company owns
+function parentOf(c) { return (c && c.subOf && allCos().find(x => x.gid === c.subOf)) || null; }
+function subsOf(c) { return c && c.gid ? allCos().filter(x => x.subOf === c.gid) : []; }
+function withSubs(fn) { let v = fn(); for (const c of subsOf(S)) v += withCo(c, fn); return v; }   // S and what it owns
+function steadyAll() { return withSubs(profitSteady); }
+function growthAll() { const a = steadyAll(), b = withSubs(profitLong); return a > 0 && b > 0 ? clamp(a / b, GROWTH_MIN, GROWTH_MAX) : 1; }
+function adoptSubs(l) {   // a company that's owned owns none, and its owner has to be there
+  delete l[0].subOf; for (const c of l) if (c.subOf) delete c.gid;
+  for (const c of l) if (c.subOf && !l.some(x => x.gid === c.subOf)) delete c.subOf;
+}
+function netWorth() {   // what you're worth: your own money, and your part of every company
+  const l = allCos(); if (l.length === 1 && !wallet()) return coWorth();
+  let v = wallet(); for (const c of l) if (!parentOf(c)) v += withCo(c, coWorth); return v;
+}
+function topLevel() { return Math.max(...allCos().map(c => c.level)); }
+
+/* ---------- money between you and your companies ---------- */
+const allYours = c => !c.pub && !parentOf(c);
+function takeMoney(c, amt) {   // company -> you (or the company that owns it)
+  const P = parentOf(c); if (P) { amt = Math.min(amt, c.cash); if (!(amt >= 1)) return 'Not enough cash'; c.cash -= amt; c.put = (c.put || 0) - amt; P.cash += amt; return ''; }
+  if (!allYours(c)) return `${c.company} is public: it pays you dividends instead`;
+  amt = Math.min(amt, c.cash); if (!(amt >= 1)) return 'Not enough cash';
+  c.cash -= amt; c.put = (c.put || 0) - amt; grp().wallet += amt; return '';
+}
+function putMoney(c, amt) {    // you (or the company that owns it) -> company
+  const P = parentOf(c); if (P) { amt = Math.min(amt, P.cash); if (!(amt >= 1)) return `${P.company} has no cash`; P.cash -= amt; c.cash += amt; c.put = (c.put || 0) + amt; return ''; }
+  if (!allYours(c)) return `${c.company} is public: your own money can’t go into it`;
+  amt = Math.min(amt, wallet()); if (!(amt >= 1)) return 'You have no money of your own yet';
+  grp().wallet -= amt; c.cash += amt; c.put = (c.put || 0) + amt; return '';
+}
+
+/* ---------- founding and closing ---------- */
+function coSlots() { let n = topLevel() >= 4 ? 3 : topLevel() >= GRP_LEVEL ? 2 : 1; const w = netWorth(); for (let k = 3; k < GRP_WORTH.length; k++) if (topLevel() >= 4 && w >= GRP_WORTH[k]) n = k + 1; return Math.min(GRP_MAX, n); }
+function nextSlotWhy() {
+  const n = allCos().length; if (n < coSlots()) return '';
+  return n >= GRP_MAX ? `You have ${GRP_MAX} companies, the most there can be.` : n === 1 ? `Reach Level ${GRP_LEVEL} to found a second company.` : n === 2 ? 'Reach Level 4 for a third.' : `Be worth ${money(GRP_WORTH[n], false)} for another.`;
+}
+function foundBy(by) { return S.pub && by !== 'me' ? 'co' : 'me'; }   // a public company founds with its own money and owns it, or you do with yours
+function foundMoney(by) { return foundBy(by) === 'co' ? Math.max(0, S.cash) : wallet() + (allYours(S) ? Math.max(0, S.cash) : 0); }   // yours, and what the company you're in has if it's all yours
+function canFound(name, start, amt, by) {
+  const why = nextSlotWhy(); if (why) return why;
+  if (!(typeof name === 'string' && name.length >= 2 && name.length <= 24)) return 'Give it a name (2–24 letters)';
+  if (allCos().some(c => c.company.toLowerCase() === name.toLowerCase())) return 'You have a company called that';
+  if (!PRODUCTS[start] || !PRODUCTS[start].raw) return 'Pick what it starts with';
+  if (!(amt >= GRP_MIN)) return `It takes at least ${money(GRP_MIN, false)}`;
+  if (foundMoney(by) < amt) return foundBy(by) === 'me' && !allYours(S) ? 'You don’t have that much of your own' : 'Not enough cash';
+  return '';
+}
+function foundCo(name, start, amt, by) {
+  const e = canFound(name, start, amt, by); if (e) return e;
+  const G = grp(), owned = foundBy(by) === 'co', mine = owned ? 0 : Math.min(amt, wallet()); G.wallet -= mine;
+  if (owned) { S.cash -= amt; S.gid = S.gid || 'g' + Math.floor(nowMs()).toString(36); }   // its value is still the company's: nothing to take off its levels
+  else if (amt > mine) { S.cash -= amt - mine; S.put = (S.put || 0) - (amt - mine); }
+  const c = blankCo(name, start); Object.assign(c, { cash: amt, put: amt, tut: TUT_DONE, goal: GOALS.length, pubTut: 1 }); if (owned) c.subOf = S.gid;   // goals and the tutorials are yours, not the company's
+  G.cos.push(c); pushNews(`${(owned ? S : mainCo()).company} founds ${name}`, 'you');
+  return '';
+}
+function closeValue(c) { return withCo(c, () => { let v = S.cash + portfolioValue() * .99 + propertyValue() * (1 - PROP_SELL_FEE); for (const l of S.lots) if (l && l.b !== 'hq') v += l.spent * TEAR_DOWN; for (const p in S.inv) v += S.inv[p] * price(p) * .8; return Math.max(0, v); }); }
+function closeCo(c) {
+  if (c === mainCo()) return 'Your first company can’t be closed';
+  if (c.pub) return 'Buy all its shares back first';
+  if (subsOf(c).length) return `Close the companies ${c.company} owns first`;
+  const v = closeValue(c), G = grp(), P = parentOf(c); if (S === c) goCo(P || mainCo());
+  G.cos = G.cos.filter(x => x !== c); if (P) P.cash += v; else G.wallet += v; G.active = allCos().indexOf(S); return '';
+}
+// step into another company
+function goCo(c) {
+  if (!c || c === S || !allCos().includes(c)) return false;
+  S.assets = S.house = S.rivals = undefined; S = c; grp().active = allCos().indexOf(c); attachWorld(); prefillGoodsHist(); return true;
+}
+
+/* ---------- managers: a company you're not in ---------- */
+function trainMgr(c) {
+  const m = mgrOf(c), cost = MGR_TRAIN[m.tr]; if (cost == null) return 'Fully trained';
+  if (c.cash < cost) return `${c.company} doesn’t have ${money(cost, false)}`;
+  c.cash -= cost; m.tr++; return '';
+}
+// v0.19: is this a tick a managed company's buildings work in? A manager at 90% sits out one tick in ten. (Slower ticks came out
+// slower than they said: a batch that ends partway through a tick loses the rest of it.)
+function mgrTick() { const m = mgrOf(S), a = (+m.a || 0) + MANAGED, go = a >= 1 - 1e-9; m.a = clamp(go ? a - 1 : a, 0, 1); return go; }
+// each second (from coStep, S is the managed company): the fee on this second's profit, and every 10 s, its order
+function mgrSecond() {
+  const m = mgrOf(S), p = S.prof[S.profI]; if (p > 0) { const f = p * MGR_FEE; S.cash -= f; S.prof[S.profI] -= f; m.paid = (m.paid || 0) + f; }
+  m.t = (m.t || 0) + 1; if (m.t < MGR_EVERY || AWAY_RATE < 1) return; m.t = 0;   // left idle, managers keep things running but don't spend
+  if (m.order === 'home' && !S.pub) { const keep = Math.max(2000, townValue() * .05); if (S.cash > keep + 1) takeMoney(S, S.cash - keep); }
+  else if (m.order === 'grow') mgrGrow();
+}
+function mgrGrow() {   // one careful step: room when it's full, a much better product, the best building, then upgrades
+  const free = S.cash - Math.max(2500, townValue() * .1); if (free <= 0) return;   // what it keeps back: factories buy their materials with it
+  if (!hqRoom()) { if (S.hqLv < HQ_COST.length && free >= hqQuote(1).cost) upgradeHQ(1); return; }
+  const act = activeProducts(), list = PIDS.filter(p => S.unlocked[p]), bestNow = Math.max(0, ...list.map(p => usualProfit(p, act)));
+  if (act.size < MAX_ACTIVE_PRODUCTS) {
+    const next = PIDS.filter(p => !S.unlocked[p] && PRODUCTS[p].ring <= S.level && Object.keys(PRODUCTS[p].rec).some(q => S.unlocked[q]) && usualProfit(p, act) > 1.3 * bestNow).sort((a, b) => usualProfit(b, act) - usualProfit(a, act))[0];
+    if (next && free >= 1.5 * (researchCost(next) + buildCost(next))) { unlock(next); return; }
+  }
+  let lot = -1; for (let i = 0; i < S.lots.length; i++) if (!S.lots[i] && lotUnlocked(i)) { lot = i; break; }
+  const pick = lot >= 0 ? bestPick(list, act) : null;
+  if (pick && free >= buildCost(pick)) { build(lot, pick); return; }
+  let up = -1, best = 0; S.lots.forEach((l, i) => { if (l && l.b !== 'hq' && l.lv < MAX_BLD_LV && free >= upgradeCost(l)) { const r = usualProfit(l.b, act) / upgradeCost(l); if (r > best) { best = r; up = i; } } });
+  if (up >= 0) upgrade(up);
+}
+'use strict';
+/* ============================================================================
    NET (v0.07): your account, your company saved on the server, and the shared
    market. The game still plays fine with no account or no connection: then the
    company is saved in this browser only, as before.
@@ -3055,7 +3239,8 @@ async function netFetchSave() {
   const d = await netCall('/save');
   try { NET.cloud = d.save ? JSON.parse(d.save) : null; } catch (e) { NET.cloud = null; }
 }
-function netBody() { return { company: S.company, nw: Math.round(netWorth()), level: S.level, book: Math.round(companyValue()), profit: Math.round(profitSteady() * 100) / 100, growth: Math.round(profitGrowth() * 1000) / 1000 }; }
+// v0.19: your net worth is everything you own; the value and profit are the public company's, if one of yours is (else your first)
+function netBody() { return { ...withCo(listedCo() || mainCo(), () => ({ company: S.company, book: Math.round(companyValue()), profit: Math.round(steadyAll() * 100) / 100, growth: Math.round(growthAll() * 1000) / 1000 })), nw: Math.round(netWorth()), level: topLevel() }; }
 // send the save now (leaving, the main menu, a new company). keepalive lets it finish after the page closes.
 function netSaveNow(leaving) {
   if (!NET.token || !S || !NET_API) return;
@@ -3456,7 +3641,7 @@ function sparkPath(h, w, ht) {
 
 /* ---------- top bar ---------- */
 function updateTop() {
-  $('#coName').textContent = S.company;
+  $('#coName').textContent = S.company; renderCobar();
   $('#lvChip').textContent = `LV ${S.level} · ${LEVELS[S.level].name.toUpperCase()}`;
   const bc = $('#boostChip'), bp = boostPct(); bc.hidden = bp <= 0; if (bp > 0) bc.textContent = `Startup boost +${bp}%`;
   $('#cash').textContent = money(S.cash, false); $('#cash').style.color = S.cash < 0 ? 'var(--pink)' : '';   // red when in debt
@@ -3491,14 +3676,15 @@ function sideView() {
   return emptyView(i);
 }
 function homeView() {
-  const g = GOALS[S.goal], act = activeProducts();
-  const sig = `home|${S.goal}|${Object.keys(S.unlocked).join()}|${[...act].join()}|${JSON.stringify(S.flow)}`;
+  const g = GOALS[S.goal], act = activeProducts(), sub = S !== mainCo();   // v0.19: goals are your first company's
+  const sig = `home|${S.company}|${S.goal}|${Object.keys(S.unlocked).join()}|${[...act].join()}|${JSON.stringify(S.flow)}`;
   const prods = PIDS.filter(p => S.unlocked[p]).map(p => `
     <div class="prow">${iconImg(p, 36)}<div class="nm"><b>${PRODUCTS[p].name}</b><span>${act.has(p) ? 'Have' : 'Not built yet · have'} <b data-live="inv:${p}"></b> · <b data-live="price:${p}"></b></span></div>
     ${flowSeg(p, true)}</div>`).join('');
   return { sig, html: `
-    <section class="card"><h3>Goal ${S.goal < GOALS.length ? `<span class="muted">${S.goal + 1} of ${GOALS.length}</span>` : ''}</h3>
-      ${g ? `<p>${g.text}</p><span class="chip gold" style="align-self:flex-start">Reward ${money(g.reward, false)}</span>` : '<p>Every goal done. You run Millbrook now.</p>'}</section>
+    ${sub ? `<section class="card"><h3>${esc(S.company)}</h3><p>One of your companies. While you’re here it runs at full speed, and the others run under their managers.</p><button class="btn small" type="button" data-act="group">Your companies</button></section>`
+    : `<section class="card"><h3>Goal ${S.goal < GOALS.length ? `<span class="muted">${S.goal + 1} of ${GOALS.length}</span>` : ''}</h3>
+      ${g ? `<p>${g.text}</p><span class="chip gold" style="align-self:flex-start">Reward ${money(g.reward, false)}</span>` : '<p>Every goal done. You run Millbrook now.</p>'}</section>`}
     <section class="card"><h3>Your products <span class="muted">${act.size} of ${MAX_ACTIVE_PRODUCTS} running</span></h3>${prods}
       <p class="muted" style="font-size:12px">Auto keeps what your own factories need and sells the rest, but holds it back while the price is well below normal and sells it once the price recovers. Sell sells everything. Keep stores it all.</p></section>
     <section class="card"><h3>How to play</h3>
@@ -3798,7 +3984,7 @@ const MODAL = {
           <p class="muted" style="font-size:13px">${a.about || `A company run by ${a.owner}. Its price follows the whole market, the ${a.sector === 'tech' ? 'tech' : a.sector} business and its own news.`}</p></div></div>` };
   },
   board() {   // v0.07: real players only. Simulated companies live in the town's news, never here.
-    const me = netWorth(), you = { name: NET.name || 'You', co: S.company, nw: me, lv: S.level, you: true, player: !!NET.token };
+    const me = netWorth(), you = { name: NET.name || 'You', co: mainCo().company, nw: me, lv: topLevel(), you: true, player: !!NET.token };
     const all = netOthers().concat([you]);
     all.sort((a, b) => b.nw - a.nw);
     const at = all.findIndex(x => x.you), show = all.map((x, k) => ({ x, k })).filter(({ k }) => k < 10 || Math.abs(k - at) <= 2);
@@ -3808,11 +3994,11 @@ const MODAL = {
       const gap = k > last + 1 ? '<div class="lb-gap">···</div>' : ''; last = k;
       const tag = x.you ? '<span class="chip gold">YOU</span>' : `<span class="chip olive">${x.online ? '<i class="dot" title="online now"></i>' : ''}PLAYER</span>`;
       return gap + `<div class="lb-row ${x.you ? 'you' : ''} ${k < 3 ? 'top' : ''}"><span class="rk">#${k + 1}</span>${iconImg('house', 36)}
-        <div style="min-width:0"><b>${esc(x.you ? S.company : x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.you ? (NET.token ? NET.name : 'You') : x.co || '')} · LV ${x.lv || lvl(x.nw)}</span></div>
+        <div style="min-width:0"><b>${esc(x.you ? mainCo().company : x.name)}</b><br><span class="muted" style="font-size:12px">${esc(x.you ? (NET.token ? NET.name : 'You') : x.co || '')} · LV ${x.lv || lvl(x.nw)}</span></div>
         <span class="nw">${money(x.nw, false)}</span><span class="lb-tag">${tag}</span></div>`;
     }).join('');
     const sub = !NET_API ? 'Real players only. This copy of the game was opened as a file: open it at brickncoin.com to see the other players.'
-      : `Real players only, by net worth (your part of your company, plus everything else you own).${NET.players ? ` ${NET.players} player${NET.players === 1 ? '' : 's'} · ${NET.online} online now.` : ''}${NET.token ? '' : ' <b>Log into your Inspirapixel account (Menu → Online) so other players see you here.</b>'}`;
+      : `Real players only, by net worth (your own money and your part of every company you own).${NET.players ? ` ${NET.players} player${NET.players === 1 ? '' : 's'} · ${NET.online} online now.` : ''}${NET.token ? '' : ' <b>Log into your Inspirapixel account (Menu → Online) so other players see you here.</b>'}`;
     return { sig: `board|${show.map(({ x, k }) => k + x.name).join()}|${NET.token ? 1 : 0}|${NET.players}|${Math.floor(S.t / 2)}`, title: 'Leaderboard', html: `<p class="m-sub">${sub}</p><div class="lb">${rows}</div>` };
   },
   menu() {   // v0.06: sections down the side
@@ -3832,8 +4018,8 @@ const MODAL = {
         <div class="trade"><button class="btn" type="button" data-act="savenow">Save now</button><button class="btn ghost" type="button" data-act="copysave">Export save code</button></div>
         <label class="muted" style="font-size:13px" for="loadBox">Paste a save code here to import it</label><textarea id="loadBox" class="savebox" spellcheck="false"></textarea>
         <button class="btn ghost" type="button" data-act="loadsave" style="align-self:flex-start">Import save code</button>
-        <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
-          <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${esc(S.company)}` : 'Start a new company'}</button>
+        <section class="card" style="margin-top:8px"><h3 style="font:600 15px/1.2 var(--font-ui);color:var(--bone)">Start over</h3><p class="muted" style="font-size:13px">Deletes ${allCos().length > 1 ? 'all your companies, ' : ''}${esc(S.company)} and its save for good. Export a save code first if you might want it back.</p>
+          <div class="trade"><button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="reset">${conf ? `Tap again to delete ${allCos().length > 1 ? 'all of them' : esc(S.company)}` : 'Start a new company'}</button>
           ${conf ? '<button class="btn ghost" type="button" data-act="resetno">Keep my company</button>' : ''}</div></section>`;
     } else if (tab === 'online') {   // v0.07
       const ago = NET.lastSave ? Math.max(0, Math.round((Date.now() - NET.lastSave) / 60000)) : -1;
@@ -3930,6 +4116,11 @@ const HELP = [
     'Sell a lot of one thing and its <b>price drops</b>, so spread out. Booms and slumps in the news move prices too.',
     '<b>Invest</b> (S) in shares, the index fund or PixCoin, and buy homes that pay <b>rent</b>.',
     'The stock market and the news are <b>the same for every player</b>, live.'] },
+  { art: () => bigArt(buildingPreview('hq', 3)), t: 'Several companies', p: [
+    'At <b>Level 3</b> you can found a second company, at Level 4 a third, and up to five: tap the <b>▾ at the top left</b>. Each has its own town, HQ and products.',
+    'Tap a name on the map (or press <b>1</b> to <b>5</b>) to switch. The one you’re in runs at full speed. The others run under a <b>manager</b>: 60% speed, trained up to 100%, for a tenth of their profit.',
+    'Tell a manager to <b>hold</b>, <b>grow</b> (it spends the company’s own cash) or <b>send home</b> (spare cash becomes yours). <b>Your own money</b> can found companies or go into one; money you put in doesn’t count toward its levels.',
+    'A <b>public</b> company can found one with <b>its own money</b>, and owns it: your part is the same as your part of that company.'] },
   { art: () => icoArt('house'), t: 'Going public', p: [
     'At Level 3, worth $100,000, your company can <b>go public</b> (Invest → Your company): sell 5% to 90% of it to investors for cash to grow with.',
     'You pick the <b>price</b> (a lower one sells every share, a higher one may not), the <b>ticker</b>, and the <b>dividend</b>: how much of the profit you pay out.',
@@ -4106,7 +4297,7 @@ function townPostcard() {
 function pubParse(r) { return { ticker: r[0], co: r[1], owner: r[2], total: +r[3], own: +r[4], book: +r[5], profit: +r[6], fb: +r[7], fs: +r[8], ft: +r[9], paid: +r[10], listed: +r[11], held: +r[12], holders: +r[13], online: !!r[14], growth: r[15] != null ? +r[15] : 1,
   divr: r[16] != null ? +r[16] : PUB_DIV, divp: r[17] != null ? +r[17] : PUB_DIV, divt: +r[18] || 0, tp: +r[19] || 0, tn: +r[20] || 0, tt: +r[21] || 0 }; }
 function pubListing(t) { return NET.listings.find(L => L.ticker === t) || null; }
-function ownFrac() { return S && S.pub && S.pub.total > 0 ? clamp(S.pub.own / S.pub.total, 0, 1) : 1; }
+function ownFrac(c = S) { return c && c.pub && c.pub.total > 0 ? clamp(c.pub.own / c.pub.total, 0, 1) : 1; }
 function tickerSeed(t) { let h = 7; for (let i = 0; i < t.length; i++) h = (Math.imul(h, 31) + t.charCodeAt(i)) >>> 0; return h; }
 // what investors add for profit: 15 minutes of steady profit, scaled by its trend (v0.11), at most 25% of the company's value
 // v0.18: and by the dividend investors believe in: 0.6x the minutes at none, 1x at 30% (what every company paid before), 1.67x at 80%
@@ -4191,7 +4382,7 @@ function pubMineL() {
   if (!S || !S.pub) return null;
   const L = pubListing(S.pub.ticker) || { ticker: S.pub.ticker, fb: 0, fs: 0, ft: 0, held: 0, holders: 0, paid: 0 };
   const { divr, divp, divt, tp, tn, tt } = S.pub, put = { divr, divp, divt, tp, tn, tt }; for (const k in put) if (put[k] == null) delete put[k];
-  return { ...L, ...put, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: profitSteady(), growth: profitGrowth() };
+  return { ...L, ...put, total: S.pub.total, own: S.pub.own, book: companyValue(), profit: steadyAll(), growth: growthAll() };
 }
 // shares this company holds in other players' companies, at today's prices (the last known one if a company drops off the list)
 function pubHoldValue() {
@@ -4201,21 +4392,25 @@ function pubHoldValue() {
 }
 // dividends: the outside shareholders' part leaves the company (every 10 s, from step())
 function pubPayDividends(dtMin) {
-  if (!S.pub) return;
-  const out = 1 - ownFrac(), p = profitPerMin(); if (out <= 0 || p <= 0) return;
-  const d = divRate(S.pub) * p * dtMin * out; if (d <= 0) return; S.cash -= d; S.pub.paid = (S.pub.paid || 0) + d; if (NET.token) NET.div += d;
+  const L = S.pub ? S : parentOf(S); if (!L || !L.pub) return;   // v0.19: a company that a public one owns pays its shareholders too
+  const out = 1 - ownFrac(L), p = profitPerMin(); if (out <= 0 || p <= 0) return;
+  const d = divRate(L.pub) * p * dtMin * out; if (d <= 0) return;
+  if (L.takeDiv && ROOT && ROOT.grp) { const mine = d / out * (1 - out); S.cash -= mine; ROOT.grp.wallet += mine; L.pubMine = (L.pubMine || 0) + mine; }   // v0.19: your own part, if you take it
+  S.cash -= d; L.pub.paid = (L.pub.paid || 0) + d; if (NET.token) NET.div += d;
 }
 // what the server says about this company's listing and holdings, dividends received and buyouts (from netTake)
 function pubTake(d) {
   if (!('mine' in d) || (d._t0 || 0) < (NET.pubAt || 0)) return;   // not a sync, or one that started before a trade
-  S.pub = d.mine ? { ...d.mine, paid: Math.max(S.pub && S.pub.ticker === d.mine.ticker ? S.pub.paid || 0 : 0, d.mine.paid || 0) } : null;
-  if (d.refund > 0) { S.cash += d.refund; pushNews(`Your offer to buy shares ended: ${money(d.refund, false)} wasn’t used and is back`, 'info'); }   // v0.18
+  // v0.19: the listing is whichever company of yours is public; the shares you hold, and what they pay, are your first company's
+  const c = d.mine ? allCos().find(x => x.pub && x.pub.ticker === d.mine.ticker) || listedCo() || mainCo() : null, H = mainCo();
+  if (c) c.pub = { ...d.mine, paid: Math.max(c.pub && c.pub.ticker === d.mine.ticker ? c.pub.paid || 0 : 0, d.mine.paid || 0) }; else for (const x of allCos()) x.pub = null;
+  if (d.refund > 0) { (c || H).cash += d.refund; pushNews(`Your offer to buy shares ended: ${money(d.refund, false)} wasn’t used and is back`, 'info'); }   // v0.18
   if (Array.isArray(d.holdings)) {
-    const old = S.pubHold || {}; S.pubHold = {};
-    for (const [t, q, cost] of d.holdings) { const L = pubListing(t); S.pubHold[t] = { q, cost, p: L ? pubPrice(L) : old[t] ? old[t].p : 0 }; }
+    const old = H.pubHold || {}; H.pubHold = {};
+    for (const [t, q, cost] of d.holdings) { const L = pubListing(t); H.pubHold[t] = { q, cost, p: L ? pubPrice(L) : old[t] ? old[t].p : 0 }; }
   }
   // dividends from players' companies count as profit as they come in, but not a pile that built up while you were away (v0.11)
-  if (d.credit > 0) { S.cash += d.credit; if (d.credit <= Math.max(100, 3 * Math.abs(profitSteady()))) addProfit(d.credit); S.pubDivIn = (S.pubDivIn || 0) + d.credit; }
+  if (d.credit > 0) { H.cash += d.credit; withCo(H, () => { if (d.credit <= Math.max(100, 3 * Math.abs(profitSteady()))) addProfit(d.credit); }); H.pubDivIn = (H.pubDivIn || 0) + d.credit; }
   for (const [t, co, cash] of d.paidOut || []) pushNews(`${co} (${t}) has closed: your shares were bought out for ${money(cash, false)}`, 'info');
 }
 
@@ -4223,9 +4418,9 @@ function pubTake(d) {
 // what the owner has picked on the Go public screen (whole numbers: %), and on Your company
 function ipoPick() { return UI.ipo || (UI.ipo = { f: 25, m: 90, d: Math.round(PUB_DIV * 100), t: '' }); }
 function ipoQuote() {
-  const o = ipoPick(), f = o.f / 100, m = o.m / 100, cv = companyValue(), g = profitGrowth(), fair = cv + pubPremium(cv, profitSteady(), g, o.d / 100), taken = ipoTaken(m, g);
+  const o = ipoPick(), f = o.f / 100, m = o.m / 100, cv = companyValue(), g = growthAll(), fair = cv + pubPremium(cv, steadyAll(), g, o.d / 100), taken = ipoTaken(m, g);
   const n = f / (1 - f) * taken, raised = fair * n * m * bigSale(f) * (1 - IPO_FEE), out = n / (1 + n);
-  return { fair, raised, taken, out, nwAfter: (cv + raised) * (1 - out) };
+  return { fair, raised, taken, out, nwAfter: netWorth() - coWorth() + (cv + raised) * (1 - out) };
 }
 function floatQuote(target) {
   const L = pubMineL(); if (!L) return null;
@@ -4241,14 +4436,16 @@ function tenderQuote() {
 }
 const leftMin = ms => { const m = Math.max(0, Math.ceil(ms / 60e3)); return m < 90 ? m + ' min' : Math.round(m / 60) + ' h'; };
 async function pubGoPublic() {
+  const other = listedCo(); if (other && other !== S) throw new Error(`${other.company} is public already: one of your companies can be, for now`);
   if (S.pub) throw new Error(`${S.company} is already public`);
+  if (parentOf(S)) throw new Error(`${S.company} belongs to ${parentOf(S).company}`);
   if (S.level < PUB_LEVEL) throw new Error(`Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) first`);
   if (companyValue() < LEVELS[PUB_LEVEL].nw) throw new Error(`The company needs to be worth ${money(LEVELS[PUB_LEVEL].nw, false)} to go public`);   // v0.16: Level 3 can come sooner; the server asks for this
   if (!NET.token) throw new Error('Log in first (Menu → Online): going public needs the server');
   const o = ipoPick(), t = (o.t || '').trim().toUpperCase();
   if (t && !/^[A-Z][A-Z0-9]{1,4}$/.test(t)) throw new Error('A ticker is 2 to 5 letters or numbers, starting with a letter');
   if (!NET.lastSave) await netSync(true);   // the server needs the company before it can list it
-  const d = await netCall('/ipo', { f: o.f / 100, m: o.m / 100, div: o.d / 100, ticker: t, company: S.company, book: Math.round(companyValue()), profit: profitSteady(), growth: profitGrowth() });
+  const d = await netCall('/ipo', { f: o.f / 100, m: o.m / 100, div: o.d / 100, ticker: t, company: S.company, book: Math.round(companyValue()), profit: steadyAll(), growth: growthAll() });
   NET.pubAt = Date.now();
   S.cash += d.raised; S.pub = { ...d.mine, paid: 0 }; S.pubTut = 1;
   const sold = Math.round((1 - ownFrac()) * 1000) / 10;
@@ -4259,7 +4456,7 @@ async function pubGoPublic() {
 async function pubFloat(target) {
   const q = floatQuote(target); if (!q) throw new Error(`${S.company} isn’t public`);
   if (q.cash < 0 && S.cash < -q.cash) throw new Error(`Not enough cash: buying back costs about ${money(-q.cash, false)}`);
-  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: profitSteady(), growth: profitGrowth() });
+  const d = await netCall('/float', { f: target, book: Math.round(companyValue()), profit: steadyAll(), growth: growthAll() });
   NET.pubAt = Date.now();
   S.cash += d.cash + (d.refund || 0); const paid = S.pub.paid || 0; S.pub = d.mine ? { ...d.mine, paid } : null; UI.flt = null;
   saveLocal(); netSaveNow();
@@ -4285,34 +4482,34 @@ async function pubTenderEnd() {
   return `Offer called off: ${money(d.refund || 0, false)} is back`;
 }
 async function pubTenderSell(t, part) {
-  const L = pubListing(t), h = S.pubHold[t]; if (!L || !h || !(h.q > 0)) throw new Error('You own none');
+  const H = mainCo(), L = pubListing(t), h = H.pubHold[t]; if (!L || !h || !(h.q > 0)) throw new Error('You own none');
   const d = await netCall('/tender/sell', { ticker: t, shares: h.q * part }); NET.pubAt = Date.now();
-  S.cash += d.cash + (d.credit || 0); if (d.credit > 0) S.pubDivIn = (S.pubDivIn || 0) + d.credit;
-  if (d.holding) S.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: h.p }; else delete S.pubHold[t];
+  H.cash += d.cash + (d.credit || 0); if (d.credit > 0) H.pubDivIn = (H.pubDivIn || 0) + d.credit;
+  if (d.holding) H.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: h.p }; else delete H.pubHold[t];
   L.tn = Math.max(0, L.tn - d.shares); L.total -= d.shares; L.held -= d.shares; saveLocal();
   return `Sold ${qty(d.shares)} ${t} shares to ${L.co}: +${money(d.cash, false)}`;
 }
-async function pubTrade(t, side, v) {
-  const L = pubListing(t); if (!L) throw new Error('Pick a company first');
+async function pubTrade(t, side, v) {   // v0.19: with your first company's cash, whichever you're in
+  const H = mainCo(), L = pubListing(t); if (!L) throw new Error('Pick a company first');
   if (!NET.token) throw new Error('Log in first (Menu → Online) to trade players’ shares');
   const price = pubPrice(L), fee = FEE.stock;
   let shares;
   if (side === 'buy') {
-    const dollars = Math.min(v, S.cash); if (dollars < 1) throw new Error('Not enough cash');
+    const dollars = Math.min(v, H.cash); if (dollars < 1) throw new Error('Not enough cash' + (H !== S ? ` in ${H.company}` : ''));
     shares = Math.min(pubSharesFor(L, dollars / (1 + fee) * .9995), L.total - L.own - L.held);
     if (shares < 1e-3) throw new Error('No shares for sale right now: players hold them all');
   } else {
-    const h = S.pubHold[t]; if (!h || h.q <= 0) throw new Error('You own none');
+    const h = H.pubHold[t]; if (!h || h.q <= 0) throw new Error('You own none');
     shares = h.q * v;
   }
   const d = await netCall('/shares', { ticker: t, side, shares, price });
   NET.pubAt = Date.now();
   const amt = shares * d.price;
-  if (side === 'buy') S.cash -= amt * (1 + fee); else S.cash += amt * (1 - fee);
-  if (d.credit > 0) { S.cash += d.credit; S.pubDivIn = (S.pubDivIn || 0) + d.credit; }
-  const had = !!S.pubHold[t];
-  if (d.holding) S.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: d.price }; else delete S.pubHold[t];
-  L.holders += (S.pubHold[t] ? 1 : 0) - (had ? 1 : 0);
+  if (side === 'buy') H.cash -= amt * (1 + fee); else H.cash += amt * (1 - fee);
+  if (d.credit > 0) { H.cash += d.credit; H.pubDivIn = (H.pubDivIn || 0) + d.credit; }
+  const had = !!H.pubHold[t];
+  if (d.holding) H.pubHold[t] = { q: d.holding[1], cost: d.holding[2], p: d.price }; else delete H.pubHold[t];
+  L.holders += (H.pubHold[t] ? 1 : 0) - (had ? 1 : 0);
   const k = pubKeep(L, nowMs());   // show the move at once, before the next sync
   L.fb *= k; L.fs *= k; L.ft = nowMs(); if (side === 'buy') { L.fb += amt; L.held += shares; } else { L.fs += amt; L.held -= shares; }
   saveLocal();
@@ -4331,13 +4528,14 @@ Object.assign(LIVE, {
   pubimp(t) { const L = pubListing(t); if (!L) return { text: '', cls: '' }; const m = pubImpact(L) - 1; return Math.abs(m) < .005 ? { text: 'steady', cls: 'muted' } : { text: 'players ' + pctTxt(m), cls: m >= 0 ? 'olive' : 'red' }; },
   pubcap(t) { const L = pubListing(t); return L ? money(pubPrice(L) * L.total, false) : '—'; },
   pubfree(t) { const L = pubListing(t); return L ? qty(Math.max(0, L.total - L.own - L.held)) + ' shares' : '—'; },
-  pubhq: t => { const h = S.pubHold[t]; return h ? qty(h.q) : '0'; },
-  pubhv: t => { const h = S.pubHold[t], L = pubListing(t); return money(h && L ? h.q * pubPrice(L) : 0); },
-  pubhpl(t) { const h = S.pubHold[t], L = pubListing(t); if (!h || !L || h.q <= 0) return { text: '—', cls: 'muted' }; const v = h.q * pubPrice(L) - h.cost; return { text: (v >= 0 ? '+' : '') + money(v) + ' (' + pctTxt(v / h.cost) + ')', cls: v >= 0 ? 'olive' : 'red' }; },
+  pubhq: t => { const h = mainCo().pubHold[t]; return h ? qty(h.q) : '0'; },
+  pubhv: t => { const h = mainCo().pubHold[t], L = pubListing(t); return money(h && L ? h.q * pubPrice(L) : 0); },
+  pubhpl(t) { const h = mainCo().pubHold[t], L = pubListing(t); if (!h || !L || h.q <= 0) return { text: '—', cls: 'muted' }; const v = h.q * pubPrice(L) - h.cost; return { text: (v >= 0 ? '+' : '') + money(v) + ' (' + pctTxt(v / h.cost) + ')', cls: v >= 0 ? 'olive' : 'red' }; },
+  hcash: () => money(mainCo().cash, false),
   mypx() { const L = pubMineL(); return L ? money(pubPrice(L)) : '—'; },
   mycap() { const L = pubMineL(); return L ? money(pubPrice(L) * L.total, false) : '—'; },
-  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false), mysteady: () => money(profitSteady()) + '/min',
-  mytrend: () => trendTxt(profitGrowth()), pubtrend: t => { const L = pubListing(t); return L ? trendTxt(L.growth) : '—'; },
+  mynw: () => money(netWorth(), false), mycv: () => money(companyValue(), false), mysteady: () => money(steadyAll()) + '/min',
+  mytrend: () => trendTxt(growthAll()), pubtrend: t => { const L = pubListing(t); return L ? trendTxt(L.growth) : '—'; },
   myprem() { const L = pubMineL(); if (!L) return '—'; const v = pubPrice(L) * L.total / Math.max(1, companyValue()) - 1; return (v >= 0 ? '+' : '−') + Math.round(Math.abs(v) * 100) + '%'; },
   ipoval: () => money(ipoQuote().fair, false),
   iporaise: () => '+' + money(ipoQuote().raised, false),
@@ -4356,9 +4554,9 @@ function trendTxt(g) { return { text: Math.abs(g - 1) < .05 ? 'steady' : (g > 1 
 function pubStat(k, v, live) { return `<div class="stat"><span>${k}</span><b${live ? ` data-live="${live}"` : ''}>${v || ''}</b></div>`; }
 function pubPlayersView(tabs) {
   // v0.11: your own company is in the list too, marked YOU, just as other players see it (the server's copy: up to a minute old)
-  const mine = S.pub ? S.pub.ticker : null, list = NET.listings.slice();
+  const mine = listedCo() ? listedCo().pub.ticker : null, list = NET.listings.slice(), H = mainCo();
   if (!list.find(L => L.ticker === UI.pubSel)) UI.pubSel = (list.find(L => L.ticker !== mine) || list[0] || {}).ticker || null;
-  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(S.pubHold).join()}|${mine}|${UI.pubTF}|${L && L.tn > 0 && S.pubHold[L.ticker] ? L.tp : ''}`;
+  const L = pubListing(UI.pubSel), sig = `pub|${list.map(x => x.ticker + x.held).join()}|${UI.pubSel}|${NET.token ? 1 : 0}|${Object.keys(H.pubHold).join()}|${mine}|${UI.pubTF}|${L && L.tn > 0 && H.pubHold[L.ticker] ? L.tp : ''}|${H === S}`;
   const intro = `<p class="m-sub">Real players’ companies that have gone public (yours too, marked YOU, as other players see it). A share’s price follows its company’s value and profit, the market’s mood, and players buying and selling it. Each company pays part of its profit as dividends (its owner sets how much), and you get your part while you hold its shares, even while you’re away.${NET_API ? '' : ' Open the game at brickncoin.com to see them.'}</p>`;
   if (!L) return { sig, title: 'Invest', html: tabs + intro + `<section class="card"><h3>No player companies yet</h3><p class="muted" style="font-size:13px">When a player takes their company public, it shows up here. Reach Level ${PUB_LEVEL} and yours could be the first: see Your company.</p></section>` };
   const rows = list.map(x => `<button type="button" class="st-row ${x.ticker === UI.pubSel ? 'sel' : ''}" data-act="pubsel" data-t="${x.ticker}">${iconImg('house', 36)}
@@ -4375,14 +4573,14 @@ function pubPlayersView(tabs) {
       <div class="stat-grid">${pubStat('Market value', '', 'pubcap:' + t)}${pubStat('Owner keeps', Math.round(L.own / L.total * 100) + '%')}${pubStat('Profit', money(L.profit) + '/min')}${pubStat('Profit trend', '', 'pubtrend:' + t)}
         ${pubStat('Pays out', Math.round(divRate(L) * 100) + '% of profit')}${pubStat('Dividends paid', money(L.paid, false))}${pubStat('Players hold', `${qty(L.held)} · ${L.holders} player${L.holders === 1 ? '' : 's'}`)}${pubStat('For sale', '', 'pubfree:' + t)}
         ${t === mine ? '' : pubStat('You own', '', 'pubhq:' + t) + pubStat('Worth', '', 'pubhv:' + t) + pubStat('Profit / loss', '', 'pubhpl:' + t)}</div>
-      ${t !== mine && L.tn > 0 && S.pubHold[t] && L.tt > nowMs() ? `<section class="card"><h3>An offer for your shares</h3><p style="font-size:13px"><b>${esc(L.co)}</b> offers <b class="gold">${money(L.tp)}</b> a share for shares players hold (today’s price is <b data-live="pubp:${t}"></b>). <span class="muted" data-live="tleft:${t}"></span></p>
+      ${t !== mine && L.tn > 0 && H.pubHold[t] && L.tt > nowMs() ? `<section class="card"><h3>An offer for your shares</h3><p style="font-size:13px"><b>${esc(L.co)}</b> offers <b class="gold">${money(L.tp)}</b> a share for shares players hold (today’s price is <b data-live="pubp:${t}"></b>). <span class="muted" data-live="tleft:${t}"></span></p>
         <div class="trade"><span class="muted" style="font-size:13px">Sell into it</span>${[[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, l]) => `<button class="btn ghost small" type="button" data-act="pubtsell" data-v="${v}">${l}</button>`).join('')}</div></section>` : ''}
       ${t === mine ? `<section class="card"><h3>This is your company</h3><p class="muted" style="font-size:13px">This is how ${esc(L.co)} looks to other players: what investors see, from the server, up to a minute old. You can’t trade your own shares here. To sell more of the company or buy shares back, go to Your company.</p>
         <div class="trade"><button class="btn small" type="button" data-act="itab" data-v="mine">Your company</button></div></section>`
-      : `<section class="card"><h3>Trade <span class="muted">cash <b data-live="cash"></b> · ${FEE.stock * 100}% fee</span></h3>
+      : `<section class="card"><h3>Trade <span class="muted">${H === S ? 'cash <b data-live="cash"></b>' : `with ${esc(H.company)}’s cash <b data-live="hcash"></b>`} · ${FEE.stock * 100}% fee</span></h3>
         ${NET.token ? `<div class="trade"><span class="muted" style="font-size:13px">Buy</span>${buy}</div><div class="trade"><span class="muted" style="font-size:13px">Sell</span>${sell}</div>`
           : '<p class="muted" style="font-size:13px">Log in (Menu → Online) to buy and sell players’ shares.</p>'}<p class="muted" style="font-size:12px">A big order moves the price as it goes through, so you pay (or get) the average along the way.</p></section>`}
-      <p class="muted" style="font-size:12px">Dividends you’ve had from players’ companies: ${money(S.pubDivIn || 0, false)}.</p></div></div>` };
+      <p class="muted" style="font-size:12px">Dividends you’ve had from players’ companies: ${money(H.pubDivIn || 0, false)}.</p></div></div>` };
 }
 // a slider with its value next to it: it keeps its place while the numbers round it change
 const slide = (k, label, live, min, max, step, v) => `<label class="sld"><span>${label}</span><b data-live="${live}"></b><input type="range" data-slide="${k}" min="${min}" max="${max}" step="${step}" value="${v}" aria-label="${label}"></label>`;
@@ -4399,11 +4597,11 @@ function pubMineView(tabs) {
   const conf = UI.confirm;
   if (!S.pub) {
     const o = ipoPick(), ok = S.level >= PUB_LEVEL && companyValue() >= LEVELS[PUB_LEVEL].nw;
-    const why = S.level < PUB_LEVEL ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) to go public.`
+    const other = listedCo(), why = parentOf(S) ? `${esc(S.company)} belongs to ${esc(parentOf(S).company)}, so it can’t go public itself.` : other ? `${esc(other.company)} is public already: one of your companies can be, for now.` : S.level < PUB_LEVEL ? `Reach Level ${PUB_LEVEL} (${LEVELS[PUB_LEVEL].name}) to go public.`
       : !ok ? `Going public needs a company value of ${money(LEVELS[PUB_LEVEL].nw, false)} (above): HQ and storage count half there, and research doesn’t.`
       : !NET_API ? 'Open the game at brickncoin.com to go public.' : !NET.token ? 'Log in (Menu → Online) to go public: the server keeps the share register.' : '';
     const steps = PUB_STEPS.map(x => `<button type="button" data-act="ipof" data-v="${x}">${Math.round(x * 100)}%</button>`).join('');
-    return { sig: `mine|ipo|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `
+    return { sig: `mine|ipo|${S.company}|${other ? 1 : 0}|${ok}|${NET.token ? 1 : 0}|${conf}`, title: 'Invest', html: tabs + `
       <p class="m-sub">Going public sells part of ${esc(S.company)} to investors in new shares, on your terms. The cash goes straight into the company to grow with, and you keep running it.</p>
       ${PUB_HOW}
       <section class="card"><h3>Go public</h3>
@@ -4422,7 +4620,7 @@ function pubMineView(tabs) {
   }
   const L = pubMineL(), out = 1 - ownFrac(), t = S.pub.ticker, held = L.held || 0, now = nowMs();
   const wait = (S.pub.issuet || 0) + ISSUE_WAIT - now, dwait = (S.pub.divt || 0) + DIV_WAIT - now, offer = S.pub.tn > 0 && S.pub.tt > now, twait = (S.pub.tt || 0) - now, o = UI.tnd || (UI.tnd = { p: 10, q: 100 });
-  return { sig: `mine|pub|${t}|${S.pub.total}|${S.pub.own}|${conf}|${held}|${S.pub.divr}|${offer ? S.pub.tp : twait > 0}|${wait > 0}|${dwait > 0}`, title: 'Invest', html: tabs + `
+  return { sig: `mine|pub|${t}|${S.pub.total}|${S.pub.own}|${conf}|${held}|${S.pub.divr}|${offer ? S.pub.tp : twait > 0}|${wait > 0}|${dwait > 0}|${S.takeDiv ? 1 : 0}`, title: 'Invest', html: tabs + `
     <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>${esc(S.company)}</h2><span class="muted">public as <b>${t}</b> since ${new Date(S.pub.listed).toLocaleDateString()}</span></div>
       <div style="text-align:right"><b class="num gold" style="font-size:30px;line-height:1" data-live="mypx"></b><br><span class="muted" style="font-size:12px">a share</span></div></div>
     <div class="stat-grid">${pubStat('Company value', '', 'mycv')}${pubStat('Market value', '', 'mycap')}${pubStat('Market vs company', '', 'myprem')}${pubStat('Profit trend', '', 'mytrend')}
@@ -4433,6 +4631,7 @@ function pubMineView(tabs) {
       <div class="trade"><button class="btn ${conf === 'float' ? 'danger' : 'ghost'} small" type="button" data-act="pubfloat">${conf === 'float' ? 'Tap again: ' : ''}Change it <b data-live="fltq" data-base=""></b></button>${wait > 0 ? `<span class="muted" style="font-size:12px">More can be sold in ${leftMin(wait)}.</span>` : ''}</div></section>
     <section class="card"><h3>Dividend</h3><p class="muted" style="font-size:13px">You pay out ${Math.round(divRate(S.pub) * 100)}% of profit: outside shareholders get ${Math.round(divRate(S.pub) * out * 1000) / 10}% of it all. Investors pay more for a higher one, once they believe it (about half a day).</p>
       ${slide('divp', 'Pay out', 'divv', 0, DIV_MAX * 100, 5, divPick())}
+      <label class="check"><input type="checkbox" data-act="takediv" ${S.takeDiv ? 'checked' : ''}> Take my own part too (${Math.round(divRate(S.pub) * (1 - out) * 1000) / 10}% of profit), as my own money${S.takeDiv ? '' : '. Off: it stays in the company'}</label>
       <div class="trade"><button class="btn ghost small" type="button" data-act="pubdiv" ${dwait > 0 ? `data-cost="0" data-block="You can change it again in ${leftMin(dwait)}"` : ''}>Set the dividend</button></div></section>
     ${offer ? `<section class="card"><h3>Your offer to players</h3><p style="font-size:13px"><b class="gold">${money(S.pub.tp)}</b> a share. <span class="muted" data-live="tleft:mine"></span></p><p class="muted" style="font-size:12px">What isn’t used comes back to you when it ends.</p>
       <div class="trade"><button class="btn ${conf === 'tend' ? 'danger' : 'ghost'} small" type="button" data-act="pubtend">${conf === 'tend' ? 'Tap again: call it off' : 'Call it off'}</button></div></section>`
@@ -4470,6 +4669,60 @@ function portfolioView(tabs) {
       : `<section class="card" style="margin-top:12px"><h3>Nothing here yet</h3><p class="muted" style="font-size:13px">Spare cash can work for you: shares and the index fund pay dividends, homes pay rent every second, and other players’ companies pay part of their profit. Start in Stocks or Real estate.</p>
         <div class="trade"><button class="btn small" type="button" data-act="itab" data-v="stocks">Stocks</button><button class="btn ghost small" type="button" data-act="itab" data-v="re">Real estate</button></div></section>`}` };
 }
+'use strict';
+/* ============================================================================
+   YOUR COMPANIES (v0.19): the screen behind your company's name, and the names on the map. The rules are in 36_group.js.
+   ========================================================================== */
+function fndPick() { return UI.fnd || (UI.fnd = { name: '', start: 'wood', amt: GRP_MIN, by: 'co' }); }
+Object.assign(LIVE, {
+  wallet: () => money(wallet(), false),
+  cow: i => { const c = allCos()[+i]; return c ? money(withCo(c, companyValue), false) : ''; },
+  coc: i => { const c = allCos()[+i]; return c ? money(c.cash, false) : ''; },
+  cop(i) { const c = allCos()[+i]; if (!c) return ''; const v = withCo(c, profitPerMin); return { text: (v >= 0 ? '+' : '') + money(v) + '/min', cls: v >= 0 ? 'olive' : 'red' }; },
+  fndamt: () => money(fndPick().amt, false), fndhave: () => money(foundMoney(fndPick().by), false),
+  coclv: i => { const c = allCos()[+i]; return c ? money(closeValue(c), false) : ''; },
+});
+// the names on the map: one tap to switch. Only with two or more companies
+function renderCobar() {
+  const el = $('#cobar'); if (!el) return;
+  const l = allCos(), sig = l.length < 2 ? '' : l.map(c => c.company + (c === S ? '*' : '')).join('|') + (UI.sheet && isPhone() ? 's' : '');
+  if (el.dataset.sig === sig) return; el.dataset.sig = sig; el.hidden = !sig || (UI.sheet && isPhone());
+  el.innerHTML = l.length < 2 ? '' : l.map((c, i) => `<button type="button" data-act="gogo" data-i="${i}" aria-pressed="${c === S}" title="${esc(c.company)}">${esc(c.company)}</button>`).join('') + '<button type="button" data-act="group" title="Your companies" aria-label="Your companies">☰</button>';
+}
+Object.assign(MODAL, {
+  group() {
+    const l = allCos(), why = nextSlotWhy(), conf = UI.confirm, f = fndPick(), here = l.indexOf(S), most = Math.max(GRP_MIN, Math.floor(foundMoney(f.by))), hasW = !!(ROOT && ROOT.grp), mine = allYours(S), own = parentOf(S), byCo = foundBy(f.by) === 'co', pc = c => Math.round(ownFrac(c) * 1000) / 10 + '%';
+    f.amt = clamp(f.amt, GRP_MIN, most);
+    const card = (c, i) => {
+      const m = mgrOf(c), me = c === S, P = parentOf(c), next = MGR_TRAIN[m.tr], sp = Math.round(MGR_SPEED[m.tr] * 100);
+      return `<section class="card"><div class="corow"><h3>${esc(c.company)} ${me ? '<span class="chip gold">YOU’RE HERE</span>' : ''}</h3>${me ? '' : `<button class="btn small" type="button" data-act="gogo" data-i="${i}">Go there</button>`}</div>
+        <div class="kv"><span>Level</span><b>${c.level} · ${LEVELS[c.level].name}</b><span>Worth${subsOf(c).length ? ', with what it owns' : ''}</span><b data-live="cow:${i}"></b><span>Cash</span><b data-live="coc:${i}"></b><span>Profit</span><b data-live="cop:${i}" data-base=""></b>
+          <span>Yours</span><b>${P ? `${pc(P)} · owned by ${esc(P.company)}` : c.pub ? `${pc(c)} · public as ${c.pub.ticker}` : 'all of it'}</b>
+          ${l.length > 1 ? `<span>Speed</span><b>${me ? 'full' : sp + '% under its manager'}</b>` : ''}</div>
+        ${P && me ? `<div class="trade"><span class="muted" style="font-size:13px">Send ${esc(P.company)}</span>${[[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, t]) => `<button class="btn ghost small" type="button" data-act="cotake" data-v="${v}">${t}</button>`).join('')}</div>
+        <div class="trade"><span class="muted" style="font-size:13px">${esc(P.company)} puts in</span>${[[.1, '10%'], [.25, '25%'], [.5, '50%']].map(([v, t]) => `<button class="btn ghost small" type="button" data-act="coput" data-v="${v}">${t}</button>`).join('')}</div>` : ''}
+        ${l.length > 1 ? `<div class="corow"><div class="seg" role="group" aria-label="What its manager does">${Object.keys(MGR_ORDERS).map(o => `<button type="button" data-act="morder" data-i="${i}" data-v="${o}" aria-pressed="${m.order === o}">${MGR_ORDERS[o]}</button>`).join('')}</div></div>
+        <p class="muted" style="font-size:12px">${m.order === 'grow' ? 'When you’re not there, its manager spends its own cash on room, products and buildings.' : m.order === 'home' ? (c.pub ? 'It’s public, so its cash stays in it: it pays you dividends instead.' : P ? `When you’re not there, its spare cash goes to ${esc(P.company)}.` : 'When you’re not there, its spare cash becomes yours.') : 'When you’re not there, its cash piles up.'} The manager takes ${MGR_FEE * 100}% of its profit.</p>
+        <div class="trade">${next != null ? `<button class="btn ghost small" type="button" data-act="mtrain" data-i="${i}" ${c.cash < next ? `data-cost="0" data-block="${esc(c.company)} needs ${money(next, false)}"` : ''}>Train its manager to ${Math.round(MGR_SPEED[m.tr + 1] * 100)}% · ${money(next, false)}</button>` : '<span class="chip olive">Manager fully trained</span>'}
+          ${i > 0 && !c.pub ? `<button class="btn ${conf === 'close' + i ? 'danger' : 'ghost'} small" type="button" data-act="coclose" data-i="${i}">${conf === 'close' + i ? 'Tap again: close it for ' : 'Close it for '}<b data-live="coclv:${i}"></b></button>` : ''}</div>` : ''}</section>`;
+    };
+    const sig = `grp|${l.map(c => c.company + c.level + JSON.stringify(c.mgr || 0).replace(/"(paid|t)":[^,}]*/g, '') + (c.pub ? c.pub.own / c.pub.total : '') + (c.subOf || '') + (MGR_TRAIN[mgrOf(c).tr] != null && c.cash >= MGR_TRAIN[mgrOf(c).tr])).join()}|${here}|${why}|${conf}|${f.start}|${f.by}|${hasW}|${mine}|${Math.floor(most / 5000)}|${wallet() >= 1}`;
+    return { sig, title: 'Your companies', html: `
+      <p class="m-sub">Run more than one company. The one you’re in runs at full speed; the others carry on under a manager. Your net worth is your own money and your part of each.</p>
+      ${hasW ? `<section class="card"><h3>Your own money <b class="gold" data-live="wallet"></b></h3><p class="muted" style="font-size:13px">It’s yours, not any company’s. Found companies with it, or put it into one that’s all yours.${mine ? '' : own ? ` ${esc(S.company)} belongs to ${esc(own.company)}, so its money goes there.` : ` ${esc(S.company)} is public, so money leaves it as dividends (Invest → Your company).`}</p>
+        ${mine ? `<div class="trade"><span class="muted" style="font-size:13px">${esc(S.company)}: take out</span>${[[.25, '25%'], [.5, '50%'], [1, 'All']].map(([v, t]) => `<button class="btn ghost small" type="button" data-act="cotake" data-v="${v}">${t}</button>`).join('')}</div>
+        ${wallet() >= 1 ? `<div class="trade"><span class="muted" style="font-size:13px">Put in</span>${[[.5, 'Half'], [1, 'All']].map(([v, t]) => `<button class="btn ghost small" type="button" data-act="coput" data-v="${v}">${t}</button>`).join('')}</div>` : ''}
+        <p class="muted" style="font-size:12px">Money you put in doesn’t count toward a company’s next level. What it makes with it does, and money you take out still counts.</p>` : ''}</section>` : ''}
+      ${l.map(card).join('')}
+      <section class="card"><h3>Found a company</h3>${why ? `<p class="muted" style="font-size:13px">${why}</p>`
+        : `<p class="muted" style="font-size:13px">A new town, from the start: its own HQ, five products and levels. You’ll go straight there.${byCo ? ` ${esc(S.company)} pays and owns it, so you have ${pc(S)} of it, the same as of ${esc(S.company)}.` : mine ? '' : own ? ` Go to ${esc(own.company)} to use its money.` : ' It’s all yours.'}</p>${S.pub ? `
+        <div class="seg" role="group" aria-label="Who pays"><button type="button" data-act="fby" data-v="co" aria-pressed="${byCo}">${esc(S.company)} pays</button><button type="button" data-act="fby" data-v="me" aria-pressed="${!byCo}">I pay</button></div>` : ''}
+        <label class="sld"><span>Name</span><b></b><input type="text" data-slide="fnd.name" maxlength="24" autocomplete="off" spellcheck="false" style="text-transform:none" value="${esc(f.name)}" aria-label="Company name"></label>
+        <div class="seg" role="group" aria-label="What it starts with">${['wood', 'wheat', 'ore'].map(p => `<button type="button" data-act="fstart" data-p="${p}" aria-pressed="${f.start === p}">${iconImg(p, 18)} ${PRODUCTS[p].name}</button>`).join('')}</div>
+        <label class="sld"><span>Put in (you have <b data-live="fndhave"></b>)</span><b data-live="fndamt"></b><input type="range" data-slide="fnd.amt" min="${GRP_MIN}" max="${most}" step="${Math.max(1000, Math.round((most - GRP_MIN) / 40 / 1000) * 1000)}" value="${f.amt}" aria-label="How much to put in"></label>
+        <button class="btn gold" type="button" data-act="found" style="align-self:flex-start">Found it</button>`}</section>` };
+  },
+});
 'use strict';
 /* ============================================================================
    TUTORIAL — a few guided steps for a brand-new company: build, watch it sell,
@@ -4527,14 +4780,22 @@ function setCoachHi(target) {
   if (want && !want.classList.contains('coach-hi')) want.classList.add('coach-hi');
 }
 // v0.18: once, when the company can go public: where to find it (the screen itself explains it). S.pubTut is 1 once seen
-function pubTutActive() { return !!S && !tutActive() && S.level >= PUB_LEVEL && !S.pub && !S.pubTut && companyValue() >= LEVELS[PUB_LEVEL].nw; }
+function pubTutActive() { return !!S && !tutActive() && S.level >= PUB_LEVEL && !listedCo() && !mainCo().pubTut && S === mainCo() && companyValue() >= LEVELS[PUB_LEVEL].nw; }
+function grpTutActive() { return !!S && !tutActive() && !pubTutActive() && (allCos().length > 1 ? S !== mainCo() && (mainCo().grpTut || 0) < 2 : !nextSlotWhy() && !mainCo().grpTut); }
 function updateCoach() {
   const el = $('#coach');
   if (pubTutActive()) {
-    if (UI.modal === 'stocks' && UI.investTab === 'mine') { S.pubTut = 1; saveLocal(); return updateCoach(); }
+    if (UI.modal === 'stocks' && UI.investTab === 'mine') { mainCo().pubTut = 1; saveLocal(); return updateCoach(); }
     if (el.dataset.sig !== 'pub') { el.dataset.sig = 'pub'; el.innerHTML = '<p class="c-txt">Your company can <b>go public</b> now: sell part of it to investors for cash to grow with, on your terms. Open <b>Invest</b>, then <b>Your company</b>.</p><div class="c-row"><span class="c-step">New at Level 3</span><button type="button" class="btn small gold" data-act="pubtutdone">Got it</button></div>'; }
     if (el.hidden) { el.hidden = false; renderGoalPill(); }
     TUTLOT = -1; setCoachHi(UI.modal === 'stocks' ? '#modal [data-act=itab][data-v=mine]' : '#nav [data-act=stocks]'); return;
+  }
+  // v0.19: when a second company can be founded, and again once you're in it
+  if (grpTutActive()) {
+    const two = allCos().length > 1, sig = two ? 'grp2' : 'grp1';
+    if (el.dataset.sig !== sig) { el.dataset.sig = sig; el.innerHTML = `<p class="c-txt">${two ? `This is <b>${esc(S.company)}</b>’s own town. <b>${esc(mainCo().company)}</b> carries on under a manager. Tap a name here${matchMedia('(pointer: coarse)').matches ? '' : ', or press 1 to 5,'} to switch.` : 'You can run <b>more than one company</b> now. Tap the <b>▾ at the top left</b> to found a second.'}</p><div class="c-row"><span class="c-step">${two ? 'Your companies' : 'New at Level 3'}</span><button type="button" class="btn small gold" data-act="grptutdone">Got it</button></div>`; }
+    if (el.hidden) { el.hidden = false; renderGoalPill(); }
+    TUTLOT = -1; setCoachHi(two ? '#cobar' : '.tb-co'); return;
   }
   if (!tutActive()) {
     if (!el.hidden) { el.hidden = true; renderGoalPill(); }
@@ -4834,7 +5095,7 @@ function renderGoalPill() {
   const g = GOALS[S.goal], el = $('#goalPill');
   const html = `${iconImg('trophy', 27)}<span>${g ? `<b>Goal:</b> ${esc(g.text)}` : '<b>All goals done!</b>'}</span>`;
   if (el.dataset.g !== String(S.goal)) { el.innerHTML = html; el.dataset.g = S.goal; }
-  el.hidden = (!!UI.sheet && isPhone()) || tutActive() || pubTutActive();   // the tutorial card takes its place
+  el.hidden = (!!UI.sheet && isPhone()) || tutActive() || pubTutActive() || grpTutActive() || S !== mainCo();   // the tutorial card takes its place
 }
 
 /* ---------- bottom sheet (phones) ---------- */
@@ -4930,7 +5191,7 @@ const ACT_SND = { build: 'build', replace: 'build', upgrade: 'upgrade', hqup: 'u
 function act(el) {
   const a = el.dataset.act, p = el.dataset.p, snd = ACT_SND[a]; let err = '';
   if (!snd) sfx('tap');
-  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat' && a !== 'pubtender' && a !== 'pubtend') UI.confirm = '';
+  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat' && a !== 'pubtender' && a !== 'pubtend' && a !== 'coclose') UI.confirm = '';
   switch (a) {
     case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
     case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
@@ -4951,7 +5212,19 @@ function act(el) {
     case 'pubtender': if (UI.confirm !== 'tender') { UI.confirm = 'tender'; break; } UI.confirm = ''; pubAct(pubTender(), 'buy'); return;
     case 'pubtend': if (UI.confirm !== 'tend') { UI.confirm = 'tend'; break; } UI.confirm = ''; pubAct(pubTenderEnd(), 'float'); return;
     case 'pubtsell': pubAct(pubTenderSell(UI.pubSel, +el.dataset.v), 'sell'); return;
-    case 'pubtutdone': S.pubTut = 1; updateCoach(); saveLocal(); return;
+    case 'pubtutdone': mainCo().pubTut = 1; updateCoach(); saveLocal(); return;
+    // v0.19: your companies
+    case 'group': mainCo().grpTut = 1; openModal('group'); return;
+    case 'gogo': enterCo(allCos()[+el.dataset.i]); return;
+    case 'grptutdone': mainCo().grpTut = Math.max(mainCo().grpTut || 0, allCos().length > 1 ? 2 : 1); updateCoach(); saveLocal(); return;
+    case 'found': err = foundCo((UI.fnd.name || '').trim().replace(/\s+/g, ' '), UI.fnd.start, UI.fnd.amt, UI.fnd.by); if (!err) { const c = allCos()[allCos().length - 1]; UI.fnd = null; closeModal(); enterCo(c); toast(`${c.company} opens for business`, 'big', 3200); sfx('level'); return; } break;
+    case 'fstart': fndPick().start = p; break;
+    case 'fby': fndPick().by = el.dataset.v; break;
+    case 'morder': mgrOf(allCos()[+el.dataset.i]).order = el.dataset.v; break;
+    case 'mtrain': err = trainMgr(allCos()[+el.dataset.i]); if (!err) toast('Manager trained', 'good'); break;
+    case 'cotake': { const P = parentOf(S), w = S.cash; err = takeMoney(S, w * +el.dataset.v); if (!err) toast(`${money(w - S.cash, false)} ${P ? 'sent to ' + P.company : 'is yours now'}`, 'good'); break; }
+    case 'coput': { const P = parentOf(S), w = S.cash; err = putMoney(S, (P ? P.cash : wallet()) * +el.dataset.v); if (!err) toast(`${money(S.cash - w, false)} put into ${S.company}`, 'good'); break; }
+    case 'coclose': { const k = 'close' + el.dataset.i; if (UI.confirm !== k) { UI.confirm = k; break; } UI.confirm = ''; const c = allCos()[+el.dataset.i], was = S; err = closeCo(c); if (!err) { toast(`${c.company} is closed`, 'good'); if (was === c) afterSwitch(); saveLocal(); netSaveNow(); } break; }
     case 'pubbuy': pubAct(pubTrade(UI.pubSel, 'buy', +el.dataset.v), 'buy'); return;
     case 'pubsell': pubAct(pubTrade(UI.pubSel, 'sell', +el.dataset.v), 'sell'); return;
     case 'usesave': { const o = el.dataset.v === 'cloud' ? NET.cloud : loadLocal(); if (o) { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // saved (here and online) once time away is paid
@@ -5015,7 +5288,7 @@ function act(el) {
       catch (e) { toast('That save code didn’t work', 'bad'); }
       return;
     }
-    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} netClearSave(); running = false; closeModal(); S = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
+    case 'reset': if (UI.confirm === 'reset') { UI.confirm = ''; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} netClearSave(); running = false; closeModal(); S = ROOT = null; showTitle('new'); return; } UI.confirm = 'reset'; break;
     case 'pick': UI.startPick = p; for (const b of document.querySelectorAll('.pick')) b.setAttribute('aria-pressed', b.dataset.p === p); return;
     case 'continue': { const o = TITLE_SAVE; if (o && o !== 'both') { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // no save before begin(): saving stamps the time, and time away is worked out from it
   }
@@ -5036,6 +5309,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target; if (!el.dataset) return;
+  if (el.dataset.act === 'takediv') { if (el.checked) grp(); S.takeDiv = el.checked; UI.modalSig = ''; sfx('tap'); saveLocal(); return; }   // v0.19
   if (el.dataset.act === 'autobuy') { const l = S.lots[+el.dataset.i]; if (l) l.autoBuy = el.checked; UI.sideSig = ''; sfx('tap'); }
   if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveSound(); saveLocal(); }
 });
@@ -5044,6 +5318,8 @@ document.addEventListener('input', e => {
   const k = e.target.dataset && e.target.dataset.slide; if (!k || !S) return;
   if (k === 'ipo.t') { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); ipoPick().t = e.target.value; }
   else if (k.startsWith('ipo.')) ipoPick()[k.slice(4)] = +e.target.value;
+  else if (k === 'fnd.name') fndPick().name = e.target.value;
+  else if (k === 'fnd.amt') fndPick().amt = +e.target.value;
   else if (k === 'tnd.p') (UI.tnd || (UI.tnd = { p: 10, q: 100 })).p = +e.target.value;
   else UI[k] = +e.target.value;
   if (UI.confirm) { UI.confirm = ''; UI.modalSig = ''; }
@@ -5053,6 +5329,7 @@ document.addEventListener('input', e => { const el = e.target; if (el.dataset &&
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => {
   if (!running) { if (e.key === 'Escape' && !$('#start').hidden && UI.tpage !== 'home') renderTitle('home'); return; }   // starting menu: Esc goes back
+  if (e.key === 'Enter' && e.target.closest('.tb-co')) { mainCo().grpTut = 1; openModal('group'); return; }   // v0.19
   if (e.target.closest('input,textarea')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
@@ -5061,6 +5338,7 @@ document.addEventListener('keydown', e => {
   if (map[k]) { sfx('tap'); if (UI.modal === map[k]) closeModal(); else { if (k === 'p') UI.webSel = UI.webSel || S.start; if (k === 's') openInvest(); else openModal(map[k]); } }
   if (k === 'h') { sfx('tap'); closeModal(); selectLot(HQ_LOT); }
   if (k === 'f') toggleFullscreen();
+  if (/^[1-5]$/.test(k) && !UI.modal && allCos().length > 1 && allCos()[+k - 1]) enterCo(allCos()[+k - 1]);   // v0.19
   const pan = { arrowleft: [-40, 0], arrowright: [40, 0], arrowup: [0, -40], arrowdown: [0, 40] }[k];
   if (pan && !UI.modal) { e.preventDefault(); CAM.tx = CAM.ty = null; CAM.x += pan[0]; CAM.y += pan[1]; clampCam(); }
 });
@@ -5108,13 +5386,20 @@ async function doLogin(create) {
 }
 // v0.09: Invest opens on your Portfolio once you own something, and on Stocks until then
 function openInvest() {
-  const owns = Object.values(S.hold).some(h => h.q > 0) || Object.keys(S.pubHold || {}).length > 0 || S.props.some(p => p.own);
+  const owns = Object.values(S.hold).some(h => h.q > 0) || Object.keys(mainCo().pubHold || {}).length > 0 || S.props.some(p => p.own);
   if (UI.investTab === 'portfolio' && !owns) UI.investTab = 'stocks';
   openModal('stocks');
 }
+// v0.19: step into another of your companies
+function enterCo(c) { if (!goCo(c)) { closeModal(); return; } afterSwitch(); closeModal(); sfx('tap'); saveLocal(); }
+function afterSwitch() {
+  UI.sel = null; UI.confirm = ''; UI.rep = null; UI.flt = UI.divp = UI.ipo = UI.tnd = null; UI.webSel = S.start; idleFrom = null;
+  for (const k in popAcc) delete popAcc[k]; POPS.length = 0; document.querySelectorAll('#overlay .pop').forEach(e => e.remove());
+  setSheet(false); afterLoad(); updateCoach(); const p = lotXY(HQ_LOT); centerOn(TX + p.x + LOT / 2, TY + p.y + LOT / 2, false);
+}
 function afterLoad() { UI.sideSig = ''; UI.modalSig = ''; drawBackground(S.level); renderTicker(); renderZoneLabels(); updateTop(); renderSide(true); renderGoalPill(); }
 function begin(loaded) {
-  S.settings = AUD.set;   // sound settings belong to the device (SOUND_KEY); the save keeps a copy for older versions
+  mainCo().settings = AUD.set;   // sound settings belong to the device (SOUND_KEY); the save keeps a copy for older versions
   clearInterval(titleTimer);
   $('#start').hidden = true; $('#app').hidden = false;
   UI.sel = null; UI.sheet = false; UI.tutT = S.t; CAM.set = false; renderNav(); resize(); afterLoad(); setSheet(false); updateCoach();
@@ -5122,7 +5407,7 @@ function begin(loaded) {
   WT = worldNow(); worldReset(); prefillGoodsHist(); renderTicker();
   lastInput = nowMs(); idleFrom = null;
   if (loaded) {   // time away is measured on the server's clock once it has answered (so moving a device's clock doesn't pay)
-    const savedAt = S.savedAt || nowMs();
+    const savedAt = mainCo().savedAt || nowMs();
     Promise.race([clockReady, new Promise(r => setTimeout(r, 2500))]).then(() => {
       const r = offlineCatchUp((nowMs() - savedAt) / 1000);
       if (r) toast(awayText(r), 'good', 5000);
@@ -5143,7 +5428,7 @@ function boot() {
 }
 // test hook for automated playtests
 window.__game = { get S() { return S; }, CAM, step, build, upgrade, unlock, upgradeHQ, upgradeWH, netWorth, price, buyAsset, sellAsset, playerRank, capUsed, capMax, efficiency, profitPerMin, AUD, sfx, TUT,
-  NET, netTake, crowdMult, crowdOthersMult, simBoard, simsAlive, sellGoods, companyValue, pubPrice, pubListing, ownFrac };
+  get ROOT() { return ROOT; }, allCos, withCo, NET, netTake, crowdMult, crowdOthersMult, simBoard, simsAlive, sellGoods, companyValue, pubPrice, pubListing, ownFrac };
 boot();
 
 </script>
