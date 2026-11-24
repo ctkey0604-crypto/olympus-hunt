@@ -81,6 +81,7 @@ const LIVE = {
   mood() { const c = changeOf(S.assets.MB10.h10, 59); return c > .004 ? { text: 'Rising', cls: 'olive' } : c < -.004 ? { text: 'Falling', cls: 'red' } : { text: 'Calm', cls: 'muted' }; },
   cash: () => money(S.cash, false),
   pv: k => money(propValue(+k), false), prent: k => money(propRent(+k)) + '/min', pbp: k => money(propBuyPrice(+k), false), psp: k => money(propSellPrice(+k), false),
+  pback: k => { const h = (S.props[+k].own ? propValue(+k) : propBuyPrice(+k)) / propRent(+k) / 60; return h < 10 ? h.toFixed(1) + ' hours of rent' : Math.round(h) + ' hours of rent'; },
   pyld: k => (propRent(+k) * 60 / propValue(+k) * 100).toFixed(1) + '% of its value per hour',
   pgain(k) { k = +k; const p = S.props[k]; if (!p.own) return ''; const v = propSellPrice(k) - p.paid; return { text: (v >= 0 ? '+' : '') + money(v, false), cls: v >= 0 ? 'olive' : 'red' }; },
   hchg(w) { const H = S.house; const c = w === '4h' ? changeOf(H.h60, 239) : w === '10m' ? changeOf(H.h10, 59) : changeOf(H.h10, 359); return { text: pctTxt(c), cls: c >= 0 ? 'olive' : 'red' }; },
@@ -290,6 +291,7 @@ function propView(k) {
       <span>Value</span><b data-live="pv:${k}"></b>
       <span>Rent</span><b class="olive" data-live="prent:${k}"></b>
       <span>Return</span><span data-live="pyld:${k}"></span>
+      <span>Pays for itself in</span><span data-live="pback:${k}"></span>
       ${pr.own ? `<span>You paid</span><b>${money(pr.paid, false)}</b><span>Gain if sold</span><b data-live="pgain:${k}" data-base=""></b>` : ''}</div></section>
     ${pr.own ? `
       ${reno ? `<button class="btn" type="button" data-act="preno" data-k="${k}" data-cost="${Math.ceil(renoCost(k))}">Renovate · ${money(renoCost(k), false)}</button>
@@ -409,7 +411,7 @@ const MODAL = {
           <span class="px2"><b data-live="pv:${k}"></b><small class="olive" data-live="prent:${k}"></small></span></button>`;
       }).join('');
       return { sig: `re|${tf}|${own}|${S.level}`, title: 'Invest', html: tabs + `
-        <p class="m-sub">Buy homes and offices on the edges of town. They pay rent every second, and renovating them raises the rent. Their value moves slowly with the housing market. Tap one to see it on the map.</p>
+        <p class="m-sub">Buy homes and offices on the edges of town. They pay rent every second, in full even while you’re away (for up to ${RENT_MAX / 3600} hours), and renovating them raises the rent. Their value moves slowly with the housing market. Tap one to see it on the map.</p>
         <div class="st-wrap"><div class="st-list">${rows}</div>
           <div class="st-detail">
             <div class="side-head">${iconImg('house', 54)}<div style="flex:1"><h2>Housing market</h2><span class="muted">Average home price in Millbrook</span></div>
@@ -574,7 +576,7 @@ const HELP = [
     '<b>Factories</b> turn goods into better goods: wood → planks → chairs → furniture → grand pianos.',
     'A factory short of materials can <b>buy them</b> from the market, at 15% more.'] },
   { art: () => bigArt(buildingPreview('hq', 4)), t: 'Grow', p: [
-    'Your <b>HQ</b> can run a limited number of building levels. Upgrade it to grow.',
+    'Your <b>HQ</b> can run a limited number of building levels. Add room to it to grow, or <b>replace</b> a building with a better one.',
     'You can make <b>5 different products</b> at once, so pick a direction.',
     'Buildings cost a little <b>upkeep</b> each minute, but nothing while they wait for materials.'] },
   { art: () => icoArt('trophy'), t: 'Open the town', p: [
@@ -585,8 +587,16 @@ const HELP = [
     'Sell a lot of one thing and its <b>price drops</b>, so spread out. Booms and slumps in the news move prices too.',
     '<b>Invest</b> (S) in shares, the index fund or PixCoin, and buy homes that pay <b>rent</b>.',
     'The stock market and the news are <b>the same for every player</b>, live.'] },
+  { art: () => icoArt('house'), t: 'Going public', p: [
+    'At Level 3, worth $100,000, your company can <b>go public</b> (Invest → Your company): sell 5% to 90% of it to investors for cash to grow with.',
+    'You pick the <b>price</b> (a lower one sells every share, a higher one may not), the <b>ticker</b>, and the <b>dividend</b>: how much of the profit you pay out.',
+    'You always run it. The leaderboard counts <b>your part</b> of the company, and investors’ money doesn’t count toward the next level.'] },
+  { art: () => icoArt('trophy'), t: 'Players’ companies', p: [
+    'Buy <b>other players’ shares</b> in Invest → Players. You get your part of the dividends, even while you’re away. A big order moves the price as it goes through.',
+    'An owner can <b>offer</b> players a price for their shares: it shows up on the company if you hold some, and you choose whether to sell.',
+    'Own your company and want more of it? <b>Buy shares back</b> from investors, or make players an offer.'] },
   { art: () => icoArt('coin'), t: 'While you’re away', p: [
-    'Closed, or left untouched for 10 minutes, your company keeps running at <b>25% speed</b> for up to 2 hours.',
+    'Closed, or left untouched for 10 minutes, your company keeps running at <b>25% speed</b> for up to 2 hours. <b>Rent</b> from your property keeps coming in full, for up to 8.',
     'Your game saves itself in this browser. A <b>save code</b> (Menu → Save &amp; Transfer) moves your company to another device.'] },
 ];
 function bigArt(src) { return `<img src="${src}" alt="">`; }

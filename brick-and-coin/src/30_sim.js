@@ -3,6 +3,7 @@
    SIM — the economy. Runs in fixed steps; nothing here touches the page.
    ========================================================================== */
 let S = null;                     // the whole game state (saved as JSON)
+let RENT_RATE = 1;                // v0.17: rent is paid in full, left idle too, until RENT_MAX
 let AWAY_RATE = 1;                // 1 while someone's playing; OFFLINE_RATE when the game is left idle; 0 once idle past OFFLINE_MAX
 const LOG = { onNews: null, onToast: null, onPop: null, onLevel: null, onGoal: null };
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -287,7 +288,8 @@ function companyValue() {
 // v0.16: what opens areas of town: the company's value, plus the half of the HQ and storage it leaves out, plus research. Before,
 // putting money into them pushed the next level further away.
 function researchSpent() { let v = 0; for (const p in S.unlocked) if (p !== S.start && PRODUCTS[p]) v += researchCost(p); return v; }
-function levelValue() { return companyValue() + ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5 + researchSpent(); }
+// v0.18: money from investors doesn't count (selling most of a company would open the next level on the spot); what's made with it does
+function levelValue() { return companyValue() + ((S.spent.hq || 0) + (S.spent.wh || 0)) * .5 + researchSpent() - (S.pub ? Math.max(0, S.pub.raised || 0) : 0); }
 // rank among the real players (v0.07: the leaderboard is players only)
 function playerRank(s = S) { const nw = netWorth(); let r = 1; for (const x of netOthers()) if (x.nw > nw) r++; return r; }
 function checkLevel() {
@@ -333,7 +335,7 @@ function step(dt) {
   for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
   stepProduction(dt, AWAY_RATE);   // left idle, the company runs like it does while closed (v0.05)
   stepUpkeep(dt, AWAY_RATE);
-  payRent(dt, AWAY_RATE);
+  payRent(dt, RENT_RATE);
   S.divAcc += dt; if (S.divAcc >= 10) { if (AWAY_RATE === 1) payDividends(S.divAcc / 60); pubPayDividends(S.divAcc / 60); S.divAcc = 0; }
   S._sec = (S._sec || 0) + dt;
   if (S._sec >= 1) {
@@ -353,18 +355,22 @@ function step(dt) {
 // Production while the game was closed: a quarter speed, for up to 2 hours, at plain prices. Booms, slumps and weather
 // are left out (v0.05): the world's news is public and timed, so a return could otherwise be timed to a boom.
 function offlineCatchUp(sec) {
-  sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
+  const gone = sec; sec = Math.min(sec, OFFLINE_MAX); if (!(sec >= 30)) return null;
   const cash0 = S.cash, stepN = Math.ceil(sec / 5), dt = sec / stepN, keep = [WS.mult, WS.speed, WS.noise];
   WS.mult = {}; WS.speed = {}; WS.noise = {}; CROWD_OFF = true;   // plain prices: no news, and no crowd (v0.07)
   PROFIT_OFF = true;                                              // v0.11: and none of it counts as this minute's profit
   for (let i = 0; i < stepN; i++) {
-    stepProduction(dt, OFFLINE_RATE); stepUpkeep(dt, OFFLINE_RATE); payRent(dt, OFFLINE_RATE);
+    stepProduction(dt, OFFLINE_RATE); stepUpkeep(dt, OFFLINE_RATE); payRent(dt);   // v0.17: rent in full
     for (const p of PIDS) { const M = S.market[p], k = Math.exp(-dt * Math.LN2 / 120); M.sat *= k; M.bp *= k; }
     sellSurplus();
   }
-  [WS.mult, WS.speed, WS.noise] = keep; CROWD_OFF = false; PROFIT_OFF = false;
-  return { sec, earned: S.cash - cash0 };
+  [WS.mult, WS.speed, WS.noise] = keep; CROWD_OFF = false;
+  const rentSec = Math.min(gone, RENT_MAX); payRent(rentSec - sec);   // and it goes on after the factories stop
+  PROFIT_OFF = false;
+  const rent = rentPerMin() / 60 * rentSec;
+  return { sec: rent > 0 ? rentSec : sec, earned: S.cash - cash0, rent };
 }
+function awayText(r) { const m = r.sec / 60; return `While you were away (${m < 120 ? Math.round(m) + ' min' : Math.round(m / 6) / 10 + ' h'}): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}${r.rent > 0 ? `, ${money(r.rent, false)} of it rent` : ''}`; }
 
 /* ---------------------------------------------------------------- save / load */
 // the save holds the company only: the shared world (S.assets, S.house, S.rivals) is worked out, never stored

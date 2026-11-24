@@ -45,7 +45,7 @@ const TUT = [
     el: () => '#nav [data-act=prod]',
     done: () => UI.modal === 'prod' },
   { // 5: off you go
-    text: () => 'That’s the basics. Follow the <b>goals</b> for cash rewards, and grow your company to open new parts of town.',
+    text: () => 'That’s the basics. Follow the <b>goals</b> for cash rewards, and grow your company to open new parts of town. <b>How to Play</b> (Menu) has the rest.',
     btn: 'Got it', done: () => false },
 ];
 
@@ -54,8 +54,16 @@ function setCoachHi(target) {
   for (const e of document.querySelectorAll('.coach-hi')) if (e !== want) e.classList.remove('coach-hi');
   if (want && !want.classList.contains('coach-hi')) want.classList.add('coach-hi');
 }
+// v0.18: once, when the company can go public: where to find it (the screen itself explains it). S.pubTut is 1 once seen
+function pubTutActive() { return !!S && !tutActive() && S.level >= PUB_LEVEL && !S.pub && !S.pubTut && companyValue() >= LEVELS[PUB_LEVEL].nw; }
 function updateCoach() {
   const el = $('#coach');
+  if (pubTutActive()) {
+    if (UI.modal === 'stocks' && UI.investTab === 'mine') { S.pubTut = 1; saveLocal(); return updateCoach(); }
+    if (el.dataset.sig !== 'pub') { el.dataset.sig = 'pub'; el.innerHTML = '<p class="c-txt">Your company can <b>go public</b> now: sell part of it to investors for cash to grow with, on your terms. Open <b>Invest</b>, then <b>Your company</b>.</p><div class="c-row"><span class="c-step">New at Level 3</span><button type="button" class="btn small gold" data-act="pubtutdone">Got it</button></div>'; }
+    if (el.hidden) { el.hidden = false; renderGoalPill(); }
+    TUTLOT = -1; setCoachHi(UI.modal === 'stocks' ? '#modal [data-act=itab][data-v=mine]' : '#nav [data-act=stocks]'); return;
+  }
   if (!tutActive()) {
     if (!el.hidden) { el.hidden = true; renderGoalPill(); }
     setCoachHi(null); TUTLOT = -1; return;

@@ -11,7 +11,7 @@ function noteInput() {
     const min = Math.round((lastInput - idleFrom.at) / 60000), d = S.cash - idleFrom.cash;
     if (min >= 1) toast(`You were idle for ${min} min: the game ran at ${Math.round(OFFLINE_RATE * 100)}% speed (${d >= 0 ? '+' : ''}${money(d, false)})`, 'good', 5000);
   }
-  idleFrom = null; AWAY_RATE = 1;
+  idleFrom = null; AWAY_RATE = 1; RENT_RATE = 1;
 }
 for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) addEventListener(ev, noteInput, { passive: true, capture: true });
 const CAM = { x: TX, y: TY, s: 2, tx: null, ty: null, vw: MAP_W, vh: MAP_H, set: false };
@@ -144,7 +144,7 @@ function renderGoalPill() {
   const g = GOALS[S.goal], el = $('#goalPill');
   const html = `${iconImg('trophy', 27)}<span>${g ? `<b>Goal:</b> ${esc(g.text)}` : '<b>All goals done!</b>'}</span>`;
   if (el.dataset.g !== String(S.goal)) { el.innerHTML = html; el.dataset.g = S.goal; }
-  el.hidden = (!!UI.sheet && isPhone()) || tutActive();   // the tutorial card takes its place
+  el.hidden = (!!UI.sheet && isPhone()) || tutActive() || pubTutActive();   // the tutorial card takes its place
 }
 
 /* ---------- bottom sheet (phones) ---------- */
@@ -169,7 +169,7 @@ function frame(now) {
   if (Math.abs(slip) > 3) { WT = worldNow(); worldReset(); prefillGoodsHist(); renderTicker(); } else if (Math.abs(slip) > .5) WT += slip;
   // idle: no input for IDLE_AFTER seconds. Then it runs like a closed game: a quarter speed, and after OFFLINE_MAX it waits.
   const idle = (nowMs() - lastInput) / 1000 - IDLE_AFTER;
-  AWAY_RATE = idle <= 0 ? 1 : idle <= OFFLINE_MAX ? OFFLINE_RATE : 0;
+  AWAY_RATE = idle <= 0 ? 1 : idle <= OFFLINE_MAX ? OFFLINE_RATE : 0; RENT_RATE = idle <= RENT_MAX ? 1 : 0;
   if (AWAY_RATE < 1 && !idleFrom) idleFrom = { at: lastInput + IDLE_AFTER * 1000, cash: S.cash };
   simAcc += dt; let n = 0;
   while (simAcc >= .2 && n < 10) { step(.2); simAcc -= .2; n++; }
@@ -240,7 +240,7 @@ const ACT_SND = { build: 'build', replace: 'build', upgrade: 'upgrade', hqup: 'u
 function act(el) {
   const a = el.dataset.act, p = el.dataset.p, snd = ACT_SND[a]; let err = '';
   if (!snd) sfx('tap');
-  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat') UI.confirm = '';
+  if (a !== 'demolish' && a !== 'replace' && a !== 'reset' && a !== 'psell' && a !== 'ipo' && a !== 'pubfloat' && a !== 'pubtender' && a !== 'pubtend') UI.confirm = '';
   switch (a) {
     case 'sound': toggleAllSound(); renderSoundBtn(); sfx('tap'); saveSound(); saveLocal(); UI.modalSig = ''; return;
     case 'aset': AUD.set[el.dataset.k] = el.dataset.v === '1'; audioLevels(); if (running) renderSoundBtn(); saveSound(); saveLocal(); break;
@@ -254,14 +254,19 @@ function act(el) {
     case 'netsave': netSaveNow(); toast('Saved online', 'good'); return;
     case 'lbtab': UI.lbTab = el.dataset.v; break;
     case 'pubsel': UI.pubSel = el.dataset.t; if (isPhone()) $('#modal .sheet').scrollTop = 0; break;   // v0.08: going public, players' shares
-    case 'ipof': UI.ipoF = +el.dataset.v; UI.confirm = ''; break;
-    case 'ipo': if (UI.confirm !== 'ipo') { UI.confirm = 'ipo'; break; } UI.confirm = ''; pubAct(pubGoPublic(UI.ipoF), 'ipo'); return;
-    case 'pubfloat': { const k = 'float' + el.dataset.v; if (UI.confirm !== k) { UI.confirm = k; break; } UI.confirm = ''; pubAct(pubFloat(+el.dataset.v), 'float'); return; }
+    case 'ipof': ipoPick().f = Math.round(+el.dataset.v * 100); UI.confirm = ''; break;
+    case 'ipo': if (UI.confirm !== 'ipo') { UI.confirm = 'ipo'; break; } UI.confirm = ''; pubAct(pubGoPublic(), 'ipo'); return;
+    case 'pubfloat': if (Math.abs(fltPick() / 100 - (1 - ownFrac())) < .0051) { toast('Slide it first', 'bad'); return; } if (UI.confirm !== 'float') { UI.confirm = 'float'; break; } UI.confirm = ''; pubAct(pubFloat(fltPick() / 100), 'float'); return;
+    case 'pubdiv': pubAct(pubDividend(divPick() / 100), 'div'); return;   // v0.18
+    case 'pubtender': if (UI.confirm !== 'tender') { UI.confirm = 'tender'; break; } UI.confirm = ''; pubAct(pubTender(), 'buy'); return;
+    case 'pubtend': if (UI.confirm !== 'tend') { UI.confirm = 'tend'; break; } UI.confirm = ''; pubAct(pubTenderEnd(), 'float'); return;
+    case 'pubtsell': pubAct(pubTenderSell(UI.pubSel, +el.dataset.v), 'sell'); return;
+    case 'pubtutdone': S.pubTut = 1; updateCoach(); saveLocal(); return;
     case 'pubbuy': pubAct(pubTrade(UI.pubSel, 'buy', +el.dataset.v), 'buy'); return;
     case 'pubsell': pubAct(pubTrade(UI.pubSel, 'sell', +el.dataset.v), 'sell'); return;
     case 'usesave': { const o = el.dataset.v === 'cloud' ? NET.cloud : loadLocal(); if (o) { adopt(JSON.parse(JSON.stringify(o))); begin(true); } return; }   // saved (here and online) once time away is paid
     case 'tutdone': S.tut = TUT_DONE; updateCoach(); saveLocal(); return;
-    case 'tutreplay': S.tut = 0; UI.tutT = S.t; closeModal(); selectLot(-1); updateCoach(); return;
+    case 'tutreplay': S.tut = 0; S.pubTut = 0; UI.tutT = S.t; closeModal(); selectLot(-1); updateCoach(); return;
     case 'resetno': break;
     case 'close': closeModal(); return;
     case 'menu': openModal('menu'); return;
@@ -344,6 +349,16 @@ document.addEventListener('change', e => {
   if (el.dataset.act === 'autobuy') { const l = S.lots[+el.dataset.i]; if (l) l.autoBuy = el.checked; UI.sideSig = ''; sfx('tap'); }
   if (el.dataset.set) { if (el.dataset.set === 'sfx') sfx('tap'); saveSound(); saveLocal(); }
 });
+// v0.18: the sliders on Your company: they change a number, and the quotes round them follow
+document.addEventListener('input', e => {
+  const k = e.target.dataset && e.target.dataset.slide; if (!k || !S) return;
+  if (k === 'ipo.t') { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); ipoPick().t = e.target.value; }
+  else if (k.startsWith('ipo.')) ipoPick()[k.slice(4)] = +e.target.value;
+  else if (k === 'tnd.p') (UI.tnd || (UI.tnd = { p: 10, q: 100 })).p = +e.target.value;
+  else UI[k] = +e.target.value;
+  if (UI.confirm) { UI.confirm = ''; UI.modalSig = ''; }
+  updateLive($('#mBody'));
+});
 document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.set) { AUD.set[el.dataset.set] = clamp(+el.value / 10, 0, 1); audioLevels(); } });
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 document.addEventListener('keydown', e => {
@@ -364,7 +379,7 @@ addEventListener('resize', () => { if (!running) return; const md = isFlat() ? '
 document.addEventListener('visibilitychange', () => {
   if (!running) return;
   if (document.hidden) { hiddenAt = nowMs(); saveLocal(); netSaveNow(true); }
-  else if (hiddenAt) { const r = offlineCatchUp((nowMs() - hiddenAt) / 1000); hiddenAt = 0; lastFrame = 0; if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000); }
+  else if (hiddenAt) { const r = offlineCatchUp((nowMs() - hiddenAt) / 1000); hiddenAt = 0; lastFrame = 0; if (r) toast(awayText(r), 'good', 5000); }
 });
 addEventListener('pagehide', () => { if (running) { saveLocal(); netSaveNow(true); } });
 
@@ -420,7 +435,7 @@ function begin(loaded) {
     const savedAt = S.savedAt || nowMs();
     Promise.race([clockReady, new Promise(r => setTimeout(r, 2500))]).then(() => {
       const r = offlineCatchUp((nowMs() - savedAt) / 1000);
-      if (r) toast(`While you were away (${Math.round(r.sec / 60)} min): ${r.earned >= 0 ? '+' : ''}${money(r.earned, false)}`, 'good', 5000);
+      if (r) toast(awayText(r), 'good', 5000);
     });
   }
   NET.lastSync = 0; NET.lastSave = 0;   // tell the server (or ask it) straight away

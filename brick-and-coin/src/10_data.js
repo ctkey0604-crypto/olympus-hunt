@@ -4,7 +4,7 @@
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.16';
+const VERSION = 'v0.18';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -599,6 +599,7 @@ const START_CASH = 2000;
 const STARTUP_BOOST = 1.5;            // production speed until you reach Level 2
 const BOOST_FADE = 15 * 60;           // v0.16: seconds of play it then takes to fade out (it used to end at once, cutting income by a third)
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
+const RENT_MAX = 8 * 3600;                            // v0.17: rent keeps coming in full while the game is closed or idle, for up to 8 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
 const NPC_MARKUP = 1.3;               // buying from the NPC market by hand costs 30% over the sell price
 // v0.15: a factory buying its own inputs pays 15% over (it was 30% too). Hand buying stays at 30%: at 15%, filling storage
@@ -615,13 +616,13 @@ const OWN_MIN = 0.6, OWN_MAX = 1.4;
 const CROWD_HALF = 300;               // seconds: a burst of selling fades with a 5-minute half-life (the server uses the same)
 const CROWD_R0 = 300;                 // everyone together selling the output of 300 building levels non-stop: about −29%
 const CROWD_MIN = 0.7, CROWD_MAX = 1.35;   // the most a crowd can move a price: −30% selling, +35% buying
-/* v0.08: going public (see 55_pub.js; the server has the same numbers). A company at Level 3 can sell up to 49% of itself in
+/* v0.08: going public (see 55_pub.js; the server has the same numbers). A company at Level 3 can sell up to 90% of itself (v0.18; it was 49%) in
    new shares: the cash goes into the company, and its owner keeps the rest. Investors value a company at what it's worth plus
    15 minutes of its steady profit, at most 25% more (v0.10: it was an hour, up to 3× its worth, so share prices ran far
-   ahead of the company); an IPO is priced 10% under that, and the bank keeps 5%. A public company pays 30% of its profit as
+   ahead of the company); an IPO is priced 10% under that, and the bank keeps 5%. A public company pays part of its profit (30%, or what its owner sets since v0.18) as
    dividends, split by who owns it, so its outside shareholders get their part. */
 const PUB_LEVEL = 3;
-const PUB_SHARES = 100000, PUB_MAX = 0.49, PUB_PREMIUM = 15, PUB_PREM_CAP = 0.25;
+const PUB_SHARES = 100000, PUB_MAX = 0.9, PUB_PREMIUM = 15, PUB_PREM_CAP = 0.25;
 const PROF_AVG = 600;   // seconds: "steady profit" is profit averaged over about 10 minutes (it values companies)
 // v0.11: investors weigh the profit trend too: steady profit against its average over the last hour. A company whose profit
 // is climbing is worth up to 1.5× its 15 minutes of profit, one whose profit is sliding as little as half of it.
@@ -639,7 +640,11 @@ const BUY_WAIT = 1.15, BUY_CHEAP = 0.9, BUY_STOCK = 3;
 const PUB_HALF = 1800, PUB_DEPTH = 0.05, PUB_MOVE = [0.6, 1.6];   // players' trading moves a share price (fades over 30 min), within ×0.6..×1.6
 const IPO_DISCOUNT = 0.9, IPO_FEE = 0.05, ISSUE_FEE = 0.05, BUYBACK_FEE = 0.005;
 const PUB_DIV = 0.3;
-const PUB_STEPS = [0.1, 0.25, 0.4, 0.49];   // how much of the company an IPO can sell
+// v0.18, freer going public (the server has the same numbers): the owner picks how much to sell, the price (against what investors
+// think a share is worth), the ticker and the dividend, and can offer to buy shares back from the players who hold them.
+const PUB_STEPS = [0.1, 0.25, 0.5, 0.75];   // quick picks for how much an IPO sells
+const PUB_MIN = 0.05, IPO_PRICE = [0.8, 1.25], DIV_MAX = 0.8, DIV_WAIT = 3600e3, DIV_HALF = 12 * 3600e3, ISSUE_WAIT = 3600e3;
+const TENDER = [1, 1.25], TENDER_MAX = 0.1;
 
 /* ---------------------------------------------------------------- town layout (native px) */
 const MAP_W = 480, MAP_H = 270, LOT = 40;
@@ -672,14 +677,15 @@ const ROAD_V = [{ x: 154, w: 16 }, { x: 310, w: 16 }];
 /* ---------------------------------------------------------------- real estate
    Homes and offices on plots west and east of town. Buy one, collect rent every second,
    renovate it (up to level 3), sell when the housing market is up. yld = rent per minute
-   as a share of the base price (0.0007 = about 4% an hour). */
+   as a share of the base price (0.0028 = about 17% an hour; v0.17: four times what it was, when a home took 16 to 24 hours
+   to pay for itself and a factory under half an hour). */
 const PROPS = {
-  cottage:   { name:'Cottage',       price:5000,   yld:0.0007,  lvl:1, about:'A small family home with a garden out front.' },
-  townhouse: { name:'Townhouses',    price:18000,  yld:0.00075, lvl:1, about:'Two narrow homes sharing a wall. Two sets of renters.' },
-  apartment: { name:'Apartments',    price:70000,  yld:0.0008,  lvl:2, about:'Three floors of renters and a laundry room that never works.' },
-  office:    { name:'Corner Office', price:240000, yld:0.0009,  lvl:3, about:'Glass-front offices rented to small companies.' },
-  mansion:   { name:'Mansion',       price:900000, yld:0.001,   lvl:3, about:'The fanciest address in Millbrook. Columns, gardens, a fountain.' },
-  villa:     { name:'Hilltop Villa', price:3000000, yld:0.0011, lvl:4, about:'A white villa on Gold Hill with a pool and a view over all of Millbrook.' },
+  cottage:   { name:'Cottage',       price:5000,   yld:0.0028,  lvl:1, about:'A small family home with a garden out front.' },
+  townhouse: { name:'Townhouses',    price:18000,  yld:0.003, lvl:1, about:'Two narrow homes sharing a wall. Two sets of renters.' },
+  apartment: { name:'Apartments',    price:70000,  yld:0.0032,  lvl:2, about:'Three floors of renters and a laundry room that never works.' },
+  office:    { name:'Corner Office', price:240000, yld:0.0036,  lvl:3, about:'Glass-front offices rented to small companies.' },
+  mansion:   { name:'Mansion',       price:900000, yld:0.004,   lvl:3, about:'The fanciest address in Millbrook. Columns, gardens, a fountain.' },
+  villa:     { name:'Hilltop Villa', price:3000000, yld:0.0044, lvl:4, about:'A white villa on Gold Hill with a pool and a view over all of Millbrook.' },
 };
 const PROP_BUY_FEE = 0.03, PROP_SELL_FEE = 0.05, PROP_MAX_RENO = 3;
 const RENO_COST = 0.25, RENO_VALUE = 0.2, RENO_RENT = 0.5;   // each renovation: costs 25% of the base price, +20% value, +50% rent
@@ -775,6 +781,19 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.18', title: 'Your terms', items: [
+    '<b>Go public your way</b> (Invest → Your company): sell 5% to 90%, pick the price, the ticker and how much of the profit you pay out. A lower price sells every share; a higher one is better per share, but some may not sell. You always run your company.',
+    '<b>Change your dividend</b> any time, from 0% to 80% of profit. Investors pay more for a company that pays more, once they believe it (about half a day).',
+    '<b>Buy shares back from players</b>: offer up to 25% over the price, for a day. Their shares are cancelled, so you own more of the company.',
+    'Money from investors no longer counts toward the next level. <b>What you make with it does.</b>',
+    'A short guide when your company can go public, and new pages in How to Play.',
+  ] },
+  { v: 'v0.17', title: 'Landlord', items: [
+    '<b>Rents are four times higher</b>: at normal prices a property now pays for itself in about 4 to 6 hours (it was 16 to 24).',
+    '<b>Rent while you’re away</b>: property pays in full for up to 8 hours while the game is closed or left idle. Factories still run at 25% for up to 2 hours, so factories earn while you play and property earns while you don’t.',
+    'Each property shows <b>how long it takes to pay for itself</b>.',
+    '<b>Fairer share trading</b>: an order for a player’s shares now pays the average price along the way as it moves the market, and owners sell or buy back at the fair price. Buying and selling straight back no longer makes money.',
+  ] },
   { v: 'v0.16', title: 'Smoother growth', items: [
     '<b>Reaching Level 2 no longer cuts your income</b>: the startup boost now fades out over 15 minutes instead of ending at once.',
     '<b>HQ room a slot at a time</b>: from 40 slots up you buy one slot (or five) whenever you can afford it, for the same total price. No more waiting on one huge upgrade.',
