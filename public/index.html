@@ -820,6 +820,7 @@ input[type=range]{accent-color:var(--clay)}
     <p class="invite-note" id="inviteNote" hidden></p>
     <div class="title-actions">
       <button class="btn big" id="btnPlay" type="button">Play</button>
+      <button class="btn" id="btnOnline" type="button" data-itch="1" hidden>Play online</button>
       <button class="btn ghost" id="btnSaves" type="button">Saves</button>
       <button class="btn ghost" id="btnNews" type="button">What’s new</button>
       <button class="btn ghost" id="btnForum" type="button">Community</button>
@@ -12911,7 +12912,7 @@ function renderForum() {
   const box = $('forumBody'), signed = !!Store.user, busy = fmBusy ? 'disabled' : '';
   const err = fmMsg ? `<p class="sg-err">${esc(fmMsg)}</p>` : '';
   const sign = `<div class="row"><button class="btn" type="button" data-fm="sign">Sign in to post</button></div>`;
-  if (!Store.api) { box.innerHTML = '<p class="vote-lead">The community board needs the online version of the game.</p>'; return; }
+  if (!Store.api) { box.innerHTML = '<p class="vote-lead">The community board needs the online version of the game.</p>' + (ITCH ? itchCard('It opens right here.') : ''); return; }
   if (fmView === 'new') {
     box.innerHTML = `<p class="vote-lead">Start a post. Everyone can read it, so keep it friendly.</p>${err}
       <form class="fm-form" id="fmNew" autocomplete="off"><input id="fmTitle" maxlength="60" placeholder="Title" value="${esc(fmDraft.title)}" aria-label="Title">
@@ -12990,6 +12991,56 @@ $('forumBody').addEventListener('submit', ev => {
     fmCall(async () => { fmThread = await Store.call('POST', 'forum/reply', { id: fmThread.thread.id, text: fmDraft.reply }); fmDraft.reply = ''; });
   }
 });
+/* ============================== ITCH.IO ============================== */
+// The itch.io copy has no accounts of its own: every game on itch.io shares one storage area, so a login kept there could be
+// read by any other game. Play online opens olympushunt.com in the same frame instead, where logins are safe, and brings the
+// saves in this browser along. Everything else in the itch.io copy works without the server, as before.
+const ITCH = /(^|\.)itch\.(io|zone)$/.test(location.hostname), ITCH_SITE = 'https://olympushunt.com';
+let itchBusy = false, itchMoved = [];
+// this browser's saves, as save codes: "1.OH1…,3.OH1…"
+function itchBundle() {
+  const out = [];
+  for (let n = 1; n <= 3; n++) { const s = sanitize(Store.readLocal(n, null)); if (s) out.push(n + '.' + encodeURIComponent(encodeSave(s))); }
+  return out.join(',');
+}
+async function itchGoOnline() {
+  if (itchBusy) return; itchBusy = true;
+  if (G.save && G.slot) persist(true);
+  try {   // is it up? (no-cors: only whether it answers)
+    const c = new AbortController(), t = setTimeout(() => c.abort(), 6000);
+    await fetch(ITCH_SITE + '/api/health', { mode: 'no-cors', cache: 'no-store', signal: c.signal }); clearTimeout(t);
+  } catch (e) { itchBusy = false; toast('Can’t reach olympushunt.com right now. Try again in a moment.', 6000); return; }
+  const b = itchBundle();
+  location.href = ITCH_SITE + '/?from=itch' + (b ? '#itch=' + b : '#itch=');
+}
+// On olympushunt.com, inside the itch.io page: take the saves that came along. They go in the signed-out slots, so making an
+// account moves them into it, and logging into an account that has saves leaves that account's saves alone. A save already
+// here is only replaced by a later copy of the same game.
+function itchTakeSaves() {
+  if (ITCH || !/^#itch=/.test(location.hash)) return;
+  const raw = location.hash.slice(6);
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (window.top === window) return;
+  G.fromItch = true;
+  for (const part of raw.split(',')) {
+    const m = part.match(/^([123])\.(.+)$/); if (!m) continue;
+    let s = null; try { s = decodeSave(decodeURIComponent(m[2])); } catch (e) {} if (!s) continue;
+    const n = +m[1], mine = sanitize(Store.readLocal(n, null));
+    if (mine && (mine.createdAt !== s.createdAt || (mine.playtime || 0) >= (s.playtime || 0))) continue;
+    if (mine) try { localStorage.setItem(Store.key(n, null) + '.bak', JSON.stringify(mine)); } catch (e) {}
+    if (Store.writeLocal(n, s, null)) itchMoved.push(n);
+  }
+}
+// just arrived from itch.io: straight to the saves, where the log in box is
+async function itchArrive() {
+  await Store.ready; if (!G.fromItch || G.mode !== 'title') return;
+  if (Store.user) { toast(`You’re online as ${Store.user}.`, 5000); return; }
+  if (!Store.api) return;
+  acctMsg = 'You’re online now. Log in, or create an account.' + (itchMoved.length ? ` Your itch.io ${itchMoved.length > 1 ? 'saves' : 'save'} came along, and a new account keeps ${itchMoved.length > 1 ? 'them' : 'it'}.` : '');
+  G.mode = 'slots'; show('scrSlots'); renderSlots();
+}
+const itchCard = text => `<div class="acct-row"><span>${text}</span><button class="btn small" type="button" data-itch="1">Play online</button></div>`;
+document.addEventListener('click', ev => { if (ev.target.closest('[data-itch]')) { Sound.init(); Sound.play('click'); itchGoOnline(); } });
 /* ============================== WHAT'S NEW ============================== */
 // Recent updates, newest first, shown from the title screen and from Options. To add an update, put a new entry at the
 // top: a version, a date, and short lines under new / changed / fixed (leave out any that are empty).
@@ -13642,7 +13693,7 @@ async function renderSlots() {
 /* ---- accounts (only on your own website) ---- */
 let acctMode = null, acctMsg = '', acctBusy = false;
 function accountHTML() {
-  if (!Store.api) return '';
+  if (!Store.api) return ITCH ? itchCard('Log in to hunt with friends online and keep your saves on any device. Your saves here come along.') : '';
   const msg = acctMsg ? `<p class="acct-msg">${esc(acctMsg)}</p>` : '';
   // One Inspirapixel account for every Inspirapixel game: Brick & Coin logs in with these same accounts.
   if (Store.user) return `<div class="acct-row"><span>Logged into your Inspirapixel account as <b>${esc(Store.user)}</b> · <a href="/account.html" target="_blank" rel="noopener">Account &amp; email</a></span><button class="btn ghost small" type="button" data-acct="out">Log out</button></div>${msg}`;
@@ -13659,7 +13710,7 @@ function accountHTML() {
     ${create ? '<p class="acct-note">One account for every Inspirapixel game, Brick &amp; Coin too. Names are 3 to 20 letters, numbers or underscores. Afterwards, add an email on your account page so you can reset a forgotten password.</p>' : ''}${msg}`;
 }
 function renderAccount() {
-  const box = $('acctBox'); box.hidden = !Store.api; box.innerHTML = accountHTML();
+  const box = $('acctBox'); box.hidden = !Store.api && !ITCH; box.innerHTML = accountHTML();
   const home = $('acctHome'); if (home) home.innerHTML = accountHTML();
   const f = document.querySelector('[data-acctform] input[name="name"]'); if (f && !acctBusy && document.activeElement !== f && !f.value) f.focus();
 }
@@ -14115,7 +14166,7 @@ function renderOptions() {
       <div class="opt-split"></div>
       <div class="row"><button class="btn ghost small" type="button" data-opt="title">Back to the save list</button><button class="btn ghost small" type="button" data-opt="news">What’s new</button>${G.save.legend ? '<button class="btn ghost small" type="button" data-opt="credits">Olympus Saga credits</button>' : ''}${G.save.northEnd ? '<button class="btn ghost small" type="button" data-opt="ncredits">Northern Saga credits</button>' : ''}</div>
     </div>
-    ${Store.api ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
+    ${Store.api || ITCH ? `<div class="opt wide"><h3>Account</h3><div class="acct" id="acctHome">${accountHTML()}</div></div>` : ''}
     <details class="opt wide fold" id="ctlBox" ${G.ctlOpen || G.rebinding ? 'open' : ''}><summary><h3>Controls</h3><span class="muted">${touchMode ? 'Auto-aim' : 'Keys, auto-aim and mouse'}</span></summary>
       ${touchMode ? '' : `<p>Each action can have up to 3 keys. Click a key to remove it, or Add key and press the one you want. A gaming mouse’s side buttons (Mouse 4 and 5) and the middle button work too. <kbd>Esc</kbd> <kbd>P</kbd> <kbd>F</kbd> <kbd>M</kbd> <kbd>Enter</kbd> are taken, and so are Search, Ctrl and Alt.</p>
       <div class="binds">${Object.keys(DEFAULT_BINDS).map(a => `<div class="bind-row"><span>${ACTION_LABELS[a]}</span><div class="bind-keys">${Input.bind[a].map(c => `<button class="keycap" type="button" data-unbind="${a}:${c}" aria-label="Remove ${esc(codeLabel(c))} from ${ACTION_LABELS[a]}">${esc(codeLabel(c))}<i>×</i></button>`).join('')}<button class="btn ghost small ${G.rebinding === a ? 'listening' : ''}" type="button" data-bind="${a}">${G.rebinding === a ? 'Press a key or mouse button… (Esc cancels)' : 'Add key'}</button></div></div>`).join('')}</div>`}
@@ -14348,7 +14399,7 @@ function resNextButton(next) {
 
 /* ---- the Oracle: hunting with others ---- */
 function renderOracle() {
-  if (!Store.api) return `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
+  if (!Store.api) return ITCH ? `<div class="opt"><h3>Hunt together online</h3><p>Rooms for up to six, the Coliseum and accounts are on olympushunt.com. It opens right here, and your saves come along.</p><button class="btn" type="button" data-itch="1">Play online</button></div>` : `<div class="empty-note">Hunting with others works on olympushunt.com.</div>`;
   if (!Store.user) return `<div class="opt"><h3>Sign in to hunt together</h3><p>Online hunts use your account name. Signing in takes you back to the save list.</p><div id="acctHome">${accountHTML()}</div></div>`;
   const R = NET.room, msg = G.orMsg ? `<p class="acct-msg">${esc(G.orMsg)}</p>` : '';
   if (R) return `<div class="opt"><h3>${esc(roomName(R))} <span class="muted">${esc(R.code)} · ${R.members.length}/${PARTY_MAX}</span></h3>
@@ -14737,13 +14788,16 @@ function frame(now) {
   document.documentElement.style.setProperty('--meander', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
 })();
 Settings.load();
+itchTakeSaves();                                                      // coming from the itch.io page: its saves come along (94_itch.js)
 Store.init();
+$('btnOnline').hidden = !ITCH;
 anHit('visit');                                                       // anonymous daily counts for the owner dashboard
 renderTitleControls();
 drawTitleArt();
 resize();
 requestAnimationFrame(frame);
 updateTitleSub();
+SPLASH.done.then(itchArrive);
 SPLASH.done.then(() => Music.play('menu'));         // the menu theme starts once the Inspirapixel splash is gone
 // Browsers only allow sound before the first click, tap or key press on sites people use a lot (Chrome remembers), so
 // try right away; otherwise the very first input anywhere switches it on (for most players, the splash's
