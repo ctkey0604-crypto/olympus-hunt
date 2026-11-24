@@ -90,7 +90,7 @@ const BOT = () => {
   const act = activeProducts(), roomFor = p => act.has(p) || act.size < MAX_ACTIVE_PRODUCTS;
   const canGet = p => S.unlocked[p] || /^$|^Not enough cash$/.test(canUnlock(p));
   // profit per minute of one Lv1 building, paying the market's buy price for inputs we don't make ourselves
-  const gain = p => { const P = PRODUCTS[p]; let v = P.out * price(p); for (const q in P.rec) v -= P.rec[q] * (act.has(q) ? price(q) : buyPrice(q)); return v * 60 / P.sec * lotMult() - UPKEEP[tierOf(p)]; };
+  const gain = p => { const P = PRODUCTS[p]; let v = P.out * price(p); for (const q in P.rec) v -= P.rec[q] * (act.has(q) ? price(q) : buyPrice(q, FACTORY_MARKUP)); return v * 60 / P.sec * lotMult() - UPKEEP[tierOf(p)]; };
   const ratio = p => gain(p) / buildCost(p), best = (list, f = ratio) => list.sort((a, b) => f(b) - f(a))[0];
   const cost = p => buildCost(p) + (S.unlocked[p] ? 0 : researchCost(p));
   const get = p => {   // unlock it (saving up if needed), then build it
@@ -98,7 +98,7 @@ const BOT = () => {
     return free() >= 0 && cash >= buildCost(p) ? build(free(), p) || 'build ' + p : '';
   };
   // buy missing inputs only while that still pays (buying pushes the input's price up, so a big line can price itself out)
-  const buyPays = p => { const P = PRODUCTS[p]; let v = P.out * price(p); for (const q in P.rec) v -= P.rec[q] * buyPrice(q); return v > 0; };
+  const buyPays = p => { const P = PRODUCTS[p]; let v = P.out * price(p); for (const q in P.rec) v -= P.rec[q] * buyPrice(q, FACTORY_MARKUP); return v > 0; };
   for (const l of S.lots) if (l && l.b !== 'hq' && !PRODUCTS[l.b].raw) l.autoBuy = buyPays(l.b);
   // goals that ask for something new: a stock, a home, a new product, a factory, a Level 2, 3 or 4 product
   const G = S.goal, ring = { 3: 0, 4: 1, 8: 2, 12: 3, 14: 4 }[G];
