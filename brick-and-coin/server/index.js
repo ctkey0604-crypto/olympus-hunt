@@ -15,7 +15,7 @@
      one player barely moves a price, a crowd dumping the same good moves it a lot, and
      it's capped. Reports are capped too, so a doctored game can't crash a price alone.
    - The players' leaderboard: real players only, by net worth.
-   - Going public (v0.08): a company can sell up to 49% of itself in new shares. The server
+   - Going public (v0.08): a company can sell up to 90% of itself in new shares (v0.18; it was 49%). The server
      keeps the share register (how many shares exist, how many the owner has, which
      players hold the rest; Millbrook's simulated investors hold whatever players don't),
      the buying and selling pressure on each share (it fades over half an hour), and the
@@ -37,7 +37,14 @@ const SAVE_MAX = 400e3;            // characters
 const NAME_RE = /^[A-Za-z0-9_]{3,20}$/, PID_RE = /^[a-z]{2,12}$/, TICK_RE = /^[A-Z0-9]{2,6}$/;
 // going public (the game has the same numbers in 10_data.js)
 const PUB_SHARES = 100000;         // an owner's shares before going public
-const PUB_MAX = .49;               // the most of a company outside shareholders can own
+const PUB_MAX = .9;                // the most of a company outside shareholders can own (v0.18; it was 49%). The owner always runs it
+// v0.18, freer going public: the owner picks the price, the ticker and the dividend, and can offer to buy shares back from players
+const IPO_PRICE = [.8, 1.25];      // an IPO's price, against what investors think a share is worth
+const DIV_MAX = .8, DIV_STD = .3, DIV_WAIT = 3600e3, DIV_HALF = 12 * 3600e3;   // dividends: up to 80% of profit, changed at most once an hour; investors come to believe a change over half a day
+const ISSUE_WAIT = 3600e3;         // one sale of new shares an hour
+const TENDER = [1, 1.25], TENDER_FOR = 24 * 3600e3, TENDER_MAX = .1;   // an offer to players: up to 25% over the price, for a day, one a day, up to 10% of the company's value
+const slow = (env, ms) => env.DEV_FAST === '1' ? Math.min(ms, 4000) : ms;   // local tests only (server_check.js): the waits take seconds
+const OWN_TICK = /^[A-Z][A-Z0-9]{1,4}$/;
 const PUB_HALF = 1800;             // seconds: buying and selling pressure on a share fades with a 30-minute half-life
 const PUB_DEPTH = .05;             // buying 5% of a company's value pushes its price up about 41% (the square-root law)
 const PUB_MOVE = [.6, 1.6];        // the most players' trading can move a share price
@@ -80,6 +87,11 @@ function schema(env) {
   ]).then(async () => {   // v0.11: a listing's profit trend (added to tables made before it)
     const cols = (await env.DB.prepare('PRAGMA table_info(listings)').all()).results || [];
     if (!cols.some(c => c.name === 'growth')) await env.DB.prepare('ALTER TABLE listings ADD COLUMN growth REAL NOT NULL DEFAULT 1').run();
+    // v0.18: the dividend rate, what it was and when it changed; money raised from investors; the last sale of new shares;
+    // and an offer to buy shares from players (price, shares left, until)
+    for (const [c, def] of [['divr', 'REAL NOT NULL DEFAULT 0.3'], ['divp', 'REAL NOT NULL DEFAULT 0.3'], ['divt', 'INTEGER NOT NULL DEFAULT 0'], ['raised', 'REAL NOT NULL DEFAULT 0'],
+      ['issuet', 'INTEGER NOT NULL DEFAULT 0'], ['tp', 'REAL NOT NULL DEFAULT 0'], ['tn', 'REAL NOT NULL DEFAULT 0'], ['tt', 'INTEGER NOT NULL DEFAULT 0']])
+      if (!cols.some(x => x.name === c)) await env.DB.prepare(`ALTER TABLE listings ADD COLUMN ${c} ${def}`).run();
   }).catch(e => { schemaReady = null; throw e; });
   return schemaReady;
 }
@@ -119,6 +131,9 @@ async function api(req, env, path, method) {
   if (path === '/api/ipo' && method === 'POST') return ipo(req, env, user);
   if (path === '/api/float' && method === 'POST') return float(req, env, user);
   if (path === '/api/shares' && method === 'POST') return trade(req, env, user);
+  if (path === '/api/dividend' && method === 'POST') return dividend(req, env, user);       // v0.18
+  if (path === '/api/tender' && method === 'POST') return tender(req, env, user);
+  if (path === '/api/tender/sell' && method === 'POST') return tenderSell(req, env, user);
   if (path === '/api/logout' && method === 'POST') { await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(user.tokenHash).run(); return json({ ok: true }); }
   return json({ error: 'Not found.' }, 404);
 }
@@ -160,11 +175,11 @@ async function authed(req, env) {
   return { name: row.name, display: row.display, tokenHash };
 }
 // Start over: the company leaves the server and the leaderboard. If it was listed, its shareholders are bought out at
-// today's price (paid to them the next time their game syncs).
+// today's price, or its fair one if players have pushed it above that (paid to them the next time their game syncs).
 async function startOver(env, user, now) {
   const L = await env.DB.prepare('SELECT * FROM listings WHERE owner = ? AND dead IS NULL').bind(user.name).first();
   const q = [env.DB.prepare('UPDATE players SET save = NULL, saved_at = ?, company = NULL, nw = 0, level = 1, ticker = NULL WHERE name = ?').bind(now, user.name)];
-  if (L) q.push(env.DB.prepare('UPDATE listings SET dead = ? WHERE ticker = ?').bind(r4(sharePrice(L, now)), L.ticker));
+  if (L) q.push(env.DB.prepare('UPDATE listings SET dead = ? WHERE ticker = ?').bind(r4(ownerPrice(L, now, true)), L.ticker));
   await env.DB.batch(q);
   if (L) MEM = null;
   return json({ ok: true });
@@ -201,20 +216,21 @@ async function sync(req, env, user) {
   if (s) { sets.push('save = ?', 'saved_at = ?'); vals.push(s, now); }
   q.push(env.DB.prepare(`UPDATE players SET ${sets.join(', ')} WHERE name = ?`).bind(...vals, user.name));
   // v0.08, an owner: the company's value and profit (they set its share price) and the dividends it paid since the last sync
-  let own = null;
+  let own = null, refund = 0;
   if (row.ticker) {
     own = await env.DB.prepare('SELECT * FROM listings WHERE ticker = ? AND dead IS NULL').bind(row.ticker).first();
     if (own) {
       const out = own.total - own.own, div = counts ? Math.min(Math.max(0, +b.div || 0), Math.max(0, num(b.profit)) * 5 + 1) : 0;
       q.push(env.DB.prepare('UPDATE listings SET book = ?, profit = ?, growth = ?, company = ?, dps = dps + ?, paid = paid + ? WHERE ticker = ?')
         .bind(Math.max(0, num(b.book)), num(b.profit), growthOf(b), str(b.company, 24), out > 0 ? div / out : 0, div, own.ticker));
+      if (own.tn > 0 && now >= own.tt) { refund = own.tn * own.tp * (1 + BUYBACK_FEE); own.tn = 0; q.push(env.DB.prepare('UPDATE listings SET tn = 0 WHERE ticker = ?').bind(own.ticker)); }   // v0.18: an offer that ended: what wasn't used comes back
     }
   }
   // v0.08, a shareholder: dividends since the last look, buyouts of closed companies, and the holdings themselves
   const hold = await holdingsOf(env, user.name, q);
   await env.DB.batch(q);
   return json({ ...publicMarket(m, user.display), crowd: others, savedAt: s ? now : undefined,
-    credit: r2((row.credit || 0) + hold.credit), holdings: hold.list, mine: own ? mineOf(own) : null, paidOut: hold.paidOut });
+    credit: r2((row.credit || 0) + hold.credit), holdings: hold.list, mine: own ? mineOf(own) : null, paidOut: hold.paidOut, refund: refund ? r2(refund) : undefined });
 }
 // a player's holdings, settling what's owed (dividends per share since last seen; buyouts) into q
 async function holdingsOf(env, name, q) {
@@ -232,14 +248,26 @@ async function holdingsOf(env, name, q) {
   }
   return { credit, list, paidOut };
 }
-function mineOf(L) { return { ticker: L.ticker, total: r4(L.total), own: r4(L.own), listed: L.listed, paid: r2(L.paid) }; }
+function mineOf(L) { return { ticker: L.ticker, total: r4(L.total), own: r4(L.own), listed: L.listed, paid: r2(L.paid), divr: r4(divr(L)), divp: r4(L.divp == null ? divr(L) : L.divp), divt: L.divt || 0, raised: r2(L.raised || 0), issuet: L.issuet || 0, tp: r4(L.tp || 0), tn: r4(L.tn || 0), tt: L.tt || 0 }; }
 
 /* ---------- going public ---------- */
 // What a share is worth to investors: the company's value plus 15 minutes of steady profit (at most 25% more), split
 // over every share, then moved by players' buying and selling (square-root law, fading over half an hour). The game adds
 // the market's mood and each company's own day-to-day wander on top, so the server checks trades within a wide band.
 function growthOf(b) { const g = +b.growth; return Number.isFinite(g) ? Math.min(GROWTH[1], Math.max(GROWTH[0], g)) : 1; }
-function fairPerShare(L) { const book = Math.max(0, L.book), g = L.growth == null ? 1 : L.growth; return Math.max(.01, (book + Math.min(PUB_PREM_CAP * book, PUB_PREMIUM * Math.max(0, L.profit) * g)) / L.total); }
+// v0.18: the dividend rate now, and the one investors believe in: it moves to a new rate over half a day, so a rate can't be put
+// up to sell shares dear and straight down again to buy them back cheap. Steadier dividends are worth more: from 0.6x the
+// minutes of profit at none, through 1x at 30% (what every company paid before), to 1.67x at 80%.
+function divr(L) { return L.divr == null ? DIV_STD : L.divr; }
+function divSeen(L, now) { const r = divr(L), p = L.divp == null ? r : L.divp; return r + (p - r) * Math.pow(.5, Math.max(0, now - (L.divt || 0)) / DIV_HALF); }
+function fairPerShare(L, now = Date.now()) {
+  const book = Math.max(0, L.book), g = L.growth == null ? 1 : L.growth, d = .6 + .4 * divSeen(L, now) / DIV_STD;
+  return Math.max(.01, (book + Math.min(PUB_PREM_CAP * book, PUB_PREMIUM * Math.max(0, L.profit) * g * d)) / L.total);
+}
+// v0.18: how much of an offering investors take at a price (against what they think it's worth): all of it at 10% under, none at
+// 30% over; they pay up for a company whose profit is climbing. And selling most of a company in one go costs up to 25% more off.
+function ipoTaken(m, growth) { return Math.min(1, Math.max(0, (1.3 * (1 + .2 * (growth - 1)) - m) / .4)); }
+function bigSale(f) { return 1 - .25 * Math.min(1, Math.max(0, (f - .5) / .4)); }
 function moveOf(L, fb, fs) { const D = PUB_DEPTH * fairPerShare(L) * L.total; return Math.min(PUB_MOVE[1], Math.max(PUB_MOVE[0], Math.sqrt((1 + fb / D) / (1 + fs / D)))); }
 // players' pressure fades with a 30-minute half-life, faster the further it had pushed the price (v0.11: investors lean against it)
 function pressure(L, now) {
@@ -247,25 +275,46 @@ function pressure(L, now) {
   const k = Math.pow(.5, Math.max(0, now - L.ft) / 1000 / (PUB_HALF / (1 + PUB_REVERT * s))); return [L.fb * k, L.fs * k];
 }
 function sharePrice(L, now) { const [fb, fs] = pressure(L, now); return fairPerShare(L) * moveOf(L, fb, fs); }
+// v0.17: a trade pays the price it makes. The shares go through a bit at a time, each bit at the price the ones before it left.
+// (Until then a whole order was filled at the price from before it moved the market, so buying and selling straight back
+// made money from nothing.) asked is the game's price now: this one times the market's mood and the company's own wander.
+const FILL_STEPS = 40;
+function fill(L, now, n, side, asked) {
+  let [fb, fs] = pressure(L, now), cash = 0; const m0 = moveOf(L, fb, fs), dn = n / FILL_STEPS, buy = side === 'buy';
+  for (let k = 0; k < FILL_STEPS; k++) {
+    const half = dn * asked * moveOf(L, fb, fs) / m0 / 2, c = dn * asked * moveOf(L, fb + (buy ? half : 0), fs + (buy ? 0 : half)) / m0;
+    cash += c; if (buy) fb += c; else fs += c;
+  }
+  return { cash, fb, fs };
+}
+// what the owner deals at: the fair price, never one that players' trading has pushed their way (v0.17)
+function ownerPrice(L, now, sell) { const [fb, fs] = pressure(L, now), m = moveOf(L, fb, fs); return fairPerShare(L) * (sell ? Math.min(1, m) : Math.max(1, m)); }
 async function ipo(req, env, user) {
   const b = await readJson(req), now = Date.now(), f = +b.f, book = num(b.book), profit = num(b.profit), growth = growthOf(b);
   const p = await env.DB.prepare('SELECT company, ticker FROM players WHERE name = ?').bind(user.name).first();
   if (!p || !p.company) return json({ error: 'Save your company online first (it saves every few minutes).' }, 400);
   if (p.ticker) return json({ error: 'Your company is already public.' }, 409);
   if (!(f >= .05 && f <= PUB_MAX)) return json({ error: `You can sell 5% to ${PUB_MAX * 100}% of your company.` }, 400);
+  // v0.18: the owner's price, dividend and ticker (a game from before it sends none of them: 10% under, 30%, and one made up)
+  const own = b.m != null, m = own ? +b.m : IPO_DISCOUNT, dv = b.div != null ? +b.div : DIV_STD, want = typeof b.ticker === 'string' ? b.ticker.trim().toUpperCase() : '';
+  if (!(m >= IPO_PRICE[0] - 1e-9 && m <= IPO_PRICE[1] + 1e-9)) return json({ error: 'Pick a price from 20% under to 25% over.' }, 400);
+  if (!(dv >= 0 && dv <= DIV_MAX + 1e-9)) return json({ error: `Dividends can be 0% to ${DIV_MAX * 100}% of profit.` }, 400);
+  if (want && (!OWN_TICK.test(want) || RESERVED.includes(want))) return json({ error: RESERVED.includes(want) ? 'That ticker is taken.' : 'A ticker is 2 to 5 letters or numbers, starting with a letter.' }, 400);
+  if (want && await env.DB.prepare('SELECT 1 FROM listings WHERE ticker = ?').bind(want).first()) return json({ error: 'That ticker is taken.' }, 409);
   if (!(book >= 1e5)) return json({ error: 'A company needs to be worth $100,000 (Level 3) to go public.' }, 400);
-  const ticker = await newTicker(env, str(b.company, 24) || p.company);
-  const L = { total: PUB_SHARES, own: PUB_SHARES, book, profit, growth, fb: 0, fs: 0, ft: now };
-  const pre = fairPerShare(L), issued = PUB_SHARES * f / (1 - f), price = pre * IPO_DISCOUNT, raised = issued * price * (1 - IPO_FEE);
+  const ticker = want || await newTicker(env, str(b.company, 24) || p.company);
+  const L = { total: PUB_SHARES, own: PUB_SHARES, book, profit, growth, fb: 0, fs: 0, ft: now, divr: dv, divp: dv, divt: 0 };
+  const pre = fairPerShare(L, now), taken = own ? ipoTaken(m, growth) : 1, issued = PUB_SHARES * f / (1 - f) * taken, price = pre * m * (own ? bigSale(f) : 1), raised = issued * price * (1 - IPO_FEE);
+  if (issued < 100) return json({ error: 'No investor takes it at that price. Try a lower one.' }, 409);
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO listings (ticker, owner, company, total, own, book, profit, growth, ft, listed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(ticker, user.name, str(b.company, 24) || p.company, PUB_SHARES + issued, PUB_SHARES, book + raised, profit, growth, now, now),
+    env.DB.prepare('INSERT INTO listings (ticker, owner, company, total, own, book, profit, growth, ft, listed, divr, divp, raised, issuet) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(ticker, user.name, str(b.company, 24) || p.company, PUB_SHARES + issued, PUB_SHARES, book + raised, profit, growth, now, now, dv, dv, raised, now),
     env.DB.prepare('UPDATE players SET ticker = ? WHERE name = ?').bind(ticker, user.name),
   ]);
   MEM = null;
-  return json({ ok: true, ticker, issued: r4(issued), price: r4(price), raised: r2(raised), mine: { ticker, total: r4(PUB_SHARES + issued), own: PUB_SHARES, listed: now, paid: 0 } });
+  return json({ ok: true, ticker, issued: r4(issued), price: r4(price), raised: r2(raised), taken: r4(taken), mine: mineOf({ ...L, ticker, total: PUB_SHARES + issued, listed: now, paid: 0, raised, issuet: now }) });
 }
-// The owner sells more new shares (up to 49% outside) or buys shares back from Millbrook's investors, at today's price.
+// The owner sells more new shares (up to 90% outside, once an hour) or buys shares back from Millbrook's investors, at today's price.
 async function float(req, env, user) {
   const b = await readJson(req), now = Date.now(), target = +b.f;
   const p = await env.DB.prepare('SELECT ticker FROM players WHERE name = ?').bind(user.name).first();
@@ -273,29 +322,98 @@ async function float(req, env, user) {
   if (!L) return json({ error: 'Your company isn’t public.' }, 400);
   if (b.book != null) { L.book = Math.max(0, num(b.book)); L.profit = num(b.profit); L.growth = growthOf(b); }
   const held = (await env.DB.prepare('SELECT COALESCE(SUM(shares), 0) AS n FROM holdings WHERE ticker = ?').bind(L.ticker).first()).n;
-  const price = sharePrice(L, now), out = L.total - L.own;
+  const out = L.total - L.own, price = ownerPrice(L, now, target > out / L.total);
   if (!(target >= 0 && target <= PUB_MAX + 1e-9)) return json({ error: `Outside shareholders can own at most ${PUB_MAX * 100}%.` }, 400);
-  let total = L.total, cash = 0, fb = pressure(L, now)[0], fs = pressure(L, now)[1];
+  let total = L.total, cash = 0; const [fb, fs] = pressure(L, now);   // an offering or a buyback goes through the bank: it doesn't push the price (v0.17)
   if (target > out / L.total + 1e-9) {          // issue new shares
+    const free = (L.issuet || 0) + slow(env, ISSUE_WAIT); if (now < free) return json({ error: `Investors need a while between sales: wait ${Math.ceil((free - now) / 60e3)} min.` }, 429);
     const n = (target * L.total - out) / (1 - target);
-    total += n; cash = n * price * (1 - ISSUE_FEE); fs += n * price;
+    total += n; cash = n * price * bigSale(n / total) * (1 - ISSUE_FEE);
   } else if (target < out / L.total - 1e-9) {   // buy back from the investors (players' shares can't be bought back)
     const n = Math.min(out - held, (out - target * L.total) / (1 - target));
     if (n <= 1e-6) return json({ error: 'Players hold all the other shares: there are none to buy back.' }, 400);
-    total -= n; cash = -n * price * (1 + BUYBACK_FEE); fb += n * price;
+    total -= n; cash = -n * price * (1 + BUYBACK_FEE);
   } else return json({ error: 'Nothing to change.' }, 400);
   if (total - L.own < 1e-6) {   // all bought back: the company is private again
     await env.DB.batch([env.DB.prepare('DELETE FROM listings WHERE ticker = ?').bind(L.ticker), env.DB.prepare('UPDATE players SET ticker = NULL WHERE name = ?').bind(user.name)]);
     MEM = null;
-    return json({ ok: true, cash: r2(cash), price: r4(price), mine: null });
+    return json({ ok: true, cash: r2(cash), price: r4(price), mine: null, refund: L.tn > 0 ? r2(L.tn * L.tp * (1 + BUYBACK_FEE)) : undefined });   // an offer nobody's left to take
   }
-  await env.DB.prepare('UPDATE listings SET total = ?, book = ?, fb = ?, fs = ?, ft = ? WHERE ticker = ?').bind(total, L.book + cash, fb, fs, now, L.ticker).run();
+  const raised = Math.max(0, (L.raised || 0) + cash), issuet = cash > 0 ? now : L.issuet || 0;
+  await env.DB.prepare('UPDATE listings SET total = ?, book = ?, fb = ?, fs = ?, ft = ?, raised = ?, issuet = ? WHERE ticker = ?').bind(total, L.book + cash, fb, fs, now, raised, issuet, L.ticker).run();
   MEM = null;
-  return json({ ok: true, cash: r2(cash), price: r4(price), mine: mineOf({ ...L, total }) });
+  return json({ ok: true, cash: r2(cash), price: r4(price), mine: mineOf({ ...L, total, raised, issuet }) });
+}
+// v0.18: the owner sets how much of its profit the company pays out.
+async function dividend(req, env, user) {
+  const b = await readJson(req), now = Date.now(), rate = +b.rate, L = await ownListing(env, user);
+  if (!L) return json({ error: 'Your company isn’t public.' }, 400);
+  if (!(rate >= 0 && rate <= DIV_MAX + 1e-9)) return json({ error: `Dividends can be 0% to ${DIV_MAX * 100}% of profit.` }, 400);
+  const free = (L.divt || 0) + slow(env, DIV_WAIT); if (now < free) return json({ error: `You can change it again in ${Math.ceil((free - now) / 60e3)} min.` }, 429);
+  const seen = divSeen(L, now);
+  await env.DB.prepare('UPDATE listings SET divr = ?, divp = ?, divt = ? WHERE ticker = ?').bind(rate, seen, now, L.ticker).run();
+  MEM = null;
+  return json({ ok: true, mine: mineOf({ ...L, divr: rate, divp: seen, divt: now }) });
+}
+async function ownListing(env, user) {
+  const p = await env.DB.prepare('SELECT ticker FROM players WHERE name = ?').bind(user.name).first();
+  return p && p.ticker ? env.DB.prepare('SELECT * FROM listings WHERE ticker = ? AND dead IS NULL').bind(p.ticker).first() : null;
+}
+// v0.18: an offer to buy the company's shares from the players who hold them, for a day. The game pays for all of it when it's
+// made; what isn't used comes back when it ends (sync) or is called off. One a day, for up to 10% of the company's value.
+async function tender(req, env, user) {
+  const b = await readJson(req), now = Date.now(), L = await ownListing(env, user);
+  if (!L) return json({ error: 'Your company isn’t public.' }, 400);
+  if (b.cancel === true) {
+    if (!(L.tn > 0)) return json({ error: 'There’s no offer to call off.' }, 400);
+    const back = L.tn * L.tp * (1 + BUYBACK_FEE);
+    await env.DB.prepare('UPDATE listings SET tn = 0 WHERE ticker = ?').bind(L.ticker).run();
+    MEM = null;
+    return json({ ok: true, refund: r2(back), mine: mineOf({ ...L, tn: 0 }) });
+  }
+  if (now < (L.tt || 0)) return json({ error: `One offer a day: the next can start in ${Math.ceil((L.tt - now) / 3600e3)} h.` }, 429);
+  const prem = +b.prem, px = +b.price, mk = sharePrice(L, now);
+  if (!(prem >= TENDER[0] - 1e-9 && prem <= TENDER[1] + 1e-9)) return json({ error: 'Offer from today’s price to 25% over it.' }, 400);
+  if (!(px > 0) || px / mk < BAND[0] || px / mk > BAND[1]) return json({ error: 'The price moved. Try again.', price: r4(mk) }, 409);
+  const held = (await env.DB.prepare('SELECT COALESCE(SUM(shares), 0) AS n FROM holdings WHERE ticker = ?').bind(L.ticker).first()).n, n = Math.min(+b.shares || 0, held), tp = px * prem;
+  if (!(n > 1e-3)) return json({ error: 'No player holds your shares.' }, 400);
+  const cost = n * tp * (1 + BUYBACK_FEE);
+  if (cost > TENDER_MAX * Math.max(0, L.book) + .01) return json({ error: `An offer can be worth up to ${TENDER_MAX * 100}% of the company.` }, 400);
+  const old = L.tn > 0 ? L.tn * L.tp * (1 + BUYBACK_FEE) : 0;   // an ended one whose money hasn't gone back yet
+  await env.DB.prepare('UPDATE listings SET tp = ?, tn = ?, tt = ? WHERE ticker = ?').bind(tp, n, now + slow(env, TENDER_FOR), L.ticker).run();
+  MEM = null;
+  return json({ ok: true, cost: r2(cost), refund: r2(old), mine: mineOf({ ...L, tp, tn: n, tt: now + slow(env, TENDER_FOR) }) });
+}
+// A player sells into an offer: the shares are cancelled, and the money was set aside when the offer was made.
+async function tenderSell(req, env, user) {
+  const b = await readJson(req), now = Date.now(), ticker = String(b.ticker || '');
+  if (!TICK_RE.test(ticker) || !(+b.shares > 0)) return json({ error: 'That doesn’t make sense.' }, 400);
+  const L = await env.DB.prepare('SELECT * FROM listings WHERE ticker = ? AND dead IS NULL').bind(ticker).first();
+  if (!L || !(L.tn > 0) || now >= L.tt) return json({ error: 'That offer has ended.' }, 409);
+  const h = await env.DB.prepare('SELECT * FROM holdings WHERE holder = ? AND ticker = ?').bind(user.name, ticker).first();
+  const n = Math.min(+b.shares, h ? h.shares : 0, L.tn);
+  if (!(n > 1e-6)) return json({ error: 'You own none of it.' }, 400);
+  // both sides change together or not at all: only if this player still holds exactly what was read, and the offer still has
+  // room (changes() is 1 when the line before it went through). Two sells at once can't both count the same shares.
+  const owed = h.shares * Math.max(0, L.dps - h.seen), left = h.shares - n, cost = h.cost * Math.max(0, left / h.shares), total = L.total - n;
+  const done = await env.DB.batch([
+    env.DB.prepare('UPDATE holdings SET shares = ?, cost = ?, seen = ? WHERE holder = ? AND ticker = ? AND shares = ? AND seen = ? AND EXISTS (SELECT 1 FROM listings WHERE ticker = ? AND dead IS NULL AND tt > ? AND tn >= ?)')
+      .bind(left, cost, L.dps, user.name, ticker, h.shares, h.seen, ticker, now, n - 1e-6),
+    env.DB.prepare('UPDATE listings SET tn = MAX(0, tn - ?), total = total - ?, raised = MAX(0, raised - ?) WHERE ticker = ? AND changes() = 1').bind(n, n, n * L.tp, ticker),
+  ]);
+  if (!(done[0].meta && done[0].meta.changes === 1)) return json({ error: 'The offer just changed. Try again.' }, 409);
+  const q = [env.DB.prepare('DELETE FROM holdings WHERE holder = ? AND ticker = ? AND shares < 1e-6').bind(user.name, ticker)];
+  if (total - L.own < 1e-6) {   // that was the last share outside: the company is private again, and what's left of the offer goes back
+    const rest = Math.max(0, L.tn - n);
+    q.push(env.DB.prepare('DELETE FROM listings WHERE ticker = ?').bind(ticker), env.DB.prepare('UPDATE players SET ticker = NULL, credit = credit + ? WHERE name = ?').bind(rest > 1e-6 ? rest * L.tp * (1 + BUYBACK_FEE) : 0, L.owner));
+  }
+  await env.DB.batch(q);
+  MEM = null;
+  return json({ ok: true, cash: r2(n * L.tp), shares: r4(n), credit: r2(owed), holding: left < 1e-6 ? null : [ticker, r4(left), r2(cost)] });
 }
 // A player buys or sells shares of another player's company, from or to Millbrook's investors, at today's price.
 async function trade(req, env, user) {
-  const b = await readJson(req), now = Date.now(), ticker = String(b.ticker || ''), n = +b.shares, side = b.side;
+  const b = await readJson(req), now = Date.now(), ticker = String(b.ticker || ''), side = b.side; let n = +b.shares;
   if (!TICK_RE.test(ticker) || !(n > 0) || (side !== 'buy' && side !== 'sell')) return json({ error: 'That trade doesn’t make sense.' }, 400);
   const L = await env.DB.prepare('SELECT * FROM listings WHERE ticker = ? AND dead IS NULL').bind(ticker).first();
   if (!L) return json({ error: 'That company isn’t listed any more.' }, 404);
@@ -304,22 +422,25 @@ async function trade(req, env, user) {
   if (!(asked > 0) || asked / price < BAND[0] || asked / price > BAND[1]) return json({ error: 'The price moved. Try again.', price: r4(price) }, 409);
   const h = await env.DB.prepare('SELECT * FROM holdings WHERE holder = ? AND ticker = ?').bind(user.name, ticker).first();
   const owed = h ? h.shares * Math.max(0, L.dps - h.seen) : 0;
-  let [fb, fs] = pressure(L, now), shares = h ? h.shares : 0, cost = h ? h.cost : 0;
+  let shares = h ? h.shares : 0, cost = h ? h.cost : 0, F;
   if (side === 'buy') {
     const held = (await env.DB.prepare('SELECT COALESCE(SUM(shares), 0) AS n FROM holdings WHERE ticker = ?').bind(ticker).first()).n;
-    if (n > L.total - L.own - held + 1e-6) return json({ error: `Only ${Math.floor(Math.max(0, L.total - L.own - held))} shares are for sale.` }, 400);
-    shares += n; cost += n * asked; fb += n * asked;
+    const avail = Math.max(0, L.total - L.own - held); if (n > avail + .01 || avail < 1e-6) return json({ error: `Only ${Math.floor(avail)} shares are for sale.` }, 400);
+    n = Math.min(n, avail);   // a game knows the numbers to 4 places: buying the very last share shouldn't trip on the fifth (v0.18)
+    F = fill(L, now, n, side, asked);
+    shares += n; cost += F.cash;
   } else {
     if (n > shares + 1e-6) return json({ error: 'You don’t have that many shares.' }, 400);
-    cost *= Math.max(0, 1 - n / shares); shares -= n; fs += n * asked;
+    F = fill(L, now, n, side, asked);
+    cost *= Math.max(0, 1 - n / shares); shares -= n;
   }
-  const q = [env.DB.prepare('UPDATE listings SET fb = ?, fs = ?, ft = ? WHERE ticker = ?').bind(fb, fs, now, ticker)];
+  const q = [env.DB.prepare('UPDATE listings SET fb = ?, fs = ?, ft = ? WHERE ticker = ?').bind(F.fb, F.fs, now, ticker)];
   if (shares < 1e-6) q.push(env.DB.prepare('DELETE FROM holdings WHERE holder = ? AND ticker = ?').bind(user.name, ticker));
   else q.push(env.DB.prepare('INSERT INTO holdings (holder, ticker, shares, cost, seen) VALUES (?, ?, ?, ?, ?) ON CONFLICT(holder, ticker) DO UPDATE SET shares = excluded.shares, cost = excluded.cost, seen = excluded.seen')
     .bind(user.name, ticker, shares, cost, L.dps));
   await env.DB.batch(q);
   MEM = null;
-  return json({ ok: true, price: r4(asked), credit: r2(owed), holding: shares < 1e-6 ? null : [ticker, r4(shares), r2(cost)] });
+  return json({ ok: true, price: r6(F.cash / n), credit: r2(owed), holding: shares < 1e-6 ? null : [ticker, r4(shares), r2(cost)] });
 }
 async function newTicker(env, company) {
   const words = company.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
@@ -349,14 +470,14 @@ async function market(env, now) {
   }
   const top = (await env.DB.prepare('SELECT display, company, nw, level, seen FROM players WHERE seen > ? AND company IS NOT NULL ORDER BY nw DESC LIMIT 25').bind(now - BOARD_DAYS * 86400e3).all()).results || [];
   const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM players WHERE seen > ? AND company IS NOT NULL').bind(now - BOARD_DAYS * 86400e3).first();
-  const lst = (await env.DB.prepare(`SELECT l.ticker, l.company, p.display, l.total, l.own, l.book, l.profit, l.growth, l.fb, l.fs, l.ft, l.paid, l.listed, p.seen,
+  const lst = (await env.DB.prepare(`SELECT l.ticker, l.company, p.display, l.total, l.own, l.book, l.profit, l.growth, l.fb, l.fs, l.ft, l.paid, l.listed, p.seen, l.divr, l.divp, l.divt, l.tp, l.tn, l.tt,
       (SELECT COALESCE(SUM(h.shares), 0) FROM holdings h WHERE h.ticker = l.ticker) AS held,
       (SELECT COUNT(*) FROM holdings h WHERE h.ticker = l.ticker) AS holders
     FROM listings l JOIN players p ON p.name = l.owner WHERE l.dead IS NULL ORDER BY l.book DESC LIMIT 40`).all()).results || [];
   MEM = { t: now, crowd: roundFlow(crowd), online, players: total ? total.n : top.length,
     board: top.map(r => [r.display, r.company, Math.round(r.nw), r.level, r.seen > now - ONLINE ? 1 : 0]),
-    // a listing: ticker, company, owner, shares, owner's shares, value, profit/min, buying, selling (both $, at ft), ft, dividends paid, listed, players' shares, holders, owner online, profit trend (v0.11)
-    listings: lst.map(L => [L.ticker, L.company, L.display, r4(L.total), r4(L.own), r2(L.book), r2(L.profit), r2(L.fb), r2(L.fs), L.ft, r2(L.paid), L.listed, r4(L.held), L.holders, L.seen > now - ONLINE ? 1 : 0, r4(L.growth == null ? 1 : L.growth)]) };
+    // a listing: ticker, company, owner, shares, owner's shares, value, profit/min, buying, selling (both $, at ft), ft, dividends paid, listed, players' shares, holders, owner online, profit trend (v0.11), dividend rate, what it was, when it changed, offer to players: price, shares left, until (v0.18)
+    listings: lst.map(L => [L.ticker, L.company, L.display, r4(L.total), r4(L.own), r2(L.book), r2(L.profit), r2(L.fb), r2(L.fs), L.ft, r2(L.paid), L.listed, r4(L.held), L.holders, L.seen > now - ONLINE ? 1 : 0, r4(L.growth == null ? 1 : L.growth), r4(divr(L)), r4(L.divp == null ? divr(L) : L.divp), L.divt || 0, r4(L.tp || 0), r4(L.tn > 0 && L.tt > now ? L.tn : 0), L.tt || 0]) };
   await env.DB.prepare("INSERT INTO meta (k, v, t) VALUES ('market', ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, t = excluded.t").bind(JSON.stringify(MEM), now).run();
   // v0.12: once every 5 minutes, each listing's share price for the charts (before the market's mood and the company's own
   // wander, which the game adds, as it does for today's price). A second server copy's try for the same slot is ignored.
@@ -375,7 +496,7 @@ function publicMarket(m, me) { return { now: Date.now(), t: m.t, crowd: m.crowd,
 function parseFlow(s) { try { const o = JSON.parse(s || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
 function decayFlow(f, ms) { const k = Math.pow(.5, Math.max(0, ms) / 1000 / CROWD_HALF), o = {}; for (const p in f) if (Array.isArray(f[p])) o[p] = [(+f[p][0] || 0) * k, (+f[p][1] || 0) * k]; return o; }
 function roundFlow(f) { const o = {}; for (const p in f) o[p] = [r3(f[p][0]), r3(f[p][1])]; return o; }
-const r2 = x => Math.round(x * 100) / 100, r3 = x => Math.round(x * 1000) / 1000, r4 = x => Math.round(x * 10000) / 10000;
+const r2 = x => Math.round(x * 100) / 100, r3 = x => Math.round(x * 1000) / 1000, r4 = x => Math.round(x * 10000) / 10000, r6 = x => Math.round(x * 1e6) / 1e6;
 const num = x => (Number.isFinite(+x) ? Math.max(-1e15, Math.min(1e15, +x)) : 0);
 const lvl = x => Math.max(1, Math.min(9, Math.floor(+x) || 1));
 const str = (x, n) => (typeof x === 'string' && x.trim() ? x.trim().slice(0, n) : null);
