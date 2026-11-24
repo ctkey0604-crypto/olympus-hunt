@@ -606,7 +606,7 @@ textarea.savebox{width:100%;min-height:90px;background:#000;border:0;border-radi
    Every number here is a v0.01 first guess, tuned so a first session hits
    Level 2 in roughly 15–20 minutes. Change freely.
    ========================================================================== */
-const VERSION = 'v0.14';
+const VERSION = 'v0.15';
 const SAVE_KEY = 'inspirapixel_bizgame_v001';   // never change: players' saves live under this key
 const TUT_DONE = 99;                              // S.tut value once the tutorial is finished or skipped
 
@@ -1190,7 +1190,10 @@ const START_CASH = 2000;
 const STARTUP_BOOST = 1.5;            // production speed until you reach Level 2
 const OFFLINE_RATE = 0.25, OFFLINE_MAX = 2 * 3600;   // closed or hidden: a quarter speed for up to 2 hours
 const IDLE_AFTER = 10 * 60;                           // v0.05: left open with no input for 10 minutes counts as away too
-const NPC_MARKUP = 1.3;               // buying from the NPC market costs 30% over the sell price
+const NPC_MARKUP = 1.3;               // buying from the NPC market by hand costs 30% over the sell price
+// v0.15: a factory buying its own inputs pays 15% over (it was 30% too). Hand buying stays at 30%: at 15%, filling storage
+// in a slump and selling after it would pay several times better than it does.
+const FACTORY_MARKUP = 1.15;
 /* v0.09: your own selling. Millbrook's buyers are a big market, so your steady output barely moves a price (a few percent at
    most); dumping a huge pile at once still pushes it down for a couple of minutes (square-root law, like real order books),
    never by more than 40%. Buying works the same way upwards. Before v0.09 a busy factory line could cut its own price in half. */
@@ -1362,6 +1365,10 @@ const EV_STOCK_DOWN = ['{C} misses profit expectations', '{C} CEO under fire', '
    The patch notes on the starting menu, newest first. Add an entry at the top with every release (its v must match
    VERSION): the What's New button shows a NEW badge until the player has read the latest one. */
 const WHATS_NEW = [
+  { v: 'v0.15', title: 'Cheaper materials', items: [
+    '<b>Cheaper materials</b>: a factory that buys its own materials now pays 15% over the market price (it was 30%). Buying by hand still costs 30% more.',
+    'Leaving the game open and idle no longer makes your company <b>look like it’s failing</b>: the steady profit and trend investors see stay as you left them until you’re back. The town still runs at 25% speed while you’re idle.',
+  ] },
   { v: 'v0.14', title: 'Room for a full town', items: [
     '<b>Two more HQ upgrades</b>: room for 200 building levels, then 235, enough for every lot in town at its highest level (it stopped at 160).',
   ] },
@@ -2201,7 +2208,8 @@ function price(p) {
   const M = S.market[p], D = marketDepth(p);
   return PRODUCTS[p].base * evMult(p) * Math.exp(WS.noise[p] || 0) * crowdMult(p) * ownImpact(M, D);
 }
-function buyPrice(p) { return price(p) * NPC_MARKUP; }
+// what buying costs: by hand, or for a factory's own inputs (FACTORY_MARKUP, v0.15)
+function buyPrice(p, markup = NPC_MARKUP) { return price(p) * markup; }
 // your own recent selling (sat) and buying (bp), fading with a 2-minute half-life, against a deep market (v0.09)
 function ownImpact(M, D) { const K = OWN_DEPTH * D; return clamp(Math.sqrt((1 + M.bp / K) / (1 + M.sat / K)), OWN_MIN, OWN_MAX); }
 // the last 5 minutes of prices for the sparklines, from the world (at today's own selling pressure)
@@ -2221,17 +2229,17 @@ function sellGoods(p, q, auto) {
   S.cash += rev; S.stats.sales += rev; addProfit(rev);
   return rev;
 }
-function buyGoods(p, q) {
+function buyGoods(p, q, markup) {
   const M = S.market[p], D = marketDepth(p), chunk = Math.max(1, D / 25);
   let left = q, cost = 0;
-  while (left > 0) { const c = Math.min(left, chunk); cost += c * buyPrice(p); M.bp += c; left -= c; }
+  while (left > 0) { const c = Math.min(left, chunk); cost += c * buyPrice(p, markup); M.bp += c; left -= c; }
   crowdNote(p, 0, q);
   return cost;
 }
 // does making p still pay if every input you don't make yourself is bought from the market?
 function buysPay(p) {
   const P = PRODUCTS[p]; if (P.raw) return false;
-  const act = activeProducts(); let cost = 0; for (const q in P.rec) cost += P.rec[q] * (act.has(q) ? price(q) : buyPrice(q));
+  const act = activeProducts(); let cost = 0; for (const q in P.rec) cost += P.rec[q] * (act.has(q) ? price(q) : buyPrice(q, FACTORY_MARKUP));
   return P.out * price(p) - cost > upkeepPerMin({ b: p, lv: 1 }) * P.sec / 60;
 }
 // v0.09: sell everything in storage except what your own factories need (two minutes of it), Keep products included
@@ -2244,7 +2252,7 @@ function sellAllSpare() {
   }
   return { got, n };
 }
-function quoteBuy(p, q) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
+function quoteBuy(p, q, markup) { const M = S.market[p], D = marketDepth(p); return q * buyPrice(p, markup) * Math.sqrt(1 + q / (OWN_DEPTH * D) / 2); }
 // v0.11: what the company made while the game was closed isn't this minute's profit: it used to land in one second of the
 // ledger, so $/min (and the steady profit investors value) jumped for a while after every return
 let PROFIT_OFF = false;
@@ -2294,10 +2302,10 @@ function stepProduction(dt, offlineRate = 1) {
         const amt = {}; let cost = 0, extra = 0;
         for (const q of miss) {
           const need = P.rec[q] - (S.inv[q] || 0), cheap = offlineRate === 1 && priceRatio(q) < BUY_CHEAP && whUsed() + extra + P.rec[q] * BUY_STOCK < whMax() * HOLD_ROOM;
-          amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q]);
+          amt[q] = need + (cheap ? P.rec[q] * (BUY_STOCK - 1) : 0); extra += amt[q]; cost += quoteBuy(q, amt[q], FACTORY_MARKUP);
         }
-        if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q]); } }   // short of cash: just this cycle
-        if (S.cash >= cost) { for (const q of miss) { const c = buyGoods(q, amt[q]); S.cash -= c; addProfit(-c); S.inv[q] = (S.inv[q] || 0) + amt[q]; } ok = true; }
+        if (S.cash < cost * 3) { cost = 0; for (const q of miss) { amt[q] = P.rec[q] - (S.inv[q] || 0); cost += quoteBuy(q, amt[q], FACTORY_MARKUP); } }   // short of cash: just this cycle
+        if (S.cash >= cost) { for (const q of miss) { const c = buyGoods(q, amt[q], FACTORY_MARKUP); S.cash -= c; addProfit(-c); S.inv[q] = (S.inv[q] || 0) + amt[q]; } ok = true; }
       }
       if (!ok) { l.stall = 'needs ' + miss.map(q => PRODUCTS[q].name).join(' + '); continue; }
       for (const q in P.rec) { S.inv[q] -= P.rec[q]; if (S.inv[q] <= 1e-9) delete S.inv[q]; }
@@ -2433,8 +2441,12 @@ function step(dt) {
     S._sec -= 1;
     sellSurplus();
     for (const p of PIDS) { const M = S.market[p]; M._h = (M._h || 0) + 1; if (M._h >= 5) { M._h = 0; M.hist.push(+price(p).toFixed(2)); if (M.hist.length > 60) M.hist.shift(); } }
-    S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
-    S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
+    // v0.15: left idle, the averages investors look at wait, as they do while the game is closed. They used to take in the
+    // quarter-speed profit, so a company whose owner stepped away looked like it was failing.
+    if (AWAY_RATE === 1) {
+      S.profAvg = profitSteady() + (S.prof[S.profI] * 60 - profitSteady()) * (1 - Math.exp(-1 / PROF_AVG));
+      S.profLong = profitLong() + (S.prof[S.profI] * 60 - profitLong()) * (1 - Math.exp(-1 / PROF_LONG));
+    }
     S.profI = (S.profI + 1) % 60; S.prof[S.profI] = 0; S.profN++;
     checkLevel(); checkGoals();
   }
@@ -3253,7 +3265,7 @@ function rateTxt(x) { return (x >= 10 ? Math.round(x) : Math.round(x * 10) / 10)
 function cyclesPerMin(p, lv, mult) { return 60 / PRODUCTS[p].sec * lv * mult; }
 // Inputs you make yourself count at the market's sell price (what they'd fetch). Inputs you don't make count at the
 // buy price, since the building has to buy them (v0.04: before, a factory buying everything could show a profit while losing money).
-function inputPrice(q, act = activeProducts()) { return act.has(q) ? price(q) : buyPrice(q); }
+function inputPrice(q, act = activeProducts()) { return act.has(q) ? price(q) : buyPrice(q, FACTORY_MARKUP); }
 function estProfit(p, lv = 1, mult = 1) {
   const P = PRODUCTS[p], c = cyclesPerMin(p, lv, mult), act = activeProducts();
   let v = c * P.out * price(p); for (const q in P.rec) v -= c * P.rec[q] * inputPrice(q, act);
@@ -3470,7 +3482,7 @@ function bldView(i, l) {
       <div style="font-size:13px">${recipeHTML(l.b, true)}</div></section>
     <section class="card"><h3>Output</h3>${flowSeg(l.b)}
       <p class="muted" style="font-size:12px">${flowOf(l.b) === 'auto' ? 'Keeps what your own factories need, sells the rest.' : flowOf(l.b) === 'sell' ? 'Sells everything as it is made.' : 'Stores everything. The factory stops when storage is full.'}</p>
-      ${P.raw ? '' : `<label class="check"><input type="checkbox" data-act="autobuy" data-i="${i}" ${l.autoBuy ? 'checked' : ''}> Buy missing inputs from the market (costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than making them)</label>`}</section>
+      ${P.raw ? '' : `<label class="check"><input type="checkbox" data-act="autobuy" data-i="${i}" ${l.autoBuy ? 'checked' : ''}> Buy missing inputs from the market (costs ${Math.round((FACTORY_MARKUP - 1) * 100)}% more than making them)</label>`}</section>
     <p class="muted" style="font-size:13px">${BLURB[l.b]}</p>
     ${up ? `<button class="btn" type="button" data-act="upgrade" data-cost="${uc}">Upgrade to Lv ${l.lv + 1} · ${money(uc, false)}${(() => { const g = estProfit(l.b, l.lv + 1, lotMult()) - estProfit(l.b, l.lv, lotMult()); return g > 0 ? ` · +${money(g)}/min` : ''; })()}</button><span class="muted" style="font-size:12px">Each level makes it faster and fancier: ${['street lamps', 'banner flags', 'gold roof trim', 'a gold crown'][l.lv - 1]} next.</span>` : '<span class="chip gold">Max level: fully decked out</span>'}
     <button class="btn ${conf ? 'danger' : 'ghost'}" type="button" data-act="demolish">${conf ? `Tap again: tear down for ${money(l.spent * .4, false)} back` : 'Tear down'}</button>
@@ -3585,7 +3597,7 @@ const MODAL = {
         <span class="acts"><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="10">Sell 10</button><button class="btn ghost small" type="button" data-act="sell" data-p="${p}" data-q="all">Sell all</button><button class="btn small" type="button" data-act="buy" data-p="${p}" data-q="10">Buy 10</button></span></div>`;
     }).join('');
     return { sig, title: 'Market', html: `
-      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Millbrook is a big market: your steady selling barely moves a price, but dumping a huge pile at once pushes it down for a couple of minutes. When many players sell the same good, it drops for everyone (shown as “players”). Buying from the market costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling.</p>
+      <p class="m-sub">Prices move with the news and the market, the same for every player in Millbrook. Millbrook is a big market: your steady selling barely moves a price, but dumping a huge pile at once pushes it down for a couple of minutes. When many players sell the same good, it drops for everyone (shown as “players”). Buying by hand costs ${Math.round((NPC_MARKUP - 1) * 100)}% more than selling; a factory buying its own materials pays ${Math.round((FACTORY_MARKUP - 1) * 100)}% more.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="seg" role="group" aria-label="Which goods"><button type="button" data-act="mktf" data-v="mine" aria-pressed="${f === 'mine'}">Your goods</button><button type="button" data-act="mktf" data-v="all" aria-pressed="${f === 'all'}">All goods</button></div>
         <span class="muted" style="font-size:13px">Storage <b data-live="wht"></b> <button class="btn ghost small" type="button" data-act="sellspare" title="Sells everything in storage except what your own factories need">Sell all spare</button></span></div>
@@ -3769,7 +3781,7 @@ const HELP = [
   { art: () => bigArt(buildingPreview('planks', 3)), t: 'Make better goods', p: [
     'Open <b>Production</b> (P) to unlock new products.',
     '<b>Factories</b> turn goods into better goods: wood → planks → chairs → furniture → grand pianos.',
-    'A factory short of materials can <b>buy them</b> from the market, at 30% more.'] },
+    'A factory short of materials can <b>buy them</b> from the market, at 15% more.'] },
   { art: () => bigArt(buildingPreview('hq', 4)), t: 'Grow', p: [
     'Your <b>HQ</b> can run a limited number of building levels. Upgrade it to grow.',
     'You can make <b>5 different products</b> at once, so pick a direction.',
