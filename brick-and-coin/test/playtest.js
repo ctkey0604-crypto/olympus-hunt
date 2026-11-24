@@ -565,6 +565,41 @@ let URL;
   check(await page.evaluate(i => S.lots[i].b + S.lots[i].lv, room.lot) === 'chair1', 'then swaps the building');
   await ctx.close();
 
+  /* ---------------- v0.19: more than one company ---------------- */
+  {
+  console.log('Several companies');
+  ({ ctx, page } = await open(browser, 'group', { viewport: { width: 1280, height: 720 } }));
+  await newCompany(page, 'First Co');
+  await page.click('[data-act=tutdone]');
+  check(await page.evaluate(() => { S.goal = GOALS.length; S.cash = 5e5; return !('grp' in JSON.parse(serialize())) && !$('#cobar').offsetParent && /Level 3/.test(canFound('Second Co', 'ore', 50000)); }), 'one company: nothing new in the save, no switcher, and a second needs Level 3');
+  await page.evaluate(() => { S.level = 3; });
+  await page.click('.tb-co');
+  check(await page.textContent('#mTitle') === 'Your companies', 'the company’s name opens Your companies');
+  await page.fill('#mBody [data-slide="fnd.name"]', 'Second Co'); await page.click('#mBody [data-act=fstart][data-p=ore]');
+  const nw0 = await page.evaluate(() => netWorth()); await page.click('#mBody [data-act=found]');
+  await page.waitForFunction(() => S.company === 'Second Co');
+  const two = await page.evaluate(() => ({ nw: netWorth(), n: allCos().length, bar: !!$('#cobar').offsetParent, lv: S.level, made: Object.keys(S.unlocked).join(), val: levelValue() }));
+  check(two.n === 2 && two.bar && two.lv === 1 && two.made === 'ore' && Math.abs(two.nw - nw0) < 50 && two.val < 50, `founding opens the second town and moves money, it doesn’t make any ($${Math.round(nw0)} before, $${Math.round(two.nw)} after)`);
+  await shot(page, '18-second-company');
+  const put = await page.evaluate(() => { running = false; const a = netWorth(), l = levelValue(); const e = [takeMoney(S, 20000), putMoney(S, 5000), putMoney(S, 1e9), takeMoney(S, -5), takeMoney(S, NaN)]; return { e: e.join('|'), nw: netWorth() - a, lv: levelValue() - l, w: wallet() }; });
+  check(Math.abs(put.nw) < .01 && Math.abs(put.lv) < .01 && put.w === 0, 'your own money goes in and out without changing your net worth or the next level');
+  const speed = await page.evaluate(() => {   // a manager trained to 90% keeps 90% of the pace, less a tenth of the profit
+    const c = S; goCo(ROOT); const run = (min, tr) => { c.mgr = { tr, order: 'hold', paid: 0, t: 0 }; WT = 1e6; worldReset(); for (const k in CROWD_OWN) delete CROWD_OWN[k];
+      withCo(c, () => { S.level = 3; S.hqLv = 4; S.inv = {}; S.flow = { ore: 'sell' }; S.lots = S.lots.map(l => l && l.b === 'hq' ? l : null); let n = 0; for (let i = 0; i < LOTS && n < 10; i++) if (lotUnlocked(i) && !S.lots[i]) { S.lots[i] = { b: 'ore', lv: 3, prog: 0, running: false, stall: '', autoBuy: false, spent: 250 }; n++; } for (const q of PIDS) Object.assign(S.market[q], { sat: 0, bp: 0, hold: false }); S.prof.fill(0); });
+      const x = c.cash; for (let k = 0; k < min * 300; k++) step(.2); return (c.cash - x) / min; };
+    const full = run(6, 3), part = run(6, 2); return part / full; });
+  check(Math.abs(speed - .9) < .03, `a manager trained to 90% makes ${Math.round(speed * 100)}% of one at full speed`);
+  const kept = await page.evaluate(() => { goCo(allCos()[1]); const was = serialize(); adopt(JSON.parse(was)); return { here: S.company, first: ROOT.company, n: allCos().length, top: JSON.parse(was).company, same: Math.abs(netWorth() - (adopt(JSON.parse(was)), netWorth())) < .01 }; });
+  check(kept.here === 'Second Co' && kept.first === 'First Co' && kept.top === 'First Co' && kept.n === 2 && kept.same, 'a save keeps both, with the first one on top');
+  await page.evaluate(() => { running = true; });
+  await page.click('#cobar [data-act=gogo][data-i="0"]'); await page.waitForFunction(() => S.company === 'First Co');
+  await page.keyboard.press('2'); await page.waitForFunction(() => S.company === 'Second Co');
+  check(true, 'the bar and the number keys switch companies');
+  const shut = await page.evaluate(() => { const c = S, v = closeValue(c), w = wallet(), worth = coWorth(); const e = closeCo(c); return { e, got: wallet() - w, v, worth, n: allCos().length, here: S.company, root: closeCo(ROOT) }; });
+  check(shut.e === '' && Math.abs(shut.got - shut.v) < .01 && shut.got <= shut.worth + .01 && shut.n === 1 && shut.here === 'First Co' && shut.root !== '', 'closing one pays no more than it’s worth, and the first can’t be closed');
+  await ctx.close();
+  }
+
   /* ---------------- 7. other screens ---------------- */
   console.log('Phone on its side 844x390 (touch)');
   ({ ctx, page } = await open(browser, 'phone', { viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 }));
